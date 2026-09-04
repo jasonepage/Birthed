@@ -110,12 +110,12 @@ PRD.md  SRS.md  SDS.md  CLAUDE.md
 - **Identity content is the front door, rewards are the retention engine.** Not the other way round.
 - **No user-to-user contact of any kind** in version 1.0. No messaging, matching, rooms, feeds, following, or wishes. `PRD.md` section 4.4 has the evidence, which is three shipped competitors with two combined ratings.
 - **Silent anonymous account** on first launch. No sign-in wall in front of anything, ever.
-- **150 or more brands** at launch on a three-tier confidence model: Verified, Reported, Unconfirmed. Unconfirmed offers ship, clearly marked, with qualification tracking switched off.
+- **50 or more brands at the Verified tier is the gate to ship.** The catalog grows toward 150 or more after launch, published from the server with no application release, per `FR-138` and `FR-052a`. The three-tier confidence model, Verified, Reported and Unconfirmed, is unchanged. Unconfirmed offers ship, clearly marked, with qualification tracking switched off.
 - **Full day plan** with weather and routing is in version 1.0.
 - **Identity content from Wikidata**, not Wikipedia article text, for licensing reasons in `SDS.md` section 8.1. **Credit both anyway.**
 - **No celebrity photographs** in version 1.0. Names, years and descriptions only.
 - **App Store category:** Finance primary, Lifestyle secondary.
-- **Free tier:** all identity content. **Paid tier:** qualification tracking, deadline notifications, the day plan, and the catalog beyond a curated free 15.
+- **Free tier:** all identity content, the birthday morning notification (`FR-073`), one summary notification 45 days out (`FR-072`), and the day plan during the user's first birthday window only (`FR-141b`). **Paid tier:** qualification tracking, the per offer deadline ladder (`FR-071`), the day plan in every later cycle, and the catalog beyond a curated free 15.
 
 ---
 
@@ -139,6 +139,14 @@ Each of these exists because of something real, not as a style preference.
 
 **MapKit does not expose store hours.** This is verified, not assumed. Typical hours live on the `brands` row, curated by the pipeline, and must be labeled in the interface as typical for the brand rather than confirmed for that location.
 
+**Row level security is enabled on every table in the public schema, with no exceptions.** A policy written against a table that does not have it enabled does nothing at all, and Supabase publishes every public table through its automatic interface to the anonymous key that ships inside the app. Tables nothing should read, such as `events` and `terms_snapshots`, get row level security enabled and no policy, so only the service role can touch them.
+
+**Read birth date precision from the full statement, never from the truthy property.** Wikidata stores a birth date known only to the year as January 1 of that year with a precision value of 9. The truthy property `wdt:P569` hands that value back with no precision attached, so a month and day filter over it would put every year-only person on January 1. The importer walks `p:P569/psv:P569` and requires `wikibase:timePrecision` of 11.
+
+**A collection anchored redemption window has no end date until collection is recorded.** Dutch Bros runs 30 days from the day the reward was collected, which on the birthday morning has not happened yet. The window stays open until a collection date exists, and only then does the clock start. Anchoring it to the birthday instead drops the reward out of the day plan on the one day it is certainly available.
+
+**`CycleCalculator` is the only thing that decides `cycle_year`.** Carry-over requirements are written under the sentinel 0 and annually recurring ones under the real cycle year, and that choice comes from the offer's rules. Duplicating the decision anywhere else is how an annual requirement silently becomes permanent.
+
 ---
 
 ## 7. Slice 1, the current task
@@ -158,7 +166,7 @@ Do **not** build in this slice: accounts, offers, the catalog, notifications, th
 
 - The migration runs clean on a fresh database.
 - The importer inserts more than 10 rows for September 4, every row has a source and a license recorded, and no row has a birth date lacking day precision.
-- The day page renders in under 2 seconds from the network and under 300 milliseconds from cache.
+- The day page renders in under 2 seconds from the network. The 300 millisecond figure in `NFR-011` is not a slice 1 criterion, because slice 1 builds no cache.
 - The share image generates with the network disabled.
 - Attribution to Wikipedia and Wikidata is reachable within two taps.
 
@@ -178,6 +186,8 @@ LIMIT 50
 ```
 
 `P569` is date of birth and `P570` is date of death. Send a descriptive user agent with contact information, and respect the endpoint's rate limits.
+
+**The likely fix if it times out.** `MONTH()` and `DAY()` are computed over every entity in Wikidata carrying a birth date, which cannot use an index, against a 60 second limit. Stop computing them. Bind exact dates instead: one query per calendar date carrying a `VALUES` list of roughly 150 exact year values, which the index serves directly. Untested as of this writing, so test it before anything else. The shipped importer also reads precision from `p:P569/psv:P569` rather than from `wdt:P569`, for the January 1 reason in section 6.
 
 ---
 

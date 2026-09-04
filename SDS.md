@@ -92,7 +92,7 @@ These four types carry essentially all of the product's correctness risk, and no
 - **Auth** provides anonymous sign-in, which is what makes `FR-010` possible with no user-visible screen, and Sign in with Apple for the later upgrade path. Supabase supports converting an anonymous user into a permanent one while keeping the same user identifier, which means `FR-012` requires no data migration.
 - **Row level security** enforces `NFR-041` and `NFR-042` in the database rather than in application code.
 - **Edge Functions** run the content pipeline on a schedule. The app never calls them.
-- **Storage** is not used in version 1.0. See section 8 on why there are no images.
+- **Storage** holds no images in version 1.0, for the reasons in section 8. Its one use is the archived source documents in section 6.7, and only if those outgrow what is comfortable to keep in a table.
 
 **Client sync model.** The catalog is read-mostly and small. The client keeps a `last_synced_at` timestamp and requests rows changed since then. User state is written to local storage first and pushed opportunistically, per `NFR-022`.
 
@@ -180,6 +180,7 @@ create table profiles (
   birth_year        smallint,
   leap_observance   leap_observance not null default 'feb_28',
   region_code       text,              -- postal code or city+state, coarse
+  first_plan_cycle  smallint,          -- FR-141b: the cycle year whose day plan was given away
   created_at        timestamptz not null default now()
 );
 create index on profiles (birth_month, birth_day) where profile_type = 'HUMAN';
@@ -344,6 +345,14 @@ create table claims (
   cycle_year   smallint not null
 );
 
+create table user_offer_collections (
+  profile_id   uuid not null references profiles(id) on delete cascade,
+  offer_id     uuid not null references offers(id) on delete cascade,
+  cycle_year   smallint not null,
+  collected_on date not null,          -- FR-069, anchors a collection-dated window
+  primary key (profile_id, offer_id, cycle_year)
+);
+
 create table problem_reports (
   id           uuid primary key default gen_random_uuid(),
   profile_id   uuid not null references profiles(id) on delete set null,
@@ -362,26 +371,58 @@ This scheme is how `FR-065` works **without any scheduled reset job**. An annual
 
 The engine in section 7 must therefore look up each requirement under both the current cycle year and zero, taking whichever row exists.
 
+**One thing decides which of the two a row is written under.** `CycleCalculator` exposes a single function that takes a requirement key and the offer's rules and returns either the current cycle year or the sentinel zero, driven by the `recurs_annually` flag in the rule's parameters. Nothing else may make that choice. If the write path and the read path ever disagree about which year a requirement lives under, an annual requirement silently becomes permanent or a permanent one resets every year, and neither failure shows up anywhere in the interface.
+
 ### 6.6 Row level security
 
 ```sql
-alter table profiles enable row level security;
-alter table user_offer_states enable row level security;
-alter table claims enable row level security;
+-- Row level security is enabled on EVERY table in the public schema.
+-- A policy on a table that does not have it enabled does nothing, and
+-- Supabase publishes every public table to the anonymous key that ships
+-- inside the app. See NFR-042a.
+alter table profiles               enable row level security;
+alter table user_offer_states      enable row level security;
+alter table user_offer_collections enable row level security;
+alter table claims                 enable row level security;
+alter table problem_reports        enable row level security;
+alter table brands                 enable row level security;
+alter table offers                 enable row level security;
+alter table offer_rules            enable row level security;
+alter table notable_people         enable row level security;
+alter table historical_events      enable row level security;
+alter table terms_snapshots        enable row level security;
+alter table events                 enable row level security;
 
 create policy own_profile on profiles
   for all using (id = auth.uid());
 create policy own_states on user_offer_states
+  for all using (profile_id = auth.uid());
+create policy own_collections on user_offer_collections
   for all using (profile_id = auth.uid());
 create policy own_claims on claims
   for all using (profile_id = auth.uid());
 
 -- catalog and identity content: readable by anyone signed in, anonymous
 -- users included; writable only by the service role
-create policy read_offers on offers for select using (true);
-create policy read_rules  on offer_rules for select using (true);
-create policy read_people on notable_people for select using (true);
+create policy read_brands on brands            for select using (true);
+create policy read_offers on offers            for select using (true);
+create policy read_rules  on offer_rules       for select using (true);
+create policy read_people on notable_people    for select using (true);
+create policy read_hist   on historical_events for select using (true);
+
+-- problem reports are written by the owner and read by nobody but the
+-- service role, so there is an insert policy and no select policy
+create policy write_reports on problem_reports
+  for insert with check (profile_id = auth.uid());
+
+-- terms_snapshots and events carry NO policy at all. Row level security is
+-- on, so every client request against them is denied, and only the service
+-- role, which bypasses row level security, can read or write them.
 ```
+
+**Why the enable statements are listed one at a time.** Leaving one out is invisible. The table keeps working, the policies beside it read as though they are protecting it, and the anonymous key can read and write every row. `NFR-042a` therefore requires a test that queries the database catalog for public tables with row level security disabled and fails the build when that list is not empty. It is a cheap test and it is the only thing that catches a table added six months from now.
+
+**Rate limiting, per `NFR-043`.** The insert policy above does not hold a limit, so `problem_reports` needs a trigger that counts the profile's rows for the current day and raises an exception past 10. Holding the limit in the client would not survive anyone reading the network traffic.
 
 The twin count in `FR-026` cannot be a direct select against `profiles`, since row level security blocks it and exposing other profiles would violate the privacy design. It is a `security definer` function returning only an integer, with the `NFR-033` floor applied inside the function:
 
@@ -407,6 +448,28 @@ grant execute on function twin_count(integer, integer) to authenticated, anon;
 Two details that are easy to get wrong. **`set search_path` is mandatory on any `security definer` function.** Without it the function runs with the caller's search path while holding the definer's privileges, which is the standard privilege escalation pattern and is flagged by Supabase's own security advisor. And the parameters are declared `integer` rather than `smallint`, because Postgres will not implicitly resolve an integer literal from a generic client to a `smallint` parameter, so a `smallint` signature fails to find the function at call time.
 
 The sentinel of negative one renders as "fewer than 5" in the app. The exact number never leaves the database on rare dates.
+
+### 6.7 Archived source documents
+
+Stage 2 of the pipeline in section 10 archives the page it read, stage 4 matches every quotation against that archive by exact string, and the freshness watcher compares a fresh fetch against it. None of that works if the archive is thrown away, and a scheduled container on Render has no durable disk between runs. So the archive is a table.
+
+```sql
+create table terms_snapshots (
+  id             uuid primary key default gen_random_uuid(),
+  brand_id       uuid not null references brands(id),
+  source_url     text not null,
+  fetched_at     timestamptz not null default now(),
+  content_sha256 text not null,
+  content        text not null,
+  render_mode    text not null          -- 'plain' or 'headless'
+);
+create index on terms_snapshots (brand_id, fetched_at desc);
+create unique index on terms_snapshots (brand_id, content_sha256);
+```
+
+The hash is what turns the change watcher in section 10 into a comparison rather than a page a person has to re-read: fetch, hash, and if the hash differs from the newest stored snapshot for that brand, flag every offer citing it for review. The unique index on brand and hash means an unchanged page costs one row that is never written twice.
+
+`offer_rules.source_locator` becomes a character offset into a named snapshot, which is what keeps a quotation check reproducible months after the brand rewrote the page. This satisfies `FR-139`.
 
 ---
 
@@ -452,6 +515,8 @@ Modifiers are not user-actionable and are not requirements, but they are **not**
 6. If any outstanding requirement's last valid day is already past for this cycle, return `notEligibleThisCycle` naming that requirement and the date it lapsed, satisfying `FR-063` and `FR-064`.
 7. Otherwise return `actionNeeded` with the outstanding requirement whose last valid day is soonest, and that date, satisfying `FR-062`. Requirements with no deadline sort last.
 
+**A collection anchored window is not a qualification rule and must not be treated as one.** Dutch Bros runs 30 days from the day the reward was collected, so before collection there is no end date to compare anything against. A `redemption_window` whose anchor is `collection_date` is therefore treated as open until `user_offer_collections` holds a date for that offer and cycle, per `FR-069` and `FR-090`, and only then does the window close 30 days later. Getting this wrong in the obvious direction, by anchoring to the birthday, drops the reward out of the day plan on the birthday itself, which is the one day it is certainly available.
+
 **Why on the client.** It runs offline, it needs no round trip, it is trivially unit testable with fixture rules, and adding a new rule type requires only a server row plus a client release for the display string. Nothing about it benefits from running on a server.
 
 ---
@@ -480,11 +545,15 @@ This is a design decision, not a requirement. `NFR-062` is narrower than the dec
 
 A scheduled Edge Function queries the Wikidata query service endpoint for people with a date of birth precise to the day, one calendar date at a time, and upserts into `notable_people`.
 
-**Notability score** is the count of Wikipedia language editions that have an article about the person, which Wikidata exposes directly as sitelink count. It is a good, boring, defensible proxy: someone with articles in 80 languages is more notable than someone with two. It requires no editorial judgment and no model.
+**Do not filter with `MONTH()` and `DAY()`.** Those are computed over every entity in Wikidata carrying a birth date, which cannot use an index, against a 60 second query timeout. Bind exact dates instead: one query per calendar date carrying a `VALUES` list of roughly 150 exact year values, which the index serves directly. This is untested as of this writing and it is open question 1 in section 17, so it is the first thing slice 1 proves.
+
+**Notability score** starts from the count of Wikipedia language editions that have an article about the person, which Wikidata exposes directly as sitelink count. It is a good, boring, defensible proxy: someone with articles in 80 languages is more notable than someone with two. It requires no editorial judgment and no model.
+
+**Sitelink count alone is the wrong order, though.** It rewards the long dead and the internationally covered. The audience this product aims at, 25 to 34 by the competitive research, opens Famous Birthdays for modern figures who often carry articles in only a handful of languages. So the stored score is sitelinks combined with at least one recency term, living or born after a cutoff year, with the weights held as pipeline configuration rather than compiled in, per `FR-021` and `FR-130`. Slice 1 is where this gets judged: look at the top fifteen for September 4 and decide whether it reads as interesting or as an encyclopedia index.
 
 The import runs as a one-time backfill across all 366 dates, then monthly to catch new records. It is not a live query path. The query endpoint is rate limited and must never sit in front of a user request.
 
-`FR-131` is enforced at import: a record whose birth date precision is year-only or month-only is discarded.
+`FR-131` is enforced at import, and how it is enforced matters. Wikidata stores a birth date known only to the year as January 1 of that year, with a precision value of 9. The truthy property `wdt:P569` returns that value with no precision attached, so filtering the truthy property by month and day would fill January 1 with every person whose birth year is all anyone recorded. The importer therefore reads the full statement path, `p:P569/psv:P569`, and requires `wikibase:timePrecision` of 11, meaning day precision. Anything less is discarded.
 
 ---
 
@@ -516,6 +585,8 @@ The honest tradeoff is that typical hours are sometimes wrong for a specific loc
 
 WeatherKit, which is included with an Apple Developer Program membership at a generous free call allowance. It supplies the daily high in degrees Fahrenheit and hourly precipitation chance for `FR-095` and `FR-096`.
 
+Apple's terms require the Apple Weather attribution mark and a link to Apple's weather data attribution page on any screen showing this data. That is `NFR-063`, and it is the kind of omission that returns as a review rejection rather than as a bug report.
+
 ### 9.4 Assembly
 
 `DayPlanBuilder` is pure and takes everything as input: qualified offers, their redemption windows, brand typical hours, optional distances, optional forecast, and the current local time. It returns an ordered list plus advisories. It never calls a network. The feature layer gathers the inputs and hands them over, which keeps the ordering and at-risk logic in `FR-092` and `FR-094` fully unit testable against fixed clocks.
@@ -532,7 +603,8 @@ stage 1  DISCOVERY          model + search
          locate the brand's own loyalty terms page address
               │
 stage 2  FETCH              plain request, then headless browser on failure
-         archive the rendered page source with a retrieval timestamp
+         archive the rendered page source into terms_snapshots,
+         section 6.7, with a retrieval timestamp and a content hash
               │
 stage 3  EXTRACTION         model
          propose rules, each with a verbatim quotation and a locator
@@ -560,9 +632,9 @@ stage 5  HUMAN REVIEW       Jason
 
 **The reviewer approves a quotation-to-rule mapping, never a prose summary.** This is `FR-136` and it is what keeps review fast. Reading one sentence and confirming it means what the structured rule says is a few seconds of work. Reading a model's summary and deciding whether to trust it is not.
 
-**Reaching 150 offers.** The catalog target is 150 with at least 50 at the Verified tier, per `FR-052`. The three-tier design in `FR-045` is what makes that honest. Offers we have not fully confirmed still ship, visibly marked, with qualification tracking disabled and a warning attached. That is strictly better than the listicles, which present everything with identical confidence and are demonstrably wrong about Red Robin and Buffalo Wild Wings. The product promise becomes "we tell you what we know and what we do not," which is more defensible than a short list claiming perfection.
+**Reaching the launch catalog.** The gate to ship is 50 brands at the Verified tier, per `FR-052`. A total of 150 or more is a post launch target, reached by publishing rows from the server with no application release, per `FR-052a`. The three-tier design in `FR-045` is what makes that honest. Offers we have not fully confirmed still ship, visibly marked, with qualification tracking disabled and a warning attached. That is strictly better than the listicles, which present everything with identical confidence and are demonstrably wrong about Red Robin and Buffalo Wild Wings. The product promise becomes "we tell you what we know and what we do not," which is more defensible than a short list claiming perfection.
 
-**Freshness.** A nightly job downgrades any Verified offer whose `terms_last_verified_at` is more than 180 days old, per `FR-048`. Another job flags offers whose archived source document has changed since the last fetch, which is the cheapest possible early warning that a brand quietly rewrote its terms.
+**Freshness.** A nightly job downgrades any Verified offer whose `terms_last_verified_at` is more than 180 days old, per `FR-048`. Another job re-fetches each source, hashes it, and compares that hash against the newest row in `terms_snapshots`. A changed hash flags every offer citing that document for review, which is the cheapest possible early warning that a brand quietly rewrote its terms.
 
 ---
 
@@ -578,6 +650,8 @@ Consolidation in `FR-077` groups pending deadline notifications by fire date bef
 
 The iOS pending-request limit is 64. The scheduler must respect it by scheduling only the nearest 60 requests and rebuilding on each app foreground. With consolidation this is not a practical constraint, but it must not be discovered in production.
 
+**Two notifications are free and the rest are not.** The birthday morning notification in `FR-073` and the single 45 days out summary in `FR-072` are scheduled for every user regardless of entitlement. The per offer deadline ladder in `FR-071` is scheduled only when `hasPro` is true, and the scheduler rebuilds the whole set when the entitlement changes, exactly as it does when the birthday, the catalog or the time zone changes. The reasoning is in `PRD.md` section 15: a free user who never hears from the app has no occasion to come back and upgrade.
+
 ---
 
 ## 12. Client services: sharing, entitlements and payments
@@ -590,9 +664,11 @@ The share image is rendered on device with `ImageRenderer` over a SwiftUI view, 
 
 ### 12.2 Entitlements and payments
 
-StoreKit 2, with a single non-consumable auto-renewing annual subscription product. An `EntitlementStore` observes `Transaction.updates` and `Transaction.currentEntitlements` and publishes one boolean, `hasPro`. There is no receipt validation server, because StoreKit 2's on-device verification is signed by Apple and this product has no server-side entitlement to protect.
+StoreKit 2, with a single auto-renewable annual subscription product. Auto-renewable subscription is the App Store product type. Non-consumable is a different type and the two cannot be combined, which earlier drafts of this section did. An `EntitlementStore` observes `Transaction.updates` and `Transaction.currentEntitlements` and publishes one boolean, `hasPro`. There is no receipt validation server, because StoreKit 2's on-device verification is signed by Apple and this product has no server-side entitlement to protect.
 
-**What is gated, per `FR-141`:** the catalog beyond the free set, personal qualification tracking, deadline notifications, and the day plan. `FR-140` keeps every identity surface free with no entitlement check at all, because it is the funnel.
+**What is gated, per `FR-141`:** the catalog beyond the free set, personal qualification tracking, and the per offer deadline ladder. `FR-140` keeps every identity surface free with no entitlement check at all, because it is the funnel.
+
+**Two carve-outs, decided September 4, 2026.** The birthday morning notification and the 45 days out summary are free, per section 11. And the day plan is free during a user's first birthday window and paid in every window after it, per `FR-141b`, because the most common first user installs on their birthday morning and would otherwise meet a paywall about three minutes after installing, on the one day the app can help least. The grant is `profiles.first_plan_cycle`, written server side and holding the cycle year that was given away, so deleting and reinstalling the app does not grant it a second time. `FR-142` additionally forbids showing the paywall at all on the observed birthday during that first cycle.
 
 **Defining the free set, which `FR-141` previously left untestable.** "The first 15 offers" needs a deterministic order or a tester cannot say which 15 they are. The free set is therefore **not** a slice of a sorted list. It is an explicit flag, `is_free_tier boolean not null default false`, on `offers`, curated so the free set is a genuinely useful sample: the 15 highest-value Verified offers from distinct brands across at least four categories. This makes the free tier a product decision rather than an accident of sort order, makes it changeable from the server without an app release, and makes `FR-141` testable by counting rows where the flag is true.
 
@@ -651,7 +727,7 @@ Nothing else in this document accommodates agents. If the human product does not
 
 ## 16. Build order
 
-**Slice 1, the first vertical slice.** One calendar date, end to end. A Wikidata import for September 4 only, into `notable_people`, served through Supabase, rendered as a day page in SwiftUI, with the share image. No accounts, no offers, no notifications. This proves the content pipeline produces something worth looking at, which is the largest genuinely new unknown in the project, and it produces a shareable artifact in week one.
+**Slice 1, the first vertical slice.** One calendar date, end to end. A Wikidata import for September 4 only, into `notable_people`, served through Supabase, rendered as a day page in SwiftUI, with the share image. No accounts, no offers, no notifications. This proves the content pipeline produces something worth looking at, which is the largest genuinely new unknown in the project, and it produces a shareable artifact in week one. Slice 1 builds no cache, so the 300 millisecond figure in `NFR-011` is not one of its acceptance criteria.
 
 **Slice 2.** The domain module. `BirthdayCalendar` and its full test suite from `NFR-003`, plus onboarding, the anonymous account, and the countdown. Nothing user-visible is hard here, but every date bug in the product's future is prevented in this slice.
 
@@ -659,7 +735,7 @@ Nothing else in this document accommodates agents. If the human product does not
 
 **Slice 4.** The notification ladder, on top of slice 3.
 
-**Slice 5.** The pipeline worker and the catalog build-out to 150 brands. For the first 20 brands, review directly in the Supabase table editor rather than building a console. Build the purpose-made review screen only once the volume justifies it, which is somewhere past 100 rules.
+**Slice 5.** The pipeline worker and the catalog build-out to 50 verified brands, which is the gate to ship, with the tail toward 150 continuing after launch. For the first 20 brands, review directly in the Supabase table editor rather than building a console. Build the purpose-made review screen only once the volume justifies it, which is somewhere past 100 rules.
 
 **Slice 6.** The day plan, including the brand typical-hours curation pass, `MKLocalSearch` and WeatherKit.
 
@@ -669,9 +745,9 @@ Nothing else in this document accommodates agents. If the human product does not
 
 ## 17. Open technical questions
 
-1. **Wikidata query service rate limits for the initial backfill.** All 366 dates at up to 50 people each is a large one-time pull. It may need to run as a slow paced batch over several days, or come from a Wikidata database dump instead. This should be tested early in slice 1, since it is the only unknown that could change the plan.
+1. **Wikidata query service behavior for the initial backfill.** All 366 dates at up to 50 people each is a large one-time pull, and the starting query in `CLAUDE.md` section 7 filters with `MONTH()` and `DAY()`, which cannot use an index. The expected answer is to bind exact dates with a `VALUES` list instead, as section 8.3 describes. The fallbacks are a slow paced batch over several days, or a Wikidata database dump. Untested as of this writing, and it is the first thing slice 1 proves, since it is the only unknown that could change the plan.
 2. **SwiftData under a 150-offer catalog with nested rules.** Expected to be fine, but if migration behavior proves painful, the domain layer's independence means swapping to GRDB touches only the data layer.
 3. **`MKLocalSearch` result quality for chain names.** Searching a brand name near a user usually returns that brand's locations, but it is not contractually guaranteed and results for common words may be noisy. Needs a real-device check in slice 6.
 4. **Anonymous to permanent account conversion.** Supabase supports it, but the exact behavior when the same Apple identity already has a permanent account elsewhere needs testing before shipping Sign in with Apple.
 5. **WeatherKit call volume** against the included allowance, once the day plan is used by every user on their birthday. Expected to be far under, but worth measuring.
-6. **App Store category.** `PRD.md` argues for Lifestyle rather than the Finance category Freebird chose. This affects discovery and should be decided before submission.
+6. **Resolved, not open.** The App Store category was decided in `PRD.md` section 17: Finance primary, Lifestyle secondary, as a deliberate head-to-head placement against Freebird. This item is kept only so nobody reopens it from an older copy of this document.

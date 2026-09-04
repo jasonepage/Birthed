@@ -75,7 +75,7 @@ This document turns `PRD.md` into requirements an engineer can build and a teste
 
 **FR-020** The system must provide a day page for all 366 calendar dates, including February 29.
 
-**FR-021** Each day page must show notable people born on that calendar date, ordered by a stored notability score, descending.
+**FR-021** Each day page must show notable people born on that calendar date, ordered by a stored notability score, descending. The score must not be the raw Wikipedia sitelink count alone, because sitelink count favors long-dead and internationally covered figures over the modern figures this product's audience opens the app for. Its composition is defined in FR-130. Test: for 5 sample dates, confirm the top 15 entries are not composed exclusively of people who died before 1950.
 
 **FR-022** Each day page must show at least 10 and at most 50 people when that many exist in the data set. Test: load any date and confirm the count falls in range.
 
@@ -145,7 +145,9 @@ This document turns `PRD.md` into requirements an engineer can build and a teste
 
 **FR-051** The app must present a visible warning on any Unconfirmed offer stating that Birthed has not confirmed the offer exists.
 
-**FR-052** The catalog must contain offers from at least 150 distinct brands at launch, of which at least 50 brands must have an offer at the Verified tier. Test: count distinct brand identifiers among published offers, and count distinct brands having at least one Verified offer.
+**FR-052** The catalog must contain offers from at least 50 distinct brands at the Verified tier at launch. Test: count distinct brands having at least one published Verified offer and confirm the count is 50 or greater.
+
+**FR-052a** A total catalog of 150 or more distinct brands is a post launch target rather than a launch gate. It must be reachable by publishing rows from the server with no application release, per FR-138. Test: add a brand and its offers on the server and confirm an unchanged client build shows them after a refresh.
 
 **FR-053** The app must let the user filter the catalog by verification tier, and must default to showing all tiers with Verified first.
 
@@ -173,6 +175,8 @@ This document turns `PRD.md` into requirements an engineer can build and a teste
 
 **FR-068** The app must open the brand's signup page in the system browser or the brand's application when the user taps the action for an offer, and must return to the offer on re-entry so the user can mark it done. Test: tap the action, return to the app, and confirm the offer is still on screen with the mark-done control visible.
 
+**FR-069** The app must let the user record the date on which a reward was collected, and must store that date per offer and per cycle. This is required for any offer whose redemption window anchor is the collection date, because such a window has no end date until collection happens. Test: record a collection date for an offer with a 30 day collection-anchored window and confirm the window end is computed from that date rather than from the birthday.
+
 ---
 
 ## 8. Notifications
@@ -181,9 +185,9 @@ This document turns `PRD.md` into requirements an engineer can build and a teste
 
 **FR-071** The app must schedule a notification for each offer's real deadline rather than on a fixed generic schedule. Test: with one offer requiring 7 days advance signup and another requiring enrollment before the birthday month, confirm two separately dated notifications exist.
 
-**FR-072** The app must schedule a notification 45 days before the calendar birthday summarizing how many offers need action.
+**FR-072** The app must schedule a notification 45 days before the calendar birthday summarizing how many offers need action. This notification is free and must not require a paid entitlement, per FR-141. Test: with no entitlement, confirm the notification is scheduled.
 
-**FR-073** The app must schedule a notification on the morning of the user's **observed** birthday, meaning the calendar birthday resolved through the leap day observance setting for the target year, in the user's local time zone, at a user-configurable hour defaulting to 8:00 in the morning. Test: a February 29 user with the February 28 observance receives the notification on February 28 in a non-leap year and on February 29 in a leap year.
+**FR-073** The app must schedule a notification on the morning of the user's **observed** birthday, meaning the calendar birthday resolved through the leap day observance setting for the target year, in the user's local time zone, at a user-configurable hour defaulting to 8:00 in the morning. This notification is free and must not require a paid entitlement, per FR-141. Test: a February 29 user with the February 28 observance receives the notification on February 28 in a non-leap year and on February 29 in a leap year, with no entitlement present.
 
 **FR-074** All notification scheduling must be computed against the user's current local time zone, and the app must reschedule all pending notifications when the device time zone changes. Test: schedule notifications, change the device time zone by 8 hours, and confirm all fire times shift to preserve the intended local hour.
 
@@ -203,7 +207,7 @@ This document turns `PRD.md` into requirements an engineer can build and a teste
 
 ## 9. The birthday day plan
 
-**FR-090** On the user's observed birthday, the app must present a day plan containing every offer whose status is Qualified and whose redemption window includes the current local day.
+**FR-090** On the user's observed birthday, the app must present a day plan containing every offer whose status is Qualified and whose redemption window includes the current local day. An offer whose redemption window anchor is the collection date must be treated as open, and therefore included, until a collection date has been recorded under FR-069. Test: an offer with a collection-anchored 30 day window and no recorded collection date appears in the plan, and the same offer collected 31 days ago does not.
 
 **FR-091** Each day plan entry must show the reward, the brand, the redemption window closing time, and the nearest known location of that brand with its distance from the user.
 
@@ -265,9 +269,9 @@ This document turns `PRD.md` into requirements an engineer can build and a teste
 
 ## 12. Content and catalog pipeline, backend only
 
-**FR-130** The pipeline must import person records from Wikidata by date of birth, storing at minimum: source identifier, name, birth date, death date when present, a short description, and a notability score.
+**FR-130** The pipeline must import person records from Wikidata by date of birth, storing at minimum: source identifier, name, birth date, death date when present, a short description, and a notability score. The notability score must combine the Wikipedia sitelink count with at least one recency term, such as whether the person is living or was born after a cutoff year, and the weights must be stored as pipeline configuration rather than written into application code. Test: change a weight, re-run scoring, and confirm the day page order changes with no application release.
 
-**FR-131** The pipeline must reject any imported person record whose birth date lacks day precision. Test: a record with only a birth year must not be imported.
+**FR-131** The pipeline must reject any imported person record whose birth date lacks day precision, and must read that precision from the full Wikidata statement rather than from the truthy property. Wikidata stores a year-only birth date as January 1 of that year, and the truthy property returns that value with no precision attached, so a month and day filter over the truthy property would place every year-only person on January 1. Test: import January 1 and confirm no record is present whose Wikidata time precision is below day precision.
 
 **FR-132** The pipeline must store the license under which each imported record is used, and must expose it to the application for the attributions screen.
 
@@ -283,17 +287,21 @@ This document turns `PRD.md` into requirements an engineer can build and a teste
 
 **FR-138** The system must be able to publish a catalog update to clients without an application release. Test: change an offer's rules on the server and confirm the client reflects it on next refresh.
 
+**FR-139** The pipeline must store the fetched source document for every offer, with a content hash and a retrieval timestamp, and must retain it for as long as any published rule cites it. The quotation check in FR-133 and FR-134 must run against that stored document, and the freshness watcher must detect a changed source by comparing hashes rather than by a person reading the page. Test: fetch a page, alter it, fetch again, and confirm the change is detected with no human reading either version.
+
 ---
 
 ## 13. Entitlements and monetization
 
 **FR-140** The app must treat all identity content, meaning day pages, notable people, events, twin counts and the share image, as free with no entitlement check.
 
-**FR-141** The app must gate the following behind a paid entitlement: the catalog beyond the free set, personal qualification tracking, deadline notifications, and the day plan.
+**FR-141** The app must gate the following behind a paid entitlement: the catalog beyond the free set, personal qualification tracking, the per offer deadline notifications in FR-071, and the day plan except as provided in FR-141b. The notifications in FR-072 and FR-073 are free and must not be gated. Test: with no entitlement, confirm the FR-072 and FR-073 notifications are scheduled and that no FR-071 notification is.
 
 **FR-141a** The free set must be defined by an explicit per-offer flag on the server, not by position in a sorted list. It must contain exactly 15 offers, all at the Verified tier, from 15 distinct brands spanning at least 4 categories. Test: count offers flagged free and confirm the count, the tier, the distinct brand count and the category spread.
 
-**FR-142** The app must show the paywall only after the user has viewed at least one day page and one offer.
+**FR-141b** The day plan must be free during the user's first birthday window and gated in every window after it. The grant must be recorded server side against the profile, as the cycle year that was given away, so that deleting and reinstalling the application does not grant it again. Test: complete a first birthday window with no purchase and confirm the plan renders, then advance into the next cycle and confirm it is gated.
+
+**FR-142** The app must show the paywall only after the user has viewed at least one day page and one offer, and must not present it at all on the observed birthday during the free first cycle described in FR-141b. Test: install on the observed birthday, use the app through the day, and confirm no paywall appears.
 
 **FR-143** The app must offer an annual subscription and must state the renewal price and terms on the paywall.
 
@@ -357,7 +365,9 @@ This document turns `PRD.md` into requirements an engineer can build and a teste
 
 **NFR-042** The catalog and identity content must be readable by any authenticated client, including anonymous ones, and writable only by backend service roles.
 
-**NFR-043** Problem reports must be rate limited to 10 per user per day.
+**NFR-042a** Row level security must be enabled on every table in the database's public schema, including tables that carry no policy at all. A policy written against a table without row level security enabled has no effect, and every table in the public schema is reachable with the anonymous key that ships inside the application. Test: query the database catalog for tables in the public schema where row level security is disabled and confirm the result is empty. This test must run on every migration.
+
+**NFR-043** Problem reports must be rate limited to 10 per user per day, enforced in the database rather than in the client, since the client cannot be trusted to hold a limit. Test: submit 11 reports from one profile in one day and confirm the server rejects the eleventh.
 
 ### Accessibility
 
@@ -376,6 +386,8 @@ This document turns `PRD.md` into requirements an engineer can build and a teste
 **NFR-061** Attribution for Wikipedia and Wikidata content must be present wherever that content appears, and the license text must be reachable from the attributions screen.
 
 **NFR-062** The application must not cache brand logos or celebrity images without a recorded license basis for each.
+
+**NFR-063** Any screen displaying WeatherKit data must show the Apple Weather attribution mark and must link to Apple's weather data attribution page, which Apple's terms require. Test: open the day plan with a forecast present and confirm both the mark and a working link are visible on the same screen as the forecast.
 
 ### Analytics
 
@@ -408,8 +420,8 @@ Recorded so that scope creep is visible. Any of these appearing in a build is a 
 |---|---|
 | 10.1 Day page | FR-020 to FR-031, FR-130 to FR-132 |
 | 10.2 Your day | FR-032 to FR-037 |
-| 10.3 Reward catalog | FR-040 to FR-054, FR-133 to FR-138 |
-| 10.4 Qualification tracking | FR-060 to FR-068 |
+| 10.3 Reward catalog | FR-040 to FR-054, FR-133 to FR-139 |
+| 10.4 Qualification tracking | FR-060 to FR-069 |
 | 10.5 Deadline ladder | FR-070 to FR-080 |
 | 10.6 Day plan | FR-090 to FR-101 |
 | 10.7 Share card | FR-115 to FR-118 |
@@ -420,7 +432,7 @@ Recorded so that scope creep is visible. Any of these appearing in a build is a 
 | 16.4 Technical risks | NFR-001 to NFR-004 |
 | 9 Journeys A to D, onboarding | FR-001 to FR-009 |
 | 10.9 Three-tab shape | FR-015, FR-016 |
-| 3 Accounts and deletion | FR-010 to FR-014, NFR-041, NFR-042 |
+| 3 Accounts and deletion | FR-010 to FR-014, NFR-041, NFR-042, NFR-042a |
 | 16.1 Retention measurement | NFR-070, NFR-071 |
 | 13 Privacy commitments | NFR-030 to NFR-035 |
 | Polish over features | NFR-010 to NFR-013, NFR-050 to NFR-053 |

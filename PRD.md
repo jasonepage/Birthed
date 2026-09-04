@@ -260,7 +260,7 @@ The Starbucks card is the proof. Per Starbucks' own terms effective March 10, 20
 
 Two further notes. The Sephora card shows "$25 reward," the same figure as Sephora's online minimum spend, so it may be a value estimate or a conflation. Unconfirmed. And nothing on the tab tracks whether the user has satisfied a requirement. Saved appears to be bookmarking, not qualification state.
 
-**Strategic read.** Freebird is a deals app that includes birthdays, listed under Finance. Birthed is a birthday app that includes deals, and belongs in Lifestyle. Freebird owns nothing on the day itself and nothing about identity: no plan, no store hours, no travel sequencing, no weather, no rain fallback, no twins, nothing shareable.
+**Strategic read.** Freebird is a deals app that includes birthdays. Birthed is a birthday app that includes deals. Both are listed under Finance, which is the deliberate head-to-head placement decided in section 17, with Lifestyle as the secondary category. Freebird owns nothing on the day itself and nothing about identity: no plan, no store hours, no travel sequencing, no weather, no rain fallback, no twins, nothing shareable.
 
 **The uncomfortable part.** Freebird's year round scope solves the retention problem structurally. They use the birthday as one hook inside a 365 day product. Draft 1 proposed a birthday product with no reason to be opened in March. Draft 2's answer is section 14, and it has to be good.
 
@@ -303,7 +303,7 @@ This journey matters because it is the only one that produces a user who is not 
 1. Marcus installs on his birthday morning after searching for birthday freebies.
 2. Most signup deadlines have passed. The app cannot fix that.
 3. It says so plainly: **4 rewards needed a signup you missed this year. Here are 5 you can still get today.** It does not pretend.
-4. It gives him a plan for the 5 that still work, and it shows him his day: who he shares it with, what happened on it. **That part still works on a birthday morning**, which is exactly why identity is the front door and rewards are not.
+4. It gives him a plan for the 5 that still work, free, because the day plan is not paywalled during a user's first birthday window. It shows him his day: who he shares it with, what happened on it. **That part still works on a birthday morning**, which is exactly why identity is the front door and rewards are not.
 5. At the end: **next year I start reminding you 45 days out, and you qualify for all 9.**
 
 Turning the miss into the hook is the central design problem of the first run.
@@ -334,7 +334,7 @@ Your birthday. A countdown. Your famous twins. Your reward status in one line. O
 
 ### 10.3 Reward catalog with real qualification rules
 
-**150 or more United States national chains at launch, of which at least 50 are fully verified.** The three-tier confidence model in `SRS.md` FR-045 is what makes that honest rather than reckless. An offer we have not confirmed still ships, visibly marked Unconfirmed, with a warning attached and qualification tracking switched off. That is strictly better than the listicles, which present everything with identical confidence and are demonstrably wrong about Red Robin and Buffalo Wild Wings. The promise becomes "we tell you what we know and what we do not," which is more defensible than a short list claiming perfection.
+**At least 50 United States national chains fully verified at launch, growing toward 150 or more afterward.** Decided September 4, 2026. The Verified 50 is the gate to ship, and the tail publishes from the server with no application release, per `SRS.md` FR-052a and FR-138. The reasoning is that FR-050 already switches qualification tracking off for Unconfirmed offers, so the tail past 50 adds rows rather than value on day one, and there is one reviewer. The three-tier confidence model in `SRS.md` FR-045 is what makes that honest rather than reckless. An offer we have not confirmed still ships, visibly marked Unconfirmed, with a warning attached and qualification tracking switched off. That is strictly better than the listicles, which present everything with identical confidence and are demonstrably wrong about Red Robin and Buffalo Wild Wings. The promise becomes "we tell you what we know and what we do not," which is more defensible than a short list claiming perfection.
 
 Every offer stores its rules as structured data covering at minimum:
 
@@ -395,7 +395,7 @@ Three tabs. **Today** (the day page for today, the daily-open reason), **Mine** 
 
 ## 12. Future versions
 
-**Version 1.5, roughly three months post launch.** Friends' birthdays, with the qualification engine pointed at gift timing. Reward expiry notifications, since Dutch Bros gives 30 days from collection and IHOP's points expire in 365 days, which is a legitimate post-birthday notification stream.
+**Version 1.5, roughly three months post launch.** Friends' birthdays, with the qualification engine pointed at gift timing. Reward expiry notifications, since Dutch Bros gives 30 days from collection and IHOP's points expire in 365 days, which is a legitimate post-birthday notification stream. Version 1.0 already records the collection date, per `SRS.md` FR-069, so this stream has an anchor to count from.
 
 **Version 2.** The artificial intelligence concierge, reasoning over the verified catalog, confirmed qualification state, weather, budget and interests. It must cite which verified record it drew on and must never state a rule absent from the catalog. Also activity risk scoring, starting with fishing and thrifting, only in markets where the underlying data exists.
 
@@ -449,7 +449,7 @@ The two legs are complementary rather than redundant. Leg one produces intense e
 
 Nothing here is proven. The direction change splits the app cleanly, which helps: **the free half is the growth engine, the paid half is the utility.**
 
-**Hypothesis A: subscription on the utility, the primary bet.** Free gets the day page, your day, famous twins, the share card, and a limited set of rewards. Paid gets the full catalog, qualification tracking, all deadline notifications, and the day plan. Free gets no deadline notifications at all, which is the sharpest line in the product and the main reason to upgrade. Annual pricing fits a once-a-year value moment better than monthly, around $9.99 a year. The identity content stays free forever because it is the funnel and it wants to be shared. The open question is real: will people pay for value they collect on one day?
+**Hypothesis A: subscription on the utility, the primary bet.** Free gets the day page, your day, famous twins, the share card, and a limited set of rewards. Paid gets the full catalog, qualification tracking, the per offer deadline ladder, and the day plan in every cycle after the first. Free gets the birthday morning notification and one summary 45 days out, and no other notifications. The per offer deadline ladder is the sharpest line in the product and the main reason to upgrade. Decided September 4, 2026, on the reasoning that a free user who never hears from the app never comes back to be converted, and that the 45 day summary saying seven rewards need action is the paywall's best sales moment. Annual pricing fits a once-a-year value moment better than monthly, around $9.99 a year. The identity content stays free forever because it is the funnel and it wants to be shared. The open question is real: will people pay for value they collect on one day?
 
 **Hypothesis B: loyalty program referral, the most natural fit.** The app's core action is getting people to sign up for loyalty programs, which has real value to those brands. The revenue event and the user value event are the same event, which is close to ideal. **Whether affiliate arrangements exist for these specific brands is unverified and must be checked before it is counted on.**
 
@@ -512,12 +512,12 @@ Covered in `SDS.md`. In short: the freshness pipeline is the real risk, not the 
 **Decided September 4, 2026:**
 
 - **Day page depth.** 10 to 50 people per date, plus up to 5 events, sourced from Wikidata with Wikipedia and Wikidata both credited. Wikipedia article text is not used, for the licensing reason in `SDS.md` section 8.1.
-- **Catalog size.** 150 or more at launch, at least 50 verified, using the three-tier confidence model.
+- **Catalog size.** At least 50 brands at the Verified tier is the gate to ship. 150 or more is a post launch target, published from the server with no application release. Revised September 4, 2026.
 - **Day plan.** Full scheduler with weather and routing ships in version one.
 - **Accounts.** Silent anonymous account on first launch, Sign in with Apple offered later from settings. No sign-in wall anywhere.
 - **First vertical slice.** The day page, end to end.
 - **Backend.** Supabase.
-- **Free tier boundary.** Identity content free, utility paid, as proposed in section 15.
+- **Free tier boundary.** Identity content free, utility paid, as proposed in section 15, with two carve-outs decided September 4, 2026: the birthday morning notification and one 45 days out summary are free, and the day plan is free during a user's first birthday window only.
 - **Human review.** Jason reviews, but the language model is the primary aggregator at every stage before review, including discovering candidate brands and drafting the rules. See `SDS.md` section 10.
 - **Brand operating hours** are gathered by the pipeline alongside the reward terms, not by a separate manual pass.
 - **App Store category.** Finance primary, Lifestyle secondary. Freebird also chose Finance, so this is a deliberate head-to-head placement in the category where deal-seekers already browse.
