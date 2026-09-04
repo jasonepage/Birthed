@@ -43,7 +43,7 @@ struct ShareCardView: View {
             VStack(alignment: .leading, spacing: 26) {
                 ForEach(people) { person in
                     HStack(alignment: .firstTextBaseline, spacing: 22) {
-                        Text(person.birthYear.map(String.init) ?? "")
+                        Text(person.birthYear.map { String($0) } ?? "")
                             .font(.system(size: 30, weight: .semibold, design: .monospaced))
                             .foregroundStyle(accent)
                             .frame(width: 110, alignment: .leading)
