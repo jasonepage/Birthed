@@ -1,0 +1,17 @@
+# macOS
+.DS_Store
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+build/
+DerivedData/
+
+# Secrets. See CLAUDE.md section 9. Never commit these.
+Birthed/Config/Secrets.swift
+worker/.env
+.env
+
+# Node
+node_modules/
+dist/

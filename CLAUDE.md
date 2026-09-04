@@ -33,7 +33,7 @@ Do not re-derive product decisions. They are made. Section 5 below lists them.
 | Interface | SwiftUI | `@Observable`, not `ObservableObject` |
 | Minimum target | iOS 17.0 | Buys Observation, SwiftData, current WeatherKit |
 | Local storage | SwiftData | Cache only. Never in the Domain layer |
-| Backend client | `supabase-swift` via Swift Package Manager | Official Supabase package |
+| Backend client | `supabase-swift` via Swift Package Manager | Official Supabase package. Slice 1 reads the REST interface with `URLSession` instead, because it has no accounts and no realtime, so the package would add a dependency and buy nothing. It arrives in slice 2 with the anonymous account, and replaces one file |
 | Payments | StoreKit 2 | One annual auto-renewing subscription. No receipt server |
 | Weather | WeatherKit | Included with the developer program. Degrees Fahrenheit only |
 | Maps | MapKit, `MKLocalSearch` | Nearest branch only. **It does not return store hours**, see section 6 |
@@ -219,6 +219,17 @@ ANTHROPIC_API_KEY=            # worker only
 ```
 
 The iOS app uses only the anonymous key and relies on row level security. **If the service role key ever appears in the app target, that is a security incident, not a bug.**
+
+**Where each one lives.** The worker reads them from `worker/.env`, which is gitignored, and `worker/.env.example` shows the shape. The iOS app reads them from `Birthed/Config/Secrets.swift`, which is also gitignored, and which is one enum:
+
+```swift
+enum Secrets {
+    static let supabaseURL = URL(string: "https://<project>.supabase.co")!
+    static let supabaseAnonKey = "<anonymous key>"
+}
+```
+
+**The project.** Supabase project `Birthed`, reference `lunqqhjwqrpbujwxwdzk`, region us-west-1, created September 4, 2026. Neither the reference nor the project address is secret. The keys are in the dashboard under Project Settings, API Keys.
 
 Apple capabilities needed: WeatherKit, Sign in with Apple, Push Notifications not required.
 

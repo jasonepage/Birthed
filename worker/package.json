@@ -1,0 +1,20 @@
+{
+  "name": "birthed-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Birthed content and catalog pipeline worker. Slice 1 imports notable people from Wikidata.",
+  "engines": {
+    "node": ">=22.6.0"
+  },
+  "scripts": {
+    "import:day": "node --experimental-strip-types src/import-day.ts",
+    "import:today": "node --experimental-strip-types src/import-day.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test test/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  }
+}
