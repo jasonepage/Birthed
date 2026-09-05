@@ -19,6 +19,13 @@
 const ENDPOINT = "https://en.wikipedia.org/w/api.php";
 const BATCH = 50;
 const DAYS = 60;
+/**
+ * How many times to follow the interface's continue token for one batch.
+ *
+ * Fifty titles takes about three. The cap is here so a token that never
+ * clears cannot turn one date into an infinite loop.
+ */
+const MAX_ROUNDS = 12;
 
 export interface PageviewsPage {
   title?: string;
@@ -31,6 +38,13 @@ interface TitleMapping {
 }
 
 export interface PageviewsResponse {
+  /**
+   * Present when the answer is partial. The interface names every title that
+   * was asked about but attaches readings to only some of them, and expects
+   * to be asked again with these parameters for the rest.
+   */
+  continue?: Record<string, string>;
+  batchcomplete?: boolean;
   query?: {
     /**
      * An array under formatversion 2 and an object keyed by page id under the
@@ -82,11 +96,13 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function fetchBatch(
+/** One round trip. Null when the interface would not answer. */
+async function requestRound(
   titles: string[],
   userAgent: string,
+  carry: Record<string, string>,
   attempt = 1,
-): Promise<Map<string, number>> {
+): Promise<PageviewsResponse | null> {
   const query = new URLSearchParams({
     action: "query",
     format: "json",
@@ -95,6 +111,7 @@ async function fetchBatch(
     pvipdays: String(DAYS),
     redirects: "1",
     titles: titles.join("|"),
+    ...carry,
   });
 
   const response = await fetch(`${ENDPOINT}?${query}`, {
@@ -102,14 +119,42 @@ async function fetchBatch(
   });
 
   if (response.status === 429 || response.status >= 500) {
-    if (attempt >= 4) return new Map();
+    if (attempt >= 4) return null;
     await sleep(attempt * 1500);
-    return fetchBatch(titles, userAgent, attempt + 1);
+    return requestRound(titles, userAgent, carry, attempt + 1);
   }
-  if (!response.ok) return new Map();
+  if (!response.ok) return null;
 
-  const payload = (await response.json()) as PageviewsResponse;
-  return viewsByRequestedTitle(titles, payload);
+  return (await response.json()) as PageviewsResponse;
+}
+
+/**
+ * Everything the interface will say about these titles, however many round
+ * trips that takes.
+ *
+ * It answers partially and says so. Ask for twenty five titles and it names
+ * all twenty five, attaches readings to eighteen, and hands back a continue
+ * token for the rest. Reading the first answer and stopping loses the
+ * remainder, and the loss is invisible: a page with no readings attached
+ * looks exactly like a page nobody reads.
+ *
+ * That is the third time in this file that a partial answer has been read as
+ * a complete one, so the loop is bounded and the rounds it took are worth
+ * knowing about.
+ */
+async function fetchBatch(titles: string[], userAgent: string): Promise<Map<string, number>> {
+  const rounds: PageviewsResponse[] = [];
+  let carry: Record<string, string> = {};
+
+  for (let round = 0; round < MAX_ROUNDS; round += 1) {
+    const payload = await requestRound(titles, userAgent, carry);
+    if (payload === null) break;
+    rounds.push(payload);
+    if (payload.continue === undefined) break;
+    carry = payload.continue;
+  }
+
+  return viewsByRequestedTitle(titles, rounds);
 }
 
 /**
@@ -127,18 +172,24 @@ async function fetchBatch(
  */
 export function viewsByRequestedTitle(
   titles: string[],
-  payload: PageviewsResponse,
+  rounds: PageviewsResponse[],
 ): Map<string, number> {
-  const raw = payload.query?.pages;
-  const pages: PageviewsPage[] = Array.isArray(raw) ? raw : Object.values(raw ?? {});
-
   const byAnsweredTitle = new Map<string, number>();
-  for (const page of pages) {
-    if (!page.title) continue;
-    byAnsweredTitle.set(page.title, averageMonthlyViews(page.pageviews));
+  const alias = new Map<string, string>();
+
+  for (const payload of rounds) {
+    const raw = payload.query?.pages;
+    const pages: PageviewsPage[] = Array.isArray(raw) ? raw : Object.values(raw ?? {});
+    for (const page of pages) {
+      // A page with no readings attached is one this round did not cover, not
+      // a page nobody reads. Skipping it leaves it for a later round instead
+      // of writing a zero over it.
+      if (!page.title || page.pageviews === undefined) continue;
+      byAnsweredTitle.set(page.title, averageMonthlyViews(page.pageviews));
+    }
+    for (const [from, to] of mappings(payload)) alias.set(from, to);
   }
 
-  const alias = mappings(payload);
   const views = new Map<string, number>();
   for (const asked of titles) {
     views.set(asked, byAnsweredTitle.get(followMappings(asked, alias)) ?? 0);

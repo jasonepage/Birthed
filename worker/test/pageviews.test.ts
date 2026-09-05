@@ -70,24 +70,24 @@ const REAL_ANSWER = {
 };
 
 test("a normalised title is matched back to the title that was asked for", () => {
-  const views = viewsByRequestedTitle(["Kim_Kardashian", "Logan_Paul"], REAL_ANSWER);
+  const views = viewsByRequestedTitle(["Kim_Kardashian", "Logan_Paul"], [REAL_ANSWER]);
   assert.equal(views.get("Kim_Kardashian"), 210_000);
   assert.equal(views.get("Logan_Paul"), 60_000);
 });
 
 test("a redirect is followed to the article that actually holds the readings", () => {
-  const views = viewsByRequestedTitle(["OutKast"], REAL_ANSWER);
+  const views = viewsByRequestedTitle(["OutKast"], [REAL_ANSWER]);
   assert.equal(views.get("OutKast"), 30_000);
 });
 
 test("a title that needed no renaming still works", () => {
-  const views = viewsByRequestedTitle(["Artsvik"], REAL_ANSWER);
+  const views = viewsByRequestedTitle(["Artsvik"], [REAL_ANSWER]);
   assert.equal(views.get("Artsvik"), 165);
 });
 
 test("every title asked about gets an answer, and an unknown one is zero", () => {
   const asked = ["Kim_Kardashian", "Nobody_At_All"];
-  const views = viewsByRequestedTitle(asked, REAL_ANSWER);
+  const views = viewsByRequestedTitle(asked, [REAL_ANSWER]);
   assert.deepEqual([...views.keys()], asked, "keyed by what was asked, always");
   assert.equal(views.get("Nobody_At_All"), 0);
 });
@@ -136,4 +136,50 @@ test("a date nobody has been looked up on yet is not flagged", () => {
 
 test("a handful of rows is too few to conclude anything from", () => {
   assert.equal(pageviewLookupLooksBroken([row("Artsvik", 172)]), false);
+});
+
+// The second half of the same failure. The interface names every title it was
+// asked about but attaches readings to only some of them, and hands back a
+// continue token for the rest. This is the real shape: 25 asked for, readings
+// on some, `continue` present, and the rest arriving in a second round.
+const ROUND_ONE = {
+  continue: { continue: "||", pvipcontinue: "Nemanja_Vidić" },
+  query: {
+    normalized: [
+      { from: "Kim_Kardashian", to: "Kim Kardashian" },
+      { from: "Nemanja_Vidić", to: "Nemanja Vidić" },
+    ],
+    pages: [
+      { title: "Kim Kardashian", pageviews: { a: 7000, b: 7000 } },
+      // Named, but no readings attached. This round did not cover them.
+      { title: "Nemanja Vidić" },
+    ],
+  },
+};
+
+const ROUND_TWO = {
+  batchcomplete: true,
+  query: {
+    normalized: [{ from: "Nemanja_Vidić", to: "Nemanja Vidić" }],
+    pages: [
+      { title: "Kim Kardashian", pageviews: { a: 7000, b: 7000 } },
+      { title: "Nemanja Vidić", pageviews: { a: 900, b: 900 } },
+    ],
+  },
+};
+
+test("a title the first round did not cover is not written off as a zero", () => {
+  const first = viewsByRequestedTitle(["Kim_Kardashian", "Nemanja_Vidić"], [ROUND_ONE]);
+  assert.equal(first.get("Nemanja_Vidić"), 0, "one round alone cannot answer for it");
+
+  const both = viewsByRequestedTitle(["Kim_Kardashian", "Nemanja_Vidić"], [ROUND_ONE, ROUND_TWO]);
+  assert.equal(both.get("Nemanja_Vidić"), 27_000, "the second round carries the reading");
+  assert.equal(both.get("Kim_Kardashian"), 210_000, "and the first round's is kept");
+});
+
+test("a page named with no readings never overwrites one that has them", () => {
+  // Rounds in the other order, which is the case that would silently blank a
+  // real reading if the empty page were treated as a zero.
+  const views = viewsByRequestedTitle(["Nemanja_Vidić"], [ROUND_TWO, ROUND_ONE]);
+  assert.equal(views.get("Nemanja_Vidić"), 27_000);
 });
