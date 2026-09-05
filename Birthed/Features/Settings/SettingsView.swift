@@ -8,6 +8,11 @@ import UIKit
 /// controls doing one control's job. The row is the control. Text you can edit
 /// is edited in place and saved as you type.
 struct SettingsView: View {
+    /// Asked for when the person wants the opening reveal again. The root
+    /// presents it, because it replaces the whole screen and this sheet has
+    /// to go first.
+    var onReplayReveal: (() -> Void)? = nil
+
     @Environment(ProfileStore.self) private var profileStore
     @Environment(AccountService.self) private var account
     @Environment(PeopleStore.self) private var peopleStore
@@ -25,12 +30,25 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 if let profile {
-                    Section("Your day") {
+                    Section {
                         NavigationLink {
                             BirthdayEditor(profile: profile) { save($0) }
                         } label: {
                             LabeledContent("Birthday", value: birthdayLine(profile))
                         }
+                        if let onReplayReveal {
+                            Button {
+                                commitRegion()
+                                dismiss()
+                                onReplayReveal()
+                            } label: {
+                                Label("Play the reveal again", systemImage: "play.circle")
+                            }
+                        }
+                    } header: {
+                        Text("Your day")
+                    } footer: {
+                        Text("The reveal is the opening: the wheels, the day of the week, and what was number one the week you were born. Finishing it saves whatever the wheels say, so it is also a way to change your day.")
                     }
 
                     Section {

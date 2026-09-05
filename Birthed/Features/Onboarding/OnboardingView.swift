@@ -30,10 +30,28 @@ struct OnboardingView: View {
     let onFinish: (Profile) -> Void
 
     @State private var step: Step = .day
-    @State private var month = 9
-    @State private var day = 4
-    @State private var observance: LeapObservance = .february28
-    @State private var year: Int = OnboardingView.thisYear - 19
+    @State private var month: Int
+    @State private var day: Int
+    @State private var observance: LeapObservance
+    @State private var year: Int
+
+    /// A first run starts on September 4 and nineteen years ago. A replay
+    /// from Settings starts on the day and year already saved, so the
+    /// wheels are already right and the reveal is the point.
+    init(repository: DayPageRepository, starting profile: Profile? = nil, onFinish: @escaping (Profile) -> Void) {
+        self.repository = repository
+        self.onFinish = onFinish
+        let birthday = profile?.birthday
+        _month = State(initialValue: birthday?.date.month ?? 9)
+        _day = State(initialValue: birthday?.date.day ?? 4)
+        _observance = State(initialValue: birthday?.leapObservance ?? .february28)
+        _year = State(initialValue: birthday?.year ?? (OnboardingView.thisYear - 19))
+        _region = State(initialValue: profile?.regionCode)
+    }
+
+    /// Carried through a replay untouched, since onboarding no longer asks
+    /// for it and finishing must not erase what Settings holds.
+    @State private var region: String?
 
     @State private var twins: [NotablePerson] = []
     @State private var song: ChartWeek?
@@ -367,7 +385,7 @@ struct OnboardingView: View {
     private func finish(with birthday: CalendarBirthday) {
         twinsTask?.cancel()
         songTask?.cancel()
-        onFinish(Profile(birthday: birthday, regionCode: nil))
+        onFinish(Profile(birthday: birthday, regionCode: region))
     }
 
     /// Waits for the wheel to stop before asking, so a flick through six

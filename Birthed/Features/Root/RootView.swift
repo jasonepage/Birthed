@@ -21,6 +21,11 @@ struct RootView: View {
 
     @State private var tab: Tab = .today
     @State private var showingSettings = false
+    @State private var replayingReveal = false
+    /// Set by Settings, acted on once the sheet has gone. Presenting a full
+    /// screen cover while a sheet is still dismissing is dropped on the floor
+    /// by the system, so the two are sequenced through onDismiss.
+    @State private var replayRequested = false
 
     enum Tab: Hashable { case today, mine, people }
 
@@ -39,7 +44,21 @@ struct RootView: View {
                 }
             }
         }
-        .sheet(isPresented: $showingSettings) { SettingsView() }
+        .sheet(isPresented: $showingSettings, onDismiss: {
+            if replayRequested {
+                replayRequested = false
+                replayingReveal = true
+            }
+        }) {
+            SettingsView(onReplayReveal: { replayRequested = true })
+        }
+        .fullScreenCover(isPresented: $replayingReveal) {
+            OnboardingView(repository: repository, starting: profileStore.profile) { profile in
+                profileStore.save(profile)
+                Task { await account.pushProfile(profile) }
+                replayingReveal = false
+            }
+        }
         .task {
             // FR-010. Silent, on first launch, with no screen and no action.
             await account.ensureAccount()
