@@ -13,11 +13,6 @@ struct SupabaseRestDayPageRepository: DayPageRepository {
     private let anonKey: String
     private let session: URLSession
 
-    /// The only chart there is so far. Named once here rather than spelled out
-    /// at each call site, because it is also a value in a database column and
-    /// a typo would silently return nothing at all.
-    private static let chart = "Billboard Hot 100"
-
     init(
         baseURL: URL = Secrets.supabaseURL,
         anonKey: String = Secrets.supabaseAnonKey,
@@ -111,7 +106,7 @@ struct SupabaseRestDayPageRepository: DayPageRepository {
         }
     }
 
-    // MARK: The number one song
+    // MARK: The number ones
 
     private struct ChartRow: Decodable {
         let chart_date: String
@@ -127,14 +122,14 @@ struct SupabaseRestDayPageRepository: DayPageRepository {
     /// Deciding whether that answer is actually about that week is the
     /// domain's job and not the network's, so the row is handed to
     /// `ChartWeek.covers` and dropped when it does not hold.
-    func numberOneSong(theWeekOf birthDate: CalendarDate, birthYear: Int) async throws -> ChartWeek? {
+    func numberOne(on chart: ChartWeek.Chart, theWeekOf birthDate: CalendarDate, birthYear: Int) async throws -> ChartWeek? {
         let onOrAfter = String(format: "%04d-%02d-%02d", birthYear, birthDate.month, birthDate.day)
 
         let rows: [ChartRow] = try await fetch(
             from: "chart_weeks",
             query: [
                 URLQueryItem(name: "select", value: "chart_date,song,artist"),
-                URLQueryItem(name: "chart_name", value: "eq.\(Self.chart)"),
+                URLQueryItem(name: "chart_name", value: "eq.\(chart.rawValue)"),
                 URLQueryItem(name: "chart_date", value: "gte.\(onOrAfter)"),
                 URLQueryItem(name: "order", value: "chart_date.asc"),
                 URLQueryItem(name: "limit", value: "1"),
@@ -146,7 +141,7 @@ struct SupabaseRestDayPageRepository: DayPageRepository {
                   isoDate: row.chart_date,
                   song: row.song,
                   artist: row.artist,
-                  chart: Self.chart
+                  chart: chart.rawValue
               ),
               week.covers(birthYear: birthYear, birthDate: birthDate)
         else { return nil }

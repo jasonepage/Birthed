@@ -31,8 +31,15 @@ FLAME = ("M 50 3 C 53 20, 63 28, 68 40 C 73 51, 73 58, 73 65 C 73 81, 63 95, 50 
 CORE = ("M 50 40 C 52 52, 60 58, 60 68 C 60 80, 55 87, 49 87 C 43 87, 38 80, 38 69 "
         "C 38 59, 47 52, 50 40 Z")
 
-CANDLE_X, CANDLE_Y, CANDLE_W, CANDLE_H = 437, 556, 150, 520
-FLAME_TIP, FLAME_H = 148, 424
+# Bold, September 5, 2026. The first icon put a 150 wide candle under a 424
+# tall flame, which at 60 points on a home screen was a thin stick with a
+# small fire on it. Everything is about 1.6 times larger now, and the body is
+# a touch wider against the flame, 250 to 700 rather than 150 to 446. The
+# flame's tip is 90 from the top and the body runs off the bottom edge.
+CANDLE_X, CANDLE_Y, CANDLE_W, CANDLE_H = 387, 729, 250, 400
+FLAME_TIP, FLAME_H = 90, 665
+CANDLE_RADIUS = 47          # 0.1867 of the body width, same as before
+STRIPE_STEP, STRIPE_H = 210, 90   # 0.84 of the width, stripe 0.4286 of the step
 
 PALETTES = {
     "AppIcon.png": {
@@ -82,25 +89,26 @@ def stops(entries):
 
 
 def svg_for(palette):
-    body = cylinder(CANDLE_X, CANDLE_Y, CANDLE_W, CANDLE_H, 28, 0)
+    body = cylinder(CANDLE_X, CANDLE_Y, CANDLE_W, CANDLE_H, CANDLE_RADIUS, 0)
     scale = FLAME_H / 95.0
     stripes = "".join(
-        f'<rect x="-500" y="{y}" width="2100" height="54" fill="{palette["stripe"]}" '
+        f'<rect x="-1000" y="{y}" width="3000" height="{STRIPE_H}" fill="{palette["stripe"]}" '
         f'opacity="{palette["stripe_opacity"]}"/>'
-        for y in range(-200, 1100, 126)
+        for y in range(-600, 1600, STRIPE_STEP)
     )
     ground = ""
     if palette["background"]:
         ground += f'<rect width="1024" height="1024" fill="url(#bg)"/>'
     if palette["sheen"]:
-        ground += '<ellipse cx="512" cy="300" rx="520" ry="440" fill="url(#sheen)"/>'
+        # The bloom sits on the flame, not in the top corner.
+        ground += f'<ellipse cx="512" cy="{FLAME_TIP + FLAME_H * 0.6:.0f}" rx="600" ry="560" fill="url(#sheen)"/>'
 
     defs = ""
     if palette["background"]:
         defs += ('<linearGradient id="bg" x1="0.1" y1="0" x2="0.9" y2="1">'
                  + stops(palette["background"]) + "</linearGradient>")
     if palette["sheen"]:
-        defs += ('<radialGradient id="sheen" cx="50%" cy="24%" r="62%">'
+        defs += ('<radialGradient id="sheen" cx="50%" cy="50%" r="50%">'
                  + stops(palette["sheen"]) + "</radialGradient>")
 
     return f'''<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
@@ -113,7 +121,7 @@ def svg_for(palette):
 </defs>
 {ground}
 <path d="{body}" fill="url(#wax)"/>
-<g clip-path="url(#body)"><g transform="rotate(-36 512 790)">{stripes}</g></g>
+<g clip-path="url(#body)"><g transform="rotate(-36 512 {CANDLE_Y + 200})">{stripes}</g></g>
 <g transform="translate({512 - 50 * scale:.2f} {FLAME_TIP}) scale({scale:.4f})">
   <path d="{FLAME}" fill="url(#flame)"/>
   <path d="{CORE}" fill="url(#hot)"/>

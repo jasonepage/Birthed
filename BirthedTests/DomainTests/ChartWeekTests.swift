@@ -99,3 +99,23 @@ final class ChartWeekTests: XCTestCase {
         XCTAssertEqual(week("2005-09-17").displayDate(calendar: calendar), "September 17, 2005")
     }
 }
+
+extension ChartWeekTests {
+    func testChartsAreKnownByTheirStoredName() {
+        let film = ChartWeek(date: CalendarDate(month: 9, day: 8)!, year: 2002, song: "Signs", artist: "", chart: "US box office")
+        XCTAssertEqual(film.kind, .boxOffice)
+        XCTAssertEqual(film.kind?.noun, "film")
+        XCTAssertEqual(film.kind?.hasCredit, false)
+        XCTAssertEqual(ChartWeek.Chart.billboard200.rawValue, "Billboard 200")
+        XCTAssertNil(ChartWeek(date: CalendarDate(month: 1, day: 1)!, year: 2000, song: "A", artist: "B", chart: "Nope").kind)
+    }
+
+    func testAttributionNamesTheChartAndReadsTheDateTheRightWay() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_US")
+        let song = ChartWeek(date: CalendarDate(month: 9, day: 7)!, year: 2002, song: "Dilemma", artist: "Nelly")
+        XCTAssertEqual(song.attribution(calendar: calendar), "Number one on the Billboard Hot 100, issue dated September 7, 2002")
+        let film = ChartWeek(date: CalendarDate(month: 9, day: 8)!, year: 2002, song: "Signs", artist: "", chart: "US box office")
+        XCTAssertEqual(film.attribution(calendar: calendar), "Number one on the US box office, weekend ending September 8, 2002")
+    }
+}

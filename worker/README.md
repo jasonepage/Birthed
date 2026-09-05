@@ -37,6 +37,26 @@ The whole backfill, paced:
 node dist/src/import-all.js
 ```
 
+## The number ones
+
+Three charts, one table, one reader. Each is backfilled from Wikipedia's
+per-year lists and written to `chart_weeks` under its own `chart_name`.
+
+```
+npm run import:songs                              # Billboard Hot 100, 1959 on
+npm run import:albums                             # Billboard 200, 1964 on
+npm run import:films                              # US box office weekends, 1940s on
+node dist/src/import-charts.js --chart films --from 1990 --to 1999 --dry
+```
+
+`--dry` parses and prints the report but writes nothing. Read the report,
+not the progress: a year that comes out with nine weeks in it is the failure
+that matters. Albums start at 1964 because the 1959 to 1963 pages carry
+separate mono and stereo charts side by side, and reading one of them as
+"the" number one would be a guess. Film pages change their date header
+between decades ("Week ending", "Weekend end date") and the reader accepts
+both. Reruns overwrite rather than duplicate.
+
 ## The service role key
 
 `SUPABASE_SERVICE_ROLE_KEY` is in the Supabase dashboard under Project

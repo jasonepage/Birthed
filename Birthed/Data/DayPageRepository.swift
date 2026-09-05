@@ -8,10 +8,19 @@ import Foundation
 protocol DayPageRepository {
     func notablePeople(bornOn date: CalendarDate, limit: Int) async throws -> [NotablePerson]
 
-    /// The number one song the week somebody was born, or nil when there is
-    /// no chart covering that week. Nil is the ordinary answer for a birth
-    /// before the chart began, and callers show nothing rather than a guess.
-    func numberOneSong(theWeekOf birthDate: CalendarDate, birthYear: Int) async throws -> ChartWeek?
+    /// The number one on a chart the week somebody was born, or nil when
+    /// there is no chart week covering that week. Nil is the ordinary answer
+    /// for a birth before the chart began, and callers show nothing rather
+    /// than a guess.
+    func numberOne(on chart: ChartWeek.Chart, theWeekOf birthDate: CalendarDate, birthYear: Int) async throws -> ChartWeek?
+}
+
+extension DayPageRepository {
+    /// The number one song the week somebody was born. The original call,
+    /// kept so nothing that reads the Hot 100 has to change.
+    func numberOneSong(theWeekOf birthDate: CalendarDate, birthYear: Int) async throws -> ChartWeek? {
+        try await numberOne(on: .hot100, theWeekOf: birthDate, birthYear: birthYear)
+    }
 }
 
 enum DayPageError: LocalizedError {

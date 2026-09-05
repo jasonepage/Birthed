@@ -53,28 +53,91 @@ struct FlameCoreShape: Shape {
 /// Every fraction below is measured off the icon rather than chosen, so the
 /// mark on the share card is the same object as the mark on the home screen.
 /// In `design/app-icon/birthed-icon.svg` the flame is a 100 by 95 box scaled
-/// by 4.4632, which is 446 wide by 424 tall, sitting on a candle 150 wide whose
-/// top edge is 16 points above the bottom of the flame. Those four numbers are
-/// the whole of what follows.
+/// by 7, which is 700 wide by 665 tall, sitting on a candle 250 wide whose
+/// top edge is 26 points above the bottom of the flame. Those four numbers are
+/// the whole of what follows. The icon runs its body off the bottom edge, so
+/// how much body shows here is a choice, not a measurement: `height` is the
+/// flame plus about as much body again.
 ///
 /// The flame frame keeps the drawing's own 100 by 95 aspect. Giving it any
 /// other aspect stretches the bezier, and a stretched flame reads as a taper
 /// rather than as a fire.
+///
+/// The flame moves. It sways and breathes off a few overlapping sine waves,
+/// which is enough to read as fire without ever repeating visibly, and it
+/// casts a glow that breathes with it. `animated: false` freezes it at its
+/// rest pose, which is what a share card needs: `ImageRenderer` draws one
+/// frame of a `TimelineView` and a card should not depend on which one.
+/// `lit: false` replaces the flame with a wick and a little smoke, for the
+/// moment on the birthday when it has just been blown out.
 struct CandleMark: View {
     var height: CGFloat = 200
+    var lit: Bool = true
+    var animated: Bool = true
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// 424 of the 876 points from the top of the flame to the bottom of the
     /// candle body in the icon.
     private var flameHeight: CGFloat { height * 0.484 }
     private var flameWidth: CGFloat { flameHeight * (100.0 / 95.0) }
-    /// 150 wide against a flame 424 tall.
-    private var bodyWidth: CGFloat { flameHeight * 0.3538 }
+    /// 250 wide against a flame 665 tall.
+    private var bodyWidth: CGFloat { flameHeight * 0.376 }
     private var bodyHeight: CGFloat { height * 0.534 }
-    /// The 16 points the flame sits over the candle.
-    private var overlap: CGFloat { height * 0.0183 }
+    /// The 26 points the flame sits over the candle, against a flame 665 tall.
+    private var overlap: CGFloat { flameHeight * 0.039 }
+
+    private var moves: Bool { animated && !reduceMotion }
 
     var body: some View {
         VStack(spacing: -overlap) {
+            flameSlot
+                .frame(width: flameWidth, height: flameHeight)
+                // The icon draws the flame over the candle, not behind it. A
+                // VStack draws in order, so without this the wax covers the
+                // base of the fire and the candle looks unlit.
+                .zIndex(1)
+
+            stripedBody
+        }
+        .animation(.easeInOut(duration: 0.35), value: lit)
+    }
+
+    @ViewBuilder
+    private var flameSlot: some View {
+        if lit {
+            if moves {
+                TimelineView(.animation) { context in
+                    flame(at: context.date.timeIntervalSinceReferenceDate)
+                }
+            } else {
+                flame(at: 0)
+            }
+        } else {
+            wickAndSmoke
+        }
+    }
+
+    /// One frame of fire. At `t == 0` every wave is at zero, so the rest pose
+    /// is exactly the icon.
+    private func flame(at t: TimeInterval) -> some View {
+        let sway = sin(t * 5.1) * 0.5 + sin(t * 13.7) * 0.3 + sin(t * 29.3) * 0.2
+        let breathe = sin(t * 3.7) * 0.5 + sin(t * 11.1) * 0.5
+
+        return ZStack {
+            Ellipse()
+                .fill(RadialGradient(
+                    colors: [
+                        Theme.ember.opacity(0.42 + 0.12 * breathe),
+                        Theme.accent.opacity(0.14),
+                        .clear,
+                    ],
+                    center: .center, startRadius: 0, endRadius: flameHeight * 0.95
+                ))
+                .frame(width: flameWidth * 2.6, height: flameHeight * 2.2)
+                .offset(y: flameHeight * 0.12)
+                .allowsHitTesting(false)
+
             ZStack {
                 FlameShape()
                     .fill(LinearGradient(
@@ -88,13 +151,41 @@ struct CandleMark: View {
                     ))
             }
             .frame(width: flameWidth, height: flameHeight)
-            // The icon draws the flame over the candle, not behind it. A VStack
-            // draws in order, so without this the wax covers the base of the
-            // fire and the candle looks unlit.
-            .zIndex(1)
-
-            stripedBody
+            .scaleEffect(x: 1 + 0.05 * breathe, y: 1 + 0.08 * breathe + 0.03 * sway, anchor: .bottom)
+            .rotationEffect(.degrees(sway * 4), anchor: .bottom)
         }
+        .transition(.scale(scale: 0.2, anchor: .bottom).combined(with: .opacity))
+    }
+
+    /// What is left after a breath: the wick, and smoke that rises and thins.
+    private var wickAndSmoke: some View {
+        ZStack(alignment: .bottom) {
+            if moves {
+                TimelineView(.animation) { context in
+                    let t = context.date.timeIntervalSinceReferenceDate
+                    Canvas { graphics, size in
+                        for index in 0..<3 {
+                            let phase = (t * 0.45 + Double(index) / 3).truncatingRemainder(dividingBy: 1)
+                            let y = size.height - phase * size.height * 0.9
+                            let drift = sin(t * 2 + Double(index) * 2.1) * size.width * 0.08 * phase
+                            let x = size.width / 2 + drift
+                            let radius = size.width * (0.035 + 0.11 * phase)
+                            graphics.opacity = (1 - phase) * 0.35
+                            graphics.fill(
+                                Path(ellipseIn: CGRect(x: x - radius, y: y - radius,
+                                                       width: radius * 2, height: radius * 2)),
+                                with: .color(Theme.waxLight)
+                            )
+                        }
+                    }
+                }
+            }
+
+            Capsule()
+                .fill(Theme.wax)
+                .frame(width: flameWidth * 0.06, height: flameHeight * 0.14)
+        }
+        .transition(.opacity)
     }
 
     private var stripedBody: some View {
@@ -135,6 +226,10 @@ struct CandleMark: View {
     }
 }
 
-#Preview {
+#Preview("Lit") {
     ZStack { Theme.ink.ignoresSafeArea(); CandleMark(height: 300) }
+}
+
+#Preview("Out") {
+    ZStack { Theme.cream.ignoresSafeArea(); CandleMark(height: 300, lit: false) }
 }

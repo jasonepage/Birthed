@@ -11,10 +11,12 @@ import SwiftUI
 struct ShareCardView: View {
     let date: CalendarDate
     let people: [NotablePerson]
+    /// Ink or cream. Defaults to ink, which is what the website card uses.
+    var palette: StagePalette = .ink
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
-            Theme.ink
+            palette.ground
 
             // The bloom the candle actually casts, centred on the flame
             // rather than floating in the corner above it. The stack is bottom
@@ -22,13 +24,13 @@ struct ShareCardView: View {
             // the flame is at (852, 976).
             Circle()
                 .fill(RadialGradient(
-                    colors: [Theme.accent.opacity(0.38), Theme.accent.opacity(0.06), .clear],
+                    colors: [palette.glow.opacity(0.38), palette.glow.opacity(0.06), .clear],
                     center: .center, startRadius: 20, endRadius: 520
                 ))
                 .frame(width: 1040, height: 1040)
                 .offset(x: 292, y: 146)
 
-            CandleMark(height: 620)
+            CandleMark(height: 620, animated: false)
                 .offset(x: -70, y: 96)
 
             VStack(alignment: .leading, spacing: 0) {
@@ -41,7 +43,7 @@ struct ShareCardView: View {
 
                 Text(date.displayName())
                     .font(.system(size: 104, weight: .black, design: .serif))
-                    .foregroundStyle(Theme.cream)
+                    .foregroundStyle(palette.type)
                     .lineLimit(2)
                     .minimumScaleFactor(0.45)
 
@@ -49,7 +51,7 @@ struct ShareCardView: View {
 
                 Text("You share it with")
                     .font(.system(size: 30, weight: .medium))
-                    .foregroundStyle(Theme.cream.opacity(0.6))
+                    .foregroundStyle(palette.type.opacity(0.6))
 
                 Spacer().frame(height: 34)
 
@@ -63,7 +65,7 @@ struct ShareCardView: View {
 
                             Text(person.name)
                                 .font(.system(size: 40, weight: .semibold))
-                                .foregroundStyle(Theme.cream)
+                                .foregroundStyle(palette.type)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.55)
                         }
@@ -75,7 +77,7 @@ struct ShareCardView: View {
                 Text("birthed.app")
                     .font(.system(size: 24, weight: .semibold))
                     .kerning(1.2)
-                    .foregroundStyle(Theme.cream.opacity(0.42))
+                    .foregroundStyle(palette.type.opacity(0.42))
             }
             .padding(.horizontal, 78)
             .padding(.vertical, 76)

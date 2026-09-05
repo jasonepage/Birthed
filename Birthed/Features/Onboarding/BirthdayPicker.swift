@@ -42,7 +42,7 @@ struct BirthdayPicker: View {
                 .pickerStyle(.wheel)
                 .frame(width: 110)
             }
-            .frame(height: 170)
+            .frame(height: 150)
             .onChange(of: month) { _, _ in
                 if day > daysInMonth { day = daysInMonth }
             }

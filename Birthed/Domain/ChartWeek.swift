@@ -110,3 +110,47 @@ extension ChartWeek {
         String(format: "%04d-%02d-%02d", year, date.month, date.day)
     }
 }
+
+extension ChartWeek {
+    /// The charts the app reads, by the exact `chart_name` each is stored
+    /// under. Named once here rather than spelled out at each call site,
+    /// because a typo in a chart name silently returns nothing at all.
+    ///
+    /// Each one is the same shape in the table: an issue date, a title and a
+    /// credit. The film chart has no credit and stores an empty string, which
+    /// `hasCredit` lets the interface leave out rather than draw a blank line.
+    enum Chart: String, CaseIterable, Equatable {
+        case hot100 = "Billboard Hot 100"
+        case billboard200 = "Billboard 200"
+        case boxOffice = "US box office"
+
+        /// "song", "album", "film". What the entry is a number one of.
+        var noun: String {
+            switch self {
+            case .hot100: return "song"
+            case .billboard200: return "album"
+            case .boxOffice: return "film"
+            }
+        }
+
+        var hasCredit: Bool { self != .boxOffice }
+
+        /// How the issue date should be read out. A Billboard issue date is
+        /// the date printed on the cover; a box office date is the end of
+        /// the weekend the film topped.
+        var dateLabel: String {
+            switch self {
+            case .hot100, .billboard200: return "issue dated"
+            case .boxOffice: return "weekend ending"
+            }
+        }
+    }
+
+    var kind: Chart? { Chart(rawValue: chart) }
+
+    /// "Number one on the Billboard Hot 100, issue dated September 7, 2002."
+    func attribution(calendar: Calendar = .current) -> String {
+        let label = kind?.dateLabel ?? "dated"
+        return "Number one on the \(chart), \(label) \(displayDate(calendar: calendar))"
+    }
+}

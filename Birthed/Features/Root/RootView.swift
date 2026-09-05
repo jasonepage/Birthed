@@ -29,7 +29,7 @@ struct RootView: View {
             if let profile = profileStore.profile {
                 tabs(for: profile)
             } else {
-                OnboardingView { profile in
+                OnboardingView(repository: repository) { profile in
                     profileStore.save(profile)
                     Task {
                         await account.ensureAccount()

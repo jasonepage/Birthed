@@ -7,6 +7,7 @@
 // Billboard, Penske Media or Wikipedia, and "Billboard Hot 100" is used to
 // name the chart, which is the only thing it could mean.
 
+import { ChartSpec, SONGS } from "./charts.js";
 import { columnMatching, readGrid, readTables } from "./html.js";
 
 export interface ChartWeek {
@@ -146,10 +147,6 @@ export function cleanArtist(text: string): string {
   return stripMarkers(text);
 }
 
-const DATE_HEADER = /^issue date$|^date$|issue date/;
-const SONG_HEADER = /^song|^title|^single/;
-const ARTIST_HEADER = /^artist/;
-
 /**
  * Reads one year page.
  *
@@ -157,8 +154,13 @@ const ARTIST_HEADER = /^artist/;
  * sits, because these pages also carry a legend table and an artists-by-weeks
  * table, and on some years an infobox as well. The artists table has an
  * Artist column but no date and no song, which is what rules it out.
+ *
+ * Which headers to look for comes from the chart spec. The Hot 100 is the
+ * default so that every existing caller and test reads exactly as before;
+ * the album and film pages differ only in what their columns are called and
+ * in the film pages having no credit column at all.
  */
-export function parseYear(html: string, year: number): YearReading {
+export function parseYear(html: string, year: number, spec: ChartSpec = SONGS): YearReading {
   const notes: string[] = [];
   const candidates: { weeks: ChartWeek[]; skipped: number }[] = [];
 
@@ -167,18 +169,18 @@ export function parseYear(html: string, year: number): YearReading {
     const header = grid[0];
     if (header === undefined) continue;
 
-    const dateColumn = columnMatching(header, DATE_HEADER);
-    const songColumn = columnMatching(header, SONG_HEADER);
-    const artistColumn = columnMatching(header, ARTIST_HEADER);
-    if (dateColumn < 0 || songColumn < 0 || artistColumn < 0) continue;
+    const dateColumn = columnMatching(header, spec.dateHeader);
+    const songColumn = columnMatching(header, spec.titleHeader);
+    const artistColumn = spec.creditHeader === null ? -2 : columnMatching(header, spec.creditHeader);
+    if (dateColumn < 0 || songColumn < 0 || artistColumn === -1) continue;
 
     const weeks: ChartWeek[] = [];
     let skipped = 0;
     for (const row of grid.slice(1)) {
       const chartDate = parseIssueDate(row[dateColumn] ?? "", year);
       const song = cleanTitle(row[songColumn] ?? "");
-      const artist = cleanArtist(row[artistColumn] ?? "");
-      if (chartDate === null || song === "" || artist === "") {
+      const artist = artistColumn < 0 ? "" : cleanArtist(row[artistColumn] ?? "");
+      if (chartDate === null || song === "" || (artistColumn >= 0 && artist === "")) {
         skipped += 1;
         continue;
       }
@@ -188,7 +190,7 @@ export function parseYear(html: string, year: number): YearReading {
   }
 
   if (candidates.length === 0) {
-    notes.push(`${year}: no table with a date, a song and an artist column`);
+    notes.push(`${year}: no table with the date, title and credit columns this chart needs`);
     return { weeks: [], notes };
   }
 

@@ -47,11 +47,41 @@ enum Theme {
     }
 }
 
+/// The ground the Mine tab and both share cards stand on.
+///
+/// One object, two faces. The screen on the phone and the image it exports
+/// are meant to be the same picture, so they read the same palette. Dark mode
+/// gets ink under cream type, light mode gets cream under ink type, and the
+/// candle and its bloom are the same on both.
+struct StagePalette: Equatable {
+    let ground: Color
+    /// Type at full strength. Everything quieter is this at an opacity.
+    let type: Color
+    /// What the bloom behind the candle is made of.
+    let glow: Color
+
+    static let ink = StagePalette(ground: Theme.ink, type: Theme.cream, glow: Theme.accent)
+    static let cream = StagePalette(ground: Theme.cream, type: Theme.ink, glow: Theme.accent)
+
+    static func forScheme(_ scheme: ColorScheme) -> StagePalette {
+        scheme == .dark ? .ink : .cream
+    }
+}
+
 extension View {
     /// A card in the app's ordinary, informational register.
     func birthedCard(padding: CGFloat = 18) -> some View {
         self.padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Theme.card, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    /// A card sitting on a stage rather than on the system background: a
+    /// faint lift in the stage's own type colour, so it belongs to the picture
+    /// instead of interrupting it.
+    func stageCard(_ palette: StagePalette, padding: CGFloat = 18) -> some View {
+        self.padding(padding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(palette.type.opacity(0.06), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
