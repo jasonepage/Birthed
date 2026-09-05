@@ -85,6 +85,34 @@ struct BirthdayCalendar {
         return today
     }
 
+    /// The next `count` occurrences, soonest first, today included.
+    ///
+    /// Each one is found by asking again from the day after the last, rather
+    /// than by adding a year, because adding a year to February 29 is exactly
+    /// the arithmetic this whole type exists to avoid.
+    func nextOccurrences(
+        of birthday: CalendarBirthday,
+        from reference: Date,
+        count: Int
+    ) -> [Date] {
+        guard count > 0 else { return [] }
+        var found: [Date] = []
+        var from = reference
+
+        while found.count < count {
+            let next = nextOccurrence(of: birthday, from: from)
+            // nextOccurrence falls back to today when it cannot resolve a
+            // date, so a repeat means there is nothing more to find and this
+            // must stop rather than loop.
+            if let last = found.last, next <= last { break }
+            found.append(next)
+            guard let dayAfter = calendar.date(byAdding: .day, value: 1, to: next) else { break }
+            from = dayAfter
+        }
+
+        return found
+    }
+
     /// The most recent time it came around, today included.
     func previousOccurrence(of birthday: CalendarBirthday, onOrBefore reference: Date) -> Date {
         let today = startOfDay(reference)
