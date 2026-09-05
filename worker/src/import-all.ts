@@ -1,7 +1,8 @@
 // The one-time backfill across all 366 calendar dates.
 //
 //   node dist/src/import-all.js
-//   node dist/src/import-all.js --only-missing    # resume where it stopped
+//   node dist/src/import-all.js --only-missing              # resume where it stopped
+//   node dist/src/import-all.js --only-missing --at-once 3  # three dates in flight
 //   node dist/src/import-all.js --from 7 --pause 500
 //
 // --only-missing asks the database which dates already have people and skips
@@ -82,9 +83,11 @@ async function main(): Promise<void> {
 
   let kept = 0;
   let skipped = 0;
+  let finished = 0;
   const failures: string[] = [];
   const started = Date.now();
 
+  const todo: { month: number; day: number }[] = [];
   for (let month = startMonth; month <= 12; month++) {
     const days = DAYS_IN_MONTH[month - 1] ?? 31;
     for (let day = 1; day <= days; day++) {
@@ -92,16 +95,48 @@ async function main(): Promise<void> {
         skipped++;
         continue;
       }
+      todo.push({ month, day });
+    }
+  }
+  console.log(`${todo.length} dates to do.\n`);
+
+  // Most of a date is spent waiting: one query to Wikidata, four to
+  // Wikipedia, one write. Doing three dates at once cuts a three hour backfill
+  // to about one, and the ceiling is there because the other end of this is a
+  // volunteer-funded query service and six parallel callers is where being a
+  // good guest ends. Rate limiting is already retried, so a burst that is too
+  // much slows down rather than failing.
+  const atOnce = Math.max(1, Math.min(argValue("at-once", 1), 6));
+  if (atOnce > 1) console.log(`${atOnce} at a time.\n`);
+
+  // Shared cursor. Safe without a lock because there is no await between
+  // reading it and moving it on, and JavaScript runs one thing at a time.
+  let cursor = 0;
+
+  const runners = Array.from({ length: atOnce }, async () => {
+    for (;;) {
+      const date = todo[cursor];
+      cursor += 1;
+      if (date === undefined) return;
+
       try {
-        const result = await importDay(month, day, { dryRun: false, print: false });
+        const result = await importDay(date.month, date.day, { dryRun: false, print: false });
         kept += result.kept;
       } catch (error: unknown) {
-        failures.push(`${month}/${day}`);
-        console.error(`  ${month}/${day} failed: ${error instanceof Error ? error.message : error}`);
+        failures.push(`${date.month}/${date.day}`);
+        console.error(`  ${date.month}/${date.day} failed: ${error instanceof Error ? error.message : error}`);
+      }
+      finished += 1;
+      if (finished % 10 === 0 || finished === todo.length) {
+        const minutes = (Date.now() - started) / 60000;
+        const rate = finished / Math.max(minutes, 0.01);
+        const left = Math.round((todo.length - finished) / Math.max(rate, 0.01));
+        console.log(`  [${finished} of ${todo.length}] about ${left} minutes left`);
       }
       await sleep(pauseMs);
     }
-  }
+  });
+  await Promise.all(runners);
 
   const minutes = ((Date.now() - started) / 60000).toFixed(1);
   console.log(`\nfinished in ${minutes} minutes. rows kept ${kept}, skipped ${skipped}.`);
