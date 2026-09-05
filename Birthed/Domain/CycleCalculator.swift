@@ -55,7 +55,12 @@ struct CycleCalculator {
         )
     }
 
-    private func occurrenceOfCycle(for birthday: CalendarBirthday, on reference: Date) -> Date {
+    /// The birthday occurrence this cycle is built around. Before the window
+    /// opens and after it closes this is the next one; inside it, it is the
+    /// one that has already happened. The qualification engine needs this
+    /// rather than "the next birthday", or a deadline that has already passed
+    /// would be reported as a year away.
+    func occurrenceOfCycle(for birthday: CalendarBirthday, on reference: Date) -> Date {
         let daysSince = birthdayCalendar.daysSinceLastOccurrence(of: birthday, on: reference)
         return daysSince <= BirthdayCalendar.daysAfterWindowCloses
             ? birthdayCalendar.previousOccurrence(of: birthday, onOrBefore: reference)

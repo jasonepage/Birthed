@@ -83,8 +83,8 @@ struct DayPageView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20)
-        .padding(.top, 12)
-        .padding(.bottom, 22)
+        .padding(.top, 4)
+        .padding(.bottom, 18)
     }
 
     private var stepper: some View {
@@ -93,8 +93,8 @@ struct DayPageView: View {
                 Task { await move(-1) }
             } label: {
                 Image(systemName: "chevron.left")
-                    .font(.footnote.weight(.bold))
-                    .frame(width: 34, height: 34)
+                    .font(.body.weight(.semibold))
+                    .frame(width: 40, height: 34)
             }
             .accessibilityLabel("Previous day")
 
@@ -102,13 +102,13 @@ struct DayPageView: View {
                 Task { await move(1) }
             } label: {
                 Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.bold))
-                    .frame(width: 34, height: 34)
+                    .font(.body.weight(.semibold))
+                    .frame(width: 40, height: 34)
             }
             .accessibilityLabel("Next day")
         }
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.circle)
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
     }
 
     private var subtitle: String {
@@ -162,7 +162,7 @@ struct DayPageView: View {
             }
 
         case let .loaded(people):
-            LazyVStack(spacing: 10) {
+            LazyVStack(spacing: 8) {
                 ForEach(people) { person in
                     PersonCard(person: person)
                 }
@@ -243,25 +243,30 @@ struct DayPageView: View {
 // MARK: - Person card
 
 private struct PersonCard: View {
+    @Environment(\.openURL) private var openURL
     let person: NotablePerson
 
     var body: some View {
-        // FR-024. Every entry links to the record it came from.
-        Link(destination: person.sourceURL) {
-            HStack(alignment: .top, spacing: 14) {
+        // FR-024. Every entry links to the record it came from. Deliberately a
+        // plain button rather than a Link: a Link tints its whole label with
+        // the accent colour and centres wrapped text, which turned every name
+        // pink and every description into a greetings card.
+        Button {
+            openURL(person.sourceURL)
+        } label: {
+            HStack(alignment: .top, spacing: 12) {
                 yearBadge
 
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(person.name)
-                        .font(.headline)
+                        .font(.system(.headline, design: .default, weight: .semibold))
                         .foregroundStyle(.primary)
-                        .fixedSize(horizontal: false, vertical: true)
 
                     if let description = person.shortDescription, !description.isEmpty {
                         Text(description)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                            .lineLimit(2)
                     }
 
                     if let died = person.deathYear {
@@ -270,26 +275,23 @@ private struct PersonCard: View {
                             .foregroundStyle(.tertiary)
                     }
                 }
+                .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
-
-                Image(systemName: "arrow.up.forward")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-                    .accessibilityHidden(true)
             }
-            .padding(16)
-            .background(Theme.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
-        .accessibilityElement(children: .combine)
+        .buttonStyle(.plain)
         .accessibilityLabel("\(person.name), \(person.lifespan). Opens the source record.")
     }
 
     private var yearBadge: some View {
         Text(person.birthYear.map { String($0) } ?? "?")
-            .font(.footnote.weight(.bold).monospacedDigit())
+            .font(.caption.weight(.semibold).monospacedDigit())
             .foregroundStyle(Theme.accent)
-            .padding(.horizontal, 9)
-            .padding(.vertical, 6)
-            .background(Theme.accent.opacity(0.12), in: Capsule())
+            .frame(width: 42, alignment: .leading)
+            .padding(.top, 2)
     }
 }
