@@ -20,16 +20,19 @@ func instant(_ year: Int, _ month: Int, _ day: Int, zone: TimeZone) -> Date {
     return date
 }
 
-func zone(_ identifier: String) -> TimeZone {
+/// Not called `zone`. `NSObject` already has a `zone()` method, so a bare
+/// `zone("...")` inside an XCTestCase resolves to that instead of to this,
+/// and the error it produces points nowhere near the real problem.
+func timeZoneNamed(_ identifier: String) -> TimeZone {
     guard let zone = TimeZone(identifier: identifier) else {
         fatalError("unknown time zone \(identifier)")
     }
     return zone
 }
 
-let losAngeles = zone("America/Los_Angeles")
-let kiritimati = zone("Pacific/Kiritimati")   // coordinated universal time plus 14
-let pagoPago = zone("Pacific/Pago_Pago")      // coordinated universal time minus 11
+let losAngeles = timeZoneNamed("America/Los_Angeles")
+let kiritimati = timeZoneNamed("Pacific/Kiritimati")   // coordinated universal time plus 14
+let pagoPago = timeZoneNamed("Pacific/Pago_Pago")      // coordinated universal time minus 11
 
 func calendarIn(_ timeZone: TimeZone) -> BirthdayCalendar {
     BirthdayCalendar(calendar: Calendar(identifier: .gregorian), timeZone: timeZone)

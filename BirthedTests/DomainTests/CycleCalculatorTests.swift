@@ -4,11 +4,12 @@ import XCTest
 /// The cycle year is what makes FR-065 work with no scheduled reset job, so
 /// getting its boundary wrong silently turns an annual requirement permanent.
 final class CycleCalculatorTests: XCTestCase {
-    private let subject = CycleCalculator(
-        birthdayCalendar: BirthdayCalendar(calendar: Calendar(identifier: .gregorian),
-                                           timeZone: zone("America/Los_Angeles"))
-    )
-    private let september4 = birthday(9, 4)
+    // Computed rather than stored. A stored property initialiser is evaluated
+    // in a context where unqualified names can resolve against the class
+    // itself, which is what made the first version of this file fail to
+    // compile in a way that pointed at the wrong line.
+    private var subject: CycleCalculator { CycleCalculator(birthdayCalendar: calendarIn(losAngeles)) }
+    private var september4: CalendarBirthday { birthday(9, 4) }
 
     func testTheCycleYearIsTheYearTheOccurrenceFallsIn() {
         XCTAssertEqual(subject.cycleYear(for: september4, on: instant(2026, 9, 4, zone: losAngeles)), 2026)
@@ -38,16 +39,19 @@ final class CycleCalculatorTests: XCTestCase {
 
     func testWindowBoundsMatchTheCycleTheDateSitsIn() {
         let inside = instant(2026, 9, 10, zone: losAngeles)
-        let calendar = subject.birthdayCalendar
+        let gregorian = calendarIn(losAngeles).calendar
 
         guard let start = subject.windowStart(for: september4, on: inside),
               let end = subject.windowEnd(for: september4, on: inside) else {
             return XCTFail("window bounds should exist for a valid birthday")
         }
-        XCTAssertEqual(calendar.calendar.dateComponents([.month, .day], from: start).month, 7)
-        XCTAssertEqual(calendar.calendar.dateComponents([.month, .day], from: start).day, 21)
-        XCTAssertEqual(calendar.calendar.dateComponents([.month, .day], from: end).month, 10)
-        XCTAssertEqual(calendar.calendar.dateComponents([.month, .day], from: end).day, 4)
+        let opened = gregorian.dateComponents([.month, .day], from: start)
+        let closed = gregorian.dateComponents([.month, .day], from: end)
+
+        XCTAssertEqual(opened.month, 7)
+        XCTAssertEqual(opened.day, 21)
+        XCTAssertEqual(closed.month, 10)
+        XCTAssertEqual(closed.day, 4)
     }
 
     func testALeapDayCycleFollowsTheObservedDate() {
