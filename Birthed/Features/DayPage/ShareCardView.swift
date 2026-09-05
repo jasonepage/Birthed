@@ -16,14 +16,17 @@ struct ShareCardView: View {
         ZStack(alignment: .bottomTrailing) {
             Theme.ink
 
-            // The bloom the candle would actually cast.
+            // The bloom the candle actually casts, centred on the flame
+            // rather than floating in the corner above it. The stack is bottom
+            // trailing, so an unoffset circle this size sits at (560, 830) and
+            // the flame is at (852, 976).
             Circle()
                 .fill(RadialGradient(
                     colors: [Theme.accent.opacity(0.38), Theme.accent.opacity(0.06), .clear],
                     center: .center, startRadius: 20, endRadius: 520
                 ))
                 .frame(width: 1040, height: 1040)
-                .offset(x: 330, y: -230)
+                .offset(x: 292, y: 146)
 
             CandleMark(height: 620)
                 .offset(x: -70, y: 96)

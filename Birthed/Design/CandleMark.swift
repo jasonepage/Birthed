@@ -49,14 +49,32 @@ struct FlameCoreShape: Shape {
 }
 
 /// A lit birthday candle, running off the bottom of whatever it is placed in.
+///
+/// Every fraction below is measured off the icon rather than chosen, so the
+/// mark on the share card is the same object as the mark on the home screen.
+/// In `design/app-icon/birthed-icon.svg` the flame is a 100 by 95 box scaled
+/// by 4.4632, which is 446 wide by 424 tall, sitting on a candle 150 wide whose
+/// top edge is 16 points above the bottom of the flame. Those four numbers are
+/// the whole of what follows.
+///
+/// The flame frame keeps the drawing's own 100 by 95 aspect. Giving it any
+/// other aspect stretches the bezier, and a stretched flame reads as a taper
+/// rather than as a fire.
 struct CandleMark: View {
     var height: CGFloat = 200
 
-    private var flameHeight: CGFloat { height * 0.46 }
-    private var bodyWidth: CGFloat { height * 0.20 }
+    /// 424 of the 876 points from the top of the flame to the bottom of the
+    /// candle body in the icon.
+    private var flameHeight: CGFloat { height * 0.484 }
+    private var flameWidth: CGFloat { flameHeight * (100.0 / 95.0) }
+    /// 150 wide against a flame 424 tall.
+    private var bodyWidth: CGFloat { flameHeight * 0.3538 }
+    private var bodyHeight: CGFloat { height * 0.534 }
+    /// The 16 points the flame sits over the candle.
+    private var overlap: CGFloat { height * 0.0183 }
 
     var body: some View {
-        VStack(spacing: -flameHeight * 0.05) {
+        VStack(spacing: -overlap) {
             ZStack {
                 FlameShape()
                     .fill(LinearGradient(
@@ -69,7 +87,11 @@ struct CandleMark: View {
                         startPoint: .top, endPoint: .bottom
                     ))
             }
-            .frame(width: flameHeight * 0.5, height: flameHeight)
+            .frame(width: flameWidth, height: flameHeight)
+            // The icon draws the flame over the candle, not behind it. A VStack
+            // draws in order, so without this the wax covers the base of the
+            // fire and the candle looks unlit.
+            .zIndex(1)
 
             stripedBody
         }
@@ -82,24 +104,28 @@ struct CandleMark: View {
                 startPoint: .leading, endPoint: .trailing
             ))
             .overlay(stripes)
-            .frame(width: bodyWidth, height: height * 0.58)
+            .frame(width: bodyWidth, height: bodyHeight)
             .clipShape(UnevenRoundedRectangle(
-                topLeadingRadius: bodyWidth * 0.18,
+                topLeadingRadius: bodyWidth * 0.1867,
                 bottomLeadingRadius: 0,
                 bottomTrailingRadius: 0,
-                topTrailingRadius: bodyWidth * 0.18,
+                topTrailingRadius: bodyWidth * 0.1867,
                 style: .continuous
             ))
     }
 
+    /// Eleven stripes 54 wide, 126 apart, turned 36 degrees, on a body 150
+    /// wide. Here that is a step of 0.84 of the width and a stripe 0.4286 of
+    /// the step, drawn wider and taller than the body because the rotation
+    /// swings the ends of each stripe outside it.
     private var stripes: some View {
         GeometryReader { proxy in
-            let step = proxy.size.width * 0.62
+            let step = proxy.size.width * 0.84
             Path { path in
                 var y = -proxy.size.height
                 while y < proxy.size.height * 2 {
                     path.addRect(CGRect(x: -proxy.size.width * 2, y: y,
-                                        width: proxy.size.width * 5, height: step * 0.42))
+                                        width: proxy.size.width * 5, height: step * 0.4286))
                     y += step
                 }
             }
