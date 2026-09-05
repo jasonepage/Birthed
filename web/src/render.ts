@@ -72,7 +72,13 @@ footer a { color: #9C9490; }
 @media (max-width: 520px) { .months { columns: 2; } }
 `;
 
-function head(title: string, description: string, canonical: string, image?: string): string {
+function head(
+  title: string,
+  description: string,
+  canonical: string,
+  image?: string,
+  noindex = false,
+): string {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -81,6 +87,7 @@ function head(title: string, description: string, canonical: string, image?: str
 <title>${escapeHtml(title)}</title>
 <meta name="description" content="${escapeHtml(description)}">
 <link rel="canonical" href="${canonical}">
+${noindex ? '<meta name="robots" content="noindex">\n' : ""}
 <meta property="og:type" content="website">
 <meta property="og:title" content="${escapeHtml(title)}">
 <meta property="og:description" content="${escapeHtml(description)}">
@@ -184,6 +191,23 @@ function MONTH_BLOCKS(): string {
   }
   return [...byMonth.entries()].map(([month, days]) => `<h2 style="font-family:Georgia,serif;margin:30px 0 0">${monthName(month)}</h2>
 <ul class="months">${days.map((day) => `<li><a href="/${slug(month, day)}/">${monthName(month)} ${day}</a></li>`).join("")}</ul>`).join("\n");
+}
+
+/**
+ * The page Render serves for a path that is not one of the 366. Static hosts
+ * answer an unknown path with whatever 404.html holds, and without one they
+ * answer with a page that says 200, which is how a site teaches a crawler
+ * that every misspelling is a real page.
+ *
+ * noindex, because this page is a dead end and there is nothing on it worth
+ * having in an index.
+ */
+export function renderNotFound(): string {
+  return `${head("Not a date", "That is not one of the 366.", `${SITE}/`, undefined, true)}
+<p class="kicker">Birthed</p>
+<h1>Not a date</h1>
+<p class="lede">There are 366 of them and that was not one. <a href="/">Pick one</a>.</p>
+${FOOT}`;
 }
 
 export function renderSitemap(): string {

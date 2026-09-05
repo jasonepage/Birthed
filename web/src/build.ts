@@ -9,7 +9,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DayPage, Person, everyDate, slug } from "./model.js";
-import { renderDayPage, renderIndex, renderRobots, renderSitemap } from "./render.js";
+import { renderDayPage, renderIndex, renderNotFound, renderRobots, renderSitemap } from "./render.js";
 
 const OUT = "out";
 const PER_PAGE = 10;
@@ -85,6 +85,7 @@ async function main(): Promise<void> {
   await writeFile(join(OUT, "index.html"), renderIndex(), "utf8");
   await writeFile(join(OUT, "sitemap.xml"), renderSitemap(), "utf8");
   await writeFile(join(OUT, "robots.txt"), renderRobots(), "utf8");
+  await writeFile(join(OUT, "404.html"), renderNotFound(), "utf8");
 
   console.log(`wrote ${written} date pages into ${OUT}, ${empty} of them with nobody in`);
   if (empty > 0) {
