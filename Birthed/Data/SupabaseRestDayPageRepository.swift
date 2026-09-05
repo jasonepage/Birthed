@@ -13,6 +13,11 @@ struct SupabaseRestDayPageRepository: DayPageRepository {
     private let anonKey: String
     private let session: URLSession
 
+    /// The only chart there is so far. Named once here rather than spelled out
+    /// at each call site, because it is also a value in a database column and
+    /// a typo would silently return nothing at all.
+    private static let chart = "Billboard Hot 100"
+
     init(
         baseURL: URL = Secrets.supabaseURL,
         anonKey: String = Secrets.supabaseAnonKey,
@@ -23,31 +28,19 @@ struct SupabaseRestDayPageRepository: DayPageRepository {
         self.session = session
     }
 
-    /// The shape the server sends. It stays private to this file so the column
-    /// names never leak upward into the domain.
-    private struct Row: Decodable {
-        let wikidata_qid: String
-        let name: String
-        let birth_year: Int?
-        let death_year: Int?
-        let short_description: String?
-        let source_url: String
-        let content_license: String
-    }
+    // MARK: One request
 
-    func notablePeople(bornOn date: CalendarDate, limit: Int) async throws -> [NotablePerson] {
+    /// Every read goes through here, so the header, the timeout and the four
+    /// ways a request can fail are written once.
+    private func fetch<Row: Decodable>(
+        from table: String,
+        query: [URLQueryItem]
+    ) async throws -> [Row] {
         var components = URLComponents(
-            url: baseURL.appending(path: "rest/v1/notable_people"),
+            url: baseURL.appending(path: "rest/v1/\(table)"),
             resolvingAgainstBaseURL: false
         )
-        components?.queryItems = [
-            URLQueryItem(name: "select", value: "wikidata_qid,name,birth_year,death_year,short_description,source_url,content_license"),
-            URLQueryItem(name: "birth_month", value: "eq.\(date.month)"),
-            URLQueryItem(name: "birth_day", value: "eq.\(date.day)"),
-            URLQueryItem(name: "order", value: "notability_score.desc"),
-            URLQueryItem(name: "limit", value: String(limit)),
-        ]
-
+        components?.queryItems = query
         guard let url = components?.url else { throw DayPageError.malformedResponse }
 
         var request = URLRequest(url: url)
@@ -71,12 +64,38 @@ struct SupabaseRestDayPageRepository: DayPageRepository {
             throw DayPageError.server(http.statusCode)
         }
 
-        let rows: [Row]
         do {
-            rows = try JSONDecoder().decode([Row].self, from: data)
+            return try JSONDecoder().decode([Row].self, from: data)
         } catch {
             throw DayPageError.malformedResponse
         }
+    }
+
+    // MARK: People
+
+    /// The shape the server sends. It stays private to this file so the column
+    /// names never leak upward into the domain.
+    private struct PersonRow: Decodable {
+        let wikidata_qid: String
+        let name: String
+        let birth_year: Int?
+        let death_year: Int?
+        let short_description: String?
+        let source_url: String
+        let content_license: String
+    }
+
+    func notablePeople(bornOn date: CalendarDate, limit: Int) async throws -> [NotablePerson] {
+        let rows: [PersonRow] = try await fetch(
+            from: "notable_people",
+            query: [
+                URLQueryItem(name: "select", value: "wikidata_qid,name,birth_year,death_year,short_description,source_url,content_license"),
+                URLQueryItem(name: "birth_month", value: "eq.\(date.month)"),
+                URLQueryItem(name: "birth_day", value: "eq.\(date.day)"),
+                URLQueryItem(name: "order", value: "notability_score.desc"),
+                URLQueryItem(name: "limit", value: String(limit)),
+            ]
+        )
 
         return rows.compactMap { row in
             guard let sourceURL = URL(string: row.source_url) else { return nil }
@@ -90,5 +109,48 @@ struct SupabaseRestDayPageRepository: DayPageRepository {
                 contentLicense: row.content_license
             )
         }
+    }
+
+    // MARK: The number one song
+
+    private struct ChartRow: Decodable {
+        let chart_date: String
+        let song: String
+        let artist: String
+    }
+
+    /// The chart week covering the week somebody was born, or nil.
+    ///
+    /// The server is asked for the first issue dated on or after the birth
+    /// date, and it will always find one as long as there is anything later in
+    /// the table, including for a birth date from before the chart existed.
+    /// Deciding whether that answer is actually about that week is the
+    /// domain's job and not the network's, so the row is handed to
+    /// `ChartWeek.covers` and dropped when it does not hold.
+    func numberOneSong(theWeekOf birthDate: CalendarDate, birthYear: Int) async throws -> ChartWeek? {
+        let onOrAfter = String(format: "%04d-%02d-%02d", birthYear, birthDate.month, birthDate.day)
+
+        let rows: [ChartRow] = try await fetch(
+            from: "chart_weeks",
+            query: [
+                URLQueryItem(name: "select", value: "chart_date,song,artist"),
+                URLQueryItem(name: "chart_name", value: "eq.\(Self.chart)"),
+                URLQueryItem(name: "chart_date", value: "gte.\(onOrAfter)"),
+                URLQueryItem(name: "order", value: "chart_date.asc"),
+                URLQueryItem(name: "limit", value: "1"),
+            ]
+        )
+
+        guard let row = rows.first,
+              let week = ChartWeek(
+                  isoDate: row.chart_date,
+                  song: row.song,
+                  artist: row.artist,
+                  chart: Self.chart
+              ),
+              week.covers(birthYear: birthYear, birthDate: birthDate)
+        else { return nil }
+
+        return week
     }
 }

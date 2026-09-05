@@ -141,6 +141,20 @@ struct BirthdayCalendar {
         return calendar.dateComponents([.day], from: born, to: today).day
     }
 
+    /// The day of the week somebody was born on, when a year is known.
+    /// Sunday is 1, matching `Calendar`'s own numbering.
+    ///
+    /// A small fact, but the one people repeat out loud, and it costs nothing
+    /// once the year is already there.
+    func birthWeekday(_ birthday: CalendarBirthday) -> Int? {
+        guard let birthYear = birthday.year else { return nil }
+        let observed = observedDate(for: birthday, in: birthYear)
+        guard let born = day(month: observed.month, day: observed.day, year: birthYear) else {
+            return nil
+        }
+        return calendar.component(.weekday, from: born)
+    }
+
     /// The age the person turns on their next birthday, when a year is known.
     func ageOnNextBirthday(_ birthday: CalendarBirthday, from reference: Date) -> Int? {
         guard let birthYear = birthday.year else { return nil }

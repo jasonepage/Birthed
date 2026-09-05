@@ -11,6 +11,7 @@ struct MyDayView: View {
     let onOpenSettings: () -> Void
 
     @State private var twins: [NotablePerson] = []
+    @State private var song: ChartWeek?
     @ScaledMetric(relativeTo: .largeTitle) private var heroSize: CGFloat = 128
 
     private let calendar = BirthdayCalendar()
@@ -23,11 +24,22 @@ struct MyDayView: View {
                               in: Calendar.current.component(.year, from: now))
     }
 
+    /// "Sunday", when the year is known. `Calendar` numbers weekdays from one
+    /// and its symbols from zero, which is the off by one this line exists to
+    /// get right in one place.
+    private var birthWeekdayName: String? {
+        guard let weekday = calendar.birthWeekday(profile.birthday) else { return nil }
+        let names = Calendar.current.weekdaySymbols
+        guard weekday >= 1, weekday <= names.count else { return nil }
+        return names[weekday - 1]
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 22) {
                     if isBirthday { celebration } else { countdown }
+                    songCard
                     if !twins.isEmpty { twinsCard }
                     leapNote
                 }
@@ -45,7 +57,9 @@ struct MyDayView: View {
                     .tint(.primary)
                 }
             }
+            // Two tasks rather than one, so neither request waits on the other.
             .task { await loadTwins() }
+            .task { await loadSong() }
         }
         .tint(Theme.accent)
     }
@@ -73,6 +87,12 @@ struct MyDayView: View {
             Text(profile.birthday.date.displayName())
                 .font(Theme.display(.title))
                 .foregroundStyle(.primary)
+
+            if let birthWeekdayName {
+                Text("born on a \(birthWeekdayName)")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
 
             HStack(spacing: 8) {
                 if let age = calendar.ageOnNextBirthday(profile.birthday, from: now) {
@@ -125,6 +145,43 @@ struct MyDayView: View {
 
     // MARK: Cards
 
+    /// The one fact on this screen that somebody would read out loud to a
+    /// friend, so it sits above the list of people and is set like a title
+    /// rather than like a row.
+    ///
+    /// It needs a birth year, and it shows nothing at all when there is no
+    /// chart covering that week rather than reaching for the nearest one.
+    @ViewBuilder
+    private var songCard: some View {
+        if let song {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("THE WEEK YOU WERE BORN")
+                    .font(.caption2.weight(.heavy))
+                    .kerning(2)
+                    .foregroundStyle(Theme.accent)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(song.song)
+                        .font(Theme.display(.title2, weight: .bold))
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text(song.artist)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Text("Number one on the \(song.chart), \(song.displayDate())")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .birthedCard()
+        }
+    }
+
     private var twinsCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("You share \(profile.birthday.date.displayName()) with")
@@ -164,7 +221,7 @@ struct MyDayView: View {
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: "calendar.badge.exclamationmark")
                     .foregroundStyle(Theme.accent)
-                Text("There is no February 29 this year, so Birthed is using \(observed.displayName()). You can change that in the Me tab.")
+                Text("There is no February 29 this year, so Birthed is using \(observed.displayName()). You can change that in Settings.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -174,5 +231,16 @@ struct MyDayView: View {
 
     private func loadTwins() async {
         twins = (try? await repository.notablePeople(bornOn: profile.birthday.date, limit: 3)) ?? []
+    }
+
+    private func loadSong() async {
+        guard let year = profile.birthday.year else { return }
+        // try? on a call that already returns an optional gives a double
+        // optional, and the flatten is what stops that being a warning and a
+        // card that never appears.
+        song = (try? await repository.numberOneSong(
+            theWeekOf: profile.birthday.date,
+            birthYear: year
+        )) ?? nil
     }
 }
