@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { loadConfig, loadDotEnv } from "./config.js";
 import { fetchPeopleBornOn, type WikidataPerson } from "./wikidata.js";
 import { monthlyViewsFor, titleSegment } from "./pageviews.js";
-import { notabilityScore } from "./notability.js";
+import { notabilityScore, signals } from "./notability.js";
 import { upsertNotablePeople, type NotablePersonRow } from "./upsert.js";
 
 const WIKIDATA_LICENSE = "CC0-1.0";
@@ -48,6 +48,7 @@ export function toRows(
           birthYear: person.birthYear,
           isLiving: person.isLiving,
           hasSocial: person.hasSocial,
+          description: person.shortDescription,
         }),
         source_url: `https://www.wikidata.org/wiki/${person.qid}`,
         content_license: WIKIDATA_LICENSE,
@@ -95,12 +96,16 @@ export async function importDay(
 
   if (opts.print) {
     for (const [index, row] of rows.slice(0, 15).entries()) {
-      const marks = [row.has_social ? "social" : null, row.is_living ? null : "died"]
-        .filter(Boolean)
-        .join(" ");
+      const marks = signals({
+        monthlyViews: row.monthly_views,
+        birthYear: row.birth_year,
+        isLiving: row.is_living,
+        hasSocial: row.has_social,
+        description: row.short_description,
+      }).join(" ");
       console.log(
         `  ${String(index + 1).padStart(2)}. ${row.name} (${row.birth_year ?? "?"})  ` +
-          `${row.monthly_views.toLocaleString()} views a month  ${marks}` +
+          `${row.monthly_views.toLocaleString()} views  score ${row.notability_score.toLocaleString()}  ${marks}` +
           (row.short_description ? `\n      ${row.short_description}` : ""),
       );
     }
