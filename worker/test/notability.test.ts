@@ -80,3 +80,36 @@ test("the score cannot overflow a Postgres integer", () => {
   });
   assert.ok(huge <= 2_147_483_647);
 });
+
+// ---------------------------------------------------------------------------
+
+import { selectCandidates } from "../src/notability.js";
+
+const creator = { sitelinks: 13, shortDescription: "American internet personality and YouTuber" };
+const footballer = (n: number) => ({ sitelinks: n, shortDescription: "French footballer" });
+
+test("an internet person is always looked up, however few languages cover them", () => {
+  // Trisha Paytas has 13 sitelinks on a date with thousands of people. Picking
+  // candidates by coverage cut her before her pageviews were ever consulted,
+  // which put back the exact bias the score had just removed.
+  const crowd = Array.from({ length: 300 }, (_, index) => footballer(100 - (index % 90)));
+  const chosen = selectCandidates([...crowd, creator], 160);
+  assert.ok(chosen.includes(creator), "the creator must survive the cap");
+  assert.equal(chosen.length, 160);
+});
+
+test("the rest of the budget goes to the widest covered", () => {
+  const chosen = selectCandidates([footballer(5), footballer(90), footballer(40)], 2);
+  assert.deepEqual(chosen.map((p) => p.sitelinks), [90, 40]);
+});
+
+test("creators alone can fill the whole budget and nothing breaks", () => {
+  const many = Array.from({ length: 20 }, () => ({ ...creator }));
+  const chosen = selectCandidates([...many, footballer(99)], 5);
+  assert.equal(chosen.length, 20, "creators are never cut, so the cap can be exceeded by them");
+  assert.ok(!chosen.some((p) => p.shortDescription === "French footballer"));
+});
+
+test("an empty date is an empty list", () => {
+  assert.deepEqual(selectCandidates([], 160), []);
+});

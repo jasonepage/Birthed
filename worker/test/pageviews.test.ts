@@ -17,3 +17,21 @@ test("the window is twelve whole months ending at the start of this one", () => 
   assert.equal(window.start, "2025090100");
   assert.equal(window.end, "2026090100");
 });
+
+import { searchTerm } from "../src/diagnose.js";
+
+test("an accented name is searched by the part before the accent", () => {
+  // A macOS terminal can hand over the accent as a separate combining
+  // character, which is a different string from the one Wikidata stores. That
+  // made a person who was right there look missing.
+  assert.equal(searchTerm("Beyonce\u0301"), "beyonc");
+  assert.equal(searchTerm("Beyonc\u00e9"), "beyonc");
+});
+
+test("a plain name is searched whole", () => {
+  assert.equal(searchTerm("Trisha Paytas"), "trisha paytas");
+});
+
+test("quotes and backslashes cannot escape into the query", () => {
+  assert.equal(searchTerm('Bob" } UNION { ?x ?y ?z'), "bob } union { ?x ?y ?z");
+});

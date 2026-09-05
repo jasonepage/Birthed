@@ -87,3 +87,46 @@ export function signals(input: ScoreInput, weights: NotabilityWeights = DEFAULT_
   if (!input.isLiving) found.push("died");
   return found;
 }
+
+
+// ---------------------------------------------------------------------------
+
+/** The minimum a candidate needs before it is worth spending a request on. */
+export interface CandidateInput {
+  sitelinks: number;
+  /** Named to match WikidataPerson, so the importer can pass its rows straight in. */
+  shortDescription: string | null;
+}
+
+/**
+ * Which people get their pageviews looked up.
+ *
+ * This was the bug that hid Trisha Paytas. Pageviews cost one request each, so
+ * only some candidates can be looked up, and the first version picked them by
+ * sitelink count. That quietly put the coverage bias straight back in: she has
+ * 13 sitelinks on a date with 4,290 people who have English articles, so she
+ * was cut before her pageviews were ever consulted. The signal we removed from
+ * the score was still deciding who got scored.
+ *
+ * So anybody the description marks as an internet person is looked up, always,
+ * regardless of how few languages cover them. They are rare enough that this
+ * is bounded. The rest of the budget goes to the widest covered, which is a
+ * fine proxy for everybody else.
+ */
+export function selectCandidates<T extends CandidateInput>(
+  people: T[],
+  cap: number,
+  weights: NotabilityWeights = DEFAULT_WEIGHTS,
+): T[] {
+  const creators: T[] = [];
+  const rest: T[] = [];
+
+  for (const person of people) {
+    if (mentions(person.shortDescription, weights.creatorTerms)) creators.push(person);
+    else rest.push(person);
+  }
+
+  const byCoverage = [...rest].sort((a, b) => b.sitelinks - a.sitelinks);
+  const room = Math.max(0, cap - creators.length);
+  return [...creators, ...byCoverage.slice(0, room)];
+}

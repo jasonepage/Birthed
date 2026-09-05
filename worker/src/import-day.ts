@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { loadConfig, loadDotEnv } from "./config.js";
 import { fetchPeopleBornOn, type WikidataPerson } from "./wikidata.js";
 import { monthlyViewsFor, titleSegment } from "./pageviews.js";
-import { notabilityScore, signals } from "./notability.js";
+import { notabilityScore, selectCandidates, signals } from "./notability.js";
 import { upsertNotablePeople, type NotablePersonRow } from "./upsert.js";
 
 const WIKIDATA_LICENSE = "CC0-1.0";
@@ -73,13 +73,11 @@ export async function importDay(
     userAgent: config.userAgent,
   });
 
-  // Pageviews cost one request each, so only the strongest candidates by
-  // coverage are looked up. This is a real bias, accepted for cost: somebody
-  // with an English article and almost no language editions can be cut before
-  // their pageviews are ever consulted. Raise IMPORT_CANDIDATE_CAP to widen it.
-  const candidates = [...everyone]
-    .sort((a, b) => b.sitelinks - a.sitelinks)
-    .slice(0, config.candidateCap);
+  // Pageviews cost one request each, so not everybody can be looked up.
+  // Internet people are always looked up regardless of how few languages cover
+  // them, because picking candidates by coverage was what hid them. See
+  // selectCandidates.
+  const candidates = selectCandidates(everyone, config.candidateCap);
 
   const segments = candidates
     .map((person) => titleSegment(person.articleUrl))
