@@ -14,6 +14,9 @@ export interface NotablePersonRow {
   sitelink_count: number;
   is_living: boolean;
   notability_score: number;
+  enwiki_title: string | null;
+  monthly_views: number;
+  has_social: boolean;
   source_url: string;
   content_license: string;
 }

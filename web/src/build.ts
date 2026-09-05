@@ -12,7 +12,7 @@ import { DayPage, Person, everyDate, slug } from "./model.js";
 import { renderDayPage, renderIndex, renderRobots, renderSitemap } from "./render.js";
 
 const OUT = "out";
-const PER_PAGE = 50;
+const PER_PAGE = 10;
 const CONCURRENCY = 8;
 
 interface Row {

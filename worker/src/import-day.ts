@@ -1,15 +1,18 @@
 // Imports the notable people born on one calendar date.
 //
-//   node --experimental-strip-types src/import-day.ts            # today
-//   node --experimental-strip-types src/import-day.ts 9 4        # September 4
-//   node --experimental-strip-types src/import-day.ts 9 4 --dry-run --print
+//   node dist/src/import-day.js            # today
+//   node dist/src/import-day.js 9 4        # September 4
+//   node dist/src/import-day.js 9 4 --dry-run --print
 //
-// Slice 1 of the build order in SDS.md section 16.
+// Two passes. Wikidata answers who was born on the date and whether anybody
+// keeps a social account for them. English Wikipedia answers how many people
+// actually look them up, which is the thing that decides the order.
 
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { loadConfig, loadDotEnv } from "./config.js";
 import { fetchPeopleBornOn, type WikidataPerson } from "./wikidata.js";
+import { monthlyViewsFor, titleSegment } from "./pageviews.js";
 import { notabilityScore } from "./notability.js";
 import { upsertNotablePeople, type NotablePersonRow } from "./upsert.js";
 
@@ -17,30 +20,39 @@ const WIKIDATA_LICENSE = "CC0-1.0";
 
 export function toRows(
   people: WikidataPerson[],
+  views: Map<string, number>,
   month: number,
   day: number,
   maxPerDay: number,
 ): NotablePersonRow[] {
   return people
-    .map((person) => ({
-      wikidata_qid: person.qid,
-      name: person.name,
-      birth_month: month,
-      birth_day: day,
-      birth_year: person.birthYear,
-      death_year: person.deathYear,
-      short_description: person.shortDescription,
-      birth_precision: person.precision,
-      sitelink_count: person.sitelinks,
-      is_living: person.isLiving,
-      notability_score: notabilityScore({
-        sitelinks: person.sitelinks,
-        birthYear: person.birthYear,
-        isLiving: person.isLiving,
-      }),
-      source_url: `https://www.wikidata.org/wiki/${person.qid}`,
-      content_license: WIKIDATA_LICENSE,
-    }))
+    .map((person) => {
+      const segment = titleSegment(person.articleUrl);
+      const monthlyViews = segment ? views.get(segment) ?? 0 : 0;
+      return {
+        wikidata_qid: person.qid,
+        name: person.name,
+        birth_month: month,
+        birth_day: day,
+        birth_year: person.birthYear,
+        death_year: person.deathYear,
+        short_description: person.shortDescription,
+        birth_precision: person.precision,
+        sitelink_count: person.sitelinks,
+        is_living: person.isLiving,
+        enwiki_title: segment,
+        monthly_views: monthlyViews,
+        has_social: person.hasSocial,
+        notability_score: notabilityScore({
+          monthlyViews,
+          birthYear: person.birthYear,
+          isLiving: person.isLiving,
+          hasSocial: person.hasSocial,
+        }),
+        source_url: `https://www.wikidata.org/wiki/${person.qid}`,
+        content_license: WIKIDATA_LICENSE,
+      };
+    })
     .sort((a, b) => b.notability_score - a.notability_score)
     .slice(0, maxPerDay);
 }
@@ -53,25 +65,42 @@ export async function importDay(
   const config = loadConfig({ needsWrite: !opts.dryRun });
 
   const started = Date.now();
-  const people = await fetchPeopleBornOn(month, day, {
+  const everyone = await fetchPeopleBornOn(month, day, {
     yearFrom: config.yearFrom,
     yearTo: config.yearTo,
     minSitelinks: config.minSitelinks,
     userAgent: config.userAgent,
   });
+
+  // Pageviews cost one request each, so only the strongest candidates by
+  // coverage are looked up. This is a real bias, accepted for cost: somebody
+  // with an English article and almost no language editions can be cut before
+  // their pageviews are ever consulted. Raise IMPORT_CANDIDATE_CAP to widen it.
+  const candidates = [...everyone]
+    .sort((a, b) => b.sitelinks - a.sitelinks)
+    .slice(0, config.candidateCap);
+
+  const segments = candidates
+    .map((person) => titleSegment(person.articleUrl))
+    .filter((segment): segment is string => segment !== null);
+
+  const views = await monthlyViewsFor(segments, config.userAgent);
+  const rows = toRows(candidates, views, month, day, config.maxPerDay);
   const elapsed = ((Date.now() - started) / 1000).toFixed(1);
 
-  const rows = toRows(people, month, day, config.maxPerDay);
-
   console.log(
-    `${month}/${day}: matched ${people.length} people in ${elapsed}s, keeping the top ${rows.length}`,
+    `${month}/${day}: ${everyone.length} with an English article, ` +
+      `looked up ${segments.length}, keeping the top ${rows.length} (${elapsed}s)`,
   );
 
   if (opts.print) {
     for (const [index, row] of rows.slice(0, 15).entries()) {
-      const years = `${row.birth_year ?? "?"}${row.death_year ? " to " + row.death_year : ""}`;
+      const marks = [row.has_social ? "social" : null, row.is_living ? null : "died"]
+        .filter(Boolean)
+        .join(" ");
       console.log(
-        `  ${String(index + 1).padStart(2)}. ${row.name} (${years})  score ${row.notability_score}  sitelinks ${row.sitelink_count}` +
+        `  ${String(index + 1).padStart(2)}. ${row.name} (${row.birth_year ?? "?"})  ` +
+          `${row.monthly_views.toLocaleString()} views a month  ${marks}` +
           (row.short_description ? `\n      ${row.short_description}` : ""),
       );
     }
@@ -84,7 +113,7 @@ export async function importDay(
     console.log("  dry run, nothing written");
   }
 
-  return { fetched: people.length, kept: rows.length };
+  return { fetched: everyone.length, kept: rows.length };
 }
 
 async function main(): Promise<void> {

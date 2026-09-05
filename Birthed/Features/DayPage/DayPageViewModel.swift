@@ -16,7 +16,9 @@ final class DayPageViewModel {
     private let repository: DayPageRepository
     private let limit: Int
 
-    init(date: CalendarDate, repository: DayPageRepository, limit: Int = 50) {
+    // Six, not fifty. The tail is what made the page read like a UEFA roster,
+    // and nobody has ever shared row thirty-four.
+    init(date: CalendarDate, repository: DayPageRepository, limit: Int = 6) {
         self.date = date
         self.repository = repository
         self.limit = limit

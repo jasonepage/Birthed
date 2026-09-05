@@ -16,6 +16,8 @@ test("the page names the date in the title and the heading", () => {
   const html = renderDayPage(page);
   assert.ok(html.includes("<title>Born on September 4</title>"));
   assert.ok(html.includes("<h1>September 4</h1>"));
+  assert.ok(html.includes("The people most looked up on this day."));
+  assert.ok(!html.includes("2 notable people"), "the row count is not the number of people who share a date");
 });
 
 test("a name from the data cannot inject markup", () => {

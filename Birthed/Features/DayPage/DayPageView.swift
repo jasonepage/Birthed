@@ -115,10 +115,8 @@ struct DayPageView: View {
         switch model.state {
         case .loading:
             return "Looking up who shares it."
-        case let .loaded(people):
-            return people.count == 1
-                ? "1 notable person shares this day."
-                : "\(people.count) notable people share this day."
+        case .loaded:
+            return "The people most looked up on this day."
         case .empty:
             return "Nobody imported yet."
         case .failed:

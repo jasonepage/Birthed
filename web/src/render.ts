@@ -123,7 +123,9 @@ export function renderDayPage(page: DayPage): string {
   const name = `${monthName(page.month)} ${page.day}`;
   const canonical = `${SITE}/${slug(page.month, page.day)}/`;
   const count = page.people.length;
-  const headline = count === 1 ? "1 notable person shares this day." : `${count} notable people share this day.`;
+  // Not a count. Ten rows is what we show, not how many people share a date,
+  // and claiming otherwise would be a small lie on 366 pages.
+  const headline = "The people most looked up on this day.";
   const description = count > 0
     ? `Who was born on ${name}. ${page.people.slice(0, 3).map((p) => p.name).join(", ")} and ${Math.max(0, count - 3)} more.`
     : `Who was born on ${name}.`;

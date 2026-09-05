@@ -26,6 +26,10 @@ export interface WikidataPerson {
   sitelinks: number;
   precision: number;
   isLiving: boolean;
+  /** The English Wikipedia article, which is what pageviews are counted against. */
+  articleUrl: string;
+  /** Wikidata knows a TikTok, Instagram or YouTube account for this person. */
+  hasSocial: boolean;
 }
 
 export interface QueryOptions {
@@ -60,7 +64,14 @@ export function buildQuery(month: number, day: number, options: QueryOptions): s
     .map((literal) => `    ${literal}`)
     .join("\n");
 
-  return `SELECT ?person ?personLabel ?personDescription ?dob ?dod ?sitelinks ?precision WHERE {
+  // An English Wikipedia article is required, not preferred. Pageviews are
+  // counted against it, and somebody with no English article is somebody this
+  // audience is not looking up in English.
+  //
+  // hasSocial is computed with EXISTS rather than three OPTIONAL clauses,
+  // because optional multi-valued properties multiply rows and a person with
+  // four Instagram accounts should not arrive four times.
+  return `SELECT ?person ?personLabel ?personDescription ?dob ?dod ?sitelinks ?precision ?article ?hasSocial WHERE {
   VALUES ?dob {
 ${values}
   }
@@ -68,11 +79,17 @@ ${values}
   ?person wdt:P31 wd:Q5 .
   ?person wikibase:sitelinks ?sitelinks .
   FILTER(?sitelinks >= ${options.minSitelinks})
+  ?article schema:about ?person ; schema:isPartOf <https://en.wikipedia.org/> .
   ?person p:P569/psv:P569 ?dobNode .
   ?dobNode wikibase:timeValue ?dob .
   ?dobNode wikibase:timePrecision ?precision .
   FILTER(?precision >= 11)
   OPTIONAL { ?person wdt:P570 ?dod . }
+  BIND(EXISTS {
+    { ?person wdt:P7085 ?social } UNION
+    { ?person wdt:P2003 ?social } UNION
+    { ?person wdt:P2397 ?social }
+  } AS ?hasSocial)
   SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
 }
 ORDER BY DESC(?sitelinks)`;
@@ -159,6 +176,9 @@ export async function fetchPeopleBornOn(
     const isLiving =
       deathYear === null && birthYear !== null && currentYear - birthYear <= 110;
 
+    const articleUrl = binding.article?.value;
+    if (!articleUrl) continue;
+
     people.set(qid, {
       qid,
       name,
@@ -168,6 +188,8 @@ export async function fetchPeopleBornOn(
       sitelinks: Number.isFinite(sitelinks) ? sitelinks : 0,
       precision: Number.isFinite(precision) ? precision : 0,
       isLiving,
+      articleUrl,
+      hasSocial: binding.hasSocial?.value === "true",
     });
   }
 

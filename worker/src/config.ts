@@ -11,6 +11,8 @@ export interface WorkerConfig {
   yearTo: number;
   minSitelinks: number;
   maxPerDay: number;
+  /** How many people to look up pageviews for, per date. */
+  candidateCap: number;
 }
 
 function required(name: string): string {
@@ -49,8 +51,9 @@ export function loadConfig(options: { needsWrite: boolean } = { needsWrite: true
     userAgent: `Birthed/0.1 (https://birthed.app; ${contact}) node-fetch`,
     yearFrom: numberOr("WIKIDATA_YEAR_FROM", 1600),
     yearTo: numberOr("WIKIDATA_YEAR_TO", 2015),
-    minSitelinks: numberOr("WIKIDATA_MIN_SITELINKS", 10),
+    minSitelinks: numberOr("WIKIDATA_MIN_SITELINKS", 3),
     maxPerDay: numberOr("IMPORT_MAX_PER_DAY", 50),
+    candidateCap: numberOr("IMPORT_CANDIDATE_CAP", 160),
   };
 }
 
