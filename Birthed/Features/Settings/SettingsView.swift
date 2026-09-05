@@ -49,7 +49,7 @@ struct SettingsView: View {
                     } header: {
                         Text("Location")
                     } footer: {
-                        Text("A postal code or a city. Birthed never receives your exact location.")
+                        Text("A postal code or a city, and it is the only location Birthed has. Your device's location is never used or sent.")
                     }
                 }
 

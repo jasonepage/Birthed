@@ -172,6 +172,23 @@ as a shelf, not a plan.
 - **Chart facts are parsed from Wikipedia's rendered HTML, not its wikitext.** Sixty years of year lists were written by hundreds of people using different templates in different decades, and the rendered HTML is what all of those expand to. The reader in `worker/src/html.ts` fills in rowspans, which is not optional: the tables write a song once and span it down its whole run.
 - **Which record was number one on a given date is a fact and cannot be owned.** The compiled list is Wikipedia's, under Creative Commons Attribution ShareAlike, and every row carries the page it came from. Birthed is not affiliated with Billboard, Penske Media or Wikipedia.
 
+### Reminders, decided September 5, 2026
+
+- **`FR-072` loses its offers.** It asked for a notification 45 days out "summarizing how many offers need action", and the catalog is cut. The 45 day run up survives as a plain countdown, because six weeks is still about when somebody starts making plans, but it counts nothing.
+- **A notification type the `SRS` does not have: other people's birthdays.** Everybody in the People tab gets one on the day and one three days before. This is the retention loop for the product the pivot actually chose, and the research the pivot came from said so: the money in birthdays is other people's birthdays. Three days is chosen to be long enough to order something and have it arrive.
+- **The fire time is date components with no time zone.** That is `FR-074` and `FR-075` satisfied by never converting to an instant: components without a zone are resolved by the device at fire time, so eight in the morning survives a flight and a daylight saving change. A test asserts the time zone is absent, because adding one back would look like a fix.
+- **The plan is trimmed to 64, soonest first, and the user's own birthday is never trimmed.** iOS keeps 64 pending requests and silently drops the rest. A crowded People tab must not push somebody's own birthday off their own phone.
+- **The notification centre is called through its completion handler methods, not its async ones.** `UNNotificationSettings` and `UNNotificationRequest` are not `Sendable`, and this target builds with `MainActor` default isolation, so awaiting them hands a non-`Sendable` object across an actor boundary. Resuming a continuation with only the enum, or only the count, is the fix. Do not "simplify" these back to `await`.
+- **The user's own switch is stored separately from the system permission.** Revoking permission in the iOS Settings app must not be silently re-enabled the next time the app opens.
+
+### What the app tells the user about their data, decided September 5, 2026
+
+- **The birthday, the birth year and the region are all sent to the Birthed account.** `AccountService.pushProfile` writes all three into `profiles`. Onboarding used to say the year "is never sent to anyone else", which was false. Copy anywhere in the product may say that nothing shared out of the app carries the year, which `ShareCardView` enforces, and that the device's location is never used or sent, which is true. It may not say or imply that these values stay on the phone.
+
+### Search, decided September 5, 2026
+
+- **A date page with fewer than eight people carries `noindex` and stays out of the sitemap.** It is still built and still loads. A new domain that hands a crawler 366 URLs with most of them empty teaches the crawler that the site is thin, and that judgement is made once and is expensive to undo. The threshold is eight rather than `FR-022`'s ten because a few real dates have fewer people with English Wikipedia articles.
+
 ### Hosting, decided September 5, 2026
 
 - **birthed.app runs as a Render web service on the Starter plan, not a static site.** Render has no Starter plan for static sites; static hosting is their free product and Starter is a plan for services. `web/src/serve.ts` is that service: it reads the already rendered pages off disk and sets headers, with no dependencies and no database connection, so a Supabase outage cannot take the site down.
