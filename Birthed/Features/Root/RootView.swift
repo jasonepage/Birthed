@@ -13,6 +13,8 @@ import SwiftUI
 struct RootView: View {
     @Environment(ProfileStore.self) private var profileStore
     @Environment(AccountService.self) private var account
+    @Environment(PeopleStore.self) private var peopleStore
+    @Environment(NotificationService.self) private var notifications
     @Environment(\.scenePhase) private var scenePhase
 
     let repository: DayPageRepository
@@ -45,11 +47,18 @@ struct RootView: View {
                 tab = openingTab(for: profile)
                 await account.pushProfile(profile)
             }
+            await refreshReminders()
         }
         .onChange(of: scenePhase) { _, phase in
             // FR-011. Retry on every foreground until it takes.
             guard phase == .active else { return }
-            Task { await account.ensureAccount() }
+            Task {
+                await account.ensureAccount()
+                // FR-074. Rebuilding the whole schedule on every foreground is
+                // cheaper than watching for a time zone change and cannot
+                // miss one.
+                await refreshReminders()
+            }
         }
     }
 
@@ -76,6 +85,11 @@ struct RootView: View {
                 .tag(Tab.people)
         }
         .tint(Theme.accent)
+    }
+
+    private func refreshReminders() async {
+        guard let profile = profileStore.profile else { return }
+        await notifications.reschedule(birthday: profile.birthday, people: peopleStore.people)
     }
 
     private func openingTab(for profile: Profile) -> Tab {

@@ -14,6 +14,7 @@ struct BirthedApp: App {
     @State private var profileStore = ProfileStore()
     @State private var account = AccountService()
     @State private var people = PeopleStore()
+    @State private var notifications = NotificationService()
 
     private let repository = SupabaseRestDayPageRepository()
 
@@ -23,6 +24,7 @@ struct BirthedApp: App {
                 .environment(profileStore)
                 .environment(account)
                 .environment(people)
+                .environment(notifications)
         }
     }
 }

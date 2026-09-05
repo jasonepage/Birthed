@@ -1,0 +1,165 @@
+import Foundation
+import Observation
+import UserNotifications
+
+/// Registering what `NotificationPlanner` worked out.
+///
+/// The split is deliberate. Deciding when a February 29 user should be told in
+/// 2027 is a calendar question and lives in the domain, where it is tested.
+/// This file only knows how to talk to the notification centre and what the
+/// words say, and it has no arithmetic in it at all.
+@Observable
+final class NotificationService {
+    enum Permission: Equatable {
+        case unknown
+        case notAsked
+        case granted
+        case denied
+    }
+
+    private(set) var permission: Permission = .unknown
+    /// What is actually pending, for the settings screen to show rather than
+    /// claim.
+    private(set) var pendingCount: Int = 0
+
+    /// The user's own switch, kept separately from the system permission.
+    ///
+    /// Two different questions. The operating system asks once and remembers
+    /// forever; the user can want reminders off without wanting to revoke
+    /// permission, and revoking permission in the system settings must not be
+    /// silently re-enabled the next time the app opens.
+    var isEnabled: Bool {
+        didSet { defaults.set(isEnabled, forKey: Key.enabled) }
+    }
+
+    private enum Key { static let enabled = "birthed.reminders.v1" }
+
+    private let centre: UNUserNotificationCenter
+    private let planner: NotificationPlanner
+    private let defaults: UserDefaults
+
+    init(
+        centre: UNUserNotificationCenter = .current(),
+        planner: NotificationPlanner = NotificationPlanner(),
+        defaults: UserDefaults = .standard
+    ) {
+        self.centre = centre
+        self.planner = planner
+        self.defaults = defaults
+        // On by default only once permission exists. Nothing is scheduled and
+        // nothing is asked for until the user turns the switch on.
+        self.isEnabled = defaults.object(forKey: Key.enabled) as? Bool ?? true
+    }
+
+    // MARK: Permission
+
+    func refresh() async {
+        let settings = await centre.notificationSettings()
+        switch settings.authorizationStatus {
+        case .notDetermined:
+            permission = .notAsked
+        case .denied:
+            permission = .denied
+        case .authorized, .provisional, .ephemeral:
+            permission = .granted
+        @unknown default:
+            permission = .unknown
+        }
+        pendingCount = await centre.pendingNotificationRequests().count
+    }
+
+    /// `FR-070`. Only ever called from a control the user tapped, never on
+    /// launch and never during onboarding.
+    @discardableResult
+    func askPermission() async -> Bool {
+        let granted = (try? await centre.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+        permission = granted ? .granted : .denied
+        return granted
+    }
+
+    // MARK: Scheduling
+
+    /// Replaces everything pending with the current plan.
+    ///
+    /// Clearing first rather than diffing, because the whole plan is cheap to
+    /// rebuild and a diff is a second place for the schedule to be wrong. The
+    /// identifiers are stable anyway, so adding the same request twice would
+    /// replace rather than duplicate; the clear is what removes a person the
+    /// user has since deleted.
+    func reschedule(birthday: CalendarBirthday, people: [Person], now: Date = Date()) async {
+        await refresh()
+        guard isEnabled, permission == .granted else {
+            centre.removeAllPendingNotificationRequests()
+            pendingCount = 0
+            return
+        }
+
+        let plan = planner.plan(for: birthday, people: people, from: now)
+        // uniquingKeysWith rather than uniqueKeysWithValues, which traps on a
+        // duplicate identifier. Nothing should produce two people with the
+        // same one, and a crash is not the right way to find out.
+        let names = Dictionary(people.map { ($0.id, $0.trimmedName) }, uniquingKeysWith: { first, _ in first })
+
+        centre.removeAllPendingNotificationRequests()
+
+        for notification in plan {
+            guard let content = content(for: notification, birthday: birthday, names: names) else {
+                continue
+            }
+            let trigger = UNCalendarNotificationTrigger(
+                dateMatching: notification.fireDate,
+                repeats: false
+            )
+            let request = UNNotificationRequest(
+                identifier: notification.identifier,
+                content: content,
+                trigger: trigger
+            )
+            try? await centre.add(request)
+        }
+
+        pendingCount = await centre.pendingNotificationRequests().count
+    }
+
+    /// Everything off, for the toggle and for account deletion.
+    func cancelEverything() {
+        centre.removeAllPendingNotificationRequests()
+        pendingCount = 0
+    }
+
+    // MARK: Words
+
+    /// Nil when there is nothing worth saying, which is how a person whose
+    /// name has been emptied out stops producing a notification addressed to
+    /// nobody.
+    private func content(
+        for notification: PlannedNotification,
+        birthday: CalendarBirthday,
+        names: [UUID: String]
+    ) -> UNNotificationContent? {
+        let content = UNMutableNotificationContent()
+        content.sound = .default
+
+        switch notification.kind {
+        case .ownBirthday:
+            content.title = "Happy birthday"
+            content.body = "\(birthday.date.displayName()) is yours. Open Birthed to see who else has it."
+
+        case let .ownCountdown(days):
+            content.title = "\(days) days"
+            content.body = "\(birthday.date.displayName()) is \(days) days away."
+
+        case let .personBirthday(personID):
+            guard let name = names[personID], !name.isEmpty else { return nil }
+            content.title = "It is \(name)'s birthday"
+            content.body = "Today. Say something."
+
+        case let .personSoon(personID, days):
+            guard let name = names[personID], !name.isEmpty else { return nil }
+            content.title = "\(name)'s birthday is in \(days) days"
+            content.body = "Long enough to actually get something."
+        }
+
+        return content
+    }
+}

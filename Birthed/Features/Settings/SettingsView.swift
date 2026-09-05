@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Settings, as a sheet behind a cog.
 ///
@@ -9,7 +10,10 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(ProfileStore.self) private var profileStore
     @Environment(AccountService.self) private var account
+    @Environment(PeopleStore.self) private var peopleStore
+    @Environment(NotificationService.self) private var notifications
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
 
     @State private var confirmingDelete = false
     @State private var region = ""
@@ -49,6 +53,8 @@ struct SettingsView: View {
                     }
                 }
 
+                remindersSection
+
                 Section {
                     NavigationLink("Sources and licences") { AttributionsView() }
                     LabeledContent("Version", value: Bundle.main.shortVersion)
@@ -75,6 +81,7 @@ struct SettingsView: View {
                 }
             }
             .onAppear { region = profile?.regionCode ?? "" }
+            .task { await notifications.refresh() }
             .confirmationDialog(
                 "Delete everything?",
                 isPresented: $confirmingDelete,
@@ -89,6 +96,66 @@ struct SettingsView: View {
             }
         }
         .tint(Theme.accent)
+    }
+
+    /// One switch, and the row is the control. `FR-070` keeps the system
+    /// prompt out of onboarding, so this is where it is asked for, from a
+    /// thing the user deliberately touched.
+    ///
+    /// When permission has been refused there is no switch, because a switch
+    /// that cannot do anything is a lie. There is a row that opens the place
+    /// where it can be undone.
+    @ViewBuilder
+    private var remindersSection: some View {
+        Section {
+            if notifications.permission == .denied {
+                Button {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        openURL(url)
+                    }
+                } label: {
+                    LabeledContent("Reminders", value: "Off in iOS Settings")
+                }
+                .tint(.primary)
+            } else {
+                Toggle("Reminders", isOn: Binding(
+                    get: { notifications.isEnabled },
+                    set: { wanted in Task { await setReminders(wanted) } }
+                ))
+            }
+        } header: {
+            Text("Reminders")
+        } footer: {
+            Text(reminderFooter)
+        }
+    }
+
+    private var reminderFooter: String {
+        switch notifications.permission {
+        case .denied:
+            return "iOS is holding these back. Turning them on again is done in the iOS Settings app."
+        case .granted where notifications.isEnabled:
+            return "Your birthday morning, a run up 45 days before, and every person you have added, on the day and three days before."
+        case .granted:
+            return "Nothing is scheduled."
+        case .notAsked, .unknown:
+            return "Your birthday morning, and the people you have added, on the day and three days before. iOS will ask you once."
+        }
+    }
+
+    private func setReminders(_ wanted: Bool) async {
+        guard wanted else {
+            notifications.isEnabled = false
+            notifications.cancelEverything()
+            return
+        }
+        if notifications.permission != .granted {
+            let granted = await notifications.askPermission()
+            guard granted else { return }
+        }
+        notifications.isEnabled = true
+        guard let profile else { return }
+        await notifications.reschedule(birthday: profile.birthday, people: peopleStore.people)
     }
 
     private func birthdayLine(_ profile: Profile) -> String {
@@ -126,6 +193,7 @@ struct SettingsView: View {
 
     private func deleteEverything() async {
         try? await account.deleteEverything()
+        notifications.cancelEverything()
         profileStore.clear()
         dismiss()
     }
