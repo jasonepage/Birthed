@@ -71,6 +71,12 @@ export function buildQuery(month: number, day: number, options: QueryOptions): s
   // hasSocial is computed with EXISTS rather than three OPTIONAL clauses,
   // because optional multi-valued properties multiply rows and a person with
   // four Instagram accounts should not arrive four times.
+  //
+  // No ORDER BY. There used to be one on sitelinks, and it made the query
+  // service sort four thousand rows on a busy date for nothing:
+  // selectCandidates sorts what it needs itself, and nothing between here and
+  // there depends on the order they arrive in. The query service is a
+  // volunteer-funded shared resource and this backfill is 366 queries.
   return `SELECT ?person ?personLabel ?personDescription ?dob ?dod ?sitelinks ?precision ?article ?hasSocial WHERE {
   VALUES ?dob {
 ${values}
@@ -91,8 +97,7 @@ ${values}
     { ?person wdt:P2397 ?social }
   } AS ?hasSocial)
   SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
-}
-ORDER BY DESC(?sitelinks)`;
+}`;
 }
 
 interface SparqlBinding {
