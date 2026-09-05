@@ -20,3 +20,7 @@ dist/
 .build/
 .swiftpm/
 Package.resolved
+
+# Scratch folder the desktop app writes into. The icon source of truth is
+# design/app-icon, not a rendered copy dropped in here.
+Claude outputs/
