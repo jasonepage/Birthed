@@ -72,7 +72,7 @@ footer a { color: #9C9490; }
 @media (max-width: 520px) { .months { columns: 2; } }
 `;
 
-function head(title: string, description: string, canonical: string): string {
+function head(title: string, description: string, canonical: string, image?: string): string {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -85,6 +85,10 @@ function head(title: string, description: string, canonical: string): string {
 <meta property="og:title" content="${escapeHtml(title)}">
 <meta property="og:description" content="${escapeHtml(description)}">
 <meta property="og:url" content="${canonical}">
+${image ? `<meta property="og:image" content="${image}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="${image}">` : ""}
 <meta name="twitter:card" content="summary_large_image">
 <style>${STYLE}</style>
 </head>
@@ -141,7 +145,9 @@ ${person.deathYear ? `<p class="died">died ${person.deathYear}</p>` : ""}
 </span>
 </li>`).join("\n");
 
-  return `${head(`Born on ${name}`, description, canonical)}
+  const image = `${SITE}/og/${slug(page.month, page.day)}.png`;
+
+  return `${head(`Born on ${name}`, description, canonical, image)}
 <p class="kicker">Born on</p>
 <h1>${name}</h1>
 <p class="lede">${headline}</p>

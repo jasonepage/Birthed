@@ -78,3 +78,29 @@ test("the index links every date", () => {
   const html = renderIndex();
   assert.equal((html.match(/href="\/[a-z]+-\d+\/"/g) ?? []).length, 366);
 });
+
+import { renderShareCard } from "../src/share.js";
+
+test("every page points at its own share image", () => {
+  const html = renderDayPage(page);
+  assert.ok(html.includes('<meta property="og:image" content="https://birthed.app/og/september-4.png">'));
+  assert.ok(html.includes('<meta name="twitter:card" content="summary_large_image">'));
+});
+
+test("the share card carries the date and the first three names", () => {
+  const card = renderShareCard(page);
+  assert.ok(card.includes("September 4"));
+  assert.ok(card.includes("Anton Bruckner"));
+});
+
+test("a name on the card cannot inject markup either", () => {
+  const card = renderShareCard(page);
+  assert.ok(!card.includes("<script>Hildur"));
+  assert.ok(card.includes("&lt;script&gt;"));
+});
+
+test("an empty date still produces a card rather than a broken one", () => {
+  const card = renderShareCard({ month: 3, day: 3, people: [] });
+  assert.ok(card.includes("March 3"));
+  assert.ok(!card.includes("You share it with"));
+});
