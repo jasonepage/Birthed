@@ -12,7 +12,7 @@ import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { loadConfig, loadDotEnv } from "./config.js";
 import { fetchPeopleBornOn, type WikidataPerson } from "./wikidata.js";
-import { monthlyViewsFor, titleSegment } from "./pageviews.js";
+import { monthlyViewsForTitles, titleFromArticleUrl } from "./pageviews.js";
 import { notabilityScore, selectCandidates, signals } from "./notability.js";
 import { upsertNotablePeople, type NotablePersonRow } from "./upsert.js";
 
@@ -27,8 +27,8 @@ export function toRows(
 ): NotablePersonRow[] {
   return people
     .map((person) => {
-      const segment = titleSegment(person.articleUrl);
-      const monthlyViews = segment ? views.get(segment) ?? 0 : 0;
+      const title = titleFromArticleUrl(person.articleUrl);
+      const monthlyViews = title ? views.get(title) ?? 0 : 0;
       return {
         wikidata_qid: person.qid,
         name: person.name,
@@ -40,7 +40,7 @@ export function toRows(
         birth_precision: person.precision,
         sitelink_count: person.sitelinks,
         is_living: person.isLiving,
-        enwiki_title: segment,
+        enwiki_title: title,
         monthly_views: monthlyViews,
         has_social: person.hasSocial,
         notability_score: notabilityScore({
@@ -79,17 +79,17 @@ export async function importDay(
   // selectCandidates.
   const candidates = selectCandidates(everyone, config.candidateCap);
 
-  const segments = candidates
-    .map((person) => titleSegment(person.articleUrl))
-    .filter((segment): segment is string => segment !== null);
+  const titles = candidates
+    .map((person) => titleFromArticleUrl(person.articleUrl))
+    .filter((title): title is string => title !== null);
 
-  const views = await monthlyViewsFor(segments, config.userAgent);
+  const views = await monthlyViewsForTitles(titles, config.userAgent);
   const rows = toRows(candidates, views, month, day, config.maxPerDay);
   const elapsed = ((Date.now() - started) / 1000).toFixed(1);
 
   console.log(
     `${month}/${day}: ${everyone.length} with an English article, ` +
-      `looked up ${segments.length}, keeping the top ${rows.length} (${elapsed}s)`,
+      `looked up ${titles.length}, keeping the top ${rows.length} (${elapsed}s)`,
   );
 
   if (opts.print) {

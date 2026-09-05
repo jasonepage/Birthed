@@ -133,9 +133,11 @@ export async function fetchPeopleBornOn(
     body: new URLSearchParams({ query }).toString(),
   });
 
-  if (response.status === 429 || response.status === 503) {
+  // 429 is rate limiting, 5xx includes the 504 the query service returns when
+  // a date takes too long. Both are worth another go.
+  if (response.status === 429 || response.status >= 500) {
     if (attempt >= 4) {
-      throw new Error(`Wikidata rate limited after ${attempt} attempts (${response.status}).`);
+      throw new Error(`Wikidata gave up after ${attempt} attempts (${response.status}).`);
     }
     const retryAfter = Number(response.headers.get("retry-after") ?? "0");
     const waitMs = retryAfter > 0 ? retryAfter * 1000 : attempt * 5000;
