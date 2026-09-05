@@ -188,3 +188,28 @@ extension BirthdayCalendarTests {
         )
     }
 }
+
+// MARK: The day of the week
+
+extension BirthdayCalendarTests {
+    func testTheWeekdayIsTheOneThePersonWasActuallyBornOn() {
+        let subject = calendarIn(losAngeles)
+        // Calendar numbers Sunday as 1, which is the off by one this exists to
+        // pin down: the caller indexes weekdaySymbols, which starts at 0.
+        XCTAssertEqual(subject.birthWeekday(birthday(9, 4, year: 2005)), 1, "a Sunday")
+        XCTAssertEqual(subject.birthWeekday(birthday(6, 15, year: 2012)), 6, "a Friday")
+        XCTAssertEqual(subject.birthWeekday(birthday(4, 1, year: 2020)), 4, "a Wednesday")
+    }
+
+    func testThereIsNoWeekdayWithoutAYear() {
+        XCTAssertNil(calendarIn(losAngeles).birthWeekday(birthday(9, 4)))
+    }
+
+    func testALeapDayBirthGetsFebruary29sWeekdayAndNotTheStandInDays() {
+        let subject = calendarIn(losAngeles)
+        // The birth year of somebody born on February 29 is always a leap
+        // year, so the observance setting must not move this to February 28.
+        XCTAssertEqual(subject.birthWeekday(birthday(2, 29, year: 2004)), 1, "a Sunday")
+        XCTAssertEqual(subject.birthWeekday(birthday(2, 29, year: 2000)), 3, "a Tuesday")
+    }
+}

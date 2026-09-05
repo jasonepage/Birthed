@@ -95,9 +95,14 @@ struct MyDayShareCard: View {
 
                     Spacer().frame(height: 16)
 
-                    Text("Number one on the \(song.chart)")
+                    // The issue date is on here for the same reason it is on
+                    // the card in the app: it is what makes the claim
+                    // checkable rather than something Birthed asserts.
+                    Text("Number one on the \(song.chart), \(song.displayDate())")
                         .font(.system(size: 24, weight: .regular))
                         .foregroundStyle(Theme.cream.opacity(0.32))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Spacer(minLength: 40)

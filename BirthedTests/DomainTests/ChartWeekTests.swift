@@ -82,9 +82,12 @@ final class ChartWeekTests: XCTestCase {
     }
 
     func testDaysAfterCountsCalendarDaysAndNotHours() {
-        // Spanning the United States spring forward, when one day is 23 hours
-        // long. Dividing an interval by 86400 gives 6.958 here, and rounding
-        // that the wrong way would put this outside the window.
+        // April 3 2005 is the United States spring forward. Counted in a local
+        // calendar by dividing an interval by 86400 this span is 6.958 days,
+        // and the rounding decides whether the last day of the window is in or
+        // out. ChartWeek sidesteps it rather than rounding it: coordinated
+        // universal time has no daylight saving, and the count is in day
+        // components rather than seconds.
         let week = week("2005-04-09")
         XCTAssertEqual(week.daysAfter(birthYear: 2005, birthDate: date(4, 3)), 6)
         XCTAssertTrue(week.covers(birthYear: 2005, birthDate: date(4, 3)))
