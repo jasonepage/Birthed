@@ -2,70 +2,84 @@ import SwiftUI
 
 /// The shareable image for a day.
 ///
-/// FR-115 through FR-118. It carries the date, the notable people who share
-/// it, the Birthed name and the source credit. It carries no name, no age, no
-/// birth year of the user and no location, because slice 1 has no user and
-/// because the default for every personal field is off.
+/// `FR-115` through `FR-118`. Date, the people most looked up on it, the
+/// Birthed name and the source credit. No name, no age, no birth year of the
+/// user and no location, because the default for every personal field is off.
 ///
-/// Fixed colors rather than semantic ones, so the rendered image looks the
-/// same whoever shares it and whatever appearance their phone is set to.
+/// Same composition as the card the website puts on a link, so a date shared
+/// from the app and a date shared from a browser look like the same product.
 struct ShareCardView: View {
     let date: CalendarDate
     let people: [NotablePerson]
 
-    private let ink = Color(red: 0.07, green: 0.07, blue: 0.10)
-    private let paper = Color(red: 0.98, green: 0.97, blue: 0.94)
-    private let accent = Color(red: 0.97, green: 0.45, blue: 0.60)
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("BIRTHED")
-                .font(.system(size: 32, weight: .heavy, design: .default))
-                .kerning(10)
-                .foregroundStyle(accent)
+        ZStack(alignment: .bottomTrailing) {
+            Theme.ink
 
-            Spacer().frame(height: 56)
+            // The bloom the candle would actually cast.
+            Circle()
+                .fill(RadialGradient(
+                    colors: [Theme.accent.opacity(0.38), Theme.accent.opacity(0.06), .clear],
+                    center: .center, startRadius: 20, endRadius: 520
+                ))
+                .frame(width: 1040, height: 1040)
+                .offset(x: 330, y: -230)
 
-            Text(date.displayName())
-                .font(.system(size: 104, weight: .black, design: .serif))
-                .foregroundStyle(paper)
-                .lineLimit(2)
-                .minimumScaleFactor(0.5)
+            CandleMark(height: 620)
+                .offset(x: -70, y: 96)
 
-            Spacer().frame(height: 12)
+            VStack(alignment: .leading, spacing: 0) {
+                Text("BIRTHED")
+                    .font(.system(size: 30, weight: .heavy))
+                    .kerning(9)
+                    .foregroundStyle(Theme.accent)
 
-            Text("You share this day with")
-                .font(.system(size: 32, weight: .medium))
-                .foregroundStyle(paper.opacity(0.65))
+                Spacer().frame(height: 54)
 
-            Spacer().frame(height: 44)
+                Text(date.displayName())
+                    .font(.system(size: 104, weight: .black, design: .serif))
+                    .foregroundStyle(Theme.cream)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.45)
 
-            VStack(alignment: .leading, spacing: 26) {
-                ForEach(people) { person in
-                    HStack(alignment: .firstTextBaseline, spacing: 22) {
-                        Text(person.birthYear.map { String($0) } ?? "")
-                            .font(.system(size: 30, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(accent)
-                            .frame(width: 110, alignment: .leading)
+                Spacer().frame(height: 10)
 
-                        Text(person.name)
-                            .font(.system(size: 40, weight: .semibold))
-                            .foregroundStyle(paper)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.6)
+                Text("You share it with")
+                    .font(.system(size: 30, weight: .medium))
+                    .foregroundStyle(Theme.cream.opacity(0.6))
+
+                Spacer().frame(height: 34)
+
+                VStack(alignment: .leading, spacing: 22) {
+                    ForEach(people) { person in
+                        HStack(alignment: .firstTextBaseline, spacing: 24) {
+                            Text(person.birthYear.map { String($0) } ?? "")
+                                .font(.system(size: 30, weight: .bold, design: .monospaced))
+                                .foregroundStyle(Theme.accent)
+                                .frame(width: 108, alignment: .leading)
+
+                            Text(person.name)
+                                .font(.system(size: 40, weight: .semibold))
+                                .foregroundStyle(Theme.cream)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.55)
+                        }
                     }
                 }
+
+                Spacer(minLength: 30)
+
+                Text("birthed.app")
+                    .font(.system(size: 24, weight: .semibold))
+                    .kerning(1.2)
+                    .foregroundStyle(Theme.cream.opacity(0.42))
             }
-
-            Spacer(minLength: 40)
-
-            Text("Names and dates from Wikidata. Credit to Wikipedia and Wikidata.")
-                .font(.system(size: 22, weight: .regular))
-                .foregroundStyle(paper.opacity(0.45))
+            .padding(.horizontal, 78)
+            .padding(.vertical, 76)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .padding(76)
-        .frame(width: 1080, height: 1350, alignment: .topLeading)
-        .background(ink)
+        .frame(width: 1080, height: 1350)
+        .clipped()
     }
 }
 
@@ -73,16 +87,19 @@ struct ShareCardView: View {
     ShareCardView(
         date: CalendarDate(month: 9, day: 4)!,
         people: [
-            NotablePerson(
-                id: "Q1",
-                name: "Beyoncé",
-                birthYear: 1981,
-                deathYear: nil,
-                shortDescription: "American singer",
-                sourceURL: URL(string: "https://www.wikidata.org/wiki/Q1")!,
-                contentLicense: "CC0-1.0"
-            )
+            NotablePerson(id: "Q1", name: "Beyoncé", birthYear: 1981, deathYear: nil,
+                          shortDescription: "American singer",
+                          sourceURL: URL(string: "https://www.wikidata.org/wiki/Q1")!,
+                          contentLicense: "CC0-1.0"),
+            NotablePerson(id: "Q2", name: "Damon Wayans", birthYear: 1960, deathYear: nil,
+                          shortDescription: "American comedian",
+                          sourceURL: URL(string: "https://www.wikidata.org/wiki/Q2")!,
+                          contentLicense: "CC0-1.0"),
+            NotablePerson(id: "Q3", name: "Anton Bruckner", birthYear: 1824, deathYear: 1896,
+                          shortDescription: "Austrian composer",
+                          sourceURL: URL(string: "https://www.wikidata.org/wiki/Q3")!,
+                          contentLicense: "CC0-1.0"),
         ]
     )
-    .scaleEffect(0.3)
+    .scaleEffect(0.28)
 }

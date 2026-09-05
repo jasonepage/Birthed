@@ -155,3 +155,36 @@ final class BirthdayCalendarTests: XCTestCase {
         )
     }
 }
+
+// MARK: Days alive
+
+extension BirthdayCalendarTests {
+    func testDaysAliveNeedsAYear() {
+        let subject = calendarIn(losAngeles)
+        XCTAssertNil(subject.daysAlive(birthday(9, 4), on: instant(2026, 9, 4, zone: losAngeles)))
+    }
+
+    func testDaysAliveIsCountedInDaysNotIntervals() {
+        let subject = calendarIn(losAngeles)
+        // 2002-09-04 to 2026-09-04 is 24 years, six of them leap: 2004, 2008,
+        // 2012, 2016, 2020, 2024. So 24 times 365 plus 6.
+        XCTAssertEqual(
+            subject.daysAlive(birthday(9, 4, year: 2002), on: instant(2026, 9, 4, zone: losAngeles)),
+            24 * 365 + 6
+        )
+    }
+
+    func testAFutureBirthYearIsNotANegativeAge() {
+        let subject = calendarIn(losAngeles)
+        XCTAssertNil(subject.daysAlive(birthday(9, 4, year: 2030), on: instant(2026, 9, 4, zone: losAngeles)))
+    }
+
+    func testALeapDayBirthCountsFromTheObservedDay() {
+        let subject = calendarIn(losAngeles)
+        // Born February 29, 2000, which existed. One day later is one day.
+        XCTAssertEqual(
+            subject.daysAlive(birthday(2, 29, year: 2000), on: instant(2000, 3, 1, zone: losAngeles)),
+            1
+        )
+    }
+}

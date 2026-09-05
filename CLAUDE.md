@@ -134,6 +134,11 @@ What this changes:
 - **Distribution is the work.** Date pages on birthed.app for search, short
   form video for reach. They compound: video points at pages, pages keep
   working after the video stops, and one script fills both from the same data.
+- **Two tabs, not three.** `FR-015` says exactly three top-level destinations:
+  Today, Mine and Me. Me was a settings form, and a tab is a place you go while
+  settings is a thing you do once and leave. Giving it a third of the bottom bar
+  told every user that a third of this app is a form. It is a cog in the
+  toolbar now. Deliberate departure from `FR-015`.
 - **The day page being good is now the entire product.** Whoever appears at the
   top of September 4 is not a tuning detail any more. It is the thing.
 

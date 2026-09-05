@@ -10,6 +10,10 @@ enum Theme {
     static let accentSoft = Color(red: 1.0, green: 0.533, blue: 0.659)    // FF88A8
     static let accentDeep = Color(red: 0.659, green: 0.149, blue: 0.353)  // A8265A
     static let ember = Color(red: 1.0, green: 0.761, blue: 0.290)         // FFC24A
+    static let emberLight = Color(red: 1.0, green: 0.878, blue: 0.541)    // FFE08A
+    static let emberDeep = Color(red: 1.0, green: 0.541, blue: 0.239)     // FF8A3D
+    static let wax = Color(red: 0.141, green: 0.063, blue: 0.192)         // 241031
+    static let waxLight = Color(red: 0.290, green: 0.141, blue: 0.337)    // 4A2456
     static let ink = Color(red: 0.055, green: 0.047, blue: 0.086)         // 0E0C16
     static let cream = Color(red: 1.0, green: 0.969, blue: 0.933)         // FFF7EE
 

@@ -1,40 +1,43 @@
 import SwiftUI
 
-/// FR-027 and NFR-061. Names the sources, states the license each is used
-/// under, and links to the license text.
+/// `FR-027` and `NFR-061`. Names the sources and states the license each is
+/// used under.
 ///
-/// Version 1.0 displays Wikidata statements only, which are released under a
-/// public domain dedication that compels no attribution. Wikipedia is credited
-/// anyway, because crediting the source is the right thing to do whether or
-/// not a license requires it. `SDS.md` section 8.1.
+/// Rewritten shorter. The first version was four paragraphs of licence prose in
+/// a grouped list, which is the correct information presented as badly as
+/// possible. Nobody reads a wall of terms; they want to know where this came
+/// from and whether it is legitimate.
 struct AttributionsView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
-            List {
-                Section("Wikidata") {
-                    Text("Names, birth dates, death dates and the one line description on every entry come from Wikidata.")
-                    Text("Wikidata statements are released under Creative Commons Zero, a public domain dedication.")
-                        .foregroundStyle(.secondary)
-                    Link("wikidata.org", destination: URL(string: "https://www.wikidata.org")!)
-                    Link("Creative Commons Zero 1.0", destination: URL(string: "https://creativecommons.org/publicdomain/zero/1.0/")!)
-                }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 26) {
+                    source(
+                        name: "Wikidata",
+                        what: "Every name, year and description.",
+                        licence: "Creative Commons Zero, a public domain dedication.",
+                        link: URL(string: "https://www.wikidata.org")!,
+                        licenceLink: URL(string: "https://creativecommons.org/publicdomain/zero/1.0/")!
+                    )
 
-                Section("Wikipedia") {
-                    Text("The notability ordering counts how many Wikipedia language editions cover a person. Wikipedia article text is not used in this version.")
-                    Text("Wikipedia text is licensed Creative Commons Attribution ShareAlike 4.0.")
-                        .foregroundStyle(.secondary)
-                    Link("wikipedia.org", destination: URL(string: "https://www.wikipedia.org")!)
-                    Link("Creative Commons Attribution ShareAlike 4.0", destination: URL(string: "https://creativecommons.org/licenses/by-sa/4.0/")!)
-                }
+                    source(
+                        name: "Wikipedia",
+                        what: "The order people appear in, from how often each article is read.",
+                        licence: "Article text is not used in this version.",
+                        link: URL(string: "https://www.wikipedia.org")!,
+                        licenceLink: URL(string: "https://creativecommons.org/licenses/by-sa/4.0/")!
+                    )
 
-                Section {
                     Text("Birthed is not affiliated with Wikipedia, Wikidata or the Wikimedia Foundation.")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.tertiary)
+                        .padding(.top, 4)
                 }
+                .padding(20)
             }
+            .background(Theme.canvas)
             .navigationTitle("Sources")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -43,6 +46,31 @@ struct AttributionsView: View {
                 }
             }
         }
+    }
+
+    private func source(
+        name: String, what: String, licence: String, link: URL, licenceLink: URL
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(name)
+                .font(Theme.display(.title2, weight: .bold))
+
+            Text(what)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            Text(licence)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 18) {
+                Link(name.lowercased() + ".org", destination: link)
+                Link("Licence", destination: licenceLink)
+            }
+            .font(.footnote.weight(.semibold))
+            .padding(.top, 3)
+        }
+        .birthedCard(padding: 18)
     }
 }
 

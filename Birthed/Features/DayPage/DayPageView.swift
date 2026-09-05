@@ -10,7 +10,10 @@ struct DayPageView: View {
     @State private var showingAttributions = false
     @State private var shareImage: Image?
 
-    init(date: CalendarDate, repository: DayPageRepository) {
+    let onOpenSettings: () -> Void
+
+    init(date: CalendarDate, repository: DayPageRepository, onOpenSettings: @escaping () -> Void) {
+        self.onOpenSettings = onOpenSettings
         _model = State(initialValue: DayPageViewModel(date: date, repository: repository))
     }
 

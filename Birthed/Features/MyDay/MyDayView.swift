@@ -8,6 +8,7 @@ import SwiftUI
 struct MyDayView: View {
     let profile: Profile
     let repository: DayPageRepository
+    let onOpenSettings: () -> Void
 
     @State private var twins: [NotablePerson] = []
     @ScaledMetric(relativeTo: .largeTitle) private var heroSize: CGFloat = 128
@@ -36,6 +37,14 @@ struct MyDayView: View {
             .background(Theme.canvas)
             .navigationTitle("Mine")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: onOpenSettings) {
+                        Label("Settings", systemImage: "gearshape")
+                    }
+                    .tint(.primary)
+                }
+            }
             .task { await loadTwins() }
         }
         .tint(Theme.accent)
@@ -65,12 +74,20 @@ struct MyDayView: View {
                 .font(Theme.display(.title))
                 .foregroundStyle(.primary)
 
-            if let age = calendar.ageOnNextBirthday(profile.birthday, from: now) {
-                Text("You turn \(age).")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 2)
+            HStack(spacing: 8) {
+                if let age = calendar.ageOnNextBirthday(profile.birthday, from: now) {
+                    Text("You turn \(age)")
+                }
+                if let days = calendar.daysAlive(profile.birthday, on: now) {
+                    if calendar.ageOnNextBirthday(profile.birthday, from: now) != nil {
+                        Text("·").foregroundStyle(.tertiary)
+                    }
+                    Text("\(days.formatted()) days old")
+                }
             }
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .padding(.top, 4)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 44)
@@ -93,8 +110,8 @@ struct MyDayView: View {
                 .font(.headline)
                 .opacity(0.9)
 
-            if let age = calendar.ageOnNextBirthday(profile.birthday, from: now) {
-                Text("You are \(age).")
+            if let days = calendar.daysAlive(profile.birthday, on: now) {
+                Text("\(days.formatted()) days, and this is the one.")
                     .font(.subheadline)
                     .opacity(0.85)
             }

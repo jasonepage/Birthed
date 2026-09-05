@@ -126,6 +126,21 @@ struct BirthdayCalendar {
             || daysSinceLastOccurrence(of: birthday, on: reference) <= Self.daysAfterWindowCloses
     }
 
+    /// How many days they have been alive, when a year is known.
+    ///
+    /// Counted in day components rather than by dividing an interval, for the
+    /// same reason as everything else here: some days are 23 or 25 hours long.
+    func daysAlive(_ birthday: CalendarBirthday, on reference: Date) -> Int? {
+        guard let birthYear = birthday.year else { return nil }
+        let observed = observedDate(for: birthday, in: birthYear)
+        guard let born = day(month: observed.month, day: observed.day, year: birthYear) else {
+            return nil
+        }
+        let today = startOfDay(reference)
+        guard born <= today else { return nil }
+        return calendar.dateComponents([.day], from: born, to: today).day
+    }
+
     /// The age the person turns on their next birthday, when a year is known.
     func ageOnNextBirthday(_ birthday: CalendarBirthday, from reference: Date) -> Int? {
         guard let birthYear = birthday.year else { return nil }

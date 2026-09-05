@@ -1,18 +1,20 @@
 import SwiftUI
 
-/// The Me tab. `FR-016` lists what eventually lives here; this is the part of
-/// that list which exists in slice 2.
-struct MeView: View {
+/// Settings, as a sheet behind a cog.
+///
+/// This used to be a third tab called Me. A tab is a place you go; settings is
+/// a thing you do once and leave. Giving it a third of the bottom bar told
+/// every user that a third of this app is a form.
+struct SettingsView: View {
     @Environment(ProfileStore.self) private var profileStore
     @Environment(AccountService.self) private var account
+    @Environment(\.dismiss) private var dismiss
 
     @State private var editingBirthday = false
     @State private var editingRegion = false
     @State private var confirmingDelete = false
     @State private var showingAttributions = false
     @State private var region = ""
-
-    private let calendar = BirthdayCalendar()
 
     private var profile: Profile? { profileStore.profile }
 
@@ -32,34 +34,41 @@ struct MeView: View {
                         Button("Change") { editingBirthday = true }
                     }
 
-                    Section("Location") {
+                    Section {
                         LabeledContent("Region", value: profile.regionCode ?? "Not set")
                         Button("Change") {
                             region = profile.regionCode ?? ""
                             editingRegion = true
                         }
-                        Text("Used for distance and weather later on. Birthed never receives your exact location.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    } header: {
+                        Text("Location")
+                    } footer: {
+                        Text("Birthed never receives your exact location.")
                     }
                 }
 
-                Section("Account") {
-                    LabeledContent("Status", value: accountStatus)
-                    Text("Birthed made an account for you silently on first launch. There is no password and nothing to sign in to.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                Section {
+                    Button("Sources and licences") { showingAttributions = true }
+                    LabeledContent("Version", value: Bundle.main.shortVersion)
+                } header: {
+                    Text("About")
+                } footer: {
+                    Text(accountFooter)
+                }
+
+                Section {
                     Button("Delete my account and data", role: .destructive) {
                         confirmingDelete = true
                     }
                 }
-
-                Section("About") {
-                    Button("Sources and licenses") { showingAttributions = true }
-                    LabeledContent("Version", value: Bundle.main.shortVersion)
+            }
+            .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
                 }
             }
-            .navigationTitle("Me")
             .sheet(isPresented: $editingBirthday) { birthdaySheet }
             .sheet(isPresented: $editingRegion) { regionSheet }
             .sheet(isPresented: $showingAttributions) { AttributionsView() }
@@ -79,11 +88,16 @@ struct MeView: View {
         .tint(Theme.accent)
     }
 
-    private var accountStatus: String {
+    /// The account is silent by design, so its state is a footnote rather than
+    /// a row demanding attention.
+    private var accountFooter: String {
         switch account.state {
-        case .signedIn: return "Active"
-        case .unknown: return "Setting up"
-        case .unavailable: return "Offline, will retry"
+        case .signedIn:
+            return "Birthed made an account for you silently on first launch. No password, nothing to sign in to."
+        case .unknown:
+            return "Setting up your account."
+        case .unavailable:
+            return "Your account has not been created yet. Birthed keeps everything on this device and will try again."
         }
     }
 
@@ -129,11 +143,11 @@ struct MeView: View {
     private func deleteEverything() async {
         try? await account.deleteEverything()
         profileStore.clear()
+        dismiss()
     }
 }
 
-/// The birthday picker again, in a sheet, with a warning when the change
-/// matters. `FR-008` and `FR-009`.
+/// The birthday picker again, in a sheet. `FR-008` and `FR-009`.
 private struct BirthdayEditor: View {
     let profile: Profile?
     let onSave: (Profile) -> Void
