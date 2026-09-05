@@ -113,6 +113,61 @@ ${accumulated.join("\n")}
 }`;
 }
 
+interface SearchHit { id: string; label?: string; description?: string }
+
+/**
+ * When somebody is not on the date at all, the useful question stops being
+ * "which clause dropped them" and becomes "what does Wikidata actually have".
+ * The search interface answers the name to identifier half, and one small
+ * query answers the rest.
+ */
+async function whatDoesWikidataThink(name: string, userAgent: string): Promise<void> {
+  const search = new URLSearchParams({
+    action: "wbsearchentities",
+    search: name,
+    language: "en",
+    type: "item",
+    format: "json",
+    limit: "5",
+    origin: "*",
+  });
+  const response = await fetch(`https://www.wikidata.org/w/api.php?${search}`, {
+    headers: { "User-Agent": userAgent, Accept: "application/json" },
+  });
+  if (!response.ok) {
+    console.log(`\n  (could not search Wikidata for the name: ${response.status})`);
+    return;
+  }
+  const hits = ((await response.json()) as { search?: SearchHit[] }).search ?? [];
+  if (hits.length === 0) {
+    console.log(`\n  Wikidata has no item whose name matches "${name}" at all.`);
+    return;
+  }
+
+  console.log("\n  What Wikidata has under that name:\n");
+  for (const hit of hits.slice(0, 3)) {
+    const rows = await ask(
+      `SELECT ?dob ?precision WHERE {
+  OPTIONAL {
+    wd:${hit.id} p:P569/psv:P569 ?node .
+    ?node wikibase:timeValue ?dob ; wikibase:timePrecision ?precision .
+  }
+} LIMIT 5`,
+      userAgent,
+    );
+    const dates = rows
+      .map((row) => row.dob?.value)
+      .filter((value): value is string => Boolean(value))
+      .map((value) => `${value.slice(0, 10)}`);
+    const shown = dates.length > 0 ? dates.join(", ") : "no date of birth recorded";
+    console.log(`    ${hit.id}  ${hit.label ?? "?"}  ${hit.description ?? ""}`);
+    console.log(`         birth date on Wikidata: ${shown}`);
+  }
+  console.log("\n  If the date there is not the one you searched, the data is the problem,");
+  console.log("  not the importer. If it says no date of birth recorded, nothing we do");
+  console.log("  can put them on a day page until somebody adds one to Wikidata.");
+}
+
 async function main(): Promise<void> {
   await loadDotEnv();
   const config = loadConfig({ needsWrite: false });
@@ -158,6 +213,12 @@ async function main(): Promise<void> {
 
   if (droppedBy) {
     console.log(`  ==> the query drops them at: ${droppedBy}`);
+    if (droppedBy === CLAUSES[0]?.name) {
+      // Nothing about our clauses removed them, so they are not on this date
+      // as far as Wikidata is concerned. Ask Wikidata what date it does have,
+      // which is the only thing that settles it.
+      await whatDoesWikidataThink(who, config.userAgent);
+    }
     return;
   }
 

@@ -22,17 +22,23 @@ export interface NotabilityWeights {
   creatorBonus: number;
   /** Their one line description says they make music. */
   musicBonus: number;
+  /** Commentators, pundits and political internet people. Kyle Kulinski is not
+   *  an actor, a musician or a YouTuber by description, and the audience that
+   *  watches him is the audience this product is for. */
+  commentaryBonus: number;
   livingBonus: number;
   modernBirthYear: number;
   modernBonus: number;
   creatorTerms: string[];
   musicTerms: string[];
+  commentaryTerms: string[];
 }
 
 export const DEFAULT_WEIGHTS: NotabilityWeights = {
   socialBonus: 0.35,
   creatorBonus: 1.4,
   musicBonus: 0.5,
+  commentaryBonus: 0.9,
   livingBonus: 0.15,
   modernBirthYear: 1985,
   modernBonus: 0.25,
@@ -44,6 +50,12 @@ export const DEFAULT_WEIGHTS: NotabilityWeights = {
     "social media", "vlogger", "media personality", "web personality",
   ],
   musicTerms: ["rapper", "singer", "musician", "songwriter", "record producer", "disc jockey"],
+  // Deliberately not "politician". That word would pull in every mayor and
+  // senator who ever lived, which is the actor problem wearing a suit.
+  commentaryTerms: [
+    "political commentator", "commentator", "pundit", "political activist",
+    "talk show host", "talk radio", "columnist", "political analyst",
+  ],
 };
 
 export interface ScoreInput {
@@ -70,6 +82,7 @@ export function notabilityScore(
   let multiplier = 1;
   if (input.hasSocial) multiplier += weights.socialBonus;
   if (mentions(input.description, weights.creatorTerms)) multiplier += weights.creatorBonus;
+  if (mentions(input.description, weights.commentaryTerms)) multiplier += weights.commentaryBonus;
   if (mentions(input.description, weights.musicTerms)) multiplier += weights.musicBonus;
   if (input.isLiving) multiplier += weights.livingBonus;
   if (input.birthYear !== null && input.birthYear >= weights.modernBirthYear) {
@@ -82,6 +95,7 @@ export function notabilityScore(
 export function signals(input: ScoreInput, weights: NotabilityWeights = DEFAULT_WEIGHTS): string[] {
   const found: string[] = [];
   if (mentions(input.description, weights.creatorTerms)) found.push("creator");
+  if (mentions(input.description, weights.commentaryTerms)) found.push("commentary");
   if (mentions(input.description, weights.musicTerms)) found.push("music");
   if (input.hasSocial) found.push("social");
   if (!input.isLiving) found.push("died");
@@ -113,6 +127,14 @@ export interface CandidateInput {
  * is bounded. The rest of the budget goes to the widest covered, which is a
  * fine proxy for everybody else.
  */
+export function isInternetNative(
+  description: string | null,
+  weights: NotabilityWeights = DEFAULT_WEIGHTS,
+): boolean {
+  return mentions(description, weights.creatorTerms)
+    || mentions(description, weights.commentaryTerms);
+}
+
 export function selectCandidates<T extends CandidateInput>(
   people: T[],
   cap: number,
@@ -122,7 +144,7 @@ export function selectCandidates<T extends CandidateInput>(
   const rest: T[] = [];
 
   for (const person of people) {
-    if (mentions(person.shortDescription, weights.creatorTerms)) creators.push(person);
+    if (isInternetNative(person.shortDescription, weights)) creators.push(person);
     else rest.push(person);
   }
 

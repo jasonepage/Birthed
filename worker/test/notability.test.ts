@@ -113,3 +113,34 @@ test("creators alone can fill the whole budget and nothing breaks", () => {
 test("an empty date is an empty list", () => {
   assert.deepEqual(selectCandidates([], 160), []);
 });
+
+test("a commentator outranks an actor read about as often", () => {
+  const pundit = notabilityScore({
+    monthlyViews: 40_000, birthYear: 1988, isLiving: true, hasSocial: true,
+    description: "American political commentator",
+  });
+  const actor = notabilityScore({
+    monthlyViews: 45_000, birthYear: 1975, isLiving: true, hasSocial: false,
+    description: "American actor",
+  });
+  assert.ok(pundit > actor, `pundit ${pundit} should beat actor ${actor}`);
+});
+
+test("politician on its own is not enough, or every mayor arrives", () => {
+  assert.deepEqual(
+    signals({ monthlyViews: 1, birthYear: 1950, isLiving: true, hasSocial: false,
+              description: "American politician" }),
+    [],
+  );
+  assert.deepEqual(
+    signals({ monthlyViews: 1, birthYear: 1985, isLiving: true, hasSocial: false,
+              description: "American political commentator and podcaster" }),
+    ["creator", "commentary"],
+  );
+});
+
+test("a commentator is always looked up, like any other internet person", () => {
+  const pundit = { sitelinks: 6, shortDescription: "American political commentator" };
+  const crowd = Array.from({ length: 300 }, (_, i) => footballer(120 - (i % 100)));
+  assert.ok(selectCandidates([...crowd, pundit], 160).includes(pundit));
+});
