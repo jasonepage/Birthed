@@ -31,19 +31,30 @@ interface ImportedDay {
   birth_day: number;
   people: number;
   scored: number;
+  scored_multiword: number;
 }
 
 /**
  * Which dates are actually finished, in one request.
  *
- * Finished means enough people AND at least one of them ranked on pageviews.
- * Counting people alone was wrong in a way that hid itself: the dates
- * imported before pageviews existed have their full ten and are ordered by
- * sitelink count, which is coverage rather than attention and is why those
- * pages read like a UEFA roster. September 4 was one of them, with every one
- * of its ten people sitting at zero views, and --only-missing was skipping it
- * for having enough people. The flag meant to finish the job was protecting
- * the worst pages in the table from ever being fixed.
+ * Twice now a date has looked finished and been wrong, and both times this
+ * check was the thing protecting it, which is worth saying plainly: the flag
+ * meant to finish the job is the easiest place in this worker to hide bad
+ * data, because a skipped date produces no output at all.
+ *
+ * First it was dates with people but no pageviews, imported before ranking
+ * existed. They have their full ten, ordered by how many languages have an
+ * article, which is coverage rather than attention and fills a page with
+ * footballers.
+ *
+ * Then it was dates whose pageviews were fetched by the version that matched
+ * Wikipedia's answers to the wrong key. Those have scored rows, so they passed
+ * the first fix, and every scored row is somebody whose article title happens
+ * to be one word.
+ *
+ * So finished now means enough people, and at least one of them both carries
+ * pageviews and has a space in their name. On a date that imported correctly,
+ * some of the ten most looked up people do.
  */
 async function alreadyDone(url: string, key: string): Promise<Set<string>> {
   const response = await fetch(`${url}/rest/v1/rpc/imported_days`, {
@@ -63,7 +74,7 @@ async function alreadyDone(url: string, key: string): Promise<Set<string>> {
   const rows = (await response.json()) as ImportedDay[];
   return new Set(
     rows
-      .filter((row) => row.people >= ENOUGH && row.scored > 0)
+      .filter((row) => row.people >= ENOUGH && row.scored_multiword > 0)
       .map((row) => `${row.birth_month}/${row.birth_day}`),
   );
 }
@@ -79,7 +90,7 @@ async function main(): Promise<void> {
   const done = onlyMissing
     ? await alreadyDone(config.supabaseUrl, config.serviceRoleKey)
     : new Set<string>();
-  if (onlyMissing) console.log(`${done.size} dates are done and ranked, skipping those.\n`);
+  if (onlyMissing) console.log(`${done.size} dates are done and correctly ranked, skipping those.\n`);
 
   let kept = 0;
   let skipped = 0;
