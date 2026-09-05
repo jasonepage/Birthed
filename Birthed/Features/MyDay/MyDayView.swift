@@ -12,6 +12,7 @@ struct MyDayView: View {
 
     @State private var twins: [NotablePerson] = []
     @State private var song: ChartWeek?
+    @State private var shareImage: Image?
     @ScaledMetric(relativeTo: .largeTitle) private var heroSize: CGFloat = 128
 
     private let calendar = BirthdayCalendar()
@@ -50,6 +51,16 @@ struct MyDayView: View {
             .navigationTitle("Mine")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    if let shareImage {
+                        ShareLink(
+                            item: shareImage,
+                            preview: SharePreview(profile.birthday.date.displayName(), image: shareImage)
+                        ) {
+                            Label("Share", systemImage: "square.and.arrow.up")
+                        }
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(action: onOpenSettings) {
                         Label("Settings", systemImage: "gearshape")
@@ -234,6 +245,9 @@ struct MyDayView: View {
     }
 
     private func loadSong() async {
+        // The card is drawn on the way out either way, so somebody with no
+        // birth year still gets one, just without the song on it.
+        defer { shareImage = renderShareCard() }
         guard let year = profile.birthday.year else { return }
         // try? on a call that already returns an optional gives a double
         // optional, and the flatten is what stops that being a warning and a
@@ -242,5 +256,19 @@ struct MyDayView: View {
             theWeekOf: profile.birthday.date,
             birthYear: year
         )) ?? nil
+    }
+
+    /// FR-117. Rendered on device, so it works with the network switched off.
+    @MainActor
+    private func renderShareCard() -> Image? {
+        let renderer = ImageRenderer(content: MyDayShareCard(
+            date: profile.birthday.date,
+            weekdayName: birthWeekdayName,
+            song: song,
+            daysAlive: calendar.daysAlive(profile.birthday, on: now)
+        ))
+        renderer.scale = 2
+        guard let rendered = renderer.uiImage else { return nil }
+        return Image(uiImage: rendered)
     }
 }

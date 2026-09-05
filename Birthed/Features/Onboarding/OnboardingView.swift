@@ -74,11 +74,21 @@ struct OnboardingView: View {
         }
     }
 
+    /// Two rules for this copy. It says what the field buys, because a field
+    /// with no stated reason gets skipped. And it does not overclaim, because
+    /// the birthday, the year and the region are all sent to the Birthed
+    /// account: the old line here said the year "is never sent to anyone
+    /// else", which was not true of a value that goes straight into the
+    /// profiles table. What is true is that nothing shared out of the app
+    /// carries it, which `ShareCardView` enforces.
     private var subtitle: String {
         switch step {
-        case .day: return "This is the only thing Birthed actually needs."
-        case .year: return "Optional. It is only used to work out the age you are turning, and it is never sent to anyone else."
-        case .place: return "Optional. A postal code or a city is enough. Birthed never sends your exact location anywhere."
+        case .day:
+            return "This is the only thing Birthed actually needs."
+        case .year:
+            return "Optional, but it is what turns on the number one song the week you were born, and the day of the week it was. Nothing you share out of Birthed ever shows it."
+        case .place:
+            return "Optional. A postal code or a city is enough, and it is the only location Birthed has: your device's location is never sent anywhere."
         }
     }
 

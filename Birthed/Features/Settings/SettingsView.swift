@@ -172,7 +172,7 @@ private struct BirthdayEditor: View {
             } header: {
                 Text("Year")
             } footer: {
-                Text("Optional. Only used to work out the age you are turning.")
+                Text("Optional. It is what turns on the number one song the week you were born, and the age you are turning.")
             }
         }
         .navigationTitle("Your birthday")
