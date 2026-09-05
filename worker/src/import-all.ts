@@ -25,9 +25,25 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-interface ImportedDay { birth_month: number; birth_day: number; people: number }
+interface ImportedDay {
+  birth_month: number;
+  birth_day: number;
+  people: number;
+  scored: number;
+}
 
-/** Which dates already have enough people, in one request. */
+/**
+ * Which dates are actually finished, in one request.
+ *
+ * Finished means enough people AND at least one of them ranked on pageviews.
+ * Counting people alone was wrong in a way that hid itself: the dates
+ * imported before pageviews existed have their full ten and are ordered by
+ * sitelink count, which is coverage rather than attention and is why those
+ * pages read like a UEFA roster. September 4 was one of them, with every one
+ * of its ten people sitting at zero views, and --only-missing was skipping it
+ * for having enough people. The flag meant to finish the job was protecting
+ * the worst pages in the table from ever being fixed.
+ */
 async function alreadyDone(url: string, key: string): Promise<Set<string>> {
   const response = await fetch(`${url}/rest/v1/rpc/imported_days`, {
     method: "POST",
@@ -45,7 +61,9 @@ async function alreadyDone(url: string, key: string): Promise<Set<string>> {
   }
   const rows = (await response.json()) as ImportedDay[];
   return new Set(
-    rows.filter((row) => row.people >= ENOUGH).map((row) => `${row.birth_month}/${row.birth_day}`),
+    rows
+      .filter((row) => row.people >= ENOUGH && row.scored > 0)
+      .map((row) => `${row.birth_month}/${row.birth_day}`),
   );
 }
 
@@ -60,7 +78,7 @@ async function main(): Promise<void> {
   const done = onlyMissing
     ? await alreadyDone(config.supabaseUrl, config.serviceRoleKey)
     : new Set<string>();
-  if (onlyMissing) console.log(`${done.size} dates already have people, skipping those.\n`);
+  if (onlyMissing) console.log(`${done.size} dates are done and ranked, skipping those.\n`);
 
   let kept = 0;
   let skipped = 0;
