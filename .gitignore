@@ -15,3 +15,8 @@ worker/.env
 # Node
 node_modules/
 dist/
+
+# Swift package manager, used only to run the domain tests
+.build/
+.swiftpm/
+Package.resolved

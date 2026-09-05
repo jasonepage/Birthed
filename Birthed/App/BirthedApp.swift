@@ -9,13 +9,18 @@ import SwiftUI
 
 @main
 struct BirthedApp: App {
-    // Slice 1 wires one repository by hand. There is no dependency container
-    // yet because there is nothing yet to inject into.
+    // Slice 2 still wires everything by hand. There is no dependency container
+    // because there is still nothing that needs one.
+    @State private var profileStore = ProfileStore()
+    @State private var account = AccountService()
+
     private let repository = SupabaseRestDayPageRepository()
 
     var body: some Scene {
         WindowGroup {
-            DayPageView(date: CalendarDate.today(), repository: repository)
+            RootView(repository: repository)
+                .environment(profileStore)
+                .environment(account)
         }
     }
 }

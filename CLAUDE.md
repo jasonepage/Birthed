@@ -102,6 +102,14 @@ PRD.md  SRS.md  SDS.md  CLAUDE.md
 
 **The Domain folder is load-bearing.** Nothing in it may import SwiftUI, SwiftData, MapKit, WeatherKit, or a networking library. If a type in Domain needs data, it takes it as a parameter. This is what makes exhaustive testing possible without a simulator.
 
+**Running the domain tests.** `Package.swift` at the repository root points a Swift package target at `Birthed/Domain` and a test target at `BirthedTests/DomainTests`, so the tests run from a terminal with no Xcode target and no package linked into the app:
+
+```
+swift test
+```
+
+The app compiles the same files through the synchronised folder in the Xcode project. Two build systems, one set of sources, on purpose: the domain carries nearly all of the correctness risk and it needs a feedback loop measured in seconds. If a domain file ever imports a framework, `swift test` is what fails first.
+
 ---
 
 ## 5. Decided. Do not relitigate
@@ -115,6 +123,8 @@ PRD.md  SRS.md  SDS.md  CLAUDE.md
 - **Identity content from Wikidata**, not Wikipedia article text, for licensing reasons in `SDS.md` section 8.1. **Credit both anyway.**
 - **No celebrity photographs** in version 1.0. Names, years and descriptions only.
 - **App Store category:** Finance primary, Lifestyle secondary.
+- **The profile is stored in `UserDefaults`, not SwiftData.** It is five scalars, not a cache, and `SDS.md` section 4 reserves SwiftData for the catalog and the day pages. The session token is in the keychain, because it is a bearer credential.
+- **`twin_count` is deliberately callable by the anonymous role.** Supabase's security advisor flags every `security definer` function that anonymous clients can execute, and it is right to. This one is intentional: it is the only way `FR-026` can return a count without exposing anybody's row, the privacy floor from `NFR-033` is applied inside it, and its search path is pinned. Do not "fix" the warning by revoking execute, or the twin count stops working.
 - **Free tier:** all identity content, the birthday morning notification (`FR-073`), one summary notification 45 days out (`FR-072`), and the day plan during the user's first birthday window only (`FR-141b`). **Paid tier:** qualification tracking, the per offer deadline ladder (`FR-071`), the day plan in every later cycle, and the catalog beyond a curated free 15.
 
 ---
