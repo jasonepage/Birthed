@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 
-import { renderDayPage } from "../src/render.js";
+import { READY_PEOPLE, isReady, renderDayPage, renderSitemap } from "../src/render.js";
 import { ChartWeek, coverageByDay, dateExists, songsForDate } from "../src/songs.js";
 
 /** Four consecutive Saturdays, the way the table actually holds them. */
@@ -73,4 +73,42 @@ test("a song title with markup in it is escaped", () => {
   assert.equal(html.includes("<script>alert(1)</script>"), false);
   assert.ok(html.includes("&lt;script&gt;"));
   assert.ok(html.includes("A &amp; B &quot;live&quot;"));
+});
+
+// MARK: Readiness
+
+function people(count: number) {
+  return Array.from({ length: count }, (_, index) => ({
+    qid: `Q${index}`,
+    name: `Person ${index}`,
+    birthYear: 1990 + index,
+    deathYear: null,
+    description: null,
+  }));
+}
+
+test("a half imported date is built but told not to index itself", () => {
+  const thin = renderDayPage({ month: 9, day: 4, people: people(3) }, []);
+  assert.ok(thin.includes('name="robots" content="noindex"'));
+  assert.ok(thin.includes("Person 0"), "still built, still readable by anyone who types the address");
+});
+
+test("a finished date does not carry noindex", () => {
+  const full = renderDayPage({ month: 9, day: 4, people: people(10) }, []);
+  assert.equal(full.includes('content="noindex"'), false);
+});
+
+test("the readiness line is exactly where it says it is", () => {
+  assert.equal(isReady({ month: 1, day: 1, people: people(READY_PEOPLE - 1) }), false);
+  assert.equal(isReady({ month: 1, day: 1, people: people(READY_PEOPLE) }), true);
+});
+
+test("the sitemap lists only the pages that are ready", () => {
+  const map = renderSitemap([{ month: 9, day: 4 }, { month: 3, day: 22 }]);
+  assert.ok(map.includes("https://birthed.app/september-4/"));
+  assert.ok(map.includes("https://birthed.app/march-22/"));
+  assert.equal(map.includes("https://birthed.app/january-1/"), false,
+    "a sitemap that lists a noindex page contradicts itself");
+  // The index is always in it.
+  assert.ok(map.includes("<loc>https://birthed.app/</loc>"));
 });

@@ -10,7 +10,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DayPage, Person, everyDate, slug } from "./model.js";
 import { coverageByDay, fetchChartWeeks, songsForDate } from "./songs.js";
-import { renderDayPage, renderIndex, renderNotFound, renderRobots, renderSitemap } from "./render.js";
+import { isReady, renderDayPage, renderIndex, renderNotFound, renderRobots, renderSitemap } from "./render.js";
 
 const OUT = "out";
 const PER_PAGE = 10;
@@ -73,6 +73,7 @@ async function main(): Promise<void> {
   const dates = everyDate();
   let written = 0;
   let empty = 0;
+  const ready: Array<{ month: number; day: number }> = [];
 
   await mkdir(OUT, { recursive: true });
 
@@ -90,6 +91,7 @@ async function main(): Promise<void> {
   await inBatches(dates, CONCURRENCY, async (date) => {
     const page = await fetchDay(date.month, date.day, url, key);
     if (page.people.length === 0) empty++;
+    if (isReady(page)) ready.push(date);
     const directory = join(OUT, slug(date.month, date.day));
     await mkdir(directory, { recursive: true });
     const songs = songsForDate(covered, date.month, date.day, FIRST_CHART_YEAR, thisYear);
@@ -98,13 +100,14 @@ async function main(): Promise<void> {
   });
 
   await writeFile(join(OUT, "index.html"), renderIndex(), "utf8");
-  await writeFile(join(OUT, "sitemap.xml"), renderSitemap(), "utf8");
+  await writeFile(join(OUT, "sitemap.xml"), renderSitemap(ready), "utf8");
   await writeFile(join(OUT, "robots.txt"), renderRobots(), "utf8");
   await writeFile(join(OUT, "404.html"), renderNotFound(), "utf8");
 
   console.log(`wrote ${written} date pages into ${OUT}, ${empty} of them with nobody in`);
-  if (empty > 0) {
-    console.log("run the worker's import-all first, or those pages ship empty");
+  console.log(`${ready.length} are ready and in the sitemap, ${written - ready.length} carry noindex until they are`);
+  if (ready.length < written) {
+    console.log("run the worker's import-all --only-missing to finish the rest, then build again");
   }
 }
 
