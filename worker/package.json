@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "import:day": "npm run build && node dist/src/import-day.js",
     "import:all": "npm run build && node dist/src/import-all.js",
-    "diagnose": "npm run build && node dist/src/diagnose.js"
+    "diagnose": "npm run build && node dist/src/diagnose.js",
+    "import:songs": "npm run build && node dist/src/import-hot100.js"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
