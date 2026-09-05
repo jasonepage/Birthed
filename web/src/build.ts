@@ -22,6 +22,7 @@ interface Row {
   birth_year: number | null;
   death_year: number | null;
   short_description: string | null;
+  monthly_views: number | null;
 }
 
 function config() {
@@ -37,7 +38,7 @@ function config() {
 
 async function fetchDay(month: number, day: number, url: string, key: string): Promise<DayPage> {
   const query = new URLSearchParams({
-    select: "wikidata_qid,name,birth_year,death_year,short_description",
+    select: "wikidata_qid,name,birth_year,death_year,short_description,monthly_views",
     birth_month: `eq.${month}`,
     birth_day: `eq.${day}`,
     order: "notability_score.desc",
@@ -56,6 +57,7 @@ async function fetchDay(month: number, day: number, url: string, key: string): P
     birthYear: row.birth_year,
     deathYear: row.death_year,
     description: row.short_description,
+    monthlyViews: row.monthly_views ?? 0,
   }));
   return { month, day, people };
 }

@@ -51,6 +51,9 @@ async function fetchDay(month: number, day: number, url: string, key: string): P
     birthYear: row.birth_year,
     deathYear: row.death_year,
     description: row.short_description,
+    // The share card does not rank anything, it just draws the three it was
+    // given in the order they arrived.
+    monthlyViews: 0,
   }));
   return { month, day, people };
 }

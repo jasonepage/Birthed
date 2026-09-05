@@ -84,6 +84,7 @@ function people(count: number) {
     birthYear: 1990 + index,
     deathYear: null,
     description: null,
+    monthlyViews: 1000,
   }));
 }
 
@@ -111,4 +112,17 @@ test("the sitemap lists only the pages that are ready", () => {
     "a sitemap that lists a noindex page contradicts itself");
   // The index is always in it.
   assert.ok(map.includes("<loc>https://birthed.app/</loc>"));
+});
+
+test("ten people who were never ranked is not a ready page", () => {
+  // The failure this exists to stop. A date imported before pageviews has its
+  // full ten and is ordered by how many languages have an article, which fills
+  // the page with footballers. It passes a head count and is exactly the page
+  // that should not be handed to a search engine.
+  const unranked = people(10).map((person) => ({ ...person, monthlyViews: 0 }));
+  assert.equal(isReady({ month: 1, day: 1, people: unranked }), false);
+
+  const ranked = [...unranked];
+  ranked[0] = { ...ranked[0]!, monthlyViews: 1 };
+  assert.equal(isReady({ month: 1, day: 1, people: ranked }), true);
 });

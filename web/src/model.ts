@@ -5,6 +5,12 @@ export interface Person {
   birthYear: number | null;
   deathYear: number | null;
   description: string | null;
+  /**
+   * Average monthly English Wikipedia pageviews, the signal the ordering is
+   * built on. Never rendered. It is here so a page can tell the difference
+   * between ten people who were ranked and ten who were not.
+   */
+  monthlyViews: number;
 }
 
 export interface DayPage {

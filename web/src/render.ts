@@ -20,8 +20,24 @@ import { CHART_NAME, SongOfTheYear } from "./songs.js";
  */
 export const READY_PEOPLE = 8;
 
+/**
+ * Enough people, and evidence that they were actually ranked.
+ *
+ * Counting people alone was not enough, and the way it failed is instructive.
+ * The dates imported before pageviews existed have their full ten and are
+ * ordered by how many languages have an article about somebody, which is
+ * coverage rather than attention, and it fills a page with footballers. Those
+ * pages pass a head count and are exactly the ones that should not be handed
+ * to a search engine, because they are the worst version of the thing this
+ * site is for.
+ *
+ * So a page is ready when it has the people and at least one of them carries
+ * pageviews. This is the same test the worker's --only-missing uses, for the
+ * same reason.
+ */
 export function isReady(page: DayPage): boolean {
-  return page.people.length >= READY_PEOPLE;
+  if (page.people.length < READY_PEOPLE) return false;
+  return page.people.some((person) => person.monthlyViews > 0);
 }
 
 const SITE = "https://birthed.app";
