@@ -7,6 +7,7 @@ import {
   followMappings,
 } from "../src/pageviews.js";
 import { searchTerm } from "../src/diagnose.js";
+import { pageviewLookupLooksBroken } from "../src/import-day.js";
 
 test("the title is decoded, because the batch interface wants real titles", () => {
   assert.equal(titleFromArticleUrl("https://en.wikipedia.org/wiki/Beyonc%C3%A9"), "Beyoncé");
@@ -94,4 +95,45 @@ test("every title asked about gets an answer, and an unknown one is zero", () =>
 test("a rename table that points at itself does not hang the import", () => {
   const loop = new Map([["A", "B"], ["B", "A"]]);
   assert.equal(typeof followMappings("A", loop), "string");
+});
+
+// The check that would have caught the key mismatch in the first minute
+// instead of after a hundred dates.
+function row(title: string | null, views: number) {
+  return {
+    wikidata_qid: "Q1", name: "x", birth_month: 1, birth_day: 1,
+    birth_year: 1990, death_year: null, short_description: null,
+    birth_precision: 11, sitelink_count: 5, is_living: true,
+    notability_score: 0, enwiki_title: title, monthly_views: views,
+    has_social: false, source_url: "https://example.org", content_license: "CC0-1.0",
+  };
+}
+
+test("a date where only one-word titles have readings is flagged", () => {
+  const broken = [
+    row("Artsvik", 172), row("Taz", 40),
+    row("Kim_Kardashian", 0), row("Logan_Paul", 0),
+    row("Rachel_Maddow", 0), row("Adin_Ross", 0),
+  ];
+  assert.equal(pageviewLookupLooksBroken(broken), true);
+});
+
+test("a date that read correctly is not flagged", () => {
+  const fine = [
+    row("Kim_Kardashian", 222711), row("Logan_Paul", 77439),
+    row("Artsvik", 172), row("Rachel_Maddow", 23896),
+    row("Adin_Ross", 28796), row("Taz", 40),
+  ];
+  assert.equal(pageviewLookupLooksBroken(fine), false);
+});
+
+test("a date nobody has been looked up on yet is not flagged", () => {
+  // All zeroes is the shape of a date that has not been scored at all, which
+  // is a different problem and must not be reported as this one.
+  const unscored = Array.from({ length: 6 }, () => row("Some_Person", 0));
+  assert.equal(pageviewLookupLooksBroken(unscored), false);
+});
+
+test("a handful of rows is too few to conclude anything from", () => {
+  assert.equal(pageviewLookupLooksBroken([row("Artsvik", 172)]), false);
 });
