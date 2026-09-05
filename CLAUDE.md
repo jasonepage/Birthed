@@ -165,6 +165,18 @@ as a shelf, not a plan.
 - **`twin_count` is deliberately callable by the anonymous role.** Supabase's security advisor flags every `security definer` function that anonymous clients can execute, and it is right to. This one is intentional: it is the only way `FR-026` can return a count without exposing anybody's row, the privacy floor from `NFR-033` is applied inside it, and its search path is pinned. Do not "fix" the warning by revoking execute, or the twin count stops working.
 - **Free tier:** all identity content, the birthday morning notification (`FR-073`), one summary notification 45 days out (`FR-072`), and the day plan during the user's first birthday window only (`FR-141b`). **Paid tier:** qualification tracking, the per offer deadline ladder (`FR-071`), the day plan in every later cycle, and the catalog beyond a curated free 15.
 
+### The number one song, decided September 5, 2026
+
+- **A chart week is the first issue dated on or after the birth date, and no more than six days after it.** Billboard's issue date is not the week it measured: the tracking week ends more than a week before the date printed on the cover, and the convention has changed several times since 1958. There is no rule here that is true in every sense, so the app picks the simple one, shows the issue date next to the song, and lets the reader check it. `ChartWeek.covers` enforces the six days, and it is not decoration: the server is asked for the first chart on or after a date and always answers, so without it a 1943 birthday gets the January 1959 chart presented as fact.
+- **1958 is not imported.** The Hot 100 began with the issue dated August 4, 1958, but that year's Wikipedia page redirects to a combined article carrying several different charts, and guessing which table is the Hot 100 could file the Best Sellers number one under the wrong name. A 1958 birthday shows no song. Absent beats wrong.
+- **Chart facts are parsed from Wikipedia's rendered HTML, not its wikitext.** Sixty years of year lists were written by hundreds of people using different templates in different decades, and the rendered HTML is what all of those expand to. The reader in `worker/src/html.ts` fills in rowspans, which is not optional: the tables write a song once and span it down its whole run.
+- **Which record was number one on a given date is a fact and cannot be owned.** The compiled list is Wikipedia's, under Creative Commons Attribution ShareAlike, and every row carries the page it came from. Birthed is not affiliated with Billboard, Penske Media or Wikipedia.
+
+### Hosting, decided September 5, 2026
+
+- **birthed.app runs as a Render web service on the Starter plan, not a static site.** Render has no Starter plan for static sites; static hosting is their free product and Starter is a plan for services. `web/src/serve.ts` is that service: it reads the already rendered pages off disk and sets headers, with no dependencies and no database connection, so a Supabase outage cannot take the site down.
+- **The pages are baked into each deploy.** After the importer adds people, redeploy or the site keeps serving what it was built with.
+
 ---
 
 ## 6. Rules that prevent specific known bugs
@@ -178,6 +190,8 @@ Each of these exists because of something real, not as a style preference.
 **Resolve February 29 at read time, never at write time.** The stored birthday stays February 29 forever. The observance setting is consulted every time the next occurrence is computed. And when scheduling the birthday notification, build the trigger from the **observed** date, not the stored one, or a February 29 user gets no notification in three years out of four.
 
 **A calendar birthday is two integers, `birth_month` and `birth_day`.** Never a `Date`, never a timestamp, never passed through a time zone.
+
+**A chart date is the exception, and it still is not a `Date`.** `ChartWeek` carries a year because a chart week happens once and never recurs. It reasons in a fixed coordinated universal time calendar rather than the reader's, so the answer does not change with the reader's time zone, and it parses `yyyy-mm-dd` by hand rather than with a `DateFormatter`, because a formatter reads the reader's locale and calendar and can return a different year for the same eight digits.
 
 **No reward rule may exist without the sentence from the source that supports it.** `offer_rules.source_quote` is `not null` with a minimum length. The extraction pipeline checks every quotation by exact string match against the archived page before a human ever sees it. A model that paraphrases produces a quotation that is not present, and the row is discarded. This is the single most important control in the system.
 
