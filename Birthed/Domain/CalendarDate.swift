@@ -29,6 +29,23 @@ struct CalendarDate: Equatable, Hashable {
             ?? CalendarDate(month: 1, day: 1)!
     }
 
+    /// The calendar date `days` away from this one, wrapping around the year.
+    ///
+    /// The walk happens inside a leap year so that February 29 exists and the
+    /// cycle is all 366 days. It moves by day components rather than by
+    /// seconds, because some days are 23 or 25 hours long. `NFR-004`.
+    func advanced(byDays days: Int, calendar: Calendar = .current) -> CalendarDate {
+        var components = DateComponents()
+        components.year = 2024
+        components.month = month
+        components.day = day
+        guard let base = calendar.date(from: components),
+              let moved = calendar.date(byAdding: .day, value: days, to: base)
+        else { return self }
+        let parts = calendar.dateComponents([.month, .day], from: moved)
+        return CalendarDate(month: parts.month ?? month, day: parts.day ?? day) ?? self
+    }
+
     /// "September 4", in the calendar's own month names.
     func displayName(calendar: Calendar = .current) -> String {
         let names = calendar.monthSymbols

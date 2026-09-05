@@ -10,7 +10,7 @@ final class DayPageViewModel {
         case failed(String)
     }
 
-    let date: CalendarDate
+    private(set) var date: CalendarDate
     private(set) var state: State = .loading
 
     private let repository: DayPageRepository
@@ -27,6 +27,8 @@ final class DayPageViewModel {
         return []
     }
 
+    var isToday: Bool { date == CalendarDate.today() }
+
     func load() async {
         state = .loading
         do {
@@ -39,5 +41,13 @@ final class DayPageViewModel {
                 ?? "Something went wrong loading this day."
             state = .failed(message)
         }
+    }
+
+    /// FR-030. Browsing to another date is the same screen with a different
+    /// day, which is what makes the calendar day the core object rather than
+    /// the user.
+    func move(byDays days: Int) async {
+        date = date.advanced(byDays: days)
+        await load()
     }
 }
