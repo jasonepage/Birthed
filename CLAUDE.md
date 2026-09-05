@@ -114,6 +114,33 @@ The app compiles the same files through the synchronised folder in the Xcode pro
 
 ## 5. Decided. Do not relitigate
 
+### Direction change, September 5, 2026
+
+**Identity is the product now, not the front door to a rewards business.**
+Growth first, revenue later. Three pieces of our own research pointed the same
+way and were being ignored: Famous Birthdays' traffic behaves like search
+rather than habit, at 2.91 pages and 78 seconds a visit; the proven money in
+birthdays is other people's birthdays, where hip holds 270 times the entire
+freebie category's ratings; and a subscription aimed at people who organise
+their year around free things is the hardest sale available.
+
+What this changes:
+
+- **The 150 brand catalog is cut.** The schema and the qualification engine are
+  built and tested and stay in the repository, unused, because they cost
+  nothing to keep and re-deriving them would cost weeks. No catalog build-out.
+- **No paywall.** Slice 7 is off. Everything is free until there is a reason to
+  charge for something.
+- **Distribution is the work.** Date pages on birthed.app for search, short
+  form video for reach. They compound: video points at pages, pages keep
+  working after the video stops, and one script fills both from the same data.
+- **The day page being good is now the entire product.** Whoever appears at the
+  top of September 4 is not a tuning detail any more. It is the thing.
+
+The reward specifications in `PRD.md` sections 10.3 to 10.6, `SRS.md` sections
+6 and 7, and `SDS.md` sections 6.3 and 7 are accurate and unbuilt. Treat them
+as a shelf, not a plan.
+
 - **Name** is Birthed. Domain is birthed.app. Bundle identifier `app.birthed.ios`.
 - **Identity content is the front door, rewards are the retention engine.** Not the other way round.
 - **No user-to-user contact of any kind** in version 1.0. No messaging, matching, rooms, feeds, following, or wishes. `PRD.md` section 4.4 has the evidence, which is three shipped competitors with two combined ratings.
