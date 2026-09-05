@@ -2,6 +2,7 @@
 // without a network and without a browser.
 
 import { DayPage, Person, monthName, neighbours, slug, everyDate } from "./model.js";
+import { CHART_NAME, SongOfTheYear } from "./songs.js";
 
 const SITE = "https://birthed.app";
 const INK = "#0E0C16";
@@ -56,6 +57,14 @@ li {
 .name a:hover { text-decoration: underline; }
 .what { color: #9C9490; font-size: 15px; margin: 2px 0 0; }
 .died { color: #6E6862; font-size: 13px; margin: 3px 0 0; }
+h2.section {
+  font-family: Georgia, "Times New Roman", serif; font-weight: 800;
+  font-size: clamp(24px, 5vw, 32px); line-height: 1.15; margin: 46px 0 6px;
+}
+ol.songs li { display: flex; gap: 13px; align-items: baseline; padding: 11px 15px; }
+ol.songs .title { font-weight: 600; margin: 0; }
+ol.songs .by { color: #9C9490; font-size: 15px; margin: 2px 0 0; }
+p.credit { color: #6E6862; font-size: 13px; margin: 14px 0 0; }
 nav.pager { display: flex; justify-content: space-between; gap: 12px; margin: 34px 0 0; font-size: 15px; }
 nav.pager a { color: ${ACCENT}; text-decoration: none; }
 .cta {
@@ -130,16 +139,51 @@ function jsonLd(page: DayPage, canonical: string): string {
   return `<script type="application/ld+json">${JSON.stringify(payload)}</script>`;
 }
 
-export function renderDayPage(page: DayPage): string {
+/**
+ * Every year's number one on this calendar date, newest first.
+ *
+ * The one thing on this page that belongs to this date and to no other, and
+ * the reason somebody who is not looking for a birthday might land here.
+ *
+ * Years with no covering chart are simply absent, so February 29 shows the
+ * seventeen leap years and says nothing about the others. Nothing is filled
+ * in from a nearby week.
+ */
+function songSection(songs: SongOfTheYear[], name: string): string {
+  if (songs.length === 0) return "";
+
+  const rows = songs.map((song) => `<li>
+<span class="year">${song.year}</span>
+<span class="who">
+<p class="title">${escapeHtml(song.song)}</p>
+<p class="by">${escapeHtml(song.artist)}</p>
+</span>
+</li>`).join("\n");
+
+  const oldest = songs[songs.length - 1]?.year ?? "";
+  const newest = songs[0]?.year ?? "";
+
+  return `<h2 class="section">The number one song on ${escapeHtml(name)}</h2>
+<p class="lede">Every year from ${oldest} to ${newest}, from the chart week that ${escapeHtml(name)} fell in.</p>
+<ol class="songs">
+${rows}
+</ol>
+<p class="credit">Chart positions are from the ${escapeHtml(CHART_NAME)}, compiled by Wikipedia and released under Creative Commons Attribution ShareAlike. Birthed is not affiliated with Billboard or Wikipedia.</p>`;
+}
+
+export function renderDayPage(page: DayPage, songs: SongOfTheYear[] = []): string {
   const name = `${monthName(page.month)} ${page.day}`;
   const canonical = `${SITE}/${slug(page.month, page.day)}/`;
   const count = page.people.length;
   // Not a count. Ten rows is what we show, not how many people share a date,
   // and claiming otherwise would be a small lie on 366 pages.
   const headline = "The people most looked up on this day.";
+  const songLine = songs.length > 0
+    ? ` And the number one song on ${name} in every year since ${songs[songs.length - 1]?.year}.`
+    : "";
   const description = count > 0
-    ? `Who was born on ${name}. ${page.people.slice(0, 3).map((p) => p.name).join(", ")} and ${Math.max(0, count - 3)} more.`
-    : `Who was born on ${name}.`;
+    ? `Who was born on ${name}. ${page.people.slice(0, 3).map((p) => p.name).join(", ")} and ${Math.max(0, count - 3)} more.${songLine}`
+    : `Who was born on ${name}.${songLine}`;
 
   const { previous, next } = neighbours(page.month, page.day);
 
@@ -159,6 +203,7 @@ ${person.deathYear ? `<p class="died">died ${person.deathYear}</p>` : ""}
 <h1>${name}</h1>
 <p class="lede">${headline}</p>
 ${count > 0 ? `<ol>\n${list}\n</ol>` : `<p class="lede">Nobody imported for this date yet.</p>`}
+${songSection(songs, name)}
 <nav class="pager">
 <a href="/${slug(previous.month, previous.day)}/">&larr; ${monthName(previous.month)} ${previous.day}</a>
 <a href="/${slug(next.month, next.day)}/">${monthName(next.month)} ${next.day} &rarr;</a>

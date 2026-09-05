@@ -9,6 +9,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DayPage, Person, everyDate, slug } from "./model.js";
+import { coverageByDay, fetchChartWeeks, songsForDate } from "./songs.js";
 import { renderDayPage, renderIndex, renderNotFound, renderRobots, renderSitemap } from "./render.js";
 
 const OUT = "out";
@@ -65,6 +66,8 @@ async function inBatches<T>(items: T[], size: number, work: (item: T) => Promise
   }
 }
 
+const FIRST_CHART_YEAR = 1959;
+
 async function main(): Promise<void> {
   const { url, key } = config();
   const dates = everyDate();
@@ -73,12 +76,24 @@ async function main(): Promise<void> {
 
   await mkdir(OUT, { recursive: true });
 
+  // The whole chart table once, rather than 366 lookups. It is a few thousand
+  // rows, and every date page needs a slice of it.
+  const weeks = await fetchChartWeeks(url, key);
+  const covered = coverageByDay(weeks);
+  const thisYear = new Date().getUTCFullYear();
+  console.log(`${weeks.length} chart weeks loaded`);
+  if (weeks.length === 0) {
+    console.log("no chart weeks, so the pages will have no songs on them");
+    console.log("run the worker's import:songs first");
+  }
+
   await inBatches(dates, CONCURRENCY, async (date) => {
     const page = await fetchDay(date.month, date.day, url, key);
     if (page.people.length === 0) empty++;
     const directory = join(OUT, slug(date.month, date.day));
     await mkdir(directory, { recursive: true });
-    await writeFile(join(directory, "index.html"), renderDayPage(page), "utf8");
+    const songs = songsForDate(covered, date.month, date.day, FIRST_CHART_YEAR, thisYear);
+    await writeFile(join(directory, "index.html"), renderDayPage(page, songs), "utf8");
     written++;
   });
 
