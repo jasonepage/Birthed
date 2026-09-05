@@ -1,79 +1,67 @@
 # Hosting for birthed.app, the search surface.
 #
-# The site is 366 date pages plus an index, a sitemap and a robots file, all
-# rendered ahead of time by web/src/build.ts out of the same Supabase table the
-# app reads. Nothing runs at request time, so this is a static site and not a
-# web service: no server to keep warm, no cold start, no cost per page view,
-# and a crawler gets a file off a CDN.
-#
 # To deploy: Render dashboard, New, Blueprint, point it at this repository. It
 # reads this file, creates the service, and asks for the one value that is not
 # in here.
 #
-# The one value is SUPABASE_ANON_KEY. It is marked sync: false, which means
-# Render prompts for it once and stores it, and it never appears in this file
-# or anywhere else in the repository. It is the anonymous key, which is safe in
-# a client by design and is protected by row level security. The service role
-# key is not here and must never be: it bypasses row level security. CLAUDE.md
+# That value is SUPABASE_ANON_KEY. It is marked sync: false, which means Render
+# prompts for it once and stores it, and it never appears in this file or
+# anywhere else in the repository. It is the anonymous key, which is safe in a
+# client by design and is protected by row level security. The service role key
+# is not here and must never be: it bypasses row level security. CLAUDE.md
 # section 9.
+#
+# Why a web service and not a static site: Render's static sites have no
+# Starter plan. Static hosting is the free product, and Starter is a plan for
+# services, so a paid tier means running a process. web/src/serve.ts is that
+# process: it reads the already rendered files off disk, sets the headers, and
+# has no dependencies and no database connection. A Supabase outage cannot take
+# the site down, because the pages were built before the deploy.
+#
+# The pages are baked into each deploy. After the importer adds people, redeploy
+# to pick them up.
 
 services:
   - type: web
     name: birthed-web
-    runtime: static
+    runtime: node
+    plan: starter
+    # Same coast as the Supabase project, which only matters at build time,
+    # and same coast as most of the traffic.
+    region: oregon
     rootDir: web
-    # npm install rather than npm ci, because web/ has no lockfile yet. When
-    # one is committed, switch this to `npm ci --include=dev`, which builds the
+
+    # npm install rather than npm ci, because web/ has no lockfile yet. When one
+    # is committed, switch this to `npm ci --include=dev`, which builds the
     # lockfile's dependency tree instead of whatever is newest today.
     #
     # --include=dev because typescript and playwright are development
     # dependencies, and a build with NODE_ENV set to production skips both.
     #
-    # og:ci downloads Chromium and shoots the 366 share images. It is
-    # deliberately allowed to fail the deploy rather than be skipped: every
-    # page carries an og:image tag pointing at /og/<date>.png, so a site that
-    # ships without them has 366 broken link previews and nothing to notice it
-    # by. If Render's build image will not run Chromium, generate the images
-    # locally with `npm run og`, un-ignore web/out/og, commit them, and drop
-    # og:ci from this line.
+    # og:ci downloads Chromium and shoots the 366 share images. It is allowed to
+    # fail the deploy rather than be skipped, on purpose: every page carries an
+    # og:image tag pointing at /og/<date>.png, so a site that ships without them
+    # has 366 broken link previews and nothing to notice it by. If Render's
+    # build image will not run Chromium, generate them locally with
+    # `npm run og`, un-ignore web/out/og, commit them, and drop og:ci here.
     buildCommand: npm install --include=dev && npm run site && npm run og:ci
-    staticPublishPath: out
-    # Only rebuild when something that changes the site changes. The iOS
-    # target, the worker and the specs do not.
+    startCommand: node dist/src/serve.js
+    healthCheckPath: /
+
+    # Only rebuild when something that changes the site changes. The iOS target,
+    # the worker and the specs do not.
     buildFilter:
       paths:
         - web/**
       ignoredPaths:
         - web/test/**
+
     domains:
       - birthed.app
       - www.birthed.app
+
     envVars:
       - key: SUPABASE_ANON_KEY
         sync: false
       - key: NODE_VERSION
         value: "22"
-
-    headers:
-      # The pages change whenever the importer runs, and a date page that is a
-      # year out of date is worse than one fetched again. Cheap: they are a few
-      # kilobytes and they gzip.
-      - path: /*
-        name: Cache-Control
-        value: public, max-age=0, must-revalidate
-      # The share images are named after the date and rewritten in place, so
-      # they get a short cache rather than an immutable one.
-      - path: /og/*
-        name: Cache-Control
-        value: public, max-age=3600
-      - path: /*
-        name: X-Content-Type-Options
-        value: nosniff
-      - path: /*
-        name: Referrer-Policy
-        value: strict-origin-when-cross-origin
-      # No third party scripts, no inline event handlers, no frames. The pages
-      # are text and one stylesheet, so the policy can be this narrow.
-      - path: /*
-        name: Content-Security-Policy
-        value: "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
