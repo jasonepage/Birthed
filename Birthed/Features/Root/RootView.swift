@@ -1,11 +1,12 @@
 import SwiftUI
 
-/// Onboarding, or the two tabs.
+/// Onboarding, or the tabs.
 ///
-/// It was three. The third was called Me and it was a settings form, which is
-/// not a destination: it is a thing you do once and leave. It is a cog now.
-/// `FR-015` said exactly three top-level destinations and this is a deliberate
-/// departure from it, recorded in `CLAUDE.md` section 5.
+/// Three destinations, but not the three `FR-015` named. Me was a settings
+/// form, and settings is a thing you do once and leave rather than a place you
+/// go, so it is a cog. People took its slot, because it is the only screen in
+/// the product that gives somebody a reason to open the app in a month that is
+/// not their own. Recorded in `CLAUDE.md` section 5.
 ///
 /// `FR-033` still holds: inside the birthday window the app opens on the
 /// user's own day rather than on today's page.
@@ -19,7 +20,7 @@ struct RootView: View {
     @State private var tab: Tab = .today
     @State private var showingSettings = false
 
-    enum Tab: Hashable { case today, mine }
+    enum Tab: Hashable { case today, mine, people }
 
     var body: some View {
         Group {
@@ -69,6 +70,10 @@ struct RootView: View {
             )
             .tabItem { Label("Mine", systemImage: "flame") }
             .tag(Tab.mine)
+
+            PeopleView(onOpenSettings: { showingSettings = true })
+                .tabItem { Label("People", systemImage: "person.2") }
+                .tag(Tab.people)
         }
         .tint(Theme.accent)
     }

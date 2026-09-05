@@ -13,6 +13,7 @@ struct BirthedApp: App {
     // because there is still nothing that needs one.
     @State private var profileStore = ProfileStore()
     @State private var account = AccountService()
+    @State private var people = PeopleStore()
 
     private let repository = SupabaseRestDayPageRepository()
 
@@ -21,6 +22,7 @@ struct BirthedApp: App {
             RootView(repository: repository)
                 .environment(profileStore)
                 .environment(account)
+                .environment(people)
         }
     }
 }

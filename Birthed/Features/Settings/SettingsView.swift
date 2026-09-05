@@ -2,19 +2,18 @@ import SwiftUI
 
 /// Settings, as a sheet behind a cog.
 ///
-/// This used to be a third tab called Me. A tab is a place you go; settings is
-/// a thing you do once and leave. Giving it a third of the bottom bar told
-/// every user that a third of this app is a form.
+/// No "Change" buttons. A row that shows a value and does nothing when you tap
+/// it, sitting above a button whose only job is to make that row work, is two
+/// controls doing one control's job. The row is the control. Text you can edit
+/// is edited in place and saved as you type.
 struct SettingsView: View {
     @Environment(ProfileStore.self) private var profileStore
     @Environment(AccountService.self) private var account
     @Environment(\.dismiss) private var dismiss
 
-    @State private var editingBirthday = false
-    @State private var editingRegion = false
     @State private var confirmingDelete = false
-    @State private var showingAttributions = false
     @State private var region = ""
+    @FocusState private var regionFocused: Bool
 
     private var profile: Profile? { profileStore.profile }
 
@@ -23,32 +22,35 @@ struct SettingsView: View {
             List {
                 if let profile {
                     Section("Your day") {
-                        LabeledContent("Birthday", value: profile.birthday.date.displayName())
-                        LabeledContent("Year", value: profile.birthday.year.map { String($0) } ?? "Not set")
-                        if profile.birthday.isLeapDay {
-                            LabeledContent(
-                                "Observed",
-                                value: profile.birthday.leapObservance == .february28 ? "February 28" : "March 1"
-                            )
+                        NavigationLink {
+                            BirthdayEditor(profile: profile) { save($0) }
+                        } label: {
+                            LabeledContent("Birthday", value: birthdayLine(profile))
                         }
-                        Button("Change") { editingBirthday = true }
                     }
 
                     Section {
-                        LabeledContent("Region", value: profile.regionCode ?? "Not set")
-                        Button("Change") {
-                            region = profile.regionCode ?? ""
-                            editingRegion = true
+                        LabeledContent("Region") {
+                            TextField("Add one", text: $region)
+                                .multilineTextAlignment(.trailing)
+                                .textInputAutocapitalization(.words)
+                                .autocorrectionDisabled()
+                                .focused($regionFocused)
+                                .submitLabel(.done)
+                                .onSubmit { commitRegion() }
+                                .onChange(of: regionFocused) { _, focused in
+                                    if !focused { commitRegion() }
+                                }
                         }
                     } header: {
                         Text("Location")
                     } footer: {
-                        Text("Birthed never receives your exact location.")
+                        Text("A postal code or a city. Birthed never receives your exact location.")
                     }
                 }
 
                 Section {
-                    Button("Sources and licences") { showingAttributions = true }
+                    NavigationLink("Sources and licences") { AttributionsView() }
                     LabeledContent("Version", value: Bundle.main.shortVersion)
                 } header: {
                     Text("About")
@@ -66,12 +68,13 @@ struct SettingsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                    Button("Done") {
+                        commitRegion()
+                        dismiss()
+                    }
                 }
             }
-            .sheet(isPresented: $editingBirthday) { birthdaySheet }
-            .sheet(isPresented: $editingRegion) { regionSheet }
-            .sheet(isPresented: $showingAttributions) { AttributionsView() }
+            .onAppear { region = profile?.regionCode ?? "" }
             .confirmationDialog(
                 "Delete everything?",
                 isPresented: $confirmingDelete,
@@ -88,6 +91,12 @@ struct SettingsView: View {
         .tint(Theme.accent)
     }
 
+    private func birthdayLine(_ profile: Profile) -> String {
+        var line = profile.birthday.date.displayName()
+        if let year = profile.birthday.year { line += ", \(year)" }
+        return line
+    }
+
     /// The account is silent by design, so its state is a footnote rather than
     /// a row demanding attention.
     private var accountFooter: String {
@@ -101,43 +110,18 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: Sheets
-
-    private var birthdaySheet: some View {
-        BirthdayEditor(profile: profile) { updated in
-            profileStore.save(updated)
-            Task { await account.pushProfile(updated) }
-            editingBirthday = false
-        } onCancel: {
-            editingBirthday = false
-        }
+    private func commitRegion() {
+        guard var updated = profile else { return }
+        let trimmed = region.trimmingCharacters(in: .whitespacesAndNewlines)
+        let value = trimmed.isEmpty ? nil : trimmed
+        guard value != updated.regionCode else { return }
+        updated.regionCode = value
+        save(updated)
     }
 
-    private var regionSheet: some View {
-        NavigationStack {
-            Form {
-                TextField("97301, or Salem, Oregon", text: $region)
-                    .textInputAutocapitalization(.words)
-                    .autocorrectionDisabled()
-            }
-            .navigationTitle("Region")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { editingRegion = false }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        guard var updated = profile else { return }
-                        let trimmed = region.trimmingCharacters(in: .whitespacesAndNewlines)
-                        updated.regionCode = trimmed.isEmpty ? nil : trimmed
-                        profileStore.save(updated)
-                        Task { await account.pushProfile(updated) }
-                        editingRegion = false
-                    }
-                }
-            }
-        }
+    private func save(_ updated: Profile) {
+        profileStore.save(updated)
+        Task { await account.pushProfile(updated) }
     }
 
     private func deleteEverything() async {
@@ -147,25 +131,25 @@ struct SettingsView: View {
     }
 }
 
-/// The birthday picker again, in a sheet. `FR-008` and `FR-009`.
+/// Changing your own birthday. Pushed rather than presented, and it commits as
+/// you turn the wheels: there is nothing to confirm and nothing to cancel,
+/// because every state of this screen is a valid birthday.
 private struct BirthdayEditor: View {
-    let profile: Profile?
-    let onSave: (Profile) -> Void
-    let onCancel: () -> Void
+    let profile: Profile
+    let onChange: (Profile) -> Void
 
     @State private var month: Int
     @State private var day: Int
     @State private var year: Int?
     @State private var observance: LeapObservance
 
-    init(profile: Profile?, onSave: @escaping (Profile) -> Void, onCancel: @escaping () -> Void) {
+    init(profile: Profile, onChange: @escaping (Profile) -> Void) {
         self.profile = profile
-        self.onSave = onSave
-        self.onCancel = onCancel
-        _month = State(initialValue: profile?.birthday.date.month ?? 1)
-        _day = State(initialValue: profile?.birthday.date.day ?? 1)
-        _year = State(initialValue: profile?.birthday.year)
-        _observance = State(initialValue: profile?.birthday.leapObservance ?? .february28)
+        self.onChange = onChange
+        _month = State(initialValue: profile.birthday.date.month)
+        _day = State(initialValue: profile.birthday.date.day)
+        _year = State(initialValue: profile.birthday.year)
+        _observance = State(initialValue: profile.birthday.leapObservance)
     }
 
     private let years: [Int] = {
@@ -174,40 +158,36 @@ private struct BirthdayEditor: View {
     }()
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("Date") {
-                    BirthdayPicker(month: $month, day: $day, observance: $observance)
-                }
-                Section("Year") {
-                    Picker("Year", selection: $year) {
-                        Text("Rather not say").tag(Int?.none)
-                        ForEach(years, id: \.self) { value in
-                            Text(String(value)).tag(Int?.some(value))
-                        }
-                    }
-                }
+        Form {
+            Section("Date") {
+                BirthdayPicker(month: $month, day: $day, observance: $observance)
             }
-            .navigationTitle("Your birthday")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", action: onCancel)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        guard let date = CalendarDate(month: month, day: day) else { return }
-                        var updated = profile ?? Profile(
-                            birthday: CalendarBirthday(date: date), regionCode: nil
-                        )
-                        updated.birthday = CalendarBirthday(
-                            date: date, year: year, leapObservance: observance
-                        )
-                        onSave(updated)
+            Section {
+                Picker("Year", selection: $year) {
+                    Text("Rather not say").tag(Int?.none)
+                    ForEach(years, id: \.self) { value in
+                        Text(String(value)).tag(Int?.some(value))
                     }
                 }
+            } header: {
+                Text("Year")
+            } footer: {
+                Text("Optional. Only used to work out the age you are turning.")
             }
         }
+        .navigationTitle("Your birthday")
+        .navigationBarTitleDisplayMode(.inline)
+        .onChange(of: month) { _, _ in commit() }
+        .onChange(of: day) { _, _ in commit() }
+        .onChange(of: year) { _, _ in commit() }
+        .onChange(of: observance) { _, _ in commit() }
+    }
+
+    private func commit() {
+        guard let date = CalendarDate(month: month, day: day) else { return }
+        var updated = profile
+        updated.birthday = CalendarBirthday(date: date, year: year, leapObservance: observance)
+        onChange(updated)
     }
 }
 

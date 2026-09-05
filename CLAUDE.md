@@ -134,11 +134,17 @@ What this changes:
 - **Distribution is the work.** Date pages on birthed.app for search, short
   form video for reach. They compound: video points at pages, pages keep
   working after the video stops, and one script fills both from the same data.
-- **Two tabs, not three.** `FR-015` says exactly three top-level destinations:
-  Today, Mine and Me. Me was a settings form, and a tab is a place you go while
-  settings is a thing you do once and leave. Giving it a third of the bottom bar
-  told every user that a third of this app is a form. It is a cog in the
-  toolbar now. Deliberate departure from `FR-015`.
+- **Today, Mine, People.** `FR-015` named Today, Mine and Me. Me was a settings
+  form, and a tab is a place you go while settings is a thing you do once and
+  leave, so it is a cog in the toolbar. People took the slot, because other
+  people's birthdays are the only mechanic in this category that produces a
+  recurring reason to open the app: yours comes round once a year, somebody
+  you know has one most weeks. It also reverses the deferral of friends to
+  version 1.5 in `PRD.md` section 12, deliberately.
+- **No second button to make the first one work.** A row showing a value with a
+  "Change" button under it is two controls doing one control's job. The row is
+  the control, text is edited in place and saved as you type, and a screen
+  whose every state is valid has nothing to confirm and nothing to cancel.
 - **The day page being good is now the entire product.** Whoever appears at the
   top of September 4 is not a tuning detail any more. It is the thing.
 
