@@ -6,10 +6,12 @@ FROM node:22-slim
 WORKDIR /app
 
 COPY package.json tsconfig.json ./
-COPY src ./src
+RUN npm install --no-audit --no-fund
 
-# Node 22 strips TypeScript types at load, so there is no build step and no
-# runtime dependency to install for slice 1.
+COPY src ./src
+COPY test ./test
+RUN npm run build
+
 ENV NODE_ENV=production
 
-CMD ["node", "--experimental-strip-types", "src/import-all.ts"]
+CMD ["node", "dist/src/import-all.js"]

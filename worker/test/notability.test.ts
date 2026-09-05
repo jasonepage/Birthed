@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { notabilityScore } from "../src/notability.ts";
+import { notabilityScore } from "../src/notability.js";
 
 test("a long dead figure scores on sitelinks alone", () => {
   assert.equal(notabilityScore({ sitelinks: 10, birthYear: 1900, isLiving: false }), 100);

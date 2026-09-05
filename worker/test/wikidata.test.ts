@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { dateLiterals, buildQuery } from "../src/wikidata.ts";
+import { dateLiterals, buildQuery } from "../src/wikidata.js";
 
 const OPTIONS = { yearFrom: 1600, yearTo: 2015, minSitelinks: 10, userAgent: "test" };
 

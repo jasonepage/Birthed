@@ -4,6 +4,7 @@
 
 export interface WorkerConfig {
   supabaseUrl: string;
+  /** Empty on a dry run, which needs no write and so needs no key. */
   serviceRoleKey: string;
   userAgent: string;
   yearFrom: number;
@@ -32,11 +33,18 @@ function numberOr(name: string, fallback: number): number {
   return parsed;
 }
 
-export function loadConfig(): WorkerConfig {
+/**
+  * Reads the environment. A dry run needs no service role key, so asking for
+  * one would stop you looking at what a query returns before you have gone and
+  * fetched a credential.
+  */
+export function loadConfig(options: { needsWrite: boolean } = { needsWrite: true }): WorkerConfig {
   const contact = process.env.WIKIDATA_CONTACT?.trim() || "contact@birthed.app";
   return {
     supabaseUrl: required("SUPABASE_URL").replace(/\/+$/, ""),
-    serviceRoleKey: required("SUPABASE_SERVICE_ROLE_KEY"),
+    serviceRoleKey: options.needsWrite
+      ? required("SUPABASE_SERVICE_ROLE_KEY")
+      : (process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? ""),
     // The query service asks for a descriptive agent with a way to reach you.
     userAgent: `Birthed/0.1 (https://birthed.app; ${contact}) node-fetch`,
     yearFrom: numberOr("WIKIDATA_YEAR_FROM", 1600),
@@ -46,16 +54,25 @@ export function loadConfig(): WorkerConfig {
   };
 }
 
-// Loads worker/.env without a dependency. Node 22 has --env-file, but reading
-// it here means the npm scripts stay simple and the Docker image stays bare.
-export async function loadDotEnv(path: string): Promise<void> {
+// Loads worker/.env without a dependency and without import.meta.dirname,
+// which does not exist before Node 20.11. Looks in the working directory
+// first, so it works whether you run from worker/ or from the repository root.
+export async function loadDotEnv(): Promise<void> {
   const { readFile } = await import("node:fs/promises");
-  let text: string;
-  try {
-    text = await readFile(path, "utf8");
-  } catch {
-    return; // no .env is fine when the environment is already populated
+  const { join } = await import("node:path");
+  const candidates = [join(process.cwd(), ".env"), join(process.cwd(), "worker", ".env")];
+
+  let text: string | undefined;
+  for (const candidate of candidates) {
+    try {
+      text = await readFile(candidate, "utf8");
+      break;
+    } catch {
+      continue;
+    }
   }
+  // No .env is fine when the environment is already populated.
+  if (text === undefined) return;
   for (const line of text.split("\n")) {
     const trimmed = line.trim();
     if (trimmed === "" || trimmed.startsWith("#")) continue;

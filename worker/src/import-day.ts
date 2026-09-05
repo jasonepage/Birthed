@@ -6,11 +6,12 @@
 //
 // Slice 1 of the build order in SDS.md section 16.
 
-import { join } from "node:path";
-import { loadConfig, loadDotEnv } from "./config.ts";
-import { fetchPeopleBornOn, type WikidataPerson } from "./wikidata.ts";
-import { notabilityScore } from "./notability.ts";
-import { upsertNotablePeople, type NotablePersonRow } from "./upsert.ts";
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { loadConfig, loadDotEnv } from "./config.js";
+import { fetchPeopleBornOn, type WikidataPerson } from "./wikidata.js";
+import { notabilityScore } from "./notability.js";
+import { upsertNotablePeople, type NotablePersonRow } from "./upsert.js";
 
 const WIKIDATA_LICENSE = "CC0-1.0";
 
@@ -49,7 +50,7 @@ export async function importDay(
   day: number,
   opts: { dryRun: boolean; print: boolean },
 ): Promise<{ fetched: number; kept: number }> {
-  const config = loadConfig();
+  const config = loadConfig({ needsWrite: !opts.dryRun });
 
   const started = Date.now();
   const people = await fetchPeopleBornOn(month, day, {
@@ -87,7 +88,7 @@ export async function importDay(
 }
 
 async function main(): Promise<void> {
-  await loadDotEnv(join(import.meta.dirname, "..", ".env"));
+  await loadDotEnv();
 
   const args = process.argv.slice(2);
   const positional = args.filter((a) => !a.startsWith("--")).map(Number);
@@ -108,7 +109,19 @@ async function main(): Promise<void> {
   });
 }
 
-if (import.meta.filename === process.argv[1]) {
+// Only run when this file is the entry point, so that import-all.ts can
+// import importDay without tripping the command line path.
+function isEntryPoint(): boolean {
+  const argv = process.argv[1];
+  if (argv === undefined) return false;
+  try {
+    return realpathSync(argv) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (isEntryPoint()) {
   main().catch((error: unknown) => {
     console.error(error instanceof Error ? error.message : error);
     process.exit(1);

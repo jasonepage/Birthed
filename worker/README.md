@@ -3,15 +3,24 @@
 Slice 1 scope: import the notable people born on one calendar date from the
 Wikidata query service into `notable_people`.
 
-## Running it
-
-There is no build step and nothing to install. Node 22 strips TypeScript types
-when it loads a file.
+## Setup, once
 
 ```
-cp .env.example .env       # then paste the service role key into it
-node --experimental-strip-types src/import-day.ts 9 4 --dry-run --print
-node --experimental-strip-types src/import-day.ts 9 4
+cd worker
+npm install
+cp .env.example .env      # then paste the service role key into it
+```
+
+Node 18.18 or newer. There is no framework and no runtime dependency: the only
+package installed is TypeScript itself, for the build.
+
+## Running it
+
+```
+npm test                                          # 13 tests, no network needed
+npm run build
+node dist/src/import-day.js 9 4 --dry-run --print  # September 4, writes nothing
+node dist/src/import-day.js 9 4                    # same, and upserts
 ```
 
 `--dry-run` writes nothing. `--print` lists the top 15 for the date, which is
@@ -20,10 +29,12 @@ encyclopedia index. If it reads wrong, change the weights in
 `src/notability.ts` and run it again. The score inputs are stored on every row,
 so re-scoring never needs another trip to Wikidata.
 
+With no arguments it imports today.
+
 The whole backfill, paced:
 
 ```
-node --experimental-strip-types src/import-all.ts
+node dist/src/import-all.js
 ```
 
 ## The service role key

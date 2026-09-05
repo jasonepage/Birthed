@@ -6,9 +6,8 @@
 //   node --experimental-strip-types src/import-all.ts
 //   node --experimental-strip-types src/import-all.ts --from 9 --pause 3000
 
-import { join } from "node:path";
-import { loadDotEnv } from "./config.ts";
-import { importDay } from "./import-day.ts";
+import { loadDotEnv } from "./config.js";
+import { importDay } from "./import-day.js";
 
 const DAYS_IN_MONTH = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
@@ -25,7 +24,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  await loadDotEnv(join(import.meta.dirname, "..", ".env"));
+  await loadDotEnv();
 
   const startMonth = argValue("from", 1);
   const pauseMs = argValue("pause", 2000);

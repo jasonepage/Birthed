@@ -5,13 +5,14 @@
   "type": "module",
   "description": "Birthed content and catalog pipeline worker. Slice 1 imports notable people from Wikidata.",
   "engines": {
-    "node": ">=22.6.0"
+    "node": ">=18.18.0"
   },
   "scripts": {
-    "import:day": "node --experimental-strip-types src/import-day.ts",
-    "import:today": "node --experimental-strip-types src/import-day.ts",
+    "build": "tsc",
+    "test": "npm run build && node --test dist/test/*.test.js",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test test/*.test.ts"
+    "import:day": "npm run build && node dist/src/import-day.js",
+    "import:all": "npm run build && node dist/src/import-all.js"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
