@@ -20,19 +20,41 @@ const ENDPOINT = "https://en.wikipedia.org/w/api.php";
 const BATCH = 50;
 const DAYS = 60;
 
-interface PageviewsPage {
+export interface PageviewsPage {
   title?: string;
   pageviews?: Record<string, number | null>;
 }
 
-interface PageviewsResponse {
-  query?: { pages?: Record<string, PageviewsPage> };
+interface TitleMapping {
+  from?: string;
+  to?: string;
+}
+
+export interface PageviewsResponse {
+  query?: {
+    /**
+     * An array under formatversion 2 and an object keyed by page id under the
+     * older one. Typed as both because the code handles both, and because a
+     * type that claims only one of them is a type that cannot describe the
+     * real answer.
+     */
+    pages?: PageviewsPage[] | Record<string, PageviewsPage>;
+    /** Underscores to spaces, first letter capitalised, and so on. */
+    normalized?: TitleMapping[];
+    /** Where a redirect actually points. */
+    redirects?: TitleMapping[];
+  };
   error?: { info?: string };
 }
 
 /**
  * The article title as the action interface wants it: decoded, because that
  * parameter takes real titles rather than URL segments.
+ *
+ * The underscores are left alone on purpose. They are what the URL has, they
+ * are accepted by the interface, and the answer is matched back through the
+ * interface's own normalisation table rather than by guessing at the shape it
+ * will hand back. See followMappings.
  */
 export function titleFromArticleUrl(articleUrl: string): string | null {
   const marker = "/wiki/";
@@ -87,17 +109,73 @@ async function fetchBatch(
   if (!response.ok) return new Map();
 
   const payload = (await response.json()) as PageviewsResponse;
-  // formatversion 2 gives pages as an array, but older responses give an
-  // object keyed by page id. Handle both rather than trusting one.
+  return viewsByRequestedTitle(titles, payload);
+}
+
+/**
+ * The reading for each title that was asked about, keyed by what was asked.
+ *
+ * Pure, and separate from the fetch, because this is where the bug was and a
+ * bug that cannot be tested is a bug that comes back.
+ *
+ * What is asked for and what is answered are different strings.
+ * "Kim_Kardashian" is normalised to "Kim Kardashian", and "OutKast" is
+ * redirected to "Outkast". Keying on the answer and looking up by the request
+ * means every multi-word name scores zero, and a zero does not look like a
+ * bug. It looks like somebody nobody reads, so the ranking quietly fills with
+ * people who happen to have one-word article titles.
+ */
+export function viewsByRequestedTitle(
+  titles: string[],
+  payload: PageviewsResponse,
+): Map<string, number> {
   const raw = payload.query?.pages;
   const pages: PageviewsPage[] = Array.isArray(raw) ? raw : Object.values(raw ?? {});
 
-  const views = new Map<string, number>();
+  const byAnsweredTitle = new Map<string, number>();
   for (const page of pages) {
     if (!page.title) continue;
-    views.set(page.title, averageMonthlyViews(page.pageviews));
+    byAnsweredTitle.set(page.title, averageMonthlyViews(page.pageviews));
+  }
+
+  const alias = mappings(payload);
+  const views = new Map<string, number>();
+  for (const asked of titles) {
+    views.set(asked, byAnsweredTitle.get(followMappings(asked, alias)) ?? 0);
   }
   return views;
+}
+
+/**
+ * Every rename the interface reported, request to answer.
+ *
+ * Normalisation happens first and redirects second, so both go in one table
+ * and are followed in order.
+ */
+export function mappings(payload: PageviewsResponse): Map<string, string> {
+  const alias = new Map<string, string>();
+  for (const list of [payload.query?.normalized, payload.query?.redirects]) {
+    for (const entry of list ?? []) {
+      if (entry.from !== undefined && entry.to !== undefined) alias.set(entry.from, entry.to);
+    }
+  }
+  return alias;
+}
+
+/**
+ * Follows a title through the rename table to what the answer is filed under.
+ *
+ * Bounded, because a table that pointed at itself would otherwise hang the
+ * import rather than mis-rank one person.
+ */
+export function followMappings(title: string, alias: Map<string, string>, hops = 4): string {
+  let current = title;
+  for (let step = 0; step < hops; step += 1) {
+    const next = alias.get(current);
+    if (next === undefined || next === current) return current;
+    current = next;
+  }
+  return current;
 }
 
 /** Views for a whole date's candidates, in batches of fifty. */
@@ -109,9 +187,10 @@ export async function monthlyViewsForTitles(
   for (let start = 0; start < titles.length; start += BATCH) {
     const batch = titles.slice(start, start + BATCH);
     const views = await fetchBatch(batch, userAgent);
-    for (const [title, count] of views) results.set(title, count);
-    // Anything the interface did not answer for is a real zero, not a gap.
-    for (const title of batch) if (!results.has(title)) results.set(title, 0);
+    // fetchBatch already answers for every title it was asked about, so a
+    // missing entry here means the request itself failed and the zero is the
+    // failure rather than the reading.
+    for (const title of batch) results.set(title, views.get(title) ?? 0);
   }
   return results;
 }
