@@ -102,7 +102,7 @@ test("an empty date still produces a card rather than a broken one", () => {
   assert.ok(!card.includes("You share it with"));
 });
 
-import { renderHome, renderPrivacy, renderSupport } from "../src/pages.js";
+import { calendar, isLeapYear, renderHome, renderPrivacy, renderSupport } from "../src/pages.js";
 
 test("the front door still links every date, and the two pages people need", () => {
   const html = renderHome();
@@ -127,4 +127,47 @@ test("support and privacy carry a way to reach a person", () => {
 
 test("every page names its favicon", () => {
   assert.ok(renderHome().includes('rel="icon" href="/favicon.ico"'));
+});
+
+test("the index is twelve calendars, and each month starts on its real weekday", () => {
+  const html = renderHome(2026);
+  const january = html.split("<h3>January</h3>")[1]?.split("</section>")[0] ?? "";
+  // January 1 2026 was a Thursday, so four squares sit empty before it.
+  assert.equal((january.match(/<span class="pad"><\/span>/g) ?? []).length, 4);
+  assert.ok(january.includes('<a href="/january-1/" aria-label="January 1"'));
+  assert.ok(january.includes("<span>Su</span>"), "the week has a header row");
+  // March 1 2026 was a Sunday, so nothing sits before it.
+  const march = html.split("<h3>March</h3>")[1]?.split("</section>")[0] ?? "";
+  assert.equal((march.match(/<span class="pad"><\/span>/g) ?? []).length, 0);
+});
+
+test("the number is what you see, the date is what a screen reader says", () => {
+  const html = renderHome(2026);
+  assert.ok(html.includes('aria-label="December 25" title="December 25">25</a>'));
+});
+
+test("February 29 keeps a square in a year that does not have one", () => {
+  const ordinary = renderHome(2026);
+  assert.ok(ordinary.includes('<a class="leap" href="/february-29/"'));
+  assert.ok(ordinary.includes("February 29 comes around every fourth year"));
+
+  const leap = renderHome(2028);
+  assert.ok(leap.includes('<a href="/february-29/"'));
+  assert.ok(!leap.includes('class="leap"'), "a leap year has no odd one out");
+  assert.ok(!leap.includes("comes around every fourth year"));
+});
+
+test("all 366 are linked once, in a leap year and out of one", () => {
+  for (const year of [2026, 2027, 2028, 2100]) {
+    const links = calendar(year).match(/href="\/[a-z]+-\d+\/"/g) ?? [];
+    assert.equal(links.length, 366, `${year} did not link all 366`);
+    assert.equal(new Set(links).size, 366, `${year} linked one twice`);
+  }
+});
+
+test("the century rule is not forgotten", () => {
+  assert.equal(isLeapYear(2028), true);
+  assert.equal(isLeapYear(2027), false);
+  assert.equal(isLeapYear(2100), false);
+  assert.equal(isLeapYear(2000), true);
 });

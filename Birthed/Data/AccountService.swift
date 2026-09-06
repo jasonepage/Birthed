@@ -39,6 +39,63 @@ final class AccountService {
     }
 
     var accessToken: String? { Keychain.get(Key.accessToken) }
+    var userID: String? {
+        if case let .signedIn(id) = state { return id }
+        return nil
+    }
+
+    private struct RefreshResponse: Decodable {
+        let access_token: String?
+        let refresh_token: String?
+    }
+
+    /// Seconds until the stored access token expires, read from its own
+    /// payload. A JSON web token is three base64 parts and the middle one
+    /// carries `exp`. Nothing is verified here; the server does that. This
+    /// only decides whether to refresh before asking.
+    private func secondsUntilExpiry(of token: String) -> TimeInterval? {
+        let parts = token.split(separator: ".")
+        guard parts.count == 3 else { return nil }
+        var payload = String(parts[1]).replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        while payload.count % 4 != 0 { payload += "=" }
+        guard let data = Data(base64Encoded: payload),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let exp = object["exp"] as? TimeInterval
+        else { return nil }
+        return exp - Date().timeIntervalSince1970
+    }
+
+    /// An access token that will still be valid for the next minute, refreshed
+    /// through the refresh token when the stored one is about to expire.
+    ///
+    /// Access tokens last an hour. Without this, everything that carries the
+    /// user's token, the profile push, the likes, the account deletion, stops
+    /// working an hour after first launch on a phone that stays open, and
+    /// nothing says so.
+    func freshAccessToken() async -> String? {
+        guard let token = accessToken else { return nil }
+        if let remaining = secondsUntilExpiry(of: token), remaining > 60 { return token }
+        guard let refresh = Keychain.get(Key.refreshToken) else { return token }
+
+        var components = URLComponents(url: baseURL.appending(path: "auth/v1/token"), resolvingAgainstBaseURL: false)
+        components?.queryItems = [URLQueryItem(name: "grant_type", value: "refresh_token")]
+        guard let url = components?.url else { return token }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue(anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["refresh_token": refresh])
+        request.timeoutInterval = 15
+
+        guard let (data, response) = try? await session.data(for: request),
+              let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+              let decoded = try? JSONDecoder().decode(RefreshResponse.self, from: data),
+              let newToken = decoded.access_token
+        else { return token }
+        Keychain.set(newToken, for: Key.accessToken)
+        if let newRefresh = decoded.refresh_token { Keychain.set(newRefresh, for: Key.refreshToken) }
+        return newToken
+    }
 
     private struct SignUpResponse: Decodable {
         struct User: Decodable { let id: String }
@@ -92,7 +149,7 @@ final class AccountService {
     /// user needs to see: the local copy is what the interface reads.
     @discardableResult
     func pushProfile(_ profile: Profile) async -> Bool {
-        guard case let .signedIn(userID) = state, let token = accessToken else { return false }
+        guard case let .signedIn(userID) = state, let token = await freshAccessToken() else { return false }
 
         var body: [String: Any] = [
             "id": userID,
@@ -132,7 +189,7 @@ final class AccountService {
     /// `FR-014`. The row cascade and the auth user both go, which needs the
     /// service role, so it runs in an Edge Function rather than here.
     func deleteEverything() async throws {
-        if let token = accessToken {
+        if let token = await freshAccessToken() {
             var request = URLRequest(url: baseURL.appending(path: "functions/v1/delete-account"))
             request.httpMethod = "POST"
             request.setValue(anonKey, forHTTPHeaderField: "apikey")

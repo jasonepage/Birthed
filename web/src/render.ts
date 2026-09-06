@@ -112,9 +112,33 @@ nav.pager a { color: ${ACCENT}; text-decoration: none; }
 .cta p { margin: 0; opacity: 0.92; font-size: 15px; }
 footer { margin: 40px 0 0; color: #7C7570; font-size: 13px; }
 footer a { color: #9C9490; }
-.months { columns: 3; column-gap: 20px; margin: 26px 0 0; padding: 0; list-style: none; }
-.months a { color: ${ACCENT}; text-decoration: none; font-size: 15px; line-height: 2; }
-@media (max-width: 520px) { .months { columns: 2; } }
+/* The year as twelve calendars. Seven columns, so a row is a week and the page
+   reads the way a wall calendar does instead of as a column of 366 lines. */
+.months { display: grid; grid-template-columns: repeat(3, 1fr); gap: 26px 18px; margin: 24px 0 0; padding: 0; }
+.cal { min-width: 0; }
+.cal h3 {
+  font-family: Georgia, "Times New Roman", serif; font-weight: 800;
+  font-size: 19px; margin: 0 0 8px;
+}
+.cal .dow, .cal .days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.cal .dow { margin: 0 0 5px; padding: 0 0 6px; border-bottom: 1px solid #2A2434; }
+.cal .dow span {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-align: center;
+  color: #6E6862; text-transform: uppercase;
+}
+.cal .days a, .cal .days .pad {
+  display: flex; align-items: center; justify-content: center;
+  aspect-ratio: 1 / 1; border-radius: 8px;
+  font-size: 13px; font-variant-numeric: tabular-nums;
+}
+.cal .days a { background: #17141F; color: #D9D2CC; text-decoration: none; }
+.cal .days a:hover, .cal .days a:focus { background: ${ACCENT}; color: #FFF7EE; }
+/* February 29 in a year that does not have one. It still has a page. */
+.cal .days a.leap { background: none; color: #7C7570; box-shadow: inset 0 0 0 1px #2A2434; }
+.cal .days a.leap:hover, .cal .days a.leap:focus { background: ${ACCENT}; color: #FFF7EE; box-shadow: none; }
+p.calnote { color: #6E6862; font-size: 13px; margin: 22px 0 0; }
+@media (max-width: 680px) { .months { grid-template-columns: repeat(2, 1fr); gap: 22px 14px; } }
+@media (max-width: 430px) { .months { grid-template-columns: 1fr; gap: 26px; } .cal .days a { font-size: 15px; } }
 footer .sitelinks { color: #B9B2AD; font-size: 14px; }
 footer .sitelinks a { color: ${ACCENT}; text-decoration: none; }
 .hero { display: flex; gap: 22px; align-items: flex-start; margin: 10px 0 0; }
