@@ -24,7 +24,7 @@ struct MyDayView: View {
     /// and shown under it; each is absent rather than guessed when no chart
     /// week covers the birth date.
     @State private var others: [ChartWeek.Chart: ChartWeek] = [:]
-    @State private var shareImage: Image?
+    @State private var showingShare = false
     @State private var lit = true
     @State private var relightTask: Task<Void, Never>?
 
@@ -67,15 +67,12 @@ struct MyDayView: View {
             .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    if let shareImage {
-                        ShareLink(
-                            item: shareImage,
-                            preview: SharePreview(profile.birthday.date.displayName(), image: shareImage)
-                        ) {
-                            Label("Share", systemImage: "square.and.arrow.up")
-                        }
-                        .tint(palette.type)
+                    Button {
+                        showingShare = true
+                    } label: {
+                        Label("Share", systemImage: "square.and.arrow.up")
                     }
+                    .tint(palette.type)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(action: onOpenSettings) {
@@ -88,7 +85,9 @@ struct MyDayView: View {
             .task { await loadTwins() }
             .task { await loadSong() }
             .task { await loadOthers() }
-            .onChange(of: colorScheme) { _, _ in shareImage = renderShareCard() }
+            .sheet(isPresented: $showingShare) {
+                ShareCardPicker(choices: shareChoices, subject: profile.birthday.date.displayName())
+            }
             .sensoryFeedback(.impact(weight: .heavy), trigger: lit) { _, isLit in !isLit }
         }
         .tint(Theme.accent)
@@ -445,9 +444,6 @@ struct MyDayView: View {
     }
 
     private func loadSong() async {
-        // The card is drawn on the way out either way, so somebody with no
-        // birth year still gets one, just without the song on it.
-        defer { shareImage = renderShareCard() }
         guard let year = profile.birthday.year else { return }
         // try? on a call that already returns an optional gives a double
         // optional, and the flatten is what stops that being a warning and a
@@ -466,25 +462,71 @@ struct MyDayView: View {
             )) ?? nil
             if let found { others[chart] = found }
         }
-        shareImage = renderShareCard()
     }
 
-    /// FR-117. Rendered on device, so it works with the network switched off.
-    /// Drawn in the palette the screen is showing, so the export matches the
-    /// screenshot.
-    @MainActor
-    private func renderShareCard() -> Image? {
-        let renderer = ImageRenderer(content: MyDayShareCard(
-            date: profile.birthday.date,
-            weekdayName: birthWeekdayName,
-            song: song,
-            album: others[.billboard200],
-            film: others[.boxOffice],
-            daysAlive: daysAlive,
-            palette: palette
-        ))
-        renderer.scale = 2
-        guard let rendered = renderer.uiImage else { return nil }
-        return Image(uiImage: rendered)
+    /// FR-117. Every card is rendered on device, in the palette the screen is
+    /// showing, so what is shared is what was on screen. The whole day first,
+    /// then one card per fact, in the order the facts sit on the screen.
+    /// Anything this person does not have, no year and so no song, is simply
+    /// not a card.
+    private var shareChoices: [ShareCardChoice] {
+        let date = profile.birthday.date
+        let palette = palette
+        var choices: [ShareCardChoice] = []
+
+        choices.append(ShareCardChoice(id: "day", label: "Your day") {
+            MyDayShareCard(
+                date: date,
+                weekdayName: birthWeekdayName,
+                song: song,
+                album: others[.billboard200],
+                film: others[.boxOffice],
+                daysAlive: daysAlive,
+                palette: palette
+            )
+        })
+
+        if let song {
+            choices.append(ShareCardChoice(id: "song", label: "The song") {
+                FocusCard(kicker: "NUMBER ONE THE WEEK I WAS BORN", title: song.song,
+                          subtitle: song.artist, footnote: song.attribution(), palette: palette)
+            })
+        }
+        if let film = others[.boxOffice] {
+            choices.append(ShareCardChoice(id: "film", label: "The film") {
+                FocusCard(kicker: "THE NUMBER ONE FILM THE WEEK I WAS BORN", title: film.song,
+                          footnote: film.attribution(), palette: palette)
+            })
+        }
+        if let album = others[.billboard200] {
+            choices.append(ShareCardChoice(id: "album", label: "The album") {
+                FocusCard(kicker: "THE NUMBER ONE ALBUM THE WEEK I WAS BORN", title: album.song,
+                          subtitle: album.artist, footnote: album.attribution(), palette: palette)
+            })
+        }
+        if let daysAlive {
+            let weekday = birthWeekdayName.map { "born on a \($0)" }
+            choices.append(ShareCardChoice(id: "days", label: "Days old") {
+                FocusCard(kicker: "I HAVE BEEN HERE", title: "\(daysAlive.formatted()) days",
+                          subtitle: weekday, footnote: date.displayName(), palette: palette)
+            })
+        }
+        if let milestone = facts.nextMilestone(for: profile.birthday, from: now) {
+            let when = milestone.daysAway == 0 ? "TODAY" : "ON \(milestone.date.formatted(.dateTime.month(.wide).day().year()).uppercased())"
+            choices.append(ShareCardChoice(id: "milestone", label: "Next milestone") {
+                FocusCard(kicker: when, title: "\(milestone.days.formatted()) days old",
+                          subtitle: milestone.daysAway == 0 ? nil : "\(milestone.daysAway.formatted()) days from now",
+                          footnote: date.displayName(), palette: palette)
+            })
+        }
+        let sign = facts.zodiacSign(for: date)
+        let animal = facts.chineseAnimal(for: profile.birthday).map { "Year of the \($0.rawValue)" }
+        let traditional = [animal, facts.birthstone(for: date), facts.birthFlower(for: date)].compactMap { $0 }.joined(separator: "  ·  ")
+        choices.append(ShareCardChoice(id: "sign", label: "Your sign") {
+            FocusCard(kicker: date.displayName().uppercased(), title: "\(sign.symbol) \(sign.rawValue)",
+                      subtitle: traditional, footnote: "Traditional dates and lists", palette: palette)
+        })
+
+        return choices
     }
 }
