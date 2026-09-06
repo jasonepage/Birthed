@@ -27,6 +27,13 @@ export interface TimelineRow {
   text: string;
   /** Null for a Wikipedia event, which is credited once at the foot instead. */
   sourceUrl: string | null;
+  /**
+   * What kind of thing this is: event, release, sport, science, record and so
+   * on. Only a researched fact has one, because only the researcher was asked
+   * for it. It was being dropped here, and it is the only thing either source
+   * knows about a line beyond its words and its year.
+   */
+  category: string | null;
 }
 
 /** A key a date can be looked up by, since a Map cannot take a pair. */
@@ -162,7 +169,7 @@ export function buildTimeline(
 ): TimelineRow[] {
   const fromFacts: TimelineRow[] = facts.map((fact) => {
     const { year, text } = splitDatePrefix(fact.fact, monthName, day);
-    return { year, text, sourceUrl: fact.sourceUrl };
+    return { year, text, sourceUrl: fact.sourceUrl, category: fact.category };
   });
 
   // Only facts that landed on a year can collide with an event, since the
@@ -179,7 +186,7 @@ export function buildTimeline(
   for (const event of events) {
     const sameYear = factsByYear.get(event.year) ?? [];
     if (sameYear.some((text) => saysTheSameThing(text, event.description))) continue;
-    fromEvents.push({ year: event.year, text: event.description, sourceUrl: null });
+    fromEvents.push({ year: event.year, text: event.description, sourceUrl: null, category: null });
   }
 
   const rows = [...fromFacts, ...fromEvents];
@@ -237,4 +244,60 @@ export async function fetchEvents(url: string, key: string): Promise<DayEvent[]>
   }
 
   return events;
+}
+
+
+/**
+ * The handful worth stopping on, out of all of them.
+ *
+ * Two rules, and both are deliberately dull, because a clever rule that cannot
+ * be explained is one nobody can check on 366 pages.
+ *
+ * First, the researched facts win. Not because they are better written, but
+ * because each one was kept only when the page it cites was opened and
+ * answered, and because the researcher was choosing what mattered about the
+ * date while Wikipedia's list is everything anybody ever added. If a date has
+ * fewer of them than we need, the whole merged list is used instead, so a date
+ * nobody researched still gets a feed rather than an empty section.
+ *
+ * Second, they are spread evenly across the years rather than taken off the
+ * top. Taking the first six gives six things from antiquity on one date and
+ * six from the last century on another. Even spacing always keeps the oldest
+ * and the newest, which are the two a reader is most likely to want, and puts
+ * four between them.
+ *
+ * Chronological on the way out, because the section says "oldest first" and
+ * that is still true of what is shown.
+ */
+export function pickHighlights(rows: TimelineRow[], count = 6): TimelineRow[] {
+  const researched = rows.filter((row) => row.sourceUrl !== null);
+  const pool = researched.length >= count ? researched : rows;
+  if (pool.length <= count) return pool;
+
+  const chosen: TimelineRow[] = [];
+  const last = pool.length - 1;
+  // The oldest thing on the date leads, whoever found it. Preferring the
+  // researched facts is right for the body of the feed and wrong for the top
+  // of it: on September 4 the researcher's oldest is a calendar reform in
+  // 1752, while the oldest thing that happened is the end of the Western
+  // Roman Empire, which was Wikipedia's line and was therefore in the drawer.
+  // The best sentence on the page must not be filed behind a source rule.
+  const eldest = rows[0];
+  for (let i = 0; i < count; i++) {
+    const at = Math.round((i * last) / (count - 1));
+    const row = pool[at];
+    // Rounding can land twice on the same row when the pool is barely bigger
+    // than the count, and the same sentence printed twice is the one outcome
+    // worth writing a line to prevent.
+    if (row !== undefined && !chosen.includes(row)) chosen.push(row);
+  }
+  if (eldest !== undefined && !chosen.includes(eldest)) {
+    chosen.splice(0, 1, eldest);
+  }
+  return chosen;
+}
+
+/** The rows that are not in the picked handful, in the order they arrived. */
+export function theRest(rows: TimelineRow[], picked: TimelineRow[]): TimelineRow[] {
+  return rows.filter((row) => !picked.includes(row));
 }

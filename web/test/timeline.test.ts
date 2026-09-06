@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildTimeline, saysTheSameThing, splitDatePrefix } from "../src/timeline.js";
+import { buildTimeline, pickHighlights, saysTheSameThing, splitDatePrefix, theRest } from "../src/timeline.js";
 import { cardHighlight, renderShareCard } from "../src/share.js";
 
 /**
@@ -289,4 +289,90 @@ test("a researched fact still beats a Wikipedia line when there is one", () => {
 
 test("a date with neither still falls through to nothing, not to something worse", () => {
   assert.equal(cardHighlight([], [], 12, 25), null);
+});
+
+
+// ---------------------------------------------------------------------------
+// Picking the handful. Forty three things on a page is everything anybody
+// knows about a date and nothing anybody reads, so six of them go in front.
+// What must never happen is that the other thirty seven quietly disappear.
+
+function row(year: number, researched = true) {
+  return {
+    year,
+    text: `something in ${year}`,
+    sourceUrl: researched ? `https://example.org/${year}` : null,
+    category: researched ? "event" : null,
+  };
+}
+
+test("a date with fewer things than the count keeps all of them", () => {
+  const rows = [row(1900), row(1950), row(2000)];
+  assert.deepEqual(pickHighlights(rows, 6), rows);
+  assert.deepEqual(theRest(rows, pickHighlights(rows, 6)), []);
+});
+
+test("the oldest and the newest are always among the picked", () => {
+  const rows = [1800, 1850, 1900, 1925, 1950, 1975, 2000, 2010, 2020].map((y) => row(y));
+  const picked = pickHighlights(rows, 6);
+  assert.equal(picked.length, 6);
+  assert.equal(picked[0]?.year, 1800, "the oldest thing on the date is never cut");
+  assert.equal(picked[picked.length - 1]?.year, 2020, "nor the newest");
+});
+
+test("the picked are spread across the years rather than taken off the top", () => {
+  const rows = Array.from({ length: 40 }, (unused, index) => row(1600 + index * 10));
+  const picked = pickHighlights(rows, 6);
+  // Six taken off the top would all sit in the first sixty years. These do not.
+  const span = (picked[picked.length - 1]?.year ?? 0) - (picked[0]?.year ?? 0);
+  assert.equal(span, 390, "the picked cover the whole range the date does");
+});
+
+test("the same row is never picked twice", () => {
+  for (let size = 2; size <= 12; size++) {
+    const rows = Array.from({ length: size }, (unused, index) => row(1900 + index));
+    const picked = pickHighlights(rows, 6);
+    assert.equal(new Set(picked).size, picked.length, `${size} rows produced a repeat`);
+  }
+});
+
+test("the researched facts are preferred, because their sources were checked", () => {
+  const rows = [
+    row(1900, false), row(1910, false), row(1920, false), row(1930, false),
+    row(1940, true), row(1950, true), row(1960, true),
+    row(1970, true), row(1980, true), row(1990, true),
+  ];
+  const picked = pickHighlights(rows, 6);
+  assert.ok(picked.every((r) => r.sourceUrl !== null), "a Wikipedia line was taken over a checked one");
+});
+
+test("a date nobody researched still gets a feed rather than an empty section", () => {
+  const rows = [1900, 1950, 2000, 2010, 2020, 2021, 2022].map((y) => row(y, false));
+  const picked = pickHighlights(rows, 6);
+  assert.equal(picked.length, 6, "falling back to the whole list is what stops the section vanishing");
+});
+
+test("everything not picked is handed back, so nothing is lost", () => {
+  const rows = Array.from({ length: 43 }, (unused, index) => row(1000 + index * 20));
+  const picked = pickHighlights(rows, 6);
+  const rest = theRest(rows, picked);
+  assert.equal(picked.length + rest.length, 43);
+  assert.equal(new Set([...picked, ...rest]).size, 43, "a row went missing between the two lists");
+});
+
+test("the oldest thing on the date leads, even when Wikipedia is the one who found it", () => {
+  // September 4 in miniature. The researcher's oldest is 1752; the oldest
+  // thing that happened is the end of the Western Roman Empire, which came
+  // from Wikipedia. Preferring checked sources is right for the body of the
+  // feed and wrong for the sentence at the top of it.
+  const rows = [
+    row(476, false),
+    ...[1752, 1781, 1882, 1923, 1957, 1972, 1993, 1998].map((y) => row(y, true)),
+  ];
+  const picked = pickHighlights(rows, 6);
+  assert.equal(picked[0]?.year, 476, "the best sentence on the page was filed behind a source rule");
+  assert.equal(picked.length, 6);
+  assert.equal(new Set(picked).size, 6);
+  // And it is still on the page exactly once, not in both lists.
+  assert.ok(!theRest(rows, picked).some((r) => r.year === 476));
 });
