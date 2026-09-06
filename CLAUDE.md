@@ -356,6 +356,38 @@ as a shelf, not a plan.
 - **birthed.app runs as a Render web service on the Starter plan, not a static site.** Render has no Starter plan for static sites; static hosting is their free product and Starter is a plan for services. `web/src/serve.ts` is that service: it reads the already rendered pages off disk and sets headers, with no dependencies and no database connection, so a Supabase outage cannot take the site down.
 - **The pages are baked into each deploy.** After the importer adds people, redeploy or the site keeps serving what it was built with.
 
+### Vercel, evaluated and rejected, September 6, 2026
+
+- **birthed.app is on Render and stays there.** A Vercel project was created
+  from this repository on September 6 and every URL on it returned 404. It was
+  pointed at the repository root, which has no `package.json`, no `index.html`
+  and no framework, so Vercel built nothing and had nothing to serve.
+- **Pointing it at `web/` would not have fixed it.** `web/src/serve.ts` is a
+  long running Node process and `render.yaml` starts it with
+  `node dist/src/serve.js`. Vercel serves static files and serverless
+  functions and has nowhere to put a start command. Making it work means
+  building to static output and moving every header out of `serve.ts` and into
+  a `vercel.json`.
+- **The header move is the trap, and it is the real reason this is not a small
+  job.** `securityFor` widens the policy for `/add` alone. On Vercel
+  `serve.ts` never runs, so `/add` would get `default-src 'none'`, the browser
+  would drop its script, and the page would come up empty with nothing on
+  screen to say why: the exact bug the security policy decision above already
+  records. Worse, `web/test/serve.test.ts` would still pass, because it reads
+  the header out of `serve.ts` rather than off the live site. The test suite
+  would report a healthy site while `/add` was broken.
+- **The missing environment variables were a third problem, not the cause.**
+  `web/out/` is gitignored, so any host builds the 366 pages itself and
+  `build.ts` throws without `SUPABASE_ANON_KEY`. Render already holds it.
+  Setting it on Vercel would not have fixed the 404.
+- **Render is healthy and was verified on September 6.** The home page, a date
+  page and `/add` all render, and `/add` draws its own controls, which means
+  the policy exception is working.
+- **If a Vercel project is ever created again, remove its GitHub app access to
+  this repository when tearing it down**, or it builds a broken deployment on
+  every push to main and sends mail about each one. That is cleanup after the
+  fact, not the reason it was rejected.
+
 ---
 
 ## 6. Rules that prevent specific known bugs
