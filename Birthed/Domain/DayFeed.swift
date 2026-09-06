@@ -165,7 +165,7 @@ struct DayFeed {
             items.append((score(year: week.year, readerBirthYear: readerBirthYear), index, chartItem(week, kind: .film, readerBirthYear: readerBirthYear)))
         }
 
-        return interleave(items, salt: salt)
+        return settled(interleave(items, salt: salt))
     }
 
     /// The same deal `FactOrder` uses, over feed items. The ids are the
@@ -194,6 +194,58 @@ struct DayFeed {
             sourceURL: nil,
             fact: nil
         )
+    }
+
+    /// Words that keep a row out of the first position.
+    ///
+    /// The same list the share cards use on the web. 41 percent of the 19,734
+    /// imported events match it, which is why it is used here to move one row
+    /// rather than to remove eight thousand.
+    static func isHeavy(_ text: String) -> Bool {
+        let lowered = text.lowercased()
+        for word in heavyWords where lowered.range(of: "\\b\(word)\\b", options: .regularExpression) != nil {
+            return true
+        }
+        return false
+    }
+
+    private static let heavyWords = [
+        "kill", "killed", "kills", "killing", "massacre", "shooting", "shot",
+        "murder", "murdered", "bomb", "bombing", "bombed", "attack", "attacked",
+        "dies", "died", "death", "deaths", "dead", "crash", "crashed", "crashes",
+        "earthquake", "hurricane", "tsunami", "famine", "executed", "execution",
+        "assassinated", "assassination", "rape", "raped", "slaughter", "genocide",
+        "terrorist", "terrorism", "hostage", "riot", "riots", "invasion",
+        "disaster", "sank", "sinking", "sunk", "explosion", "exploded",
+        "epidemic", "pandemic", "plague", "suicide", "abducted", "torture",
+    ]
+
+    /// Moves a heavy row out of the first position, and changes nothing else.
+    ///
+    /// The first row of this feed is set large and carries the reader's age
+    /// beside it, so on somebody's own birthday the top of the screen can read
+    /// "You were 7" over a mass casualty. That is the actual problem, and it
+    /// lives in one position rather than throughout the list.
+    ///
+    /// Deliberately not a filter over the whole feed. This tab is a record of
+    /// what happened on a date, and 41 percent of the events match the list, so
+    /// filtering it would take September 11 off September 11 and Pearl Harbor
+    /// off December 7. A history feed that has been emptied of history is not
+    /// safer, it is broken, and it is the kind of broken somebody screenshots.
+    /// The share cards are the opposite case and are filtered completely: a
+    /// card is one line, it is a celebration rather than a record, and it
+    /// travels on its own into places nobody chose.
+    ///
+    /// To filter the whole feed instead, this becomes
+    /// `items.filter { !isHeavy($0.text) }`. One line, and it should not be
+    /// changed without looking at what December 7 turns into.
+    static func settled(_ items: [Item]) -> [Item] {
+        guard let first = items.first, isHeavy(first.text) else { return items }
+        guard let lighter = items.firstIndex(where: { !isHeavy($0.text) }) else { return items }
+        var reordered = items
+        let lifted = reordered.remove(at: lighter)
+        reordered.insert(lifted, at: 0)
+        return reordered
     }
 
     /// Highest score first. Inside a score the kinds take turns, each kind

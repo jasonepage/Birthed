@@ -170,4 +170,60 @@ final class DayFeedTests: XCTestCase {
     func testTheEmptyFeedIsEmpty() {
         XCTAssertTrue(DayFeed.build(facts: [], events: [], people: [], songs: [], films: [], readerBirthYear: nil).isEmpty)
     }
+
+    // MARK: The first row
+
+    /// The first row is set large and carries the reader's age beside it, so
+    /// on somebody's own birthday the top of the screen can read "You were 7"
+    /// over a mass casualty. These four tests are about that one position.
+
+    func testTheLeadRowIsNotAMassCasualty() {
+        let events = [
+            event(2022, "Ten people are killed and 15 are injured in a stabbing spree in Saskatchewan."),
+            event(2020, "The PlayStation 5 is released."),
+        ]
+        let feed = DayFeed.build(facts: [], events: events, people: [], songs: [], films: [],
+                                 readerBirthYear: 2002)
+        XCTAssertEqual(feed.first?.text, "The PlayStation 5 is released.")
+    }
+
+    func testEverythingElseKeepsItsPlaceAndNothingIsRemoved() {
+        // The heavy row is moved, not dropped. This tab is a record of what
+        // happened on a date, and 41 percent of the imported events match the
+        // word list, so removing them would take Pearl Harbor off December 7.
+        let events = [
+            event(2022, "Ten people are killed in a stabbing spree."),
+            event(2020, "The PlayStation 5 is released."),
+            event(1998, "Google is founded by Larry Page and Sergey Brin."),
+        ]
+        let feed = DayFeed.build(facts: [], events: events, people: [], songs: [], films: [],
+                                 readerBirthYear: 2002)
+        XCTAssertEqual(feed.count, 3, "nothing is removed from the record")
+        XCTAssertTrue(feed.contains { $0.text.contains("stabbing spree") }, "the heavy row is still there")
+        XCTAssertEqual(feed.first?.text, "The PlayStation 5 is released.")
+    }
+
+    func testADateWhereEverythingIsHeavyIsLeftAlone() {
+        // Better a heavy first row than an empty screen. December 7 exists.
+        let events = [
+            event(1941, "The attack on Pearl Harbor kills 2,403 Americans."),
+            event(1917, "A munitions explosion destroys much of Halifax."),
+        ]
+        let feed = DayFeed.build(facts: [], events: events, people: [], songs: [], films: [],
+                                 readerBirthYear: 2002)
+        XCTAssertEqual(feed.count, 2)
+        XCTAssertTrue(feed.first?.text.contains("Pearl Harbor") == true
+                      || feed.first?.text.contains("Halifax") == true)
+    }
+
+    func testTheWordListReadsWholeWordsOnly() {
+        XCTAssertTrue(DayFeed.isHeavy("Ten people are killed in a stabbing spree."))
+        XCTAssertTrue(DayFeed.isHeavy("Swissair Flight 306 crashes near Zurich."))
+        XCTAssertFalse(DayFeed.isHeavy("The PlayStation 5 is released."))
+        XCTAssertFalse(DayFeed.isHeavy("George Eastman registers the trademark Kodak."))
+        // "deadline" contains "dead" and is not a casualty.
+        XCTAssertFalse(DayFeed.isHeavy("The deadline for entries passes at midnight."))
+        // "Shotwell" contains "shot".
+        XCTAssertFalse(DayFeed.isHeavy("Gwynne Shotwell is named president of SpaceX."))
+    }
 }
