@@ -1,8 +1,12 @@
 // Builds the static site. One page per calendar date, an index, a sitemap and
 // a robots file, straight out of the same table the app reads.
 //
-//   cp .env.example .env      # optional, the defaults are public
+//   cp .env.example .env      # then put the anonymous key in it
 //   npm run site
+//
+// The key can also just be exported in the shell. A .env file is read only if
+// one is there, which is why the flag is --env-file-if-exists: without that,
+// Node refuses to start when the file is absent and the shell route breaks.
 //
 // Output lands in web/out, which is what a static host points at.
 
