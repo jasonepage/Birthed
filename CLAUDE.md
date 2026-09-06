@@ -347,6 +347,59 @@ as a shelf, not a plan.
   either. A header that contradicts the page is invisible from the file on
   disk, which is why the test reads the header rather than the page.
 
+### The Mine panel, decided September 6, 2026
+
+- **The stage is a panel, not a page, and the candle stands on its bottom
+  edge.** `CandleMark` works on the app icon and on the share card and failed
+  on this screen, and the difference was never the drawing: the first two are a
+  bounded warm field with the candle as the subject, and this screen was an
+  unbounded cream page with the candle loose on it. The fix was to reproduce
+  the condition the object already succeeds in rather than to invent a plate, a
+  holder or a table edge, none of which exist anywhere else in the app's
+  vocabulary. `candleDrop` is back above zero because there is a real edge to
+  run off again.
+- **`StagePalette.wax` is the same in light and dark, and only the page around
+  the panel follows the appearance.** The complaint that started this was about
+  light mode, and the reason light mode was flat is physical rather than a
+  matter of taste: cream is already close to white, so a glow laid on it has
+  nowhere to go and reads as a stain, which is what the bloom behind the flame
+  looked like. Wax is dark enough for warm light to fall across, so the glow is
+  ember here rather than accent. It also means there is one set of colours
+  inside the panel to keep right instead of two.
+- **`StagePalette.forScheme` was not touched.** Seven files read it, including
+  the Today tab and both share cards, and changing it would have redesigned
+  screens nobody asked about.
+- **One pink kicker above the fold, and it belongs to the song.** There were
+  six on one screen, which is a texture rather than a kicker. The song keeps
+  the one because it is the only thing up there whose label is itself the fact:
+  nobody says "my day" out loud and people do say "the number one song the week
+  I was born". A panel is a boundary and a boundary is a label, so nothing else
+  needs a line of capitals to say what it is.
+- **One number wins by a factor of five rather than by argument.** Eighty four
+  points against fifteen. The day count takes the slot on ordinary days and the
+  age takes it on the birthday, because "31 today" is the event and a day count
+  is not, which is a deliberate small disagreement with the feature table. With
+  no birth year the countdown stands in, so the slot is never empty.
+- **The fixed 540 point minimum height is gone, and that is what the dead band
+  was.** It was a height chosen when the album and the film were on this screen
+  and it was still holding the stack open after they came off. The floor comes
+  from the bottom band, which is as tall as the candle because it is the band
+  the candle stands in. That space has an object in it, which is the difference
+  between it and the hole it replaces.
+- **The older than sentence is the control.** Tapping it swaps in the next line
+  and the choice is stored by subject, not by position or by sentence, so it
+  survives the sentence changing from fifteen years to sixteen on the reader's
+  next birthday. It is the sentence itself and not a button beside it, per the
+  rule about a second control doing the first control's job. The cycle glyph is
+  set inline after the last word, inside the same tap target.
+- **Every card exported from Mine is the panel's palette now.** The screen and
+  the export are meant to be the same picture, so a reader in light mode must
+  not share a cream card of a wax screen.
+- **The shadow is cast by a plain shape behind the panel, not by the panel.**
+  The panel contains a flame that redraws every frame, and a shadow on it would
+  put that animation through an offscreen pass sixty times a second for a soft
+  edge that never changes.
+
 ### Search, decided September 5, 2026
 
 - **A date page with fewer than eight people carries `noindex` and stays out of the sitemap.** It is still built and still loads. A new domain that hands a crawler 366 URLs with most of them empty teaches the crawler that the site is thin, and that judgement is made once and is expensive to undo. The threshold is eight rather than `FR-022`'s ten because a few real dates have fewer people with English Wikipedia articles.
