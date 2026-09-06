@@ -21,6 +21,15 @@ struct WorldThenSection: View {
     let palette: StagePalette
     let onShare: (WorldThen.Line) -> Void
 
+    /// Totals by subject, and which ones this account has liked.
+    ///
+    /// The like is on the subject and never on the sentence, for the reason
+    /// written at length over `WorldLikesService`: these sentences are
+    /// computed from the reader's birth year, so two readers born on the same
+    /// day in different years never see the same one and likes on it could
+    /// not aggregate.
+    @Environment(WorldLikesService.self) private var likes
+
     var body: some View {
         if !lines.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
@@ -37,6 +46,10 @@ struct WorldThenSection: View {
             }
             .padding(.horizontal, 22)
             .padding(.top, 8)
+            // Cheap, and it fails to nothing: an unreachable server leaves
+            // empty hearts and no numbers, which is also what a brand new
+            // account correctly sees.
+            .task { await likes.load() }
         }
     }
 
@@ -45,7 +58,9 @@ struct WorldThenSection: View {
     /// the stage now, and a second headline directly under the first one reads
     /// as the screen shouting twice.
     private func row(_ line: WorldThen.Line) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        let subject = WorldLikesService.subject(for: line)
+
+        return VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center, spacing: 8) {
                 Text(line.kicker)
                     .font(.system(size: 10, weight: .heavy))
@@ -53,6 +68,32 @@ struct WorldThenSection: View {
                     .foregroundStyle(Theme.accent)
 
                 Spacer(minLength: 8)
+
+                // No number until the subject has five, which is the floor
+                // `FactOrder` uses and is here for the same reason: a heart
+                // with a zero beside it is a report that nobody is here,
+                // where a heart on its own is just a control.
+                Button {
+                    Task { await likes.toggle(subject) }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: likes.isLiked(subject) ? "heart.fill" : "heart")
+                            .font(.system(size: 12, weight: .semibold))
+                        if let count = likes.displayCount(for: subject) {
+                            Text("\(count)")
+                                .font(.system(size: 12, weight: .semibold))
+                                .monospacedDigit()
+                        }
+                    }
+                    .foregroundStyle(likes.isLiked(subject) ? Theme.accent : palette.type.opacity(0.45))
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 6)
+                    .background(palette.type.opacity(0.07), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(likes.isLiked(subject)
+                                    ? "Liked. Tap to take it back."
+                                    : "Like \(line.kicker.capitalized)")
 
                 Button {
                     onShare(line)

@@ -620,6 +620,7 @@ export function renderPrivacy(): string {
 <h3>Finding things about your day</h3>
 <p>The Mine tab shows specific things that happened on the day you were born, and those are found by a model that searches the web, Google's Gemini service. To ask it, the Birthed server sends the month, the day, the birth year and the region you typed, and nothing else. Your account and the token that identifies it stay behind, so what Google is asked is a date and a place, not a person.</p>
 <p>The answers are stored under the date rather than under you, so the next person born on the same day is shown what was already found instead of causing a new search. If you tap the thumbs up on one of those facts, that is recorded against your anonymous account, which is how it is counted once and how you can take it back.</p>
+<p>The same is true of the heart on "The world when you arrived". What is recorded there is the subject, such as Minecraft or the iPhone, and not the sentence you were shown, because that sentence is worked out on your phone from your birth year and it never leaves it. So the record says that one account liked Minecraft. It does not say what it said to you, or what year you were born.</p>
 
 <h3>What stays on your phone</h3>
 <ul>
