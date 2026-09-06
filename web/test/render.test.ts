@@ -269,10 +269,14 @@ test("facts do not rescue a page whose people were never ranked", () => {
 });
 
 // The page a shared birthday lands on. The tests that matter here are about
-// what it does not do: appear in search, and reach the server.
+// what it does not do: appear in search, and put a birthday in a query.
+
+/// Stand-ins for the real project. The page is built with them baked in, so a
+/// test can look for them and know the wiring reached the markup.
+const API = { url: "https://example.supabase.co", key: "test-anon-key" };
 
 test("the add page keeps itself out of search results", () => {
-  const html = renderAdd();
+  const html = renderAdd(API);
   assert.ok(html.includes('name="robots" content="noindex"'));
 });
 
@@ -280,15 +284,62 @@ test("the add page never puts a birthday in a query", () => {
   // The whole design is that the data sits after the hash, which browsers do
   // not send. A link built with a question mark would be sent to the server
   // on every tap, and the privacy page would stop being true.
-  const html = renderAdd();
+  const html = renderAdd(API);
   assert.ok(html.includes('/add/#"'), "the link it builds is a fragment");
   assert.ok(!/\/add\/\?/.test(html), "nothing builds a query onto /add/");
 });
 
 test("the add page hands off to the app rather than assuming it is there", () => {
-  const html = renderAdd();
+  const html = renderAdd(API);
   assert.ok(html.includes("birthed://add?"));
   assert.ok(html.includes("<noscript>"), "it says why it needs a script");
+});
+
+// The third mode: somebody answering a request rather than volunteering.
+// This is the only place on the site that writes to a server, so the tests are
+// about it being reachable, being honest, and not leaking into the other two.
+
+test("the add page can answer a request as well as build a link", () => {
+  const html = renderAdd(API);
+  assert.ok(html.includes("rpc/leave_birthday"), "it posts to the function, not the table");
+  assert.ok(!/rest\/v1\/birthday_replies/.test(html), "it never writes the table directly");
+  assert.ok(html.includes(API.url), "the project it posts to is baked in");
+  assert.ok(html.includes(API.key), "so is the publishable key");
+});
+
+test("the code travels after the hash, like everything else here", () => {
+  // Not for secrecy. It keeps the code out of the website's access logs, so
+  // the only record that a request exists is the row the sender created.
+  const html = renderAdd(API);
+  assert.ok(html.includes("values.c"), "the code is read out of the fragment");
+  assert.ok(!/\/add\/\?/.test(html), "nothing builds a query onto /add/");
+});
+
+test("a mistyped address is not treated as a request", () => {
+  const html = renderAdd(API);
+  assert.ok(/\[A-Z2-9\]\{6,12\}/.test(html), "the code has to look like a code");
+});
+
+test("the send route tells the reader what happens to what they typed", () => {
+  // The rest of this site is true because nothing reaches us. This one button
+  // is the exception, and a page that took the answer without saying so would
+  // make the privacy page a lie.
+  const html = renderAdd(API);
+  assert.ok(html.includes("deleted from our server"));
+  assert.ok(html.includes("You do not need the app"));
+});
+
+test("a failed send falls back to the link that never needed us", () => {
+  const html = renderAdd(API);
+  assert.ok(html.includes("Send them this link instead"));
+});
+
+test("the privacy page says what the request route stores", () => {
+  const html = renderPrivacy();
+  assert.ok(html.includes("Asking somebody for their birthday"));
+  assert.ok(html.includes("their name and their birthday are stored against that code"));
+  assert.ok(html.includes("Confirming deletes it from the server."));
+  assert.ok(html.includes("a fortnight"), "the expiry is stated, not implied");
 });
 
 test("the privacy page no longer claims the site runs no scripts", () => {

@@ -20,12 +20,19 @@ import SwiftUI
 /// label you their own way regardless.
 struct AddFriendsView: View {
     @Environment(ProfileStore.self) private var profileStore
+    @Environment(BirthdayInbox.self) private var inbox
     @Environment(\.dismiss) private var dismiss
 
     let onAdd: ([Person]) -> Void
 
     @State private var pasted = ""
     @State private var skipped: Set<Int> = []
+    /// What the asker calls themselves on the link, so the page can say who is
+    /// asking. Never stored and never sent to the account: it lives in the
+    /// address bar of one link and nowhere else.
+    @State private var askingAs = ""
+    @State private var askLink: URL?
+    @State private var makingLink = false
 
     private var candidates: [BirthdayText.Candidate] {
         BirthdayText.candidates(in: pasted)
@@ -41,6 +48,7 @@ struct AddFriendsView: View {
                 VStack(alignment: .leading, spacing: 26) {
                     paste
                     if !candidates.isEmpty { found }
+                    askForTheirs
                     myLink
                 }
                 .padding(20)
@@ -150,6 +158,75 @@ struct AddFriendsView: View {
         return "\(date), \(String(year))"
     }
 
+    // MARK: Asking for theirs
+
+    /// The other direction, and the one people actually need.
+    ///
+    /// Sending your own birthday assumes somebody wants it. Asking for theirs
+    /// is the thing you do when you have four birthdays and want twenty, and
+    /// until now it needed the other person to fill in a form, get a link
+    /// back, and send that link on. Two of those three steps are where people
+    /// stop. This link ends at a send button.
+    ///
+    /// The cost is the one honest compromise in this product: their answer
+    /// waits on our server until this phone collects it. It is a queue holding
+    /// a name and a date, it is emptied the moment the phone has it, and the
+    /// privacy page says so in those words rather than burying it.
+    private var askForTheirs: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("OR ASK FOR THEIRS")
+                .font(.caption.weight(.heavy))
+                .kerning(2.5)
+                .foregroundStyle(Theme.accent)
+
+            Text("Send this to anybody. They fill in their birthday and press send, and it turns up here the next time you open Birthed. They do not need the app.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            TextField("Your name, so they know who is asking", text: $askingAs)
+                .textFieldStyle(.plain)
+                .autocorrectionDisabled()
+                .padding(12)
+                .background(Theme.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+            if let askLink {
+                ShareLink(item: askLink) {
+                    Label("Send the request", systemImage: "square.and.arrow.up")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 12)
+                        .background(Theme.accent, in: Capsule())
+                        .foregroundStyle(Theme.cream)
+                }
+            } else {
+                Button {
+                    Task {
+                        makingLink = true
+                        askLink = await inbox.link(from: askingAs)
+                        makingLink = false
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        if makingLink { ProgressView().tint(Theme.cream) }
+                        Text(makingLink ? "Making it" : "Make a request link")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 12)
+                    .background(Theme.accent, in: Capsule())
+                    .foregroundStyle(Theme.cream)
+                }
+                .disabled(makingLink)
+            }
+
+            Text("Their answer passes through our server and is deleted as soon as your phone has it.")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
     // MARK: The link
 
     @ViewBuilder
@@ -180,10 +257,16 @@ struct AddFriendsView: View {
     }
 }
 
-/// A link that arrived, wrapped so a sheet can be presented from it.
+/// A birthday that arrived, wrapped so a sheet can be presented from it.
+///
+/// Two ways in and one sheet. A tapped link carries no `replyID`, because
+/// there is nothing on a server to tidy up afterwards. One collected from the
+/// inbox carries the row it came from, so that whatever the reader decides,
+/// the copy sitting on our server stops existing.
 struct ArrivingBirthday: Identifiable {
     let id = UUID()
     let incoming: PersonLink.Incoming
+    var replyID: Int? = nil
 }
 
 /// Somebody's birthday came in from a link. Confirm who they are and keep it.
@@ -193,6 +276,10 @@ struct ArrivingBirthday: Identifiable {
 /// file people under what you call them.
 struct IncomingBirthdaySheet: View {
     let incoming: PersonLink.Incoming
+    /// Replaces the middle line when the birthday was answered into a request
+    /// rather than shared out of the blue. "Somebody shared this with you" is
+    /// wrong for something you asked for and they took the trouble to send.
+    var note: String?
     let onAdd: (Person) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -213,7 +300,7 @@ struct IncomingBirthdaySheet: View {
                     .minimumScaleFactor(0.6)
                     .multilineTextAlignment(.center)
 
-                Text("Somebody shared this birthday with you. What do you call them?")
+                Text(note ?? "Somebody shared this birthday with you. What do you call them?")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

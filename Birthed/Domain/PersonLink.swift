@@ -43,11 +43,18 @@ enum PersonLink {
     /// a space either: a literal space in an address is not a valid address,
     /// and setting one would make the whole link come back nil. Every name
     /// with two words in it goes through here, so that is most of them.
-    private static let valueSafe: CharacterSet = {
+    static let valueSafe: CharacterSet = {
         var set = CharacterSet.alphanumerics
         set.insert(charactersIn: "-._~")
         return set
     }()
+
+    /// One value, ready to sit in a fragment. Shared rather than repeated,
+    /// because the space is the part that is easy to get wrong and it only
+    /// shows up on names with two words in them, which is most of them.
+    static func encode(_ value: String) -> String? {
+        value.addingPercentEncoding(withAllowedCharacters: valueSafe)
+    }
 
     // MARK: Writing
 
@@ -55,7 +62,7 @@ enum PersonLink {
         var pairs: [String] = []
         let trimmed = String((name ?? "").trimmingCharacters(in: .whitespacesAndNewlines).prefix(maxNameLength))
         if !trimmed.isEmpty {
-            guard let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: valueSafe) else { return nil }
+            guard let encoded = encode(trimmed) else { return nil }
             pairs.append("n=\(encoded)")
         }
         pairs.append(contentsOf: ["m=\(birthday.date.month)", "d=\(birthday.date.day)"])

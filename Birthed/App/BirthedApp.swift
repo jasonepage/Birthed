@@ -18,6 +18,9 @@ struct BirthedApp: App {
     /// The only one of these that needs another, because every call it makes
     /// is signed with the account's token, so the two are built together.
     @State private var facts: FactsService
+    /// Also account-bound: the whole inbox is one row level security policy,
+    /// so without a signed in account it has nothing to read.
+    @State private var inbox: BirthdayInbox
 
     private let repository = SupabaseRestDayPageRepository()
 
@@ -25,6 +28,7 @@ struct BirthedApp: App {
         let account = AccountService()
         _account = State(initialValue: account)
         _facts = State(initialValue: FactsService(account: account))
+        _inbox = State(initialValue: BirthdayInbox(account: account))
     }
 
     var body: some Scene {
@@ -35,6 +39,7 @@ struct BirthedApp: App {
                 .environment(people)
                 .environment(notifications)
                 .environment(facts)
+                .environment(inbox)
         }
     }
 }

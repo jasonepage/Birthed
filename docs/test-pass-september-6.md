@@ -172,9 +172,59 @@ so use September 4, 2002 unless a step below says otherwise.
     - Play the reveal again, from Settings.
     - The Today tab and the People tab, just that they open and fill.
 
+22. **The empty People tab scrolls.** With nobody in the list, the screen has
+    a candle, a sentence, a paste button, three people to follow and an "Add
+    someone" button. That is taller than a 6.1 inch phone and was cut off at
+    the bottom. Scroll to the bottom of it and confirm you can reach and tap
+    "Add someone". On a large phone where it all fits, it should not bounce.
+
+23. **A followed person carries their year.** Follow Ariana Grande from the
+    search. Her row in People should read "June 26 · turns 33", not just
+    "June 26", and opening her in the editor should show 1993 in the Year row
+    rather than "Do not know".
+
+24. **Somebody who has died is worded differently.** Follow XXXTentacion
+    (January 23, died 2018). Three things to check, and all three are about
+    tone rather than function:
+    - The search row reads "January 23, 1998 to 2018".
+    - The People row reads "would have been 28", never "turns 28".
+    - Set your phone's date to January 23 to make his card the celebrating
+      one at the top. It should say REMEMBERING, not TODAY.
+    If you can get a notification to fire for him, it should say "Remembering
+    XXXTentacion / Born today in 1998" rather than "say something".
+
+25. **Asking somebody for their birthday.** This is the new one and it needs
+    two devices, or a phone and a browser.
+    - People tab, plus, "Paste a list or send a link". There is a new section
+      OR ASK FOR THEIRS. Type your name in it and tap "Make a request link".
+    - Share the link to yourself and open it in Safari. It should say
+      "<your name> wants your birthday", the name field should say "Your
+      name" rather than "Your name, if you want", and the button should say
+      "Send it" rather than "Make my link".
+    - Fill it in with a name and a date and press send. The page should
+      replace itself with "Sent".
+    - Go back to Birthed and background it, then open it again. A sheet
+      should come up saying "<name> sent you their birthday", with the name
+      already filled in. Tap Add. They should be in your People list.
+    - Open the app again. It must not ask you about that same person a
+      second time.
+    - Do it once more but tap "Not now" instead. Force quit Birthed and
+      reopen it. That one should come back.
+
+26. **The link route still works with no server.** On the same web page, open
+    birthed.app/add with nothing after it. It should still be the old form
+    with "Make my link", and pressing it should still produce a link with a
+    hash in it and no question mark.
+
 ## What I need back
 
 The screenshots, in order, and any error text verbatim. For anything that
 looks wrong rather than broken, say what you expected instead. Item 2, item 8,
 item 9, item 12, item 14, item 16 and item 19 are the seven that matter most, because nobody has seen any
 of those states yet.
+
+Item 25 is the one to do first if you only do one. It is the only feature in
+Birthed that writes another person's data to our server, the database side of
+it has been tested against the live project but the app side has never run,
+and if the collect step does not work the whole thing is a link that goes
+nowhere.

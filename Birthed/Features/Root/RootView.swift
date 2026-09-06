@@ -16,6 +16,7 @@ struct RootView: View {
     @Environment(PeopleStore.self) private var peopleStore
     @Environment(NotificationService.self) private var notifications
     @Environment(FactsService.self) private var facts
+    @Environment(BirthdayInbox.self) private var inbox
     @Environment(\.scenePhase) private var scenePhase
 
     let repository: DayPageRepository
@@ -53,9 +54,20 @@ struct RootView: View {
             guard let incoming = PersonLink.incoming(from: url) else { return }
             arriving = ArrivingBirthday(incoming: incoming)
         }
-        .sheet(item: $arriving) { arrival in
-            IncomingBirthdaySheet(incoming: arrival.incoming) { person in
+        .sheet(item: $arriving, onDismiss: {
+            // Whatever they chose, the copy on the server is dealt with, and
+            // the next one in the queue is offered.
+            offerNext()
+        }) { arrival in
+            IncomingBirthdaySheet(
+                incoming: arrival.incoming,
+                note: arrival.replyID == nil ? nil
+                    : "\(arrival.incoming.name ?? "Somebody") sent you their birthday. What do you call them?"
+            ) { person in
                 peopleStore.add(person)
+                // Kept, so the copy waiting on the server has done its job and
+                // stops existing. Declining leaves it there for next time.
+                if let replyID = arrival.replyID { inbox.clear(id: replyID) }
                 tab = .people
                 Task { await refreshReminders() }
             }
@@ -83,6 +95,7 @@ struct RootView: View {
                 await account.pushProfile(profile)
             }
             await refreshReminders()
+            await collectArrivals()
         }
         .onChange(of: scenePhase) { _, phase in
             // Counting what was on screen is held until a screen goes away,
@@ -98,6 +111,12 @@ struct RootView: View {
                 // cheaper than watching for a time zone change and cannot
                 // miss one.
                 await refreshReminders()
+                // The whole of the delivery mechanism. No push, no background
+                // fetch, nothing running while the app is closed: a birthday
+                // is at worst a year away, so the next time somebody opens
+                // Birthed is soon enough, and it keeps the claim that this app
+                // has no server that can reach anybody's phone.
+                await collectArrivals()
             }
         }
     }
@@ -125,6 +144,26 @@ struct RootView: View {
                 .tag(Tab.people)
         }
         .tint(Theme.accent)
+    }
+
+    /// Reads the inbox and, if the reader is not already being asked about
+    /// something, offers the first thing in it.
+    private func collectArrivals() async {
+        await inbox.collect()
+        offerNext()
+    }
+
+    /// One at a time. Five birthdays arriving at once is five sheets in a row
+    /// if they are presented together, so the queue is walked as each one is
+    /// dealt with.
+    private func offerNext() {
+        guard arriving == nil, let next = inbox.next else { return }
+        // Set aside at the moment it is offered, not when it is answered. A
+        // dismissed sheet says nothing about why it was dismissed, so waiting
+        // for an answer would mean re-presenting the same birthday the instant
+        // the sheet closed.
+        inbox.putAside(id: next.id)
+        arriving = ArrivingBirthday(incoming: next.incoming, replyID: next.id)
     }
 
     private func refreshReminders() async {

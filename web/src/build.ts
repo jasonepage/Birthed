@@ -124,8 +124,12 @@ async function main(): Promise<void> {
   await writeFile(join(OUT, "privacy", "index.html"), renderPrivacy(), "utf8");
   // The landing page for a shared birthday. Carries noindex: it is a handover
   // between two people, not something anybody should find in a search result.
+  // It gets the anonymous key because one of its three modes posts an answer
+  // back to a request somebody made in the app. Shipping that key in a page is
+  // the same thing the app does: it grants nothing on its own, and the write
+  // it can reach goes through a function that decides what is allowed.
   await mkdir(join(OUT, "add"), { recursive: true });
-  await writeFile(join(OUT, "add", "index.html"), renderAdd(), "utf8");
+  await writeFile(join(OUT, "add", "index.html"), renderAdd({ url, key }), "utf8");
   // The favicons and touch icons, copied as they are.
   await cp("static", OUT, { recursive: true });
   await writeFile(join(OUT, "sitemap.xml"), renderSitemap(ready), "utf8");

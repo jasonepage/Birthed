@@ -139,7 +139,21 @@ ${FOOT}`;
  * This is the only page on the site that runs a script, and the privacy page
  * says so rather than keeping the tidier sentence it used to have.
  */
-export function renderAdd(): string {
+/// The one page on birthed.app that does something rather than say something.
+///
+/// It has three jobs and picks between them by reading the address bar:
+///
+///   #m=6&d=26      somebody shared a birthday with you, open it in the app
+///   #c=ABCD2345    somebody asked for yours, fill it in and it reaches them
+///   nothing        make a link with yours in it to send back
+///
+/// The first and third never touch a server, which is the claim the privacy
+/// page makes and the reason the birthday travels after the hash symbol.
+/// The second one does, and it is the only place in Birthed where anybody's
+/// data passes through us on the way to somebody else. The page says so in
+/// those words rather than burying it, and it offers the link route underneath
+/// so nobody is forced through the server to answer a question.
+export function renderAdd(api: { url: string; key: string }): string {
   const canonical = `${SITE}/add/`;
   const months = JSON.stringify([
     "January", "February", "March", "April", "May", "June",
@@ -162,12 +176,21 @@ export function renderAdd(): string {
 </div>
 
 <div id="compose" hidden>
-  <h1>Send them your birthday</h1>
-  <p class="lede">Fill this in and you get a link to send back. It never touches our server: everything you type stays in the address bar, and the part it goes in is the part browsers do not send.</p>
-  <p class="lede"><label>Your name, if you want<br><input id="name" type="text" maxlength="60" autocomplete="off"></label></p>
+  <h1 id="compose-title">Send them your birthday</h1>
+  <p class="lede" id="compose-lede">Fill this in and you get a link to send back. It never touches our server: everything you type stays in the address bar, and the part it goes in is the part browsers do not send.</p>
+  <p class="lede"><label id="name-label">Your name, if you want<br><input id="name" type="text" maxlength="60" autocomplete="off"></label></p>
   <p class="lede"><label>Birthday<br><select id="month"></select> <select id="day"></select> <input id="year" type="number" inputmode="numeric" placeholder="Year, optional" min="1900" max="2100"></label></p>
   <p><a class="btn" id="make" href="#">Make my link</a></p>
+  <p><a class="btn" id="send" href="#" hidden>Send it</a></p>
+  <p class="lede" id="problem" hidden></p>
   <p class="lede" id="result" hidden><span id="link"></span></p>
+</div>
+
+<div id="sent" hidden>
+  <h1>Sent</h1>
+  <p class="lede" id="sent-line">It will be there the next time they open Birthed.</p>
+  <p class="lede" style="font-size:14px">Nothing else about you was sent, and it is deleted from our server as soon as their phone has it.</p>
+  <p class="lede" id="sent-backup" hidden><span id="sent-link"></span></p>
 </div>
 
 <noscript><p class="lede">This page needs JavaScript, because reading the birthday out of the address is the thing that keeps it off our server.</p></noscript>
@@ -175,6 +198,8 @@ export function renderAdd(): string {
 <script>
 (function () {
   var MONTHS = ${months};
+  var API = ${JSON.stringify(api.url)};
+  var KEY = ${JSON.stringify(api.key)};
   function read() {
     var out = {};
     var raw = location.hash.replace(/^#/, "");
@@ -190,6 +215,11 @@ export function renderAdd(): string {
   var month = parseInt(values.m, 10);
   var day = parseInt(values.d, 10);
   var hasDate = month >= 1 && month <= 12 && day >= 1 && day <= 31;
+  // A code somebody generated in the app. Checked for shape here only so a
+  // mistyped address does not become a request; whether it is a live code is
+  // the server's business, and the server deliberately will not say.
+  var code = /^[A-Z2-9]{6,12}$/.test(values.c || "") ? values.c : "";
+  var asker = (values.r || "").slice(0, 60);
 
   if (hasDate) {
     document.getElementById("incoming").hidden = false;
@@ -204,6 +234,8 @@ export function renderAdd(): string {
   document.getElementById("compose").hidden = false;
   var monthSelect = document.getElementById("month");
   var daySelect = document.getElementById("day");
+  var nameInput = document.getElementById("name");
+  var problem = document.getElementById("problem");
   MONTHS.forEach(function (name, index) {
     var option = document.createElement("option");
     option.value = String(index + 1);
@@ -226,25 +258,96 @@ export function renderAdd(): string {
   monthSelect.addEventListener("change", fillDays);
   fillDays();
 
-  document.getElementById("make").addEventListener("click", function (event) {
-    event.preventDefault();
+  function chosenYear() {
+    var year = parseInt(document.getElementById("year").value, 10);
+    return year >= 1900 && year <= 2100 ? year : null;
+  }
+
+  function myLink() {
     var pairs = [];
-    var name = document.getElementById("name").value.trim();
+    var name = nameInput.value.trim();
     if (name) pairs.push("n=" + encodeURIComponent(name.slice(0, 60)));
     pairs.push("m=" + monthSelect.value);
     pairs.push("d=" + daySelect.value);
-    var year = parseInt(document.getElementById("year").value, 10);
-    if (year >= 1900 && year <= 2100) pairs.push("y=" + year);
-    var url = "${SITE}/add/#" + pairs.join("&");
-    var result = document.getElementById("result");
-    var holder = document.getElementById("link");
+    var year = chosenYear();
+    if (year) pairs.push("y=" + year);
+    return "${SITE}/add/#" + pairs.join("&");
+  }
+
+  function show(holder, url) {
     holder.innerHTML = "";
     var anchor = document.createElement("a");
     anchor.href = url;
     anchor.textContent = url;
     holder.appendChild(anchor);
-    result.hidden = false;
+  }
+
+  document.getElementById("make").addEventListener("click", function (event) {
+    event.preventDefault();
+    var url = myLink();
+    show(document.getElementById("link"), url);
+    document.getElementById("result").hidden = false;
     if (navigator.share) { navigator.share({ url: url }).catch(function () {}); }
+  });
+
+  if (!code) return;
+
+  // Asked, rather than volunteered. The name stops being optional here,
+  // because a birthday with no name attached to it is not something anybody
+  // can put in a list.
+  var who = asker ? asker : "Somebody";
+  document.getElementById("compose-title").textContent = who + " wants your birthday";
+  document.getElementById("compose-lede").textContent =
+    "Fill this in and press send. It goes to their phone the next time they open Birthed, and it is deleted from our server the moment it arrives. You do not need the app, and nothing else about you is sent.";
+  document.getElementById("name-label").childNodes[0].nodeValue = "Your name";
+  document.getElementById("make").hidden = true;
+  var send = document.getElementById("send");
+  send.hidden = false;
+
+  send.addEventListener("click", function (event) {
+    event.preventDefault();
+    var name = nameInput.value.trim();
+    if (!name) {
+      problem.textContent = "Put your name in, so they know whose birthday it is.";
+      problem.hidden = false;
+      nameInput.focus();
+      return;
+    }
+    problem.hidden = true;
+    send.textContent = "Sending";
+    fetch(API + "/rest/v1/rpc/leave_birthday", {
+      method: "POST",
+      headers: {
+        apikey: KEY,
+        Authorization: "Bearer " + KEY,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        request_code: code,
+        person_name: name.slice(0, 60),
+        month: parseInt(monthSelect.value, 10),
+        day: parseInt(daySelect.value, 10),
+        year: chosenYear()
+      })
+    }).then(function (response) {
+      if (!response.ok) throw new Error(String(response.status));
+      document.getElementById("compose").hidden = true;
+      var sent = document.getElementById("sent");
+      document.getElementById("sent-line").textContent = asker
+        ? "It will be there the next time " + asker + " opens Birthed."
+        : "It will be there the next time they open Birthed.";
+      sent.hidden = false;
+    }).catch(function () {
+      // The server answers the same way whether or not the code is still
+      // alive, so a failure here is the network rather than the request. The
+      // link is offered as the way round it, which is the route that never
+      // needed us in the first place.
+      send.textContent = "Send it";
+      problem.textContent = "That did not go through. Send them this link instead:";
+      problem.hidden = false;
+      show(document.getElementById("link"), myLink());
+      document.getElementById("result").hidden = false;
+    });
   });
 })();
 </script>
@@ -315,7 +418,7 @@ export function renderPrivacy(): string {
 
 <h3>What stays on your phone</h3>
 <ul>
-  <li><strong>The people you add</strong> in the People tab, with their birthdays and any note you write. This list is kept on your phone and is not sent to the account service.</li>
+  <li><strong>The people you add</strong> in the People tab, with their birthdays and any note you write. This list is kept on your phone and is not sent to the account service. The one exception is described under "Asking somebody for their birthday" below, and it runs the other way: it is about a birthday arriving, not about your list leaving.</li>
   <li><strong>Reminders</strong>. They are scheduled on your phone by iOS. Birthed has no server that sends notifications.</li>
   <li><strong>Share cards</strong>. The images you share are drawn on your phone when you tap Share. No name is on them. The card for a date never carries a birth year; the card for your own day shows the song and your day count, which imply the year, and it only exists when you make it.</li>
 </ul>
@@ -328,12 +431,24 @@ export function renderPrivacy(): string {
   <li>It never sells or shares your information with anyone, for any reason.</li>
 </ul>
 
+<h3>Asking somebody for their birthday</h3>
+<p>Birthed can make you a link that asks somebody for their birthday. They open it, fill in their name and their date, and press send. This is the only feature in Birthed where one person's information passes through our server on the way to another person, and it works like this.</p>
+<ul>
+  <li>The app makes a short code and sends it to our account service, against your account. Nothing else goes with it.</li>
+  <li>When somebody answers your link, <strong>their name and their birthday are stored against that code</strong>. Nothing about who they are, where they answered from, or what device they used is recorded with it.</li>
+  <li>Only the account that made the code can read what came back. Everybody else, including anybody holding the key the app and this website ship with, gets an empty answer.</li>
+  <li>The next time you open Birthed, it collects what has arrived and asks you to confirm each one. <strong>Confirming deletes it from the server.</strong></li>
+  <li>A code lasts a fortnight from the last time you shared it. After that the code stops working and anything still waiting under it is deleted, whether it was collected or not.</li>
+</ul>
+<p>Nothing is sent to anybody's phone by our server, because there is no such thing here. The app checks when you open it. If you would rather nothing passed through us at all, the "send yours" link described further down does the same job with no server involved, and it is still there.</p>
+
 <h3>What Birthed counts</h3>
 <p>The app can tell you how many Birthed users share your birthday. That number is computed on the server from birthdays alone, is never shown below a small floor, and never exposes anyone's record.</p>
 
 <h3>This website</h3>
 <p>birthed.app sets no cookies and uses no analytics. Like every website, the server that serves it keeps ordinary access logs, which include the address your request came from, for a short time for operational reasons.</p>
-<p>One page runs a script, and it is worth explaining because it looks like the opposite of what it is. When somebody shares a birthday with you, the birthday travels in the part of the web address after the hash symbol, and browsers never send that part to a server. The page at <a href="/add/">birthed.app/add</a> reads it in your browser to show you the date and hand it to the app. So that page is sent to everybody identically, our logs record only that somebody opened it, and no birthday you send or receive ever reaches us.</p>
+<p>One page runs a script, and it is worth explaining because it looks like the opposite of what it is. When somebody shares a birthday with you, the birthday travels in the part of the web address after the hash symbol, and browsers never send that part to a server. The page at <a href="/add/">birthed.app/add</a> reads it in your browser to show you the date and hand it to the app. So that page is sent to everybody identically, our logs record only that somebody opened it, and no birthday you send or receive that way ever reaches us.</p>
+<p>The same page has a second job. If you arrived through a link somebody used to <em>ask</em> for your birthday, the page shows a send button, and pressing it does send what you typed to our account service, to wait for them. That is the one case above, and the page says so on it before you press anything. The code identifying whose request it is also travels after the hash symbol, so our website's logs never see it either.</p>
 
 <h3>Deleting your data</h3>
 <p>In the app, open Settings and tap "Delete my account and data." That deletes your profile from the account service and clears the app's own storage. Deleting the app from your phone removes everything else, including the people list and any reminders. If you would like us to confirm a deletion, write to <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>.</p>
