@@ -94,73 +94,85 @@ struct PeopleView: View {
 
     // MARK: Empty
 
+    /// Scrolls, because it is taller than a phone.
+    ///
+    /// It was written as a centred column back when it held a candle and a
+    /// sentence. Three people to follow later it runs off the bottom of a
+    /// 6.1 inch screen, and the button underneath them was unreachable. The
+    /// bounce is left off when the content happens to fit, so on a big screen
+    /// it still behaves like the fixed panel it looks like.
     private var empty: some View {
-        VStack(spacing: 14) {
-            CandleMark(height: 140)
-                .frame(height: 140)
-                .padding(.bottom, 6)
+        ScrollView {
+            VStack(spacing: 14) {
+                CandleMark(height: 140)
+                    .frame(height: 140)
+                    .padding(.bottom, 6)
 
-            Text("Nobody yet")
-                .font(Theme.display(.title2, weight: .bold))
+                Text("Nobody yet")
+                    .font(Theme.display(.title2, weight: .bold))
 
-            Text("Add the people whose birthdays you keep forgetting. Birthed will count down to each one.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
+                Text("Add the people whose birthdays you keep forgetting. Birthed will count down to each one.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
 
-            Button { addingMany = true } label: {
-                Text("Paste a list or send a link")
-                    .font(.subheadline.weight(.semibold))
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 12)
-                    .background(Theme.accent, in: Capsule())
-                    .foregroundStyle(Theme.cream)
-            }
-            .padding(.top, 4)
-
-            // Offered, not added. Putting somebody in a list nobody asked for
-            // means notifications about people they never chose, and this list
-            // is theirs. One tap is the same outcome and it is their tap.
-            if !suggestions.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("OR FOLLOW SOMEBODY")
-                        .font(.caption.weight(.heavy))
-                        .kerning(2.5)
-                        .foregroundStyle(Theme.accent)
-                        .padding(.bottom, 2)
-
-                    ForEach(suggestions) { match in
-                        FollowRow(match: match)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 4)
-                            .background(Theme.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    }
-
-                    Button { following = true } label: {
-                        Text("Find someone else")
-                            .font(.footnote.weight(.semibold))
-                    }
-                    .padding(.top, 2)
+                Button { addingMany = true } label: {
+                    Text("Paste a list or send a link")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .background(Theme.accent, in: Capsule())
+                        .foregroundStyle(Theme.cream)
                 }
-                .padding(.top, 26)
-                .padding(.horizontal, 20)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
+                .padding(.top, 4)
 
-            Button {
-                adding = true
-            } label: {
-                Text("Add someone")
-                    .font(.headline)
-                    .padding(.horizontal, 26)
-                    .padding(.vertical, 12)
+                // Offered, not added. Putting somebody in a list nobody asked for
+                // means notifications about people they never chose, and this list
+                // is theirs. One tap is the same outcome and it is their tap.
+                if !suggestions.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("OR FOLLOW SOMEBODY")
+                            .font(.caption.weight(.heavy))
+                            .kerning(2.5)
+                            .foregroundStyle(Theme.accent)
+                            .padding(.bottom, 2)
+
+                        ForEach(suggestions) { match in
+                            FollowRow(match: match)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 4)
+                                .background(Theme.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
+
+                        Button { following = true } label: {
+                            Text("Find someone else")
+                                .font(.footnote.weight(.semibold))
+                        }
+                        .padding(.top, 2)
+                    }
+                    .padding(.top, 26)
+                    .padding(.horizontal, 20)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                Button {
+                    adding = true
+                } label: {
+                    Text("Add someone")
+                        .font(.headline)
+                        .padding(.horizontal, 26)
+                        .padding(.vertical, 12)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Theme.accent)
+                .padding(.top, 6)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(Theme.accent)
-            .padding(.top, 6)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 18)
+            .padding(.bottom, 40)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .scrollBounceBehavior(.basedOnSize)
     }
 
     // MARK: List
@@ -190,7 +202,10 @@ struct PeopleView: View {
             editing = person
         } label: {
             VStack(alignment: .leading, spacing: 4) {
-                Text("TODAY")
+                // The same card, one word apart. A celebration block that says
+                // TODAY over the name of somebody who has died is the loudest
+                // possible version of the mistake.
+                Text(person.isRemembered ? "REMEMBERING" : "TODAY")
                     .font(.caption2.weight(.heavy))
                     .kerning(2)
                     .opacity(0.85)
@@ -255,10 +270,21 @@ struct PeopleView: View {
         .frame(width: 52)
     }
 
+    /// The date, the age, and whatever you wrote about them.
+    ///
+    /// The age is the part that has to be careful. Somebody followed who has
+    /// died still gets a countdown, because people mark those days on purpose
+    /// and chose to follow them knowing. What they must never get is "turns
+    /// 28", which is not a small mistake in tone, it is the app not knowing
+    /// something everybody else in the room knows.
     private func subtitle(for person: Person, isToday: Bool) -> String {
         var parts: [String] = [person.birthday.date.displayName()]
         if let age = agenda.calendar.ageOnNextBirthday(person.birthday, from: now) {
-            parts.append(isToday ? "turning \(age)" : "turns \(age)")
+            if person.isRemembered {
+                parts.append("would have been \(age)")
+            } else {
+                parts.append(isToday ? "turning \(age)" : "turns \(age)")
+            }
         }
         if let note = person.note?.trimmingCharacters(in: .whitespaces), !note.isEmpty {
             parts.append(note)

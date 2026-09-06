@@ -23,18 +23,30 @@ struct Person: Identifiable, Equatable, Hashable {
     /// first thing dropped when the plan is trimmed.
     var wikidataID: String?
 
+    /// The year they died, for somebody followed who has.
+    ///
+    /// Birthed counts down to their birthday either way, because people do
+    /// mark these and choose to follow them knowing full well. What it must
+    /// not do is address them as though they were here: "say something" and
+    /// "turns 28" are both wrong, and wrong in a way that is worse than a
+    /// missing feature. Everything about this person's day is worded off this
+    /// one value.
+    var deathYear: Int?
+
     init(
         id: UUID = UUID(),
         name: String,
         birthday: CalendarBirthday,
         note: String? = nil,
-        wikidataID: String? = nil
+        wikidataID: String? = nil,
+        deathYear: Int? = nil
     ) {
         self.id = id
         self.name = name
         self.birthday = birthday
         self.note = note
         self.wikidataID = wikidataID
+        self.deathYear = deathYear
     }
 
     var trimmedName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -42,4 +54,12 @@ struct Person: Identifiable, Equatable, Hashable {
 
     /// Somebody you follow rather than somebody you know.
     var isPublicFigure: Bool { wikidataID != nil }
+
+    /// Their day is a remembrance rather than a birthday.
+    ///
+    /// Read by every place that puts words around a date: the row, the
+    /// celebrating card and the notification. Somebody typed in by hand can
+    /// never be this, because nobody fills in a death year for a friend, so
+    /// the flag only ever arrives with a person from Birthed's own list.
+    var isRemembered: Bool { deathYear != nil }
 }

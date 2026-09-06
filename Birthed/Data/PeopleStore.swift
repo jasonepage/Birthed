@@ -27,6 +27,10 @@ final class PeopleStore {
         /// with nil here rather than failing, so nobody loses their people to
         /// a schema change. Everything already on a phone is somebody known.
         var wikidataID: String?
+        /// Optional for the same reason. Somebody followed before this existed
+        /// decodes as alive, which is the old behaviour rather than a crash,
+        /// and is corrected the next time they are followed.
+        var deathYear: Int?
     }
 
     private let defaults: UserDefaults
@@ -70,7 +74,8 @@ final class PeopleStore {
                 year: $0.birthday.year,
                 leapObservance: $0.birthday.leapObservance.rawValue,
                 note: $0.note,
-                wikidataID: $0.wikidataID
+                wikidataID: $0.wikidataID,
+                deathYear: $0.deathYear
             )
         }
         if let data = try? JSONEncoder().encode(stored) {
@@ -94,7 +99,8 @@ final class PeopleStore {
                     leapObservance: LeapObservance(rawValue: row.leapObservance) ?? .february28
                 ),
                 note: row.note,
-                wikidataID: row.wikidataID
+                wikidataID: row.wikidataID,
+                deathYear: row.deathYear
             )
         }
     }

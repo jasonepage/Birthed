@@ -121,13 +121,24 @@ struct FollowRow: View {
         store.people.contains { $0.wikidataID == match.person.id }
     }
 
+    /// "June 26, 1993", or "September 5, 1946 to 1991" for somebody who has
+    /// died, or just the day when the year is not known. Never a guess: a
+    /// missing year is left missing rather than filled in from the
+    /// description, which is prose and often says something else.
+    private var whenBorn: String {
+        let day = match.birthDate.displayName()
+        guard let born = match.person.birthYear else { return day }
+        guard let died = match.person.deathYear else { return "\(day), \(born)" }
+        return "\(day), \(born) to \(died)"
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(match.person.name)
                     .font(.headline)
                     .foregroundStyle(.primary)
-                Text(match.birthDate.displayName())
+                Text(whenBorn)
                     .font(.subheadline)
                     .foregroundStyle(Theme.accent)
                 if let description = match.person.shortDescription, !description.isEmpty {

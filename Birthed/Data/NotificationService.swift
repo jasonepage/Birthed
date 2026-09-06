@@ -98,12 +98,14 @@ final class NotificationService {
         // uniquingKeysWith rather than uniqueKeysWithValues, which traps on a
         // duplicate identifier. Nothing should produce two people with the
         // same one, and a crash is not the right way to find out.
-        let names = Dictionary(people.map { ($0.id, $0.trimmedName) }, uniquingKeysWith: { first, _ in first })
+        // The whole person rather than just their name, because how their day
+        // is worded depends on more than what they are called.
+        let known = Dictionary(people.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
 
         centre.removeAllPendingNotificationRequests()
 
         for notification in plan {
-            guard let content = content(for: notification, birthday: birthday, names: names) else {
+            guard let content = content(for: notification, birthday: birthday, people: known) else {
                 continue
             }
             let trigger = UNCalendarNotificationTrigger(
@@ -135,7 +137,7 @@ final class NotificationService {
     private func content(
         for notification: PlannedNotification,
         birthday: CalendarBirthday,
-        names: [UUID: String]
+        people: [UUID: Person]
     ) -> UNNotificationContent? {
         let content = UNMutableNotificationContent()
         content.sound = .default
@@ -150,16 +152,33 @@ final class NotificationService {
             content.body = "\(birthday.date.displayName()) is \(days) days away."
 
         case let .personBirthday(personID):
-            guard let name = names[personID], !name.isEmpty else { return nil }
-            content.title = "It is \(name)'s birthday"
-            content.body = "Today. Say something."
+            guard let person = people[personID], person.isUsable else { return nil }
+            let name = person.trimmedName
+            if person.isRemembered {
+                // Somebody who has died. "Say something" is addressed to them,
+                // and there is nobody to address. This is the one notification
+                // in the app that has to be written for the reader alone.
+                content.title = "Remembering \(name)"
+                content.body = born(person)
+            } else {
+                content.title = "It is \(name)'s birthday"
+                content.body = "Today. Say something."
+            }
 
         case let .personSoon(personID, days):
-            guard let name = names[personID], !name.isEmpty else { return nil }
-            content.title = "\(name)'s birthday is in \(days) days"
+            guard let person = people[personID], person.isUsable else { return nil }
+            content.title = "\(person.trimmedName)'s birthday is in \(days) days"
             content.body = "Long enough to actually get something."
         }
 
         return content
+    }
+
+    /// "Born today in 1998", or just "Born today" when the year is not known.
+    /// Never an age, and never a span: the notification says the fact and
+    /// leaves the arithmetic alone.
+    private func born(_ person: Person) -> String {
+        guard let year = person.birthday.year else { return "Born today." }
+        return "Born today in \(year)."
     }
 }

@@ -15,12 +15,23 @@ struct NotableMatch: Identifiable, Equatable {
     /// Ready to keep. The Wikidata identifier is what marks them as somebody
     /// followed rather than known, which is what spares a friend's
     /// notification when the plan is trimmed.
+    ///
+    /// The year comes along, because it is the difference between a row that
+    /// says June 26 and one that says turning 33, and for somebody public it
+    /// is a matter of record rather than something you have to remember to
+    /// ask.
+    ///
+    /// The year they died comes with it, and it is the more important of the
+    /// two. Without it the app counts down to a dead man's birthday and then
+    /// tells you to say something to him. With it, everything about the day
+    /// is worded as remembering rather than wishing.
     func asPerson() -> Person {
         Person(
             name: person.name,
-            birthday: CalendarBirthday(date: birthDate),
+            birthday: CalendarBirthday(date: birthDate, year: person.birthYear),
             note: person.shortDescription,
-            wikidataID: person.id
+            wikidataID: person.id,
+            deathYear: person.deathYear
         )
     }
 }
