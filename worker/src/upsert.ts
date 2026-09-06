@@ -112,13 +112,27 @@ export interface HistoricalEventRow {
   source_url: string;
   content_license: string;
   fingerprint: string;
+  /**
+   * The moment this run started, the same value on every row of the run.
+   *
+   * Sent rather than left to the column default, because it is what makes a
+   * re-run able to tell this run's rows from the ones it did not produce. An
+   * upsert that merges writes this onto a row it matched, so after the write
+   * every row the run still stands behind carries the run's own timestamp and
+   * everything else carries an older one.
+   */
+  imported_at: string;
 }
 
 /**
  * One row per event, keyed on the fingerprint of its date, year and
  * sentence, so running the import again corrects rows rather than doubling
- * them. An edited sentence on Wikipedia arrives as a new row and the old
- * one stays; that is rare enough to clean by hand.
+ * them.
+ *
+ * The fingerprint covers the sentence, so an edited sentence is a different
+ * row rather than the same row changed. On its own that leaves the old one
+ * behind, which is what `pruneHistoricalEvents` is for: this writes what is
+ * true now, and that removes what is no longer true.
  */
 export async function upsertHistoricalEvents(
   rows: HistoricalEventRow[],
@@ -152,4 +166,68 @@ export async function upsertHistoricalEvents(
   }
 
   return written;
+}
+
+/**
+ * The address that removes one date's rows from before a given moment.
+ *
+ * Its own function so it can be read and tested without a network. The two
+ * date filters are the safety: a prune is always scoped to one calendar date,
+ * so a mistake in the timestamp can never reach beyond the date the run just
+ * read.
+ */
+export function pruneQuery(month: number, day: number, before: string): string {
+  return (
+    `event_month=eq.${month}&event_day=eq.${day}` +
+    `&imported_at=lt.${encodeURIComponent(before)}`
+  );
+}
+
+/**
+ * Removes rows the run did not produce, one date at a time.
+ *
+ * Only ever called with dates that read successfully and returned events, so
+ * a page that failed to fetch, or that arrived in a shape the reader could not
+ * follow, leaves its rows exactly where they are. That is the whole safety
+ * argument: nothing is deleted on the strength of an absence, only on the
+ * strength of a good read that no longer contains it.
+ *
+ * The alternative was leaving the old rows in place, which sounds harmless and
+ * is not: Wikipedia edits sentences constantly, the fingerprint covers the
+ * sentence, and the Today feed would show the old wording and the new wording
+ * of the same event one above the other.
+ */
+export async function pruneHistoricalEvents(
+  dates: { month: number; day: number }[],
+  before: string,
+  supabaseUrl: string,
+  serviceRoleKey: string,
+): Promise<number> {
+  let removed = 0;
+
+  for (const date of dates) {
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/historical_events?${pruneQuery(date.month, date.day, before)}`,
+      {
+        method: "DELETE",
+        headers: {
+          apikey: serviceRoleKey,
+          Authorization: `Bearer ${serviceRoleKey}`,
+          Prefer: "return=minimal,count=exact",
+        },
+      },
+    );
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`Event prune failed with ${response.status}. ${body.slice(0, 400)}`);
+    }
+
+    // PostgREST answers a counted request with "*/12" in Content-Range.
+    const range = response.headers.get("content-range") ?? "";
+    const count = Number(range.split("/")[1]);
+    if (Number.isFinite(count)) removed += count;
+  }
+
+  return removed;
 }

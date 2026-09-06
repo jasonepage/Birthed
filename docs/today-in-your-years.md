@@ -97,6 +97,22 @@ Rules for the reader:
 - `--dry-run --print` first, on one date, and read the output before running
   the lot. The date pages have decades of hand editing in them and the reader
   will meet a table shape the year lists never had.
+- Running it again replaces a date rather than adding to it. Every row carries
+  the start of the run that wrote it, and after writing, a date that read
+  successfully has its older rows deleted. A date whose fetch failed is left
+  alone. This is what makes fixing the reader safe: without it, every
+  correction would leave the old sentence on screen beside the new one.
+
+**What the first full run found, September 6, 2026.** 19,734 events across all
+366 dates, years 4 to 2026, every row with a year, a source on English
+Wikipedia and a licence. About 125 lines were refused across the year, which
+is under one percent, and they are the two kinds the rule was written for:
+lines before the common era and lines whose year is "c. 1200" or "1400s".
+Nothing before the common era reached the table, which was checked rather than
+assumed. One line in 19,734 arrived carrying a footnote marker somebody had
+typed as text rather than written as a reference, which `cellText` could not
+see because there was no `sup` element to remove; the line reader now takes a
+trailing marker off.
 
 Expected size: the pages carry between 40 and 120 events each, so 20,000 to
 40,000 rows. Small.

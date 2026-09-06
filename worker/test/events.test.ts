@@ -1,7 +1,8 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 
-import { eventsSection, parseEventLine, parseEvents } from "../src/events.js";
+import { count, eventsSection, parseEventLine, parseEvents } from "../src/events.js";
+import { pruneQuery } from "../src/upsert.js";
 
 /**
  * The shape of a date article as the parser sees it: an Events h2 wrapped in
@@ -44,6 +45,36 @@ test("a line is a year, a dash and the sentence as written", () => {
   assert.deepEqual(event, { year: 1977, description: "Voyager program: Voyager 1 is launched." });
 });
 
+test("a citation marker typed as text comes off the end of the sentence", () => {
+  // One real line out of 19,734 in the first full import arrived like this,
+  // because somebody typed the footnote instead of using a reference tag, so
+  // `cellText` had no `sup` element to remove.
+  const event = parseEventLine(
+    "1946 \u2013 It's a Wonderful Life premieres at the Globe Theatre in New York to mixed reviews. [1]",
+    2026,
+  );
+  assert.equal(event?.description.endsWith("to mixed reviews."), true);
+
+  // Only on the end. A bracketed number inside a sentence is somebody's words.
+  const inside = parseEventLine("1970 \u2013 The [1] Squadron is formed and flies its first sortie.", 2026);
+  assert.match(inside?.description ?? "", /\[1\] Squadron/);
+});
+
+test("a line before the common era is counted as its own thing", () => {
+  // Both are refused, and the report must not call them the same problem: a
+  // BC line has a year and nowhere to put it, and a "c." line has no year.
+  const read = parseEvents(
+    "<h2 id=\"Events\">Events</h2><ul>" +
+      "<li>44 BC \u2013 Caesar is assassinated in the Senate.</li>" +
+      "<li>c. 1200 \u2013 Something vague happens somewhere.</li>" +
+      "</ul><h2 id=\"Births\">Births</h2>",
+    2026,
+  );
+  assert.equal(read.events.length, 0);
+  assert.equal(read.notes.filter((note) => note.includes("before the common era")).length, 1);
+  assert.equal(read.notes.filter((note) => note.includes("no plain year")).length, 1);
+});
+
 test("lines without a plain year are refused rather than guessed", () => {
   assert.equal(parseEventLine("c. 1200 – Something vague.", 2026), null);
   assert.equal(parseEventLine("44 BC – Before the common era.", 2026), null);
@@ -69,4 +100,21 @@ test("a page with no Events section says so instead of reading nothing quietly",
   const read = parseEvents("<h2 id=\"Births\">Births</h2><ul><li>1946 – Somebody</li></ul>", 2026);
   assert.equal(read.events.length, 0);
   assert.ok(read.notes.some((note) => note.includes("no Events section")));
+});
+
+test("a prune is scoped to one calendar date and one moment", () => {
+  const query = pruneQuery(12, 20, "2026-09-06T07:15:00.000Z");
+  assert.match(query, /(^|&)event_month=eq\.12(&|$)/);
+  assert.match(query, /(^|&)event_day=eq\.20(&|$)/);
+  // The colons in the timestamp have to be escaped or PostgREST reads the
+  // filter as a different operator and the delete is not the one we meant.
+  assert.match(query, /imported_at=lt\.2026-09-06T07%3A15%3A00\.000Z/);
+  assert.ok(!query.includes("event_year"), "a prune must never be scoped by year");
+});
+
+test("the report counts in words a person would use", () => {
+  assert.equal(count(1, "line"), "1 line");
+  assert.equal(count(0, "line"), "0 lines");
+  assert.equal(count(43, "line"), "43 lines");
+  assert.equal(count(1, "date"), "1 date");
 });

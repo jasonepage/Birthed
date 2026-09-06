@@ -57,6 +57,18 @@ function listItems(html: string): string[] {
  * a plain whole number, such as "c. 1200" or "1400s", is refused: absent
  * beats wrong, the same rule as the 1958 chart.
  */
+/**
+ * "1 line", "43 lines". The report is read by a person, and a report that says
+ * "1 lines" reads like nobody has looked at it since it was written.
+ */
+export function count(amount: number, noun: string, plural = `${noun}s`): string {
+  return `${amount} ${amount === 1 ? noun : plural}`;
+}
+
+export function isBeforeCommonEra(text: string): boolean {
+  return /^\d{1,4}\s*(BC|BCE)\b/.test(text.replace(/\s+/g, " ").trim());
+}
+
 export function parseEventLine(text: string, thisYear: number): DateEvent | null {
   const cleaned = text.replace(/\s+/g, " ").trim();
   const match = /^(\d{1,4})\s*(?:BC|BCE)?\s*[\u2013\u2014-]\s*(.+)$/.exec(cleaned);
@@ -65,8 +77,14 @@ export function parseEventLine(text: string, thisYear: number): DateEvent | null
   if (!Number.isInteger(year) || year < 1 || year > thisYear) return null;
   // Lines like "1984 BC" reach here with the era stripped by the pattern,
   // which would file them under the wrong millennium. Refuse them.
-  if (/^\d{1,4}\s*(BC|BCE)\b/.test(cleaned)) return null;
-  const description = (match[2] ?? "").trim();
+  if (isBeforeCommonEra(cleaned)) return null;
+  // A citation marker somebody typed as text rather than as a reference tag.
+  // `cellText` removes the ones written properly, because those are a `sup`
+  // element, and cannot see this one. One line in 19,734 arrived carrying
+  // "[1]" on the end of the sentence, and a stray footnote number is the kind
+  // of thing that makes a screen look unfinished. Trailing only: a bracketed
+  // number anywhere else in a sentence is part of what somebody wrote.
+  const description = (match[2] ?? "").replace(/(\s*\[\d+\])+\s*$/, "").trim();
   if (description.length < 12) return null;
   return { year, description };
 }
@@ -89,6 +107,7 @@ export function parseEvents(html: string, thisYear: number = new Date().getUTCFu
   const events: DateEvent[] = [];
   const notes: string[] = [];
   let refused = 0;
+  let beforeCommonEra = 0;
 
   for (const item of listItems(section)) {
     const own = item.split(/<ul\b/i)[0] ?? "";
@@ -96,13 +115,23 @@ export function parseEvents(html: string, thisYear: number = new Date().getUTCFu
     if (text.trim() === "") continue;
     const event = parseEventLine(text, thisYear);
     if (event === null) {
-      refused += 1;
+      // Counted apart, because they are not the same problem and the report
+      // used to call both of them a missing year. A line before the common
+      // era has a perfectly good year and is refused because this app has
+      // nowhere to put one; a "c. 1200" line has no year at all. Reading a
+      // report that says the first thing about the second is how a working
+      // rule gets mistaken for a bug by whoever reads it next.
+      if (isBeforeCommonEra(text)) beforeCommonEra += 1;
+      else refused += 1;
       continue;
     }
     events.push(event);
   }
 
   if (events.length < 20) notes.push(`only ${events.length} events read, which is low for a date page`);
-  if (refused > 0) notes.push(`${refused} lines refused for having no plain year`);
+  if (refused > 0) notes.push(`${count(refused, "line")} refused for having no plain year`);
+  if (beforeCommonEra > 0) {
+    notes.push(`${count(beforeCommonEra, "line")} refused for being before the common era`);
+  }
   return { events, notes };
 }

@@ -14,8 +14,8 @@
 import { createHash } from "node:crypto";
 
 import { loadConfig, loadDotEnv } from "./config.js";
-import { DateEvent, parseEvents } from "./events.js";
-import { upsertHistoricalEvents } from "./upsert.js";
+import { count, DateEvent, parseEvents } from "./events.js";
+import { pruneHistoricalEvents, upsertHistoricalEvents } from "./upsert.js";
 import { articleUrl, fetchPage } from "./wikipedia.js";
 
 const LICENSE = "CC-BY-SA-4.0";
@@ -106,6 +106,10 @@ async function main(): Promise<void> {
     await sleep(250);
   }
 
+  // One timestamp for the whole run, written onto every row. It is what tells
+  // the prune below which rows this run still stands behind.
+  const startedAt = new Date().toISOString();
+
   const rows = results.flatMap((result) =>
     result.events.map((event) => ({
       event_month: result.month,
@@ -115,18 +119,19 @@ async function main(): Promise<void> {
       source_url: result.sourceUrl,
       content_license: LICENSE,
       fingerprint: fingerprint(result.month, result.day, event),
+      imported_at: startedAt,
     })),
   );
 
   console.log("");
-  console.log(`${rows.length} events across ${results.length} dates`);
+  console.log(`${count(rows.length, "event")} across ${count(results.length, "date")}`);
 
   const problems = results.flatMap((result) => result.notes);
   if (problems.length === 0) {
     console.log("nothing odd");
   } else {
     console.log("");
-    console.log(`${problems.length} things to look at:`);
+    console.log(`${count(problems.length, "thing")} to look at:`);
     for (const problem of problems) console.log(`  ${problem}`);
   }
 
@@ -138,6 +143,22 @@ async function main(): Promise<void> {
 
   const written = await upsertHistoricalEvents(rows, config.supabaseUrl, config.serviceRoleKey);
   console.log(`wrote ${written} rows`);
+
+  // Only the dates that actually read. A date whose fetch failed keeps every
+  // row it already had, because an absence proves nothing about Wikipedia and
+  // everything about the network.
+  const read = results.filter((result) => result.events.length > 0);
+  const removed = await pruneHistoricalEvents(
+    read.map((result) => ({ month: result.month, day: result.day })),
+    startedAt,
+    config.supabaseUrl,
+    config.serviceRoleKey,
+  );
+  if (removed > 0) {
+    console.log(`removed ${count(removed, "row")} Wikipedia no longer carries`);
+  } else {
+    console.log("nothing to remove");
+  }
 }
 
 if (process.argv[1]?.endsWith("import-events.js")) {
