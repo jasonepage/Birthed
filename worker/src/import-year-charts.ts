@@ -57,7 +57,7 @@ export interface YearChartRow {
   content_license: string;
   note: string;
   /** Which reader produced it. Printed in dry mode, never stored. */
-  from?: "table" | "sentence";
+  from?: "table" | "section";
 }
 
 /**
@@ -124,54 +124,89 @@ export function parseYearTable(html: string, spec: YearChartSpec): YearChartRow[
 }
 
 /**
- * The years from 1998, which the page does not put in a table at all.
+ * Every heading on the page whose whole text is a year, with where its
+ * section starts and ends.
  *
- * From 1998 onward it gives each year its own top ten, with columns Rank,
- * Title, Developer and Publisher and no year anywhere in the table. The year
- * lives in the sentence above it: "The Legend of Zelda: Ocarina of Time was
- * the best-selling game of 1998."
- *
- * So the sentence is the source, which is better than it sounds. It states
- * the title and the year in one place, in the page's own words, and it is the
- * same discipline the reward pipeline uses: take the sentence that makes the
- * claim rather than assembling the claim from parts and hoping.
- *
- * Reading the rank one row of each table instead would mean pairing every
- * table with a heading by document position, and a page with one stray
- * heading would shift every year after it by one and look perfectly fine.
+ * The year is read out of the heading rather than counted. Pairing tables
+ * with headings by document position was the thing worth avoiding, because
+ * one stray heading shifts every year after it by one and looks perfectly
+ * fine doing it. Reading "2007" out of the heading that says 2007 cannot
+ * drift.
  */
-export function parseYearSentences(html: string, spec: YearChartSpec): YearChartRow[] {
+export function yearSections(html: string): { year: number; body: string }[] {
+  const heading = /<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/g;
+  const found: { year: number | null; start: number; end: number }[] = [];
+
+  let match: RegExpExecArray | null;
+  while ((match = heading.exec(html)) !== null) {
+    const inner = match[1] ?? "";
+    // Wikipedia puts an "[edit]" link inside the heading. It is markup, not
+    // part of the name of the section.
+    const text = stripTags(inner).replace(/\[edit\]/gi, "").trim();
+    const yearMatch = /^(\d{4})$/.exec(text);
+    found.push({
+      year: yearMatch && yearMatch[1] ? Number(yearMatch[1]) : null,
+      start: match.index,
+      end: match.index + match[0].length,
+    });
+  }
+
+  const sections: { year: number; body: string }[] = [];
+  for (let index = 0; index < found.length; index += 1) {
+    const here = found[index];
+    if (!here || here.year === null) continue;
+    // Up to the next heading of any level, so a subsection cannot pull in the
+    // table belonging to the year after it.
+    const next = found[index + 1];
+    sections.push({ year: here.year, body: html.slice(here.end, next ? next.start : html.length) });
+  }
+  return sections;
+}
+
+/**
+ * The years from 1998, which the page does not put in a per-year table at all.
+ *
+ * From 1998 onward every year gets its own top ten, with columns Rank, Title,
+ * Developer and Publisher and no year anywhere in the table. So the year comes
+ * from the heading above it and the game is the first row, which is rank one.
+ *
+ * Taking the first data row rather than searching for a cell reading "1" is
+ * deliberate: some of these tables have no rank column at all, and every one
+ * of them is in rank order, so position within the table is the reliable part
+ * even though position of the table on the page is not.
+ */
+export function parseYearSections(html: string, spec: YearChartSpec): YearChartRow[] {
   const url = articleUrl(spec.pageTitle);
   const rows: YearChartRow[] = [];
-  const seen = new Set<number>();
 
-  const phrase = /\s+was the (?:best|top)[-\s]selling (?:video )?game of\s*(\d{4})/g;
-  let match: RegExpExecArray | null;
-  while ((match = phrase.exec(html)) !== null) {
-    const yearText = match[1];
-    if (!yearText) continue;
-    const year = Number(yearText);
-    if (year < spec.firstYear) continue;
-    if (seen.has(year)) continue;
+  for (const section of yearSections(html)) {
+    if (section.year < spec.firstYear) continue;
 
-    // The title is whatever sentence the phrase is the end of. Take a window
-    // back from the match, drop the markup, and keep the last sentence in it.
-    const window = html.slice(Math.max(0, match.index - 400), match.index);
-    const text = stripTags(window);
-    const title = (text.split(/(?<=[.!?])\s+/).pop() ?? "").trim();
-    // A title long enough to be a paragraph is a failed match, not a game.
+    const table = readTables(section.body)[0];
+    if (!table) continue;
+    const grid = readGrid(table);
+    const header = grid[0];
+    const firstRow = grid[1];
+    if (!header || !firstRow) continue;
+
+    const lower = header.map((cell) => cell.trim().toLowerCase());
+    const titleColumn = columnMatching(lower, /^title|^game/);
+    if (titleColumn < 0) continue;
+    const creditColumn = columnMatching(lower, /^publisher/);
+
+    const title = (firstRow[titleColumn] ?? "").trim();
     if (!title || title.length > 120) continue;
+    const credit = creditColumn >= 0 ? (firstRow[creditColumn] ?? "").trim() : "";
 
-    seen.add(year);
     rows.push({
       chart: spec.chart,
-      year,
+      year: section.year,
       title,
-      credit: null,
+      credit: credit === "" ? null : credit,
       source_url: url,
       content_license: LICENSE,
       note: spec.note,
-      from: "sentence",
+      from: "section",
     });
   }
 
@@ -179,12 +214,13 @@ export function parseYearSentences(html: string, spec: YearChartSpec): YearChart
 }
 
 /**
- * Both readers, with the table winning where they overlap, because a column
- * is a stronger claim than a sentence.
+ * Both readers, with the 1980 to 1997 table winning where they overlap,
+ * because a column headed "Top-selling title" is a stronger claim than the
+ * first row of a top ten.
  */
 export function parsePage(html: string, spec: YearChartSpec): YearChartRow[] {
   const byYear = new Map<number, YearChartRow>();
-  for (const row of parseYearSentences(html, spec)) byYear.set(row.year, row);
+  for (const row of parseYearSections(html, spec)) byYear.set(row.year, row);
   for (const row of parseYearTable(html, spec)) byYear.set(row.year, row);
   return [...byYear.values()].sort((a, b) => a.year - b.year);
 }
@@ -244,7 +280,7 @@ async function main(): Promise<void> {
 
   // Every row, not a count. Reading them is the point of the dry run.
   for (const row of rows) {
-    console.log(`${row.year}  ${row.from === "table" ? "tbl" : "txt"}  ${row.title}${row.credit ? `  (${row.credit})` : ""}`);
+    console.log(`${row.year}  ${row.from === "table" ? "tbl" : "sec"}  ${row.title}${row.credit ? `  (${row.credit})` : ""}`);
   }
 
   const thisYear = new Date().getUTCFullYear();
