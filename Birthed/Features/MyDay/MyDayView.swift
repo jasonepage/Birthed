@@ -29,6 +29,9 @@ struct MyDayView: View {
     /// Named for what it is rather than for what it holds, because `facts`
     /// on this screen is already the arithmetic one.
     @Environment(FactsService.self) private var factsService
+    /// The best selling game of the birth year. Nothing before 1980 and
+    /// nothing without a year, and the panel is complete without it.
+    @Environment(YearChartService.self) private var yearCharts
 
     /// One thing that happened on this date, or nothing.
     ///
@@ -182,6 +185,7 @@ struct MyDayView: View {
             .task { await loadDayLine() }
             .task { await loadSong() }
             .task { await loadOthers() }
+            .task { await yearCharts.load(year: profile.birthday.year) }
             .task { await factsService.load(for: profile) }
             .sheet(isPresented: $showingShare) {
                 ShareCardPicker(choices: shareChoices, subject: profile.birthday.date.displayName())
@@ -230,14 +234,14 @@ struct MyDayView: View {
 
             Spacer().frame(height: 24)
 
-            if let song {
-                songBlock(song)
+            if song != nil || yearCharts.game != nil {
+                chartBlock
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             } else if profile.birthday.year == nil {
                 yearNudge
             }
 
-            if song != nil || profile.birthday.year == nil {
+            if song != nil || yearCharts.game != nil || profile.birthday.year == nil {
                 Spacer().frame(height: 26)
             }
 
@@ -280,6 +284,7 @@ struct MyDayView: View {
         }
         .padding(.horizontal, 16)
         .animation(.spring(duration: 0.6), value: song)
+        .animation(.spring(duration: 0.6), value: yearCharts.game)
     }
 
     /// The date is the label of the panel rather than the news on it, so it
@@ -575,29 +580,79 @@ struct MyDayView: View {
     /// four unrelated lines. It needs a birth year, and it shows nothing at
     /// all when there is no chart covering that week rather than reaching for
     /// the nearest one.
-    private func songBlock(_ song: ChartWeek) -> some View {
+    /// One surface for what was on top when the reader arrived.
+    ///
+    /// The song and the game together rather than two thin blocks, because
+    /// they are the same kind of claim about the same year and the panel is
+    /// allowed five things, not six. The kicker is still the only pink one
+    /// above the fold: the game labels itself in its own line, which also
+    /// carries the year, so nothing is ambiguous when the song is missing and
+    /// the game is not.
+    ///
+    /// The game is not in `chart_weeks` and the reason matters. A chart week
+    /// is found by asking for the first issue on or after a birth date, and
+    /// `ChartWeek.covers` refuses an answer more than six days later, which is
+    /// the control that stops a 1943 birthday being handed a 1959 chart. A
+    /// yearly best seller has no issue date for that rule to hold, so it lives
+    /// in `year_charts` and is read separately.
+    @ViewBuilder
+    private var chartBlock: some View {
         VStack(alignment: .leading, spacing: 6) {
-            kicker("NUMBER ONE THE WEEK YOU WERE BORN")
+            kicker(song != nil ? "NUMBER ONE THE WEEK YOU WERE BORN" : "THE YEAR YOU WERE BORN")
 
-            Text(song.song)
-                .font(.system(size: 30, weight: .black, design: .serif))
-                .foregroundStyle(stagePalette.type)
-                .lineLimit(3)
-                .minimumScaleFactor(0.6)
-                .fixedSize(horizontal: false, vertical: true)
+            if let song {
+                Text(song.song)
+                    .font(.system(size: 30, weight: .black, design: .serif))
+                    .foregroundStyle(stagePalette.type)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.6)
+                    .fixedSize(horizontal: false, vertical: true)
 
-            Text(song.artist)
-                .font(.system(size: 17, weight: .regular))
-                .foregroundStyle(stagePalette.type.opacity(0.6))
-                .lineLimit(2)
+                Text(song.artist)
+                    .font(.system(size: 17, weight: .regular))
+                    .foregroundStyle(stagePalette.type.opacity(0.6))
+                    .lineLimit(2)
 
-            // The issue date is here because it is what makes the claim
-            // checkable rather than something Birthed asserts.
-            Text(song.attribution())
-                .font(.caption2)
-                .foregroundStyle(stagePalette.type.opacity(0.42))
-                .padding(.top, 2)
-                .fixedSize(horizontal: false, vertical: true)
+                // The issue date is here because it is what makes the claim
+                // checkable rather than something Birthed asserts.
+                Text(song.attribution())
+                    .font(.caption2)
+                    .foregroundStyle(stagePalette.type.opacity(0.42))
+                    .padding(.top, 2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if let game = yearCharts.game {
+                if song != nil {
+                    Rectangle()
+                        .fill(stagePalette.type.opacity(0.12))
+                        .frame(height: 1)
+                        .padding(.vertical, 12)
+                }
+
+                Text(game.title)
+                    .font(.system(size: 22, weight: .bold, design: .serif))
+                    .foregroundStyle(stagePalette.type)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.6)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text("the best selling game of \(String(game.year))")
+                    .font(.system(size: 15, weight: .regular))
+                    .foregroundStyle(stagePalette.type.opacity(0.6))
+
+                // The same job the song's issue date does. A year is not a
+                // week and United States sales are not world sales, and a
+                // claim that does not say so is a claim Birthed is asserting
+                // rather than reporting.
+                if let note = game.note {
+                    Text(note)
+                        .font(.caption2)
+                        .foregroundStyle(stagePalette.type.opacity(0.42))
+                        .padding(.top, 2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)

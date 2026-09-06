@@ -21,6 +21,9 @@ struct BirthedApp: App {
     /// Which world-when-you-arrived subjects readers like, so that adding more
     /// lines like them is an informed decision rather than a guess.
     @State private var worldLikes: WorldLikesService
+    /// The best selling game of the reader's birth year, which is keyed to a
+    /// year rather than to a week and so cannot live in chart_weeks.
+    @State private var yearCharts: YearChartService
     /// Also account-bound: the whole inbox is one row level security policy,
     /// so without a signed in account it has nothing to read.
     @State private var inbox: BirthdayInbox
@@ -32,6 +35,7 @@ struct BirthedApp: App {
         _account = State(initialValue: account)
         _facts = State(initialValue: FactsService(account: account))
         _worldLikes = State(initialValue: WorldLikesService(account: account))
+        _yearCharts = State(initialValue: YearChartService(account: account))
         _inbox = State(initialValue: BirthdayInbox(account: account))
     }
 
@@ -44,6 +48,7 @@ struct BirthedApp: App {
                 .environment(notifications)
                 .environment(facts)
                 .environment(worldLikes)
+                .environment(yearCharts)
                 .environment(inbox)
         }
     }
