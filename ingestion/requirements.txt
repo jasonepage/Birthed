@@ -1,0 +1,12 @@
+# Birthed cultural event ingestion.
+#
+# Two direct dependencies, on purpose. The Anthropic call is a single message
+# to one endpoint, so it is made with requests rather than by adding the
+# official software development kit for fifteen lines of code. If this pipeline
+# ever needs streaming, tool use, or batching, swap _call_anthropic for the
+# anthropic package and nothing else changes.
+#
+# Install:  python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
+
+supabase>=2.9,<3
+requests>=2.32,<3

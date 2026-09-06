@@ -27,3 +27,8 @@ Claude outputs/
 
 # Generated static site
 web/out/
+
+# Python, used by the cultural event ingestion pipeline
+.venv/
+__pycache__/
+*.pyc

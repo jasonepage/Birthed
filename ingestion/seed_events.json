@@ -1,0 +1,75 @@
+{
+  "note": "Ten iconic technology and gaming launches, used to prove the pipeline end to end. Every date here was written from memory and must be checked against the page in source_url before this data is trusted in the app. CLAUDE.md says absent beats wrong, and a wrong launch date is the kind of wrong this audience notices first.",
+  "events": [
+    {
+      "event_date": "1977-04-16",
+      "category": "tech",
+      "event_title": "The Apple II is introduced",
+      "context_string": "Apple showed the Apple II at the West Coast Computer Faire in San Francisco. It came in a plastic case, plugged into a normal television, and drew color, which is most of the reason home computers stopped looking like kits.",
+      "source_url": "https://en.wikipedia.org/wiki/Apple_II"
+    },
+    {
+      "event_date": "1985-09-13",
+      "category": "gaming",
+      "event_title": "Super Mario Bros. is released in Japan",
+      "context_string": "Nintendo released Super Mario Bros. for the Famicom. It set the shape of the side scrolling platform game so firmly that people still describe new games by how close they get to it.",
+      "source_url": "https://en.wikipedia.org/wiki/Super_Mario_Bros."
+    },
+    {
+      "event_date": "1989-04-21",
+      "category": "gaming",
+      "event_title": "The Game Boy goes on sale in Japan",
+      "context_string": "Nintendo put a game console in a pocket. The screen was gray and green and the batteries lasted for ages, which turned out to matter more than color did.",
+      "source_url": "https://en.wikipedia.org/wiki/Game_Boy"
+    },
+    {
+      "event_date": "1994-12-03",
+      "category": "gaming",
+      "event_title": "The Sony PlayStation launches in Japan",
+      "context_string": "Sony's first console shipped with a compact disc drive instead of cartridges. Games got bigger, cheaper to make copies of, and started sounding like recorded music.",
+      "source_url": "https://en.wikipedia.org/wiki/PlayStation_(console)"
+    },
+    {
+      "event_date": "1996-06-23",
+      "category": "gaming",
+      "event_title": "The Nintendo 64 launches in Japan",
+      "context_string": "The controller had a thumbstick on it, and Super Mario 64 shipped alongside. Between them they worked out how a person moves a character around a three dimensional space, and almost everything since has copied it.",
+      "source_url": "https://en.wikipedia.org/wiki/Nintendo_64"
+    },
+    {
+      "event_date": "1998-09-04",
+      "category": "tech",
+      "event_title": "Google is founded",
+      "context_string": "Larry Page and Sergey Brin filed the paperwork for Google while they were graduate students at Stanford. The search page was famously almost empty, which at the time looked like a mistake.",
+      "source_url": "https://en.wikipedia.org/wiki/Google"
+    },
+    {
+      "event_date": "2001-10-23",
+      "category": "tech",
+      "event_title": "Apple introduces the iPod",
+      "context_string": "Apple announced a music player with a scroll wheel and a hard drive, pitched as a thousand songs in your pocket. It is the product that turned Apple from a computer company into whatever it is now.",
+      "source_url": "https://en.wikipedia.org/wiki/IPod"
+    },
+    {
+      "event_date": "2004-11-09",
+      "category": "tech",
+      "event_title": "Mozilla Firefox 1.0 is released",
+      "context_string": "A free browser built in the open shipped its first finished version, and enough people switched to it that the web stopped being built for one browser only.",
+      "source_url": "https://en.wikipedia.org/wiki/Firefox"
+    },
+    {
+      "event_date": "2007-01-09",
+      "category": "tech",
+      "event_title": "Steve Jobs introduces the iPhone",
+      "context_string": "Apple announced the iPhone at the Macworld conference in San Francisco. It went on sale that June. The phone in your hand right now is a direct descendant of the one on that stage.",
+      "source_url": "https://en.wikipedia.org/wiki/IPhone_(1st_generation)"
+    },
+    {
+      "event_date": "2017-09-26",
+      "category": "gaming",
+      "event_title": "Fortnite Battle Royale is released",
+      "context_string": "Epic Games released the free battle royale mode of Fortnite. It became the thing an entire generation did after school, and then a place people went to watch concerts.",
+      "source_url": "https://en.wikipedia.org/wiki/Fortnite_Battle_Royale"
+    }
+  ]
+}
