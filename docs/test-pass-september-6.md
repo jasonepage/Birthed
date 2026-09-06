@@ -6,17 +6,20 @@ plus the exact text of any error. If something fails to build, stop and send
 the first error rather than the last one, because the first is usually the
 real one and the rest are its echoes.
 
-## Before you build, one thing you have to click
+## Before you build, one thing you have to click: done, September 6
 
-The app now opens birthday links, and registering the `birthed://` scheme is
-the one part that cannot be written into a file here. This project has
-`GENERATE_INFOPLIST_FILE = YES` and no Info.plist, and a URL type is an array
-of dictionaries, which the `INFOPLIST_KEY_` build settings cannot express.
+**Nothing to do here any more.** Jason did it and it is checked in.
+`Birthed/Info.plist` now carries the `birthed` scheme under the identifier
+`app.birthed.ios`, and `INFOPLIST_FILE` points the target at it alongside
+`GENERATE_INFOPLIST_FILE`, which is the supported pairing: Xcode merges the
+generated keys into that file rather than replacing it. Because the file is
+tracked by git, a fresh clone has the scheme too, which the old instruction
+below could not promise.
 
-In Xcode: select the Birthed target, the Info tab, expand URL Types, press
-plus, set Identifier to `app.birthed.ios` and URL Schemes to `birthed`. Leave
-everything else alone. It takes a minute and without it items 17 and 18 below
-do nothing at all, which will look like broken code and is not.
+The old instruction, kept because it explains why the file exists at all: a
+URL type is an array of dictionaries, and the `INFOPLIST_KEY_` build settings
+cannot express one, so this is the only part of the project that needs a real
+property list.
 
 ## Before you build
 
@@ -360,6 +363,32 @@ Wikipedia, because neither machine this was written from can reach it.
     different order each pull, and rows from before you were born should
     still be at the bottom both times. `swift test` has three tests for this
     in `DayFeedTests`.
+
+## Added later still: the one permission, and the site's blank page
+
+49. **The reminder row.** Delete the app and reinstall it, or reset it, so
+    that iOS has never asked you about notifications for Birthed. Finish
+    onboarding, go to People, add one person. A row should appear directly
+    under that person's card reading "Remind me the morning of and three days
+    before", switched on. Nothing should happen while you look at it: no iOS
+    prompt, no banner. Now switch to Mine. The iOS notification prompt should
+    appear. Allow it, go back to People, and the row should be gone.
+    Screenshot the row before you leave the screen.
+
+50. **Turning it off is an answer.** Reset again, add one person, switch the
+    row off, and leave the screen. No iOS prompt should appear at all. Come
+    back to People and add a second person: the row must not return. The
+    switch in Settings should read off.
+
+51. **The blank page on birthed.app.** Before you redeploy, open
+    `birthed.app/add#c=SCJDBSJD&r=Jason` in Firefox with the console open
+    (Command Option K) and reload. Send me what the console says. I expect a
+    Content Security Policy line about an inline script being blocked, which
+    is the bug and is fixed in this change. Then redeploy the site on Render
+    and open the same address again: it should read "Jason wants your
+    birthday" with a name box, a date and a Send it button. Fill it in, press
+    Send it, and it should say Sent. Then open the app: the birthday should
+    be waiting to be confirmed.
 
 ## What I need back
 
