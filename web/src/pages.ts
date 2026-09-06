@@ -355,6 +355,10 @@ export function renderAdd(api: { url: string; key: string }): string {
 
   send.addEventListener("click", function (event) {
     event.preventDefault();
+    // A second press while the first is still in the air would send the same
+    // birthday twice. The server drops the duplicate, but the button should
+    // not create it in the first place.
+    if (send.disabled) return;
     var name = nameInput.value.trim();
     if (!name) {
       problem.textContent = "Put your name in, so they know whose birthday it is.";
@@ -363,6 +367,7 @@ export function renderAdd(api: { url: string; key: string }): string {
       return;
     }
     problem.hidden = true;
+    send.disabled = true;
     send.textContent = "Sending";
     fetch(API + "/rest/v1/rpc/leave_birthday", {
       method: "POST",
@@ -391,6 +396,7 @@ export function renderAdd(api: { url: string; key: string }): string {
       // alive, so a failure here is the network rather than the request. The
       // link is offered as the way round it, which is the route that never
       // needed us in the first place.
+      send.disabled = false;
       send.textContent = "Send it";
       problem.textContent = "That did not go through. Send them this link instead:";
       problem.hidden = false;
