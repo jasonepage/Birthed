@@ -12,26 +12,43 @@
 // own album. Requiring equality rejected the right one and took the other. So
 // a featuring credit is stripped before comparing, and nothing else is.
 
-/** Anything in brackets that is a featuring credit and not a different take. */
-const FEATURING = /[([]\s*(?:feat\.?|ft\.?|featuring|with)\b[^)\]]*[)\]]\s*$/i;
-
 /**
- * Brackets that mean this is a different recording from the one that charted.
- * These must survive normalisation and disqualify the row.
+ * Brackets that mean this is a different performance from the one that
+ * charted. These disqualify a row outright.
+ *
+ * Deliberately short, and it got shorter after the first real run. It used to
+ * hold "version", "edit", "radio", "mix", "remaster" and "extended", and that
+ * threw out "Is It Over Now? (Taylor's Version) [From The Vault]", which is
+ * not a variant of the 2023 number one, it *is* the 2023 number one. A
+ * remaster or a radio edit is the same performance at a different length or
+ * loudness, and for a thirty second preview that is the right recording. A
+ * live take, a karaoke backing or a cover is a different performance by
+ * definition, and those are what this list is for.
  */
-const OTHER_VERSION = /[([][^)\]]*\b(live|remix|mix|version|edit|karaoke|instrumental|acoustic|re-?record|cover|demo|reprise|remaster|radio|single edit|extended)\b[^)\]]*[)\]]/i;
+const DIFFERENT_PERFORMANCE = /\b(live|karaoke|instrumental|acoustic|demo|cover|remix|reprise|tribute|a cappella|acapella)\b/i;
 
 /** Albums that exist to imitate a recording rather than to be one. */
 const NOT_THE_RECORD = /\b(karaoke|tribute|made famous by|in the style of|as made popular|cover version|performed by the)\b/i;
 
+/** Apple appends these to a collection name. They are packaging, not identity. */
+const PACKAGING = /\s*-\s*(ep|single)\s*$/i;
+
+/** Every bracketed group, of either kind. */
+const BRACKETS = /[([][^)\]]*[)\]]/g;
+
 export function normalise(text: string): string {
   return text
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(FEATURING, "")
+    .replace(/[\u0300-\u036f]/g, "")
+    // Brackets go entirely, once the blacklist above has had its say. That
+    // covers a featuring credit, a source credit like (From "Toy Story 5"),
+    // an artist's own re-recording mark like (Taylor's Version), a vault note
+    // like [From The Vault], and a deluxe or bonus label, all of which name
+    // the same recording this chart row is about.
+    .replace(BRACKETS, " ")
+    .replace(PACKAGING, "")
     .toLowerCase()
-    .replace(/[‘’]/g, "'")
-    .replace(/[“”]/g, '"')
+    .replace(/[\u2018\u2019]/g, "'")
     .replace(/&/g, " and ")
     .replace(/[^a-z0-9' ]+/g, " ")
     .replace(/\s+/g, " ")
@@ -47,6 +64,38 @@ export function normalise(text: string): string {
  */
 export function primaryArtist(credit: string): string {
   return credit.split(/\s+(?:feat\.?|ft\.?|featuring|with)\s+/i)[0] ?? credit;
+}
+
+/** Words that carry no identity, so sharing one proves nothing. */
+const EMPTY_WORDS = new Set(["and", "the", "of", "a", "an", "with", "feat", "ft", "featuring", "x"]);
+
+function meaningfulWords(text: string): string[] {
+  return normalise(text).split(" ").filter((word) => word.length > 0 && !EMPTY_WORDS.has(word));
+}
+
+/**
+ * Whether two artist credits are the same act.
+ *
+ * Not string equality, because a chart credit and a store credit write the
+ * same people differently and the first run proved it in three ways at once.
+ * Billboard says "Huntrix: Ejae, Audrey Nuna and Rei Ami" where Apple says
+ * "HUNTR/X, EJAE, AUDREY NUNA, REI AMI & KPop Demon Hunters Cast". Billboard
+ * says "Ye" where Apple says "Kanye West". Billboard says "Daryl Hall and John
+ * Oates" where a store might say "Hall & Oates".
+ *
+ * So: a single name has to appear, and a credit with several names has to
+ * share at least two of them. A covers act shares nothing, which is the case
+ * that matters, and "The Hitmakers" is still refused for Nelly's Dilemma.
+ */
+export function sameArtist(chartCredit: string, storeCredit: string): boolean {
+  const wanted = meaningfulWords(primaryArtist(chartCredit));
+  const found = meaningfulWords(storeCredit);
+  if (wanted.length === 0) return true;
+  if (found.length === 0) return false;
+
+  const shared = wanted.filter((word) => found.includes(word)).length;
+  if (wanted.length === 1) return shared === 1;
+  return shared >= 2 || shared >= Math.ceil(wanted.length / 2);
 }
 
 export interface StoreResult {
@@ -90,21 +139,16 @@ export function pickMatch(
   wantTrack = true,
 ): Match | null {
   const wantedTitle = normalise(title);
-  const wantedArtist = normalise(primaryArtist(credit));
 
   const survivors = results.filter((row) => {
     const name = wantTrack ? row.trackName : row.collectionName;
     if (!name) return false;
-    // A bracket that is not a featuring credit means a different take.
-    if (OTHER_VERSION.test(name)) return false;
+    // Judged on the raw name, before the brackets are thrown away, because
+    // the thing being refused is written inside them.
+    if (DIFFERENT_PERFORMANCE.test(name)) return false;
     if (row.collectionName && NOT_THE_RECORD.test(row.collectionName)) return false;
     if (normalise(name) !== wantedTitle) return false;
-    if (wantedArtist === "") return true;
-    const artist = normalise(row.artistName ?? "");
-    // Equal, or the chart credit is the fuller form of the same act.
-    return artist === wantedArtist
-      || artist.startsWith(`${wantedArtist} `)
-      || wantedArtist.startsWith(`${artist} `);
+    return sameArtist(credit, row.artistName ?? "");
   });
 
   if (survivors.length === 0) return null;

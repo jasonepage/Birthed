@@ -31,9 +31,9 @@ interface Title {
   year: number;
 }
 
-const CHARTS: Record<string, { name: string; entity: string; wantTrack: boolean }> = {
-  songs: { name: "Billboard Hot 100", entity: "song", wantTrack: true },
-  albums: { name: "Billboard 200", entity: "album", wantTrack: false },
+const CHARTS: Record<string, { name: string; entity: string; wantTrack: boolean; attribute: string }> = {
+  songs: { name: "Billboard Hot 100", entity: "song", wantTrack: true, attribute: "songTerm" },
+  albums: { name: "Billboard 200", entity: "album", wantTrack: false, attribute: "albumTerm" },
 };
 
 function sleep(ms: number): Promise<void> {
@@ -84,13 +84,30 @@ async function unmatchedTitles(chartName: string, url: string, key: string): Pro
   return titles;
 }
 
-async function search(title: Title, entity: string): Promise<StoreResult[]> {
+/**
+ * One search. `attribute` restricts which field the term is matched against.
+ *
+ * The second pass exists because of a failure the first live run showed and
+ * no matching rule could have fixed. "Music" by Playboi Carti and "Mayhem" by
+ * Lady Gaga are both real albums that Apple holds, and searching for the title
+ * and the artist together returned neither, because a one word title against a
+ * large catalogue of that artist's other work is a hard query for a relevance
+ * engine. Nothing was wrong with the answer; the right row was never in it.
+ *
+ * So a miss is retried against the album or song field alone, where the title
+ * is the only thing being ranked, and the artist check then does the work of
+ * telling the real one from everybody else who named a record Music.
+ */
+async function search(title: Title, entity: string, attribute?: string): Promise<StoreResult[]> {
   const query = new URLSearchParams({
-    term: `${title.song} ${title.artist}`,
+    term: attribute ? title.song : `${title.song} ${title.artist}`,
     entity,
     country: "US",
-    limit: "12",
+    // 12 was too few. Raising it costs the same single request and it is the
+    // cheapest half of the retrieval problem above.
+    limit: "25",
   });
+  if (attribute) query.set("attribute", attribute);
   const response = await fetch(`https://itunes.apple.com/search?${query}`, {
     headers: { "User-Agent": "Birthed/0.1 (https://birthed.app)" },
   });
@@ -98,7 +115,7 @@ async function search(title: Title, entity: string): Promise<StoreResult[]> {
   // a run that ignored it would fill the table with empty refusals.
   if (response.status === 403 || response.status === 429) {
     await sleep(30_000);
-    return search(title, entity);
+    return search(title, entity, attribute);
   }
   if (!response.ok) return [];
   const body = (await response.json()) as { results?: StoreResult[] };
@@ -162,8 +179,21 @@ async function main(): Promise<void> {
     console.log(`\n${spec.name}: ${titles.length} titles to look up.\n`);
 
     for (const title of titles) {
-      const results = await search(title, spec.entity);
-      const match = pickMatch(results, title.song, title.artist, title.year, spec.wantTrack);
+      let results = await search(title, spec.entity);
+      let match = pickMatch(results, title.song, title.artist, title.year, spec.wantTrack);
+
+      // Only the misses pay for the second request, which is about a quarter
+      // of them, so the whole backfill grows by roughly a quarter rather than
+      // doubling.
+      if (!match) {
+        await sleep(GAP_MS);
+        const second = await search(title, spec.entity, spec.attribute);
+        const retry = pickMatch(second, title.song, title.artist, title.year, spec.wantTrack);
+        if (retry) {
+          match = retry;
+          results = second;
+        }
+      }
 
       if (match) {
         matched += 1;

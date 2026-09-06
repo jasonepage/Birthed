@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bigArtwork, normalise, pickMatch, primaryArtist, type StoreResult } from "../src/media.js";
+import { bigArtwork, normalise, pickMatch, primaryArtist, sameArtist, type StoreResult } from "../src/media.js";
 
 // The two rows a real search returned on September 6. Both are the same
 // recording on two different albums: Nellyville is Nelly's, Simply Deep is
@@ -43,14 +43,83 @@ test("two correct survivors do not mean refuse, they mean take the original", ()
   assert.ok(match?.storeUrl?.includes("1440735154"));
 });
 
-test("a different recording is refused however well the name matches", () => {
+test("a different performance is refused however well the name matches", () => {
   for (const trackName of [
     "Dilemma (Live)", "Dilemma (Remix)", "Dilemma (Karaoke Version)",
-    "Dilemma (Acoustic)", "Dilemma (Radio Edit)", "Dilemma (2015 Remaster)",
+    "Dilemma (Acoustic)", "Dilemma (Instrumental)", "Dilemma (Demo)",
   ]) {
     const only: StoreResult[] = [{ ...dilemma[0], trackName }];
     assert.equal(pickMatch(only, "Dilemma", "Nelly", 2002), null, trackName);
   }
+});
+
+test("the same performance at a different length or loudness is kept", () => {
+  // This list used to include "version", "edit", "radio" and "remaster", and
+  // the first real run showed what that costs: it threw out "Is It Over Now?
+  // (Taylor's Version) [From The Vault]", which is not a variant of the 2023
+  // number one, it is the 2023 number one. For a thirty second preview a
+  // remaster and a radio edit are the right recording.
+  for (const trackName of [
+    "Dilemma (Radio Edit)", "Dilemma (2015 Remaster)", "Dilemma (Single Version)",
+  ]) {
+    const only: StoreResult[] = [{ ...dilemma[0], trackName }];
+    assert.ok(pickMatch(only, "Dilemma", "Nelly", 2002), trackName);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Every case below is a real refusal from the first live run, kept as a test
+// so the same rule cannot tighten back over them.
+
+test("a source credit in brackets is not a different recording", () => {
+  const only: StoreResult[] = [{
+    ...dilemma[0], trackName: 'I Knew It, I Knew You (From "Toy Story 5")',
+    artistName: "Taylor Swift", collectionName: "Toy Story 5",
+  }];
+  assert.ok(pickMatch(only, "I Knew It, I Knew You", "Taylor Swift", 2026));
+});
+
+test("an artist's own re-recording of their own number one still counts", () => {
+  const only: StoreResult[] = [{
+    ...dilemma[0], trackName: "Is It Over Now? (Taylor's Version) [From The Vault]",
+    artistName: "Taylor Swift", collectionName: "1989 (Taylor's Version)",
+  }];
+  assert.ok(pickMatch(only, "Is It Over Now?", "Taylor Swift", 2023));
+});
+
+test("Apple's EP and Single suffixes are packaging, not identity", () => {
+  for (const [collectionName, want] of [
+    ["THE SIN : BLISS - EP", "The Sin: Bliss"],
+    ["GOLDEN HOUR : Part.5 - EP", "Golden Hour: Part.5"],
+    ["DO IT - EP", "Do It"],
+  ] as const) {
+    const only: StoreResult[] = [{
+      collectionName, artistName: "ENHYPEN",
+      collectionViewUrl: "https://music.apple.com/x",
+      artworkUrl100: "https://is1-ssl.mzstatic.com/image/thumb/x/100x100bb.jpg",
+    }];
+    assert.ok(pickMatch(only, want, "Enhypen", 2026, false), collectionName);
+  }
+});
+
+test("a chart credit and a store credit spell the same act differently", () => {
+  // Billboard writes the first of each pair, Apple the second.
+  const cases: [string, string][] = [
+    ["Huntrix: Ejae, Audrey Nuna and Rei Ami", "HUNTR/X, EJAE, AUDREY NUNA, REI AMI & KPop Demon Hunters Cast"],
+    ["\u00a5$: Ye and Ty Dolla Sign featuring Rich the Kid and Playboi Carti", "\u00a5$, Kanye West & Ty Dolla $ign"],
+    ["Daryl Hall and John Oates", "Hall & Oates"],
+    ["Kendrick Lamar and SZA", "Kendrick Lamar & SZA"],
+  ];
+  for (const [chart, store] of cases) {
+    assert.equal(sameArtist(chart, store), true, `${chart} vs ${store}`);
+  }
+});
+
+test("a covers act still shares nothing with the real one", () => {
+  assert.equal(sameArtist("Nelly", "The Hitmakers"), false);
+  assert.equal(sameArtist("Bad Bunny", "D'SH!T"), false);
+  assert.equal(sameArtist("ASAP Rocky", "Snake City"), false);
+  assert.equal(sameArtist("Taylor Swift", "Kendrick Lamar"), false);
 });
 
 test("a karaoke album is refused even when the track name is clean", () => {
