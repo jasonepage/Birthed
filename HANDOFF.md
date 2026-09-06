@@ -1,3 +1,150 @@
+# Handoff, September 6, 2026, small hours
+
+For the next session. Read this, then `CLAUDE.md` sections 5 and 6, then
+`docs/first-five-minutes.md`. This section wins where it disagrees with
+anything under it, because it is newer. Everything below is still true about
+how to work with Nathan and Jason.
+
+## Start here tomorrow
+
+**The paste box becomes the front door of an empty People tab.** It is item 1
+of the build order in `docs/first-five-minutes.md`, it has been item 1 all
+along, and it is still not built. Nathan arrived at it independently tonight by
+comparing Birthed to ReciMe, whose whole trick was that the content already
+existed somewhere else and getting it in felt like nothing. `BirthdayText`
+already does that trick: paste a group chat message or a pinned note and it
+reads names and dates out of text that was never tidy, showing the line each
+one came from. Right now it is the third item in an overflow menu.
+
+An empty recipe box and an empty People tab fail the same way. Everything else
+below can wait behind this.
+
+## Where things stand
+
+Fifteen commits on `main` since `28b35dd`, all pushed. `swift test` passes,
+including the new `UpcomingDatesTests` and the four new `DayFeedTests`. The app
+builds; Jason confirmed `contentMargins` and the three way `async let`. The web
+suite is 89 for 89. The site is deployed and the day pages, the year anchors
+and the `/add` page were all checked live in a browser.
+
+## What was built, oldest first
+
+1. **The one permission.** A row under the first person on the People list,
+   switched on, with the system prompt held until the reader leaves the screen.
+   Rewrites `FR-070`. Turning it off is an answer and the row does not come
+   back.
+2. **The website ran none of its own script.** `/add` had been blank in every
+   browser since it was written, because the security header said
+   `default-src 'none'` and nothing said otherwise. Fixed per path. A second
+   bug in the same page showed both buttons at once, because `.btn` sets
+   `display` and beats the browser's own rule for `hidden`. Both were invisible
+   from the files they lived in, which is why both tests read the header and the
+   stylesheet rather than the page.
+3. **The events importer ran for real.** 19,734 events across all 366 dates,
+   years 4 to 2026. It now removes what it no longer reads, so a re-run replaces
+   a date rather than doubling it, and it counts lines before the common era
+   apart from lines with no year.
+4. **The day pages carry those events**, merged with the researched facts into
+   one list ordered by year. September 4 went from 13 things to 60. Seven of
+   the thirteen were the same event twice and are deduplicated by comparing the
+   carrying words of two sentences in the same year.
+5. **Every song year is linkable.** `/september-5/#1990` is a real address, which
+   is the cheap half of the long tail. The expensive half, a page per day and
+   year, is about 24,500 pages of four lines each and is what Google's spam
+   policy calls scaled content abuse.
+6. **The share cards say what happened**, and say nothing else. See below.
+7. **The Today feed never leads with a mass casualty**, and is otherwise
+   untouched.
+8. **The follow sheet became six carousels** behind the "Add someone" menu,
+   with a 20,000 monthly view floor on who can appear.
+
+## The thing worth reading twice
+
+Two surfaces show people, and they failed the same way for the same reason:
+the lists are ordered by how much attention somebody gets, and infamy is
+attention.
+
+The share card said "You share it with Bashar al-Assad" on September 11, led
+with Ted Bundy on November 24 and Charles Manson on November 12, and had Hitler
+second on April 20. **A word list cannot fix this.** Wikidata calls Assad a
+politician, Andrew Tate a businessman, and the December 17 lead an influencer.
+Reading the 85 leading names by eye found three the keyword search had missed,
+after the keyword search had already been written.
+
+The fix was to stop needing the names. A card that has something that happened
+on it shows no names at all, and a date with no researched fact falls back to a
+screened Wikipedia line rather than to the names. All 366 dates now carry a
+line and none falls through: 278 from a fact, 88 from an event.
+
+An event's sentence describes the thing being refused. A person's description
+does not. That asymmetry is why screening works on one and not the other, and
+it is the single most useful thing learned tonight.
+
+**This is not fixed in the app.** The onboarding line about who shares your
+date has the card's celebratory framing rather than the day page's factual one,
+and nobody has looked at how it is ordered. If it is ordered the same way, a
+reader born on November 24 finishes onboarding and is told they share their
+birthday with Ted Bundy. Check it before TestFlight.
+
+## What Jason has to do, in order
+
+1. Nothing is waiting on him from tonight. Everything is pushed, built and
+   deployed.
+2. `swift test` after the next change, as always.
+3. Test pass item 30, the reminder loop on a real device. **Nobody has ever
+   received a birthday reminder from this app and sent the message.** It is the
+   central claim of the product and it is untested.
+4. Test pass item 47, the five `WorldThen` dates, still written from memory.
+   Blocks TestFlight.
+
+## Decisions Nathan made tonight
+
+All recorded in `CLAUDE.md` section 5 with the reasoning, and in the documents
+they change. In short: notification permission moves to the People row; the
+Today tab stays a tab and build order item 5 is dropped, because that verdict
+was made about a screen that was ten names; the suggested public figures stay on
+the empty People tab; the importer prunes on every run; discovery lives behind
+the "Add someone" menu and not on the People tab; and finished work gets
+committed without asking, with pushing still Jason's.
+
+## Open, and honest
+
+- **85 dates have no researched facts** and the budget to fix that is spent.
+  `fact_searches_left()` is 0 against a 3,000 monthly limit with 3,182 used.
+  Raising `monthly_limit` is a decision made looking at a bill, and it does
+  nothing if the Google prepaid balance is still empty. Those dates are covered
+  by the event fallback in the meantime, so this is no longer urgent.
+- **Search Console was verified tonight and the sitemap submitted.** Give it two
+  or three weeks. The Performance tab decides the `<title>` format, and it
+  decides whether the 85 dates are worth topping up, rather than either of us
+  guessing.
+- **Nothing is measured in the app.** The four numbers named in
+  `docs/first-five-minutes.md` are year entered, one person added, permission
+  granted, and messages sent per reminder delivered. None exist. The last one is
+  the whole product in one ratio. Before building it, work out where those
+  events are recorded, because the privacy page makes specific promises about
+  what leaves the phone and it must not be quietly softened afterwards.
+- **The Today tab is kept on probation.** Its risk is that a third tab which is
+  genuinely good becomes what the app is about, and this app is about the people
+  you know. If people open Today and never add a person, item 5 comes back.
+
+## Rules that bit tonight
+
+- A header or a stylesheet can contradict a file that is completely correct, and
+  nothing in that file will ever show it. Two bugs tonight were of this shape.
+  Test the header, not the page.
+- A word list written against a sample will miss the cases the sample did not
+  contain. Both times tonight, looking at real output found what the list
+  missed. Render the thing and look at it.
+- `--env-file` overrides the shell environment, so a `.env` with a blank value
+  is worse than no `.env` at all.
+- The Linux shell on the Mac reaches GitHub but not Supabase, has no git
+  credentials, and has no Swift. Jason pushes, Jason runs the toolchain.
+- PostgREST answers at most a thousand rows and says nothing about the rest.
+  Every read of a whole table here is paged for that reason.
+
+---
+
 # Handoff, September 6, 2026, late
 
 For the next session. Read this section, then `CLAUDE.md` sections 5 and 6,
