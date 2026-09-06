@@ -45,6 +45,7 @@ from typing import Any
 import ingestion_agent
 from ingestion_agent import (
     Config,
+    PermanentApiError,
     _call_anthropic,
     configure_logging,
     connect,
@@ -213,6 +214,11 @@ def screen_one(config: Config, event: Event) -> Screened:
     """
     try:
         answer = _call_anthropic(config, event.as_prompt(), cache_system=True)  # uses the prompt set below
+    except PermanentApiError:
+        # Not this row's problem and not survivable, so it stops the run rather
+        # than being counted as one row that could not be screened. Every
+        # chunk already written stays written.
+        raise
     except Exception as exc:
         log.warning("  could not screen id %s: %s", event.id, exc)
         return Screened(event=event, suppress=False, failed=True, answer=str(exc))
@@ -322,7 +328,14 @@ def run(month: int | None, day: int | None, limit: int | None,
 
     for start in range(0, len(events), CHUNK):
         chunk = events[start:start + CHUNK]
-        results = screen_all(config, chunk, workers)
+        try:
+            results = screen_all(config, chunk, workers)
+        except PermanentApiError as exc:
+            log.error("-" * 74)
+            log.error("Stopping. %s", exc)
+            log.error("%d row(s) were screened and saved before this. Fix the cause and run "
+                      "the same command again; it carries on from where it stopped.", summary.total)
+            return summary
         all_results.extend(results)
 
         summary.total += len(results)

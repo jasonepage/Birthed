@@ -200,6 +200,14 @@ class InvalidEvent(ValueError):
     """A record from the source that cannot become a row."""
 
 
+class PermanentApiError(RuntimeError):
+    """The API refused in a way that retrying cannot fix.
+
+    Separate from a timeout so a caller can stop the whole run on the first
+    one instead of failing the same way once per row.
+    """
+
+
 def parse_event(raw: Any) -> CulturalEvent:
     """Turn one record from the source into a CulturalEvent, or raise.
 
@@ -348,27 +356,48 @@ def _call_anthropic(config: Config, user_text: str, cache_system: bool = False) 
                 json=body,
                 timeout=config.request_timeout_seconds,
             )
-            if response.status_code == 429 or response.status_code >= 500:
-                wait = 2 ** attempt
-                log.warning(
-                    "  model returned %d, waiting %d second(s) then retrying (%d of %d)",
-                    response.status_code, wait, attempt, config.max_retries,
-                )
-                time.sleep(wait)
-                continue
-            response.raise_for_status()
-            payload = response.json()
-            parts = payload.get("content") or []
-            text = "".join(part.get("text", "") for part in parts if part.get("type") == "text")
-            return text.strip()
         except requests.RequestException as exc:
+            # No reply at all: a timeout, a dropped connection, no network.
+            # These do go away on their own, so they are the ones worth waiting
+            # on.
             last_error = exc
             wait = 2 ** attempt
             log.warning(
-                "  model call failed (%s), waiting %d second(s) then retrying (%d of %d)",
+                "  could not reach the model (%s), waiting %d second(s) then retrying (%d of %d)",
                 exc, wait, attempt, config.max_retries,
             )
             time.sleep(wait)
+            continue
+
+        if response.status_code == 429 or response.status_code >= 500:
+            wait = 2 ** attempt
+            log.warning(
+                "  model returned %d, waiting %d second(s) then retrying (%d of %d)",
+                response.status_code, wait, attempt, config.max_retries,
+            )
+            time.sleep(wait)
+            continue
+
+        if response.status_code >= 400:
+            # A permanent refusal: a bad key, a model name that does not exist,
+            # a malformed request, an exhausted credit balance. Retrying is
+            # guaranteed to fail again, and at twelve workers with four
+            # retries each it fails again eight thousand times while looking
+            # busy. So this raises on the first one.
+            #
+            # The body is included because it is the only part that says what
+            # is actually wrong. An earlier version logged the status code
+            # alone, which turned "your credit balance is too low" into an
+            # anonymous 400 and cost an hour.
+            raise PermanentApiError(
+                f"The model refused the request with {response.status_code} "
+                f"and this is not worth retrying. The API said: {response.text.strip()[:400]}"
+            )
+
+        payload = response.json()
+        parts = payload.get("content") or []
+        text = "".join(part.get("text", "") for part in parts if part.get("type") == "text")
+        return text.strip()
 
     raise RuntimeError(f"The model could not be reached after {config.max_retries} attempts: {last_error}")
 
