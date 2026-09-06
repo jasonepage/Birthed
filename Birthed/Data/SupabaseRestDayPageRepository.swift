@@ -182,6 +182,21 @@ struct SupabaseRestDayPageRepository: DayPageRepository {
     /// twenties, narrow enough that they are not offered a Victorian.
     private static let nearYears = 9
 
+    /// How many people have to look somebody up before we offer them.
+    ///
+    /// `has_social` says somebody exists on the internet and this says anybody
+    /// has noticed. Without it the lists fill with people who satisfy both
+    /// other conditions and that nobody has heard of: a British sprinter and a
+    /// reserve footballer are both on the internet and both born near you.
+    ///
+    /// 20,000 a month keeps 5,447 people, which is about fifteen for every
+    /// date of the year, and that is enough for every list on the follow sheet
+    /// including the one scoped to a single day. Dropping to any views at all
+    /// keeps 8,948 and adds only the tail. Raising it to 50,000 keeps 2,770,
+    /// which is seven or eight per date and starts to leave the single day
+    /// list short on quiet dates.
+    private static let minimumViews = 20_000
+
     private func matches(_ query: [URLQueryItem]) async throws -> [NotableMatch] {
         let rows: [MatchRow] = try await fetch(from: "notable_people", query: query)
         return rows.compactMap { row in
@@ -226,7 +241,7 @@ struct SupabaseRestDayPageRepository: DayPageRepository {
         var query = [
             URLQueryItem(name: "select", value: Self.matchColumns),
             URLQueryItem(name: "has_social", value: "is.true"),
-            URLQueryItem(name: "monthly_views", value: "gt.0"),
+            URLQueryItem(name: "monthly_views", value: "gte.\(Self.minimumViews)"),
             URLQueryItem(name: "order", value: "monthly_views.desc"),
             URLQueryItem(name: "limit", value: String(limit)),
         ]
@@ -257,7 +272,7 @@ struct SupabaseRestDayPageRepository: DayPageRepository {
             URLQueryItem(name: "select", value: Self.matchColumns),
             URLQueryItem(name: "or", value: "(\(pairs))"),
             URLQueryItem(name: "has_social", value: "is.true"),
-            URLQueryItem(name: "monthly_views", value: "gt.0"),
+            URLQueryItem(name: "monthly_views", value: "gte.\(Self.minimumViews)"),
             URLQueryItem(name: "order", value: "monthly_views.desc"),
             URLQueryItem(name: "limit", value: String(limit)),
         ])

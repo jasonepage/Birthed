@@ -28,18 +28,25 @@ struct FindFamousView: View {
 
     @State private var query = ""
     @State private var results: [NotableMatch] = []
-    @State private var suggestions: [NotableMatch] = []
-    /// Whose birthday is in the next week.
-    @State private var soon: [NotableMatch] = []
+    /// The carousels, in the order they are shown. Built once per opening.
+    @State private var strips: [Strip] = []
     @State private var searching = false
     @State private var failed = false
+
+    /// One carousel. Its own type rather than a tuple, because `ForEach` needs
+    /// an identity and the heading is the one thing that is always unique.
+    struct Strip: Identifiable {
+        let id: String
+        let heading: String
+        let people: [NotableMatch]
+    }
 
     private var typing: Bool {
         !query.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
     private var nothingToShow: Bool {
-        typing ? results.isEmpty : (soon.isEmpty && suggestions.isEmpty)
+        typing ? results.isEmpty : strips.isEmpty
     }
 
     var body: some View {
@@ -80,35 +87,39 @@ struct FindFamousView: View {
     /// nothing in the first one lands.
     private var discovery: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 30) {
-                carousel("BIRTHDAYS THIS WEEK", soon)
-                carousel("BORN AROUND YOUR YEAR", suggestions)
+            LazyVStack(alignment: .leading, spacing: 28) {
+                ForEach(strips) { strip in
+                    carousel(strip)
+                }
             }
             .padding(.top, 14)
             .padding(.bottom, 34)
         }
     }
 
-    @ViewBuilder
-    private func carousel(_ heading: String, _ people: [NotableMatch]) -> some View {
-        if !people.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(heading)
-                    .font(.caption.weight(.heavy))
-                    .kerning(2.5)
-                    .foregroundStyle(Theme.accent)
-                    .padding(.horizontal, 20)
+    private func carousel(_ strip: Strip) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(strip.heading)
+                .font(.caption.weight(.heavy))
+                .kerning(2.5)
+                .foregroundStyle(Theme.accent)
+                .padding(.horizontal, 20)
 
-                ScrollView(.horizontal) {
-                    LazyHStack(spacing: 12) {
-                        ForEach(people) { match in
-                            FollowCard(match: match)
-                        }
+            ScrollView(.horizontal) {
+                LazyHStack(spacing: 12) {
+                    ForEach(strip.people) { match in
+                        FollowCard(match: match)
                     }
-                    .padding(.horizontal, 20)
                 }
-                .scrollIndicators(.hidden)
+                .scrollTargetLayout()
             }
+            // The inset belongs to the scroll view, not to the row inside it.
+            // As padding on the stack, the first card starts at the edge and
+            // only looks inset until somebody scrolls, which is why the left
+            // card was being clipped.
+            .contentMargins(.horizontal, 20, for: .scrollContent)
+            .scrollTargetBehavior(.viewAligned)
+            .scrollIndicators(.hidden)
         }
     }
 
@@ -158,25 +169,90 @@ struct FindFamousView: View {
     /// read as the whole list. People already followed are left out, since a
     /// card that only says "done" is a card somebody has to scroll past.
     private func loadDiscovery() async {
-        guard suggestions.isEmpty, soon.isEmpty else { return }
+        guard strips.isEmpty else { return }
         searching = true
         defer { searching = false }
 
-        let year = profileStore.profile?.birthday.year
-        let week = UpcomingDates.next(6)
+        let profile = profileStore.profile
+        let ownDate = profile?.birthday.date
+        // The reader's own day is asked for on its own, so it is taken out of
+        // the week. Otherwise the same person leads two carousels in a row.
+        let week = UpcomingDates.next(6).filter { $0 != ownDate }
 
-        async let nearby = repository.recommended(bornNear: year, limit: 80)
-        async let celebrating = repository.celebrating(on: week, limit: 40)
+        async let nearby = repository.recommended(bornNear: profile?.birthday.year, limit: 200)
+        async let upcoming = repository.celebrating(on: week, limit: 60)
+        async let sharing = repository.celebrating(on: ownDate.map { [$0] } ?? [], limit: 30)
 
         do {
-            let (found, upcoming) = try await (nearby, celebrating)
-            suggestions = NotableMix.spread(found.filter { !store.follows($0) }.shuffled(), limit: 20)
-            // Not spread across kinds and not dealt. This list is short, it is
-            // ordered by whose birthday is soonest to being useful, and a
-            // reader who scrolls it twice should see the same people.
-            soon = Array(upcoming.filter { !store.follows($0) }.prefix(12))
+            let (found, thisWeek, twins) = try await (nearby, upcoming, sharing)
+            strips = assemble(sharing: twins, thisWeek: thisWeek, nearby: found)
         } catch {
             failed = true
+        }
+    }
+
+    /// The carousels, in order, with nobody appearing in two of them.
+    ///
+    /// Ordered by how much the row is about the reader. Sharing an exact
+    /// birthday is the most personal thing this screen can say and it is the
+    /// app's whole premise, so it leads. The week is next, because following
+    /// somebody pays off on their birthday and here that is days away. The
+    /// rest are people near the reader's age, split by kind.
+    ///
+    /// Split rather than mixed, which is the curation. One row of twenty
+    /// mixed people is a pile and reads as an arbitrary list. Four rows of a
+    /// few musicians, a few people from the internet, a few actors and a few
+    /// athletes reads as somewhere to browse, and it means a reader who does
+    /// not care about football can skip a row instead of scrolling past six
+    /// footballers one at a time.
+    ///
+    /// A row of one or two is a row not worth its heading, so it is dropped.
+    private func assemble(
+        sharing: [NotableMatch],
+        thisWeek: [NotableMatch],
+        nearby: [NotableMatch]
+    ) -> [Strip] {
+        var spoken: Set<String> = []
+
+        func take(_ from: [NotableMatch], _ limit: Int) -> [NotableMatch] {
+            var picked: [NotableMatch] = []
+            for match in from {
+                guard !store.follows(match), !spoken.contains(match.person.id) else { continue }
+                picked.append(match)
+                spoken.insert(match.person.id)
+                if picked.count == limit { break }
+            }
+            return picked
+        }
+
+        var built: [Strip] = [
+            Strip(id: "shares", heading: "SHARES YOUR BIRTHDAY", people: take(sharing, 12)),
+            Strip(id: "week", heading: "BIRTHDAYS THIS WEEK", people: take(thisWeek, 12)),
+        ]
+
+        // Dealt before splitting, so the same faces are not at the front of
+        // every row on every opening. Everybody in the pool is above the view
+        // threshold already, so there is nothing lost by shuffling it.
+        let pool = nearby.shuffled()
+        for kind in NotableMix.Kind.allCases {
+            guard let heading = Self.heading(for: kind) else { continue }
+            let ofThatKind = pool.filter { NotableMix.kind(of: $0.person.shortDescription) == kind }
+            built.append(Strip(id: "kind-\(heading)", heading: heading, people: take(ofThatKind, 12)))
+        }
+
+        return built.filter { $0.people.count >= 3 }
+    }
+
+    /// Nil for the leftover bucket. "Everybody else" is what a row is called
+    /// when nobody decided what it is for, and it is the one kind that cannot
+    /// be given an honest heading.
+    private static func heading(for kind: NotableMix.Kind) -> String? {
+        switch kind {
+        case .internetNative: return "ON THE INTERNET"
+        case .music: return "MUSICIANS YOUR AGE"
+        case .screen: return "ON SCREEN, YOUR AGE"
+        case .sport: return "ATHLETES YOUR AGE"
+        case .everybodyElse: return nil
         }
     }
 
@@ -250,7 +326,7 @@ struct FollowCard: View {
             .accessibilityLabel(already ? "Already following \(match.person.name)"
                                         : "Follow \(match.person.name)")
         }
-        .frame(width: 168, height: 168, alignment: .topLeading)
+        .frame(width: 168, height: 150, alignment: .topLeading)
         .padding(14)
         .background(Theme.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
