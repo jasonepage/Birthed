@@ -468,7 +468,9 @@ Apple capabilities needed: WeatherKit, Sign in with Apple, Push Notifications no
 - **Degrees Fahrenheit only.** Never Celsius.
 - **Cite requirement identifiers in commits**, for example `feat(dayplan): order by redemption window close (FR-092)`.
 - **Say what is unknown rather than guessing.** If a design question is not answered in the specs, ask rather than inventing an answer and burying it in code.
-- **Ask Jason before writing code in this repository**, even when the work was requested. He has approved slice 1.
+- **Commit finished work without being asked, September 6, 2026.** Nathan's instruction. Work that is written, reviewed and passing its tests gets committed as it lands, in coherent commits rather than one heap, with the author configuration in section 10 below. Pushing stays Jason's. The older rule was to commit only when asked, and waiting for permission on every change turned out to cost more than it protected.
+- **Commit as `-c user.name="Jason Page" -c user.email="jasonpage@users.noreply.github.com"`**, with the Claude co-author trailer, and split by what changed rather than by when it was written. A document touched by three pieces of work belongs in three commits, one section each.
+- **Ask before writing code that cannot be undone by a commit**, which in practice means anything that deletes from the live database or spends money at Google. Writing Swift, TypeScript or documentation is not in that category.
 
 ---
 
