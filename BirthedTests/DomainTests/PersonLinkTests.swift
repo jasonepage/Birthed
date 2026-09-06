@@ -123,3 +123,36 @@ final class PersonLinkTests: XCTestCase {
         XCTAssertNil(PersonLink.incoming(from: URL(string: "https://birthed.app/add")!))
     }
 }
+
+/// The day page address, which is the only thing Birthed has worth sending
+/// somebody who does not have the app.
+final class DayPageLinkTests: XCTestCase {
+
+    func testTheSlugIsTheWebsitesOwnNameForTheDate() {
+        XCTAssertEqual(CalendarDate(month: 12, day: 17)!.slug, "december-17")
+        XCTAssertEqual(CalendarDate(month: 9, day: 4)!.slug, "september-4")
+        XCTAssertEqual(CalendarDate(month: 2, day: 29)!.slug, "february-29")
+        XCTAssertEqual(CalendarDate(month: 1, day: 1)!.slug, "january-1")
+    }
+
+    /// No leading zero and no padding, because the website's addresses have
+    /// none. A slug of "september-04" is a 404.
+    func testASingleDigitDayIsNotPadded() {
+        XCTAssertEqual(CalendarDate(month: 9, day: 4)!.slug, "september-4")
+        XCTAssertNotEqual(CalendarDate(month: 9, day: 4)!.slug, "september-04")
+    }
+
+    func testTheAddressIsBuiltFromTheSlug() {
+        let url = PersonLink.dayPage(for: CalendarDate(month: 12, day: 17)!)
+        XCTAssertEqual(url?.absoluteString, "https://birthed.app/december-17/")
+    }
+
+    /// The month names are fixed rather than read from the device. A phone set
+    /// to French would otherwise build birthed.app/décembre-17, which is not a
+    /// page, and nothing on screen would say why the link was dead.
+    func testTheMonthNamesAreNotTheDevicesOwn() {
+        XCTAssertEqual(CalendarDate.englishMonths.count, 12)
+        XCTAssertEqual(CalendarDate.englishMonths.first, "January")
+        XCTAssertEqual(CalendarDate.englishMonths.last, "December")
+    }
+}

@@ -118,9 +118,10 @@ struct DayLine: Equatable {
     /// not refused for being bad, it simply has no year to print beside it,
     /// and this screen sets the year in its own colour.
     static func splitDatePrefix(_ fact: String, on date: CalendarDate) -> DayLine? {
-        guard date.month >= 1, date.month <= englishMonths.count else { return nil }
+        let months = CalendarDate.englishMonths
+        guard date.month >= 1, date.month <= months.count else { return nil }
         let trimmed = fact.trimmingCharacters(in: .whitespacesAndNewlines)
-        let prefix = "On \(englishMonths[date.month - 1]) \(date.day), "
+        let prefix = "On \(months[date.month - 1]) \(date.day), "
         guard trimmed.hasPrefix(prefix) else { return nil }
 
         var rest = Substring(trimmed.dropFirst(prefix.count))
@@ -138,8 +139,4 @@ struct DayLine: Equatable {
         return DayLine(year: year, text: String(first).uppercased() + String(sentence.dropFirst()))
     }
 
-    private static let englishMonths = [
-        "January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December",
-    ]
 }

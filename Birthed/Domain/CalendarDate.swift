@@ -46,6 +46,27 @@ struct CalendarDate: Equatable, Hashable {
         return CalendarDate(month: parts.month ?? month, day: parts.day ?? day) ?? self
     }
 
+    /// The English month names, fixed rather than read from the device.
+    ///
+    /// `displayName` below uses the calendar's own names, which is right for
+    /// anything a person reads. This is for the two jobs where the words are
+    /// data rather than language: reading the "On September 4, 2002," prefix
+    /// off a fact the fact finder wrote in English, and building the address
+    /// of a day page on birthed.app, whose paths are English whoever is
+    /// looking at them. Both would silently stop working on a phone set to
+    /// French, and neither would say so.
+    static let englishMonths = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December",
+    ]
+
+    /// "december-17", the day page's own name for this date on the website.
+    /// Nil for a month this type should never hold.
+    var slug: String? {
+        guard month >= 1, month <= Self.englishMonths.count else { return nil }
+        return "\(Self.englishMonths[month - 1].lowercased())-\(day)"
+    }
+
     /// "September 4", in the calendar's own month names.
     func displayName(calendar: Calendar = .current) -> String {
         let names = calendar.monthSymbols

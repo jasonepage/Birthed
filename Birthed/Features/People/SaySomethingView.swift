@@ -56,7 +56,13 @@ struct SaySomethingView: View {
                     .font(.system(.title3, design: .default))
                     .scrollContentBackground(.hidden)
                     .focused($editing)
-                    .frame(minHeight: 140)
+                    // A TextEditor takes every point it is offered, and the
+                    // Spacer below collapses to nothing giving them to it, so
+                    // `minHeight` alone bounded nothing: one sentence sat at
+                    // the top of a grey box filling half the phone. The
+                    // ceiling is what makes the layout below it real. A long
+                    // message scrolls inside, which is ordinary.
+                    .frame(minHeight: 140, maxHeight: 240)
                     .padding(14)
                     .background(Theme.card, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
 
@@ -122,7 +128,35 @@ struct SaySomethingView: View {
                 }
                 .buttonStyle(.bordered)
                 .disabled(trimmed.isEmpty)
+            } else if person.isPublicFigure, let page = PersonLink.dayPage(for: person.birthday.date) {
+                // A link rather than the sentence on its own.
+                //
+                // Sharing a bare String means the receiving app has a String
+                // and nothing else, so AirDrop wrote it to a text file called
+                // textF787F04C40E31.txt containing one line. That is the
+                // whole of what a person got.
+                //
+                // The link is the day page, which carries no name because it
+                // is about the date, so Messages draws the site's own card for
+                // it and the receiver lands somewhere real instead of on a
+                // file. The sentence rides along as the message, so nothing
+                // the user wrote is lost.
+                ShareLink(
+                    item: page,
+                    subject: Text(person.trimmedName),
+                    message: Text(trimmed)
+                ) {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(trimmed.isEmpty)
             } else {
+                // A friend on a device with no Messages. The sentence is the
+                // whole payload here and a link to a date page would be a
+                // strange thing to send somebody about their own birthday.
                 ShareLink(item: trimmed) {
                     Label("Share", systemImage: "square.and.arrow.up")
                         .font(.headline)

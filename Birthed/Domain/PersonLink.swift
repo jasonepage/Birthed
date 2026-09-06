@@ -33,6 +33,20 @@ enum PersonLink {
     /// The scheme the app registers, for the hand off from the web page.
     static let scheme = "birthed"
 
+    /// The website's page for one calendar date, which is the only address
+    /// Birthed has that is worth sending somebody who does not have the app.
+    ///
+    /// It carries no name and never can: the page is about the date. That is
+    /// what makes it the right thing to share about somebody you follow. The
+    /// share card the receiving app draws for this link comes from the site's
+    /// own image for that date, which was rebuilt to say what happened rather
+    /// than who was born, so the candle ends up next to an event and not next
+    /// to a person.
+    static func dayPage(for date: CalendarDate) -> URL? {
+        guard let slug = date.slug else { return nil }
+        return URL(string: "https://\(host)/\(slug)/")
+    }
+
     /// Long enough for any real name and short enough that the link still
     /// looks like a link in a message rather than a wall of characters.
     static let maxNameLength = 60
