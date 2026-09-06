@@ -272,6 +272,23 @@ as a shelf, not a plan.
   date done rather than failed, so it cannot retry itself into the budget.
   A date nobody opens is never searched twice.
 
+### The world when you arrived, decided September 6, 2026
+
+- **"You are 15 years older than Fortnite" comes from a table, not a model.**
+  `WorldThen` in the domain holds a handful of dated timelines this audience
+  knows by heart (Fortnite seasons, Minecraft versions, iPhones,
+  PlayStations, Pokémon generations) and a list of arrivals (ChatGPT,
+  Instagram, YouTube and so on), and answers what was current on a birth
+  date or how much older the reader is. No network, no cost, never varies.
+  It is the sentence the fact finder was asked for and produced six times in
+  2,751 facts.
+- **Every timeline stops at `knownThrough`.** A birth after that gets no line.
+  Extending a timeline means adding rows and moving the date, and the dates
+  are checked against the page linked on each timeline, not remembered.
+- **The dates in the first version were written from memory** and are to be
+  checked against their pages before TestFlight. Absent beats wrong, and a
+  wrong version number is the kind of wrong this audience notices first.
+
 ### Search, decided September 5, 2026
 
 - **A date page with fewer than eight people carries `noindex` and stays out of the sitemap.** It is still built and still loads. A new domain that hands a crawler 366 URLs with most of them empty teaches the crawler that the site is thin, and that judgement is made once and is expensive to undo. The threshold is eight rather than `FR-022`'s ten because a few real dates have fewer people with English Wikipedia articles.

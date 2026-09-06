@@ -31,6 +31,8 @@ struct MyDayView: View {
     /// The one fact the reader tapped share on. A separate sheet from the
     /// whole day picker, because it is one card and not a choice of eight.
     @State private var sharingFact: BirthFact?
+    /// A line from the world-when-you-arrived section, being shared.
+    @State private var sharingLine: WorldThen.Line?
     @State private var lit = true
     @State private var relightTask: Task<Void, Never>?
 
@@ -62,6 +64,12 @@ struct MyDayView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     stage
+                    // What version of the world they arrived into. First,
+                    // because it is certain, instant, and the "older than"
+                    // sentence the whole section under it was built to find.
+                    WorldThenSection(birthday: profile.birthday, palette: palette) { line in
+                        sharingLine = line
+                    }
                     // Directly under the stage, because these are the only
                     // facts on this screen that are about this person's day
                     // rather than about every day.
@@ -102,6 +110,12 @@ struct MyDayView: View {
             .task { await factsService.load(for: profile) }
             .sheet(isPresented: $showingShare) {
                 ShareCardPicker(choices: shareChoices, subject: profile.birthday.date.displayName())
+            }
+            .sheet(item: $sharingLine) { line in
+                ShareCardPicker(
+                    choices: [WorldThenSection.shareChoice(for: line, palette: palette)],
+                    subject: profile.birthday.date.displayName()
+                )
             }
             .sheet(item: $sharingFact) { fact in
                 ShareCardPicker(
@@ -566,6 +580,10 @@ struct MyDayView: View {
                           subtitle: milestone.daysAway == 0 ? nil : "\(milestone.daysAway.formatted()) days from now",
                           footnote: date.displayName(), palette: palette)
             })
+        }
+        if let year = profile.birthday.year,
+           let lead = WorldThen.lines(month: date.month, day: date.day, year: year, limit: 1).first {
+            choices.append(WorldThenSection.shareChoice(for: lead, palette: palette))
         }
         let sign = facts.zodiacSign(for: date)
         let animal = facts.chineseAnimal(for: profile.birthday).map { "Year of the \($0.rawValue)" }

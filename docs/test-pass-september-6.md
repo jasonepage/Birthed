@@ -336,6 +336,24 @@ Wikipedia, because neither machine this was written from can reach it.
     day warning a friend gets. Remove her and follow her again and she is
     right. Nothing else on the list needs this.
 
+## Added later still: the world when you arrived
+
+45. **`swift test`**, `WorldThenTests`, twelve of them.
+
+46. **Mine, under the candle.** A new section, THE WORLD WHEN YOU ARRIVED,
+    with five rows. For September 4, 2002 the first should read "You are 15
+    years older than Fortnite." and the rest should be Minecraft, ChatGPT,
+    Instagram, Discord. Each has a share button; tap one and the card should
+    say "I am", not "You are". The share picker on the toolbar gains the top
+    line as a card.
+
+47. **Check five dates against their pages.** The timelines were written from
+    memory by something that could not open Wikipedia. Open
+    `Birthed/Domain/WorldThen.swift` and check, on the linked articles: the
+    Fortnite Chapter 2 Season 1 start, Minecraft 1.16, the iPhone 4S release,
+    the PlayStation 4 release, and the Instagram launch. If any is off, fix
+    the row and tell me which, and I will go through the rest.
+
 ## What I need back
 
 The screenshots, in order, and any error text verbatim. For anything that
