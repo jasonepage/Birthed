@@ -25,8 +25,6 @@ struct AddFriendsView: View {
 
     let onAdd: ([Person]) -> Void
 
-    @State private var pasted = ""
-    @State private var skipped: Set<Int> = []
     /// What the asker calls themselves on the link, so the page can say who is
     /// asking. Never stored and never sent to the account: it lives in the
     /// address bar of one link and nowhere else.
@@ -34,20 +32,18 @@ struct AddFriendsView: View {
     @State private var askLink: URL?
     @State private var makingLink = false
 
-    private var candidates: [BirthdayText.Candidate] {
-        BirthdayText.candidates(in: pasted)
-    }
-
-    private var chosen: [BirthdayText.Candidate] {
-        candidates.filter { !skipped.contains($0.id) }
-    }
-
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 26) {
-                    paste
-                    if !candidates.isEmpty { found }
+                    // The same box that is now the front door of an empty
+                    // People tab, written once in `PasteImport`. This sheet is
+                    // where somebody comes back to it once the list is no
+                    // longer empty, and where the two link mechanisms live.
+                    PasteImport { people in
+                        onAdd(people)
+                        dismiss()
+                    }
                     askForTheirs
                     myLink
                 }
@@ -60,102 +56,9 @@ struct AddFriendsView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
                 }
-                if !chosen.isEmpty {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Add \(chosen.count)") {
-                            onAdd(chosen.map { Person(name: $0.name, birthday: $0.birthday) })
-                            dismiss()
-                        }
-                        .fontWeight(.semibold)
-                    }
-                }
             }
         }
         .tint(Theme.accent)
-    }
-
-    // MARK: Paste
-
-    private var paste: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("PASTE A LIST")
-                .font(.caption.weight(.heavy))
-                .kerning(2.5)
-                .foregroundStyle(Theme.accent)
-
-            Text("A group chat message, a shared note, anything with names and dates in it. It is read on your phone and nothing is sent anywhere.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            TextEditor(text: $pasted)
-                .font(.body)
-                .scrollContentBackground(.hidden)
-                .frame(minHeight: 140)
-                .padding(10)
-                .background(Theme.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(alignment: .topLeading) {
-                    if pasted.isEmpty {
-                        Text("Sam 3/14\nPriya - March 14\nAlex: 14 March 2003")
-                            .font(.body)
-                            .foregroundStyle(.tertiary)
-                            .padding(.horizontal, 15)
-                            .padding(.vertical, 18)
-                            .allowsHitTesting(false)
-                    }
-                }
-        }
-    }
-
-    /// What was read, next to what it was read from. The row is the control:
-    /// tap one to leave it out, tap it again to put it back.
-    private var found: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("\(candidates.count) FOUND")
-                .font(.caption.weight(.heavy))
-                .kerning(2.5)
-                .foregroundStyle(Theme.accent)
-
-            ForEach(candidates) { candidate in
-                let keeping = !skipped.contains(candidate.id)
-                Button {
-                    if keeping { skipped.insert(candidate.id) } else { skipped.remove(candidate.id) }
-                } label: {
-                    HStack(alignment: .top, spacing: 12) {
-                        Image(systemName: keeping ? "checkmark.circle.fill" : "circle")
-                            .font(.title3)
-                            .foregroundStyle(keeping ? Theme.accent : Color.secondary)
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(candidate.name)
-                                .font(.headline)
-                                .foregroundStyle(.primary)
-                            Text(readingOf(candidate))
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                            // What the line said, so a wrong reading is
-                            // visible rather than silently added.
-                            Text(candidate.line)
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                                .lineLimit(1)
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .padding(14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Theme.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .opacity(keeping ? 1 : 0.5)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
-    private func readingOf(_ candidate: BirthdayText.Candidate) -> String {
-        let date = candidate.birthday.date.displayName()
-        guard let year = candidate.birthday.year else { return date }
-        return "\(date), \(String(year))"
     }
 
     // MARK: Asking for theirs

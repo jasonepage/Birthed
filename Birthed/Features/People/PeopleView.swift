@@ -122,42 +122,65 @@ struct PeopleView: View {
 
     // MARK: Empty
 
-    /// Scrolls, because it is taller than a phone.
+    /// The paste box, and then everything else.
     ///
-    /// It was written as a centred column back when it held a candle and a
-    /// sentence. Three people to follow later it runs off the bottom of a
-    /// 6.1 inch screen, and the button underneath them was unreachable. The
-    /// bounce is left off when the content happens to fit, so on a big screen
-    /// it still behaves like the fixed panel it looks like.
+    /// This screen decides whether the People tab is worth anything, and until
+    /// now the strongest button on it was the slowest path: a filled "Add
+    /// someone" that opened a form for typing one person at a time, with the
+    /// paste box behind a smaller outline button above it. Two buttons doing
+    /// one job, and the loud one pointed the wrong way.
+    ///
+    /// Nathan arrived at the fix by comparing Birthed to ReciMe, whose whole
+    /// trick was that the content already existed somewhere else and getting
+    /// it in felt like nothing. Every friend group's birthdays are already in
+    /// a pinned message or a shared note. So the box is on this screen rather
+    /// than behind a button to a sheet with three sections in it, and the
+    /// paste control is the first thing under the sentence.
+    ///
+    /// Typing one in is still in the toolbar menu where it has always been.
+    /// It is not repeated here, because a second button to make the first one
+    /// work is two controls doing one control's job.
+    ///
+    /// Scrolls, because it is taller than a phone. The bounce is left off when
+    /// the content happens to fit, so on a big screen it still behaves like
+    /// the fixed panel it looks like.
     private var empty: some View {
         ScrollView {
-            VStack(spacing: 14) {
-                CandleMark(height: 140)
-                    .frame(height: 140)
-                    .padding(.bottom, 6)
+            VStack(alignment: .leading, spacing: 18) {
+                VStack(spacing: 10) {
+                    CandleMark(height: 96)
+                        .frame(height: 96)
 
-                Text("Nobody yet")
-                    .font(Theme.display(.title2, weight: .bold))
+                    Text("Nobody yet")
+                        .font(Theme.display(.title2, weight: .bold))
 
-                Text("Add the people whose birthdays you keep forgetting. Birthed will count down to each one.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
-
-                Button { addingMany = true } label: {
-                    Text("Paste a list or send a link")
-                        .font(.subheadline.weight(.semibold))
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 12)
-                        .background(Theme.accent, in: Capsule())
-                        .foregroundStyle(Theme.cream)
+                    Text("Paste the list you already have. A group chat message, a note, anything with names and dates in it. Birthed reads it on your phone and counts down to each one.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 12)
                 }
-                .padding(.top, 4)
+                .frame(maxWidth: .infinity)
 
-                // Offered, not added. Putting somebody in a list nobody asked for
-                // means notifications about people they never chose, and this list
-                // is theirs. One tap is the same outcome and it is their tap.
+                PasteImport(showsHeading: false) { people in
+                    for person in people { store.add(person) }
+                }
+
+                // Quiet, and one link rather than two headed sections. The
+                // sheet still holds asking for theirs and sending yours, and
+                // this is the door to it, but neither of them is what somebody
+                // does first and neither should be competing with the box.
+                Button { addingMany = true } label: {
+                    Text("Or ask somebody for theirs")
+                        .font(.footnote.weight(.semibold))
+                }
+                .frame(maxWidth: .infinity)
+
+                // Offered, not added. Putting somebody in a list nobody asked
+                // for means notifications about people they never chose, and
+                // this list is theirs. One tap is the same outcome and it is
+                // their tap.
                 if !suggestions.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("OR FOLLOW SOMEBODY")
@@ -179,25 +202,12 @@ struct PeopleView: View {
                         }
                         .padding(.top, 2)
                     }
-                    .padding(.top, 26)
-                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
-
-                Button {
-                    adding = true
-                } label: {
-                    Text("Add someone")
-                        .font(.headline)
-                        .padding(.horizontal, 26)
-                        .padding(.vertical, 12)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(Theme.accent)
-                .padding(.top, 6)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.top, 18)
+            .padding(.horizontal, 20)
+            .padding(.top, 14)
             .padding(.bottom, 40)
         }
         .scrollBounceBehavior(.basedOnSize)
