@@ -111,6 +111,11 @@ no punctuation, and no other text.\
 #: Rows read per request to Supabase. PostgREST caps a page anyway.
 PAGE_SIZE = 1000
 
+#: Rows screened before the flags for them are written. Small enough that an
+#: interruption costs little, large enough that the writes are not the
+#: bottleneck. At twelve workers this is under a minute of screening.
+CHUNK = 250
+
 
 # ---------------------------------------------------------------------------
 # Reading
@@ -304,21 +309,37 @@ def run(month: int | None, day: int | None, limit: int | None,
     log.info("Roughly %s input tokens, before the prompt cache discount.", f"{tokens:,}")
     log.info("-" * 74)
 
-    results = screen_all(config, events, workers)
+    # Screened and written in chunks rather than all at once.
+    #
+    # The first version screened all 19,734 rows and then wrote once at the
+    # end, which meant an interruption at minute eighteen threw away the flags
+    # AND the money that produced them, and left the table with nothing to
+    # resume from. A chunk is written as soon as it is screened, so the most an
+    # interruption can cost is the chunk in flight, and the next run skips
+    # every row that already has a suppressed_at.
+    summary = Summary()
+    all_results: list[Screened] = []
 
-    summary = Summary(
-        total=len(results),
-        hidden=sum(1 for r in results if r.suppress),
-        kept=sum(1 for r in results if not r.suppress and not r.failed),
-        failed=sum(1 for r in results if r.failed),
-        samples=[r.event.label for r in results if r.suppress][:15],
-    )
+    for start in range(0, len(events), CHUNK):
+        chunk = events[start:start + CHUNK]
+        results = screen_all(config, chunk, workers)
+        all_results.extend(results)
+
+        summary.total += len(results)
+        summary.hidden += sum(1 for r in results if r.suppress)
+        summary.kept += sum(1 for r in results if not r.suppress and not r.failed)
+        summary.failed += sum(1 for r in results if r.failed)
+        if len(summary.samples) < 15:
+            summary.samples.extend(r.event.label for r in results if r.suppress)
+            summary.samples = summary.samples[:15]
+
+        if apply:
+            hidden, kept = apply_flags(client, results, config.vibe_check_model)
+            log.info("  saved: %d hidden, %d kept  (%d of %d screened so far)",
+                     hidden, kept, summary.total, len(events))
 
     log.info("-" * 74)
-    if apply:
-        hidden, kept = apply_flags(client, results, config.vibe_check_model)
-        log.info("Wrote %d hidden and %d kept.", hidden, kept)
-    else:
+    if not apply:
         log.info("Preview only. Nothing was written. Add --apply to write these flags.")
 
     log.info(
@@ -381,7 +402,8 @@ def main() -> int:
             return 0
         summary = run(month, day, args.limit, args.workers, args.apply, args.rescreen)
     except KeyboardInterrupt:
-        log.warning("Interrupted. Nothing partial was written unless --apply had already finished a chunk.")
+        log.warning("Interrupted. Every chunk that finished is already saved. "
+                    "Run the same command again to carry on from there.")
         return 130
 
     return 1 if summary.failed else 0
