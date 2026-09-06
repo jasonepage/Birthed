@@ -91,11 +91,18 @@ struct PersonEditor: View {
     private func save() {
         guard let date = CalendarDate(month: month, day: day) else { return }
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        // The identifier and the death year are carried through untouched.
+        // The first version dropped both, so opening a followed person and
+        // tapping Done turned them into somebody typed in: the follow sheet
+        // offered them again, they gained a three day warning, and somebody
+        // who had died would be wished a happy birthday next time round.
         onSave(Person(
             id: person?.id ?? UUID(),
             name: name.trimmingCharacters(in: .whitespacesAndNewlines),
             birthday: CalendarBirthday(date: date, year: year, leapObservance: observance),
-            note: trimmedNote.isEmpty ? nil : trimmedNote
+            note: trimmedNote.isEmpty ? nil : trimmedNote,
+            wikidataID: person?.wikidataID,
+            deathYear: person?.deathYear
         ))
     }
 }

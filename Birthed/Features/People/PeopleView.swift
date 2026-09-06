@@ -96,7 +96,9 @@ struct PeopleView: View {
         guard store.people.isEmpty, suggestions.isEmpty else { return }
         let found = try? await repository.recommended(
             bornNear: profileStore.profile?.birthday.year, limit: 40)
-        suggestions = NotableMix.spread(found ?? [], limit: 3)
+        // Dealt before spreading, so an empty tab does not offer the same
+        // three people every time it is opened.
+        suggestions = NotableMix.spread((found ?? []).shuffled(), limit: 3)
     }
 
     // MARK: Empty

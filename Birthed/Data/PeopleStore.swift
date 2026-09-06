@@ -43,8 +43,23 @@ final class PeopleStore {
 
     func add(_ person: Person) {
         guard person.isUsable else { return }
+        // A public figure is followed once. Two rows for one person would be
+        // two notifications on the same morning and two cards on the day.
+        if let id = person.wikidataID, people.contains(where: { $0.wikidataID == id }) { return }
         people.append(person)
         persist()
+    }
+
+    /// Whether this public figure is already in the list.
+    ///
+    /// By identifier, and failing that by name and date, because a row saved
+    /// by an earlier build may carry no identifier and still be them.
+    func follows(_ match: NotableMatch) -> Bool {
+        people.contains { person in
+            if let id = person.wikidataID { return id == match.person.id }
+            return person.trimmedName.caseInsensitiveCompare(match.person.name) == .orderedSame
+                && person.birthday.date == match.birthDate
+        }
     }
 
     func update(_ person: Person) {

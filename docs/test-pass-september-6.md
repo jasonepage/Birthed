@@ -319,6 +319,23 @@ Wikipedia, because neither machine this was written from can reach it.
     repeating the old ones. `birth_fact_runs.searches` for that row is the
     cost.
 
+## Added later still: following somebody twice
+
+42. **Ariana stays followed.** Open Follow someone. Ariana Grande, who is
+    already in your list, should show a tick, not a plus. Tap Done, open it
+    again: the twenty people should be a different twenty, and nobody you
+    already follow should be in it.
+
+43. **Editing a followed person keeps them followed.** Tap Charlie Kirk's row
+    on People, change nothing, tap Done. His row should still say "would have
+    been", not "turns", and the follow sheet should still show him ticked.
+    The old build turned him into somebody typed in.
+
+44. **The one row that was already broken.** Your existing Ariana row was
+    saved by the old editor with no identifier, so she still gets the three
+    day warning a friend gets. Remove her and follow her again and she is
+    right. Nothing else on the list needs this.
+
 ## What I need back
 
 The screenshots, in order, and any error text verbatim. For anything that

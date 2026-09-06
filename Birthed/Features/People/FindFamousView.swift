@@ -78,14 +78,23 @@ struct FindFamousView: View {
         FollowRow(match: match)
     }
 
+    /// A different twenty every time the sheet opens.
+    ///
+    /// The pool is the eighty most looked up people near the reader's age.
+    /// Everybody in it is popular enough to be offered, so the pool is dealt
+    /// before it is spread across kinds: the same six names at the top of
+    /// every open would make the list read as the whole list. People already
+    /// followed are left out, since a row that only says "done" is a row
+    /// somebody has to scroll past.
     private func loadSuggestions() async {
         guard suggestions.isEmpty else { return }
         searching = true
         defer { searching = false }
         do {
             let found = try await repository.recommended(
-                bornNear: profileStore.profile?.birthday.year, limit: 60)
-            suggestions = NotableMix.spread(found, limit: 20)
+                bornNear: profileStore.profile?.birthday.year, limit: 80)
+            let fresh = found.filter { !store.follows($0) }
+            suggestions = NotableMix.spread(fresh.shuffled(), limit: 20)
         } catch {
             failed = true
         }
@@ -117,9 +126,7 @@ struct FollowRow: View {
     @Environment(PeopleStore.self) private var store
     let match: NotableMatch
 
-    private var already: Bool {
-        store.people.contains { $0.wikidataID == match.person.id }
-    }
+    private var already: Bool { store.follows(match) }
 
     /// "June 26, 1993", or "September 5, 1946 to 1991" for somebody who has
     /// died, or just the day when the year is not known. Never a guess: a
