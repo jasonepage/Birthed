@@ -17,6 +17,7 @@ export interface NotablePersonRow {
   enwiki_title: string | null;
   monthly_views: number;
   has_social: boolean;
+  adult_content: boolean;
   source_url: string;
   content_license: string;
 }

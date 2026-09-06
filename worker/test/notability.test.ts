@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { notabilityScore, signals } from "../src/notability.js";
+import { isAdultContent, notabilityScore, signals } from "../src/notability.js";
 
 const plain = { monthlyViews: 100_000, birthYear: 1900, isLiving: false, hasSocial: false, description: null };
 
@@ -143,4 +143,66 @@ test("a commentator is always looked up, like any other internet person", () => 
   const pundit = { sitelinks: 6, shortDescription: "American political commentator" };
   const crowd = Array.from({ length: 300 }, (_, i) => footballer(120 - (i % 100)));
   assert.ok(selectCandidates([...crowd, pundit], 160).includes(pundit));
+});
+
+// ---------------------------------------------------------------------------
+// The third bug: the creator bonus had no idea what it was promoting.
+
+test("an adult performer scores zero however much attention she has", () => {
+  // The real row from September 6. 107,393 views a month, and the description
+  // matches creatorTerms twice, which was multiplying her by 3.15 and putting
+  // her first on the date page.
+  assert.equal(
+    notabilityScore({
+      monthlyViews: 107_393, birthYear: 1996, isLiving: true, hasSocial: true,
+      description: "American internet personality, podcaster and former pornographic film actress",
+    }),
+    0,
+  );
+});
+
+test("zero is returned before any bonus, so no bonus can outrank it", () => {
+  // The failure this guards: writing it as a penalty instead of a return, and
+  // then adding a bonus large enough to climb back over the penalty.
+  assert.equal(
+    notabilityScore({
+      monthlyViews: 2_000_000, birthYear: 2000, isLiving: true, hasSocial: true,
+      description: "American YouTuber, singer, political commentator and adult film performer",
+    }),
+    0,
+  );
+});
+
+test("the wordings Wikidata actually uses are all caught", () => {
+  for (const description of [
+    "Lebanese-American former pornographic film actress (born 1993)",
+    "American adult film performer (born 1978)",
+    "Australian pornographic actress, pornographic director, and model (born 1985)",
+    "American Twitch streamer and former pornographic actress (born 1991)",
+    "Spanish pornographic actor, producer and Internet personality",
+    "French nobleman, revolutionary politician, philosopher and writer of erotic works",
+  ]) {
+    assert.equal(isAdultContent(description), true, description);
+  }
+});
+
+test("ordinary descriptions are not caught", () => {
+  for (const description of [
+    "British actor",
+    "Irish musician",
+    "English musician, co-founder of Pink Floyd",
+    "American actress",
+    "French general and politician",
+    null,
+  ]) {
+    assert.equal(isAdultContent(description), false, String(description));
+  }
+});
+
+test("the reason shows up in the signals, so a zero is explainable", () => {
+  assert.ok(
+    signals({ monthlyViews: 1, birthYear: 1990, isLiving: true, hasSocial: false,
+              description: "American pornographic actress" })
+      .includes("adult, score forced to 0"),
+  );
 });

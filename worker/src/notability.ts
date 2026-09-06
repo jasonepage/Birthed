@@ -32,6 +32,8 @@ export interface NotabilityWeights {
   creatorTerms: string[];
   musicTerms: string[];
   commentaryTerms: string[];
+  /** Descriptions that must never open a date page. See isAdultContent. */
+  adultTerms: string[];
 }
 
 export const DEFAULT_WEIGHTS: NotabilityWeights = {
@@ -56,6 +58,16 @@ export const DEFAULT_WEIGHTS: NotabilityWeights = {
     "political commentator", "commentator", "pundit", "political activist",
     "talk show host", "talk radio", "columnist", "political analyst",
   ],
+  // Matched against the same Wikidata description as everything else above.
+  // Wikidata is consistent here in a way it is not about much else: it says
+  // "pornographic actress", "adult film performer" or "erotic" and it says it
+  // in the one line description, which is why a term list is enough and a
+  // model is not needed.
+  adultTerms: [
+    "pornographic", "porn actor", "porn actress", "porn star", "pornstar",
+    "adult film", "adult video", "adult actress", "adult actor",
+    "adult entertainer", "adult performer", "adult model", "erotic",
+  ],
 };
 
 export interface ScoreInput {
@@ -69,6 +81,36 @@ export interface ScoreInput {
 /** Postgres integers stop at about 2.1 billion. */
 const CEILING = 2_000_000_000;
 
+/**
+ * Whether this person must never open a date page.
+ *
+ * Found on September 6, where the page opened with a former pornographic film
+ * actress, and then found to be 106 people across the table, nearly all of
+ * them ranked first on their own date. About one date page in four.
+ *
+ * The cause is directly above. Her description reads "American internet
+ * personality, podcaster and former pornographic film actress", which matches
+ * creatorTerms twice, so the creator bonus that exists to surface an internet
+ * person over a Bundesliga midfielder was multiplying her attention by 3.15.
+ * The signal worked exactly as designed. It has no idea what it is promoting,
+ * and no amount of retuning the weights fixes that, because the problem is not
+ * that the score is too high. It is that this is the sentence a fourteen year
+ * old reads on their birthday.
+ *
+ * A rule and not a model, because Wikidata is consistent about this wording
+ * and a term list is checkable, free, and gives the same answer every run.
+ *
+ * The known cost of a term list: "erotic" catches the Marquis de Sade, who is
+ * an eighteenth century writer rather than a performer. Suppressing him is the
+ * right outcome for this app anyway, so the false positive is left in.
+ */
+export function isAdultContent(
+  description: string | null,
+  weights: NotabilityWeights = DEFAULT_WEIGHTS,
+): boolean {
+  return mentions(description, weights.adultTerms);
+}
+
 function mentions(description: string | null, terms: string[]): boolean {
   if (!description) return false;
   const lower = description.toLowerCase();
@@ -79,6 +121,10 @@ export function notabilityScore(
   input: ScoreInput,
   weights: NotabilityWeights = DEFAULT_WEIGHTS,
 ): number {
+  // Before anything else, and it returns rather than subtracting, because a
+  // bonus large enough to outrank a penalty is how this would come back.
+  if (isAdultContent(input.description, weights)) return 0;
+
   let multiplier = 1;
   if (input.hasSocial) multiplier += weights.socialBonus;
   if (mentions(input.description, weights.creatorTerms)) multiplier += weights.creatorBonus;
@@ -99,6 +145,7 @@ export function signals(input: ScoreInput, weights: NotabilityWeights = DEFAULT_
   if (mentions(input.description, weights.musicTerms)) found.push("music");
   if (input.hasSocial) found.push("social");
   if (!input.isLiving) found.push("died");
+  if (isAdultContent(input.description, weights)) found.push("adult, score forced to 0");
   return found;
 }
 
