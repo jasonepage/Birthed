@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildTimeline, saysTheSameThing, splitDatePrefix } from "../src/timeline.js";
-import { cardHighlight } from "../src/share.js";
+import { cardHighlight, renderShareCard } from "../src/share.js";
 
 /**
  * The twelve pairs on September 4 where a researched fact and a Wikipedia
@@ -222,4 +222,30 @@ test("a fact that does not name this page's date is not put on the card", () => 
       fact: "Something true with no year anywhere in it." },
   ];
   assert.equal(cardHighlight(facts, 9, 4), null, "the card prints a year beside the line");
+});
+
+test("a card that says what happened does not also list names", () => {
+  // The names are ordered by attention and infamy is attention. Ted Bundy led
+  // November 24's card and Assad led September 11's, and no word list would
+  // have caught the second: Wikidata calls him a politician. A card with
+  // something that happened on it does not need the names at all.
+  const people = [
+    { qid: "Q1", name: "Bashar al-Assad", birthYear: 1965, deathYear: null, description: "Syrian politician", monthlyViews: 900000 },
+  ];
+  const card = renderShareCard(
+    { month: 9, day: 11, people },
+    { year: 1967, text: "The Carol Burnett Show premiered on CBS." },
+  );
+  assert.ok(card.includes("The Carol Burnett Show premiered on CBS."));
+  assert.ok(!card.includes("Assad"), "no names on a card that has something to say");
+  assert.ok(!card.includes("You share it with"));
+});
+
+test("a card with nothing that happened still shows the names it has", () => {
+  const people = [
+    { qid: "Q2", name: "Somebody Ordinary", birthYear: 1980, deathYear: null, description: "actor", monthlyViews: 10 },
+  ];
+  const card = renderShareCard({ month: 12, day: 25, people }, null);
+  assert.ok(card.includes("Somebody Ordinary"));
+  assert.ok(card.includes("You share it with"));
 });

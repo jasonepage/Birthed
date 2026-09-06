@@ -112,10 +112,27 @@ const CANDLE = `<svg width="262" height="458" viewBox="380 120 264 800" xmlns="h
 
 export function renderShareCard(page: DayPage, highlight: Highlight | null = null): string {
   const name = `${monthName(page.month)} ${page.day}`;
-  // Two names rather than three when there is something else to say. A third
-  // name is one more of the thing every competitor already has; the line about
-  // what happened is the thing none of them can put on a card.
-  const names = page.people.slice(0, highlight ? 2 : 3);
+  // No names at all when there is something that happened to say instead.
+  //
+  // Not a layout preference. The list is ordered by how much attention a
+  // person gets and infamy is attention, so "You share it with" led with John
+  // Wayne Gacy on March 17, Mussolini on July 29, Ed Gein on August 27,
+  // Charles Manson on November 12 and Ted Bundy on November 24, with Hitler
+  // and Göring second on two more. September 11's card said "You share it
+  // with Bashar al-Assad", which is the case that matters most, because no
+  // word list would have caught it: Wikidata calls him a politician.
+  //
+  // That is the whole argument for cutting rather than filtering. There is no
+  // field anywhere in the data that means "not on a birthday card", so a
+  // filter is a list somebody has to keep adding to forever, and every miss
+  // ships. A card with one thing that happened on it needs no list, and it was
+  // the better card regardless: the names are what every competitor already
+  // has and the line about the date is the half none of them can print.
+  //
+  // The 89 dates with no researched fact still show names, because names are
+  // all they have. The fix for those is to finish searching the 85 dates the
+  // backfill never reached, not to start keeping a list of people.
+  const names = highlight ? [] : page.people.slice(0, 3);
 
   const rows = names.map((person) => `<li>
   <span class="year">${person.birthYear ?? ""}</span>

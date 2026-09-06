@@ -271,6 +271,32 @@ wins so the card has one readable line and the same one every build, and a date
 with nothing that passes gets no line at all. 277 of the 366 dates carry one.
 The rest keep the card they have today, which already works.
 
+**And the names came off entirely, which was the bigger find.** The word
+filter worked on September 11 and gave the card the Carol Burnett Show. The
+card then said, underneath it, "You share it with Bashar al-Assad", because the
+name list is ordered by how much attention somebody gets and infamy is
+attention. Searching only for descriptions that say so outright, thirteen dates
+carry a serial killer, dictator or war criminal in their top three, and five of
+those led the card: John Wayne Gacy on March 17, Mussolini on July 29, Ed Gein
+on August 27, Charles Manson on November 12, Ted Bundy on November 24, with
+Hitler and Göring second on two more.
+
+That search is a floor and not a count, and Assad is the proof: Wikidata calls
+him a politician, so no word list would have found him. There is no field in
+the data meaning "not on a birthday card". So a card that has something that
+happened on it now shows no names at all. It needs no list, nothing can slip
+through it, and it was the better card anyway, since the names are what every
+competitor already has. The 89 dates with no researched fact still show names,
+because names are all they have, and the fix for those is to finish searching
+the 85 dates the backfill never reached rather than to start keeping a list of
+people.
+
+**This is not fixed anywhere else.** The day pages still list these people, and
+there the case is different, because a list of who was born on a date is a
+record rather than a celebration and Wikipedia does the same. The app is the
+one to look at: the onboarding line about who shares your date has the card's
+celebratory framing, not the page's, and nobody has checked it.
+
 **What the filter does not do.** The three dates I spot checked that came back
 with no line, November 22, December 7 and December 25, have no researched facts
 at all: they are among the 85 dates the backfill never reached, so their cards
