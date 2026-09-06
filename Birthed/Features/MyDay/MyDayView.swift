@@ -5,8 +5,17 @@ import SwiftUI
 /// This screen and `MyDayShareCard` are the same picture on purpose: the
 /// same ground, the same candle in the same corner, the same facts in the
 /// same order. What somebody screenshots is what the share button exports.
-/// The ground follows the system appearance, ink in dark and cream in light,
-/// and the export follows the screen.
+///
+/// The picture is a panel rather than a page, and that is the September 6
+/// redesign in one sentence. The candle succeeds on the app icon and on the
+/// share card and failed here, and the difference was never the drawing: both
+/// of those are a bounded warm field with the candle as the subject, and this
+/// screen was an unbounded cream page with the candle loose on it. So the
+/// stage became the field. Everything inside it is grouped by the panel's own
+/// edge, the candle stands on the panel's bottom edge and runs off it the way
+/// it was drawn to, and the flame finally has a dark enough surface to light.
+/// The page behind the panel still follows the system appearance. The panel
+/// does not, so there is one set of colours inside it rather than two.
 ///
 /// `FR-034` counts in whole local days. `FR-035` switches to a distinct state
 /// on the birthday rather than showing a zero. `FR-036` says so out loud when
@@ -42,10 +51,24 @@ struct MyDayView: View {
     @State private var lit = true
     @State private var relightTask: Task<Void, Never>?
 
+    /// Which of the world-when-you-arrived lines the reader wants standing in
+    /// the panel, held by subject rather than by position or by sentence.
+    ///
+    /// The subject is the only stable handle of the three. Position changes
+    /// when a timeline is extended, and the sentence changes on every
+    /// birthday, because "fifteen years older than Fortnite" becomes sixteen.
+    /// An empty string means nobody has chosen, and the first line stands.
+    @AppStorage("mine.preferredWorldLine") private var preferredWorldSubject = ""
+
     private let calendar = BirthdayCalendar()
     private let facts = DateFacts()
     private var now: Date { Date() }
+    /// The page the panel sits on. This is the one thing on the screen that
+    /// still follows the system appearance.
     private var palette: StagePalette { .forScheme(colorScheme) }
+    /// The panel, and every card this screen exports. The same in both
+    /// appearances, for the reason written over `StagePalette.wax`.
+    private let stagePalette = StagePalette.wax
 
     private var isBirthday: Bool { calendar.isBirthdayToday(profile.birthday, on: now) }
     private var daysAway: Int { calendar.daysUntil(profile.birthday, from: now) }
@@ -67,10 +90,10 @@ struct MyDayView: View {
 
     /// What version of the world this reader arrived into, loudest first.
     ///
-    /// Read here rather than inside the section that shows them, because the
-    /// first line is promoted into the stage and the rest sit below it, and
-    /// two places that both worked them out would each reach for the first
-    /// one and print it twice.
+    /// Read here rather than inside the section that shows them, because one
+    /// of them is promoted into the panel and the rest sit below it, and two
+    /// places that both worked them out would each reach for the same one and
+    /// print it twice.
     ///
     /// Empty without a birth year, because every line here is about the year.
     private var worldThen: [WorldThen.Line] {
@@ -82,15 +105,34 @@ struct MyDayView: View {
         )
     }
 
+    /// The line standing in the panel: whichever one the reader last chose,
+    /// or the loudest if they have not chosen. A chosen subject that no
+    /// longer produces a line, because a timeline was retired or the reader
+    /// changed their birth year, falls back rather than showing nothing.
+    private var leadLine: WorldThen.Line? {
+        if let chosen = worldThen.first(where: { $0.kicker == preferredWorldSubject }) {
+            return chosen
+        }
+        return worldThen.first
+    }
+
+    /// Everything else, for the section below the panel. Filtered by identity
+    /// rather than dropped from the front, because the promoted line is no
+    /// longer always the first one.
+    private var restLines: [WorldThen.Line] {
+        guard let leadLine else { return worldThen }
+        return worldThen.filter { $0.id != leadLine.id }
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
                     stage
-                    // The rest of the world they arrived into. The loudest of
-                    // these lines is in the stage above, so this picks up at
-                    // the second one.
-                    WorldThenSection(lines: Array(worldThen.dropFirst()), palette: palette) { line in
+                    // The rest of the world they arrived into. The one the
+                    // reader is looking at is in the panel above, so this is
+                    // everything except that one.
+                    WorldThenSection(lines: restLines, palette: palette) { line in
                         sharingLine = line
                     }
                     // Under the world, because these are the only facts on
@@ -105,8 +147,14 @@ struct MyDayView: View {
                     leapNote
                     sources
                 }
-                .padding(.bottom, 36)
+                .padding(.bottom, 24)
             }
+            // The tab bar floats over the content, and 36 points of padding
+            // was not clearance: the last section on the screen was being cut
+            // through the middle by it. This is a margin on the scroll
+            // content rather than more padding on the stack, so the gap
+            // belongs to the scroll view that owns the problem.
+            .contentMargins(.bottom, 72, for: .scrollContent)
             .background(palette.ground.ignoresSafeArea())
             // Pulling down deals the facts again and, once a month, asks the
             // server for another look at the date. Neither costs anything
@@ -140,7 +188,7 @@ struct MyDayView: View {
             }
             .sheet(item: $sharingLine) { line in
                 ShareCardPicker(
-                    choices: [WorldThenSection.shareChoice(for: line, palette: palette)],
+                    choices: [WorldThenSection.shareChoice(for: line, palette: stagePalette)],
                     subject: profile.birthday.date.displayName()
                 )
             }
@@ -149,55 +197,38 @@ struct MyDayView: View {
                     choices: [FoundFactsSection.shareChoice(
                         for: fact,
                         dateName: profile.birthday.year == nil ? nil : searchedDateName,
-                        palette: palette
+                        palette: stagePalette
                     )],
                     subject: profile.birthday.date.displayName()
                 )
             }
             .sensoryFeedback(.impact(weight: .heavy), trigger: lit) { _, isLit in !isLit }
+            .sensoryFeedback(.selection, trigger: preferredWorldSubject)
         }
         .tint(Theme.accent)
     }
 
-    // MARK: The stage
+    // MARK: The panel
 
+    /// The poster, on a surface.
+    ///
     /// The text column is the only thing that takes layout space. The glow,
     /// the candle and the confetti ride in a background and an overlay, so
     /// nothing here can be wider than the screen: a 600 point circle inside
     /// the stack was making the whole stage 600 wide, and the scroll view was
     /// centring it and cutting the left edge off the date.
+    ///
+    /// The old fixed minimum of 540 points is gone. It was what manufactured
+    /// the hundred point dead band in the middle of the screen: when the
+    /// album and the film came off, nothing took their space and the stack
+    /// was still being held open to a height chosen when they were there.
+    /// The floor now comes from the bottom band, which is as tall as the
+    /// candle because it is the band the candle stands in.
     private var stage: some View {
         VStack(alignment: .leading, spacing: 0) {
-            kicker(isBirthday ? "TODAY" : "YOUR DAY")
+            header
 
-            Spacer().frame(height: 8)
-
-            if isBirthday {
-                Text("Happy birthday")
-                    .font(.system(size: 54, weight: .black, design: .serif))
-                    .foregroundStyle(palette.type)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.6)
-                Text(observed.displayName())
-                    .font(Theme.display(.title2))
-                    .foregroundStyle(palette.type.opacity(0.7))
-                    .padding(.top, 4)
-            } else {
-                Text(profile.birthday.date.displayName())
-                    .font(.system(size: 54, weight: .black, design: .serif))
-                    .foregroundStyle(palette.type)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.5)
-            }
-
-            if let birthWeekdayName {
-                Text("born on a \(birthWeekdayName)")
-                    .font(.title3)
-                    .foregroundStyle(palette.type.opacity(0.55))
-                    .padding(.top, 6)
-            }
-
-            Spacer().frame(height: 30)
+            Spacer().frame(height: 24)
 
             if let song {
                 songBlock(song)
@@ -206,126 +237,374 @@ struct MyDayView: View {
                 yearNudge
             }
 
-            Spacer().frame(height: 40)
-
-            counters
-
-            olderThanLine
-
-            if isBirthday {
-                Text("Hold the candle to blow it out")
-                    .font(.footnote)
-                    .foregroundStyle(palette.type.opacity(0.45))
-                    .padding(.top, 14)
+            if song != nil || profile.birthday.year == nil {
+                Spacer().frame(height: 26)
             }
+
+            heroNumber
+
+            // Anything left over lands here rather than in the middle of the
+            // screen, which is the other half of closing the dead band.
+            Spacer(minLength: 24)
+
+            bottomBand
         }
         .padding(.horizontal, 22)
-        .padding(.top, 6)
-        .padding(.bottom, 30)
+        .padding(.top, 24)
+        .padding(.bottom, 24)
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .frame(minHeight: isBirthday ? 600 : 540, alignment: .top)
-        .animation(.spring(duration: 0.6), value: song)
-        .background(alignment: .bottomTrailing) { glow }
+        .background { panelFill }
         .overlay(alignment: .bottomTrailing) { candle }
         .overlay {
             if isBirthday {
                 ConfettiBurst()
             }
         }
-        .clipped()
+        .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+        // A hairline in the panel's own type colour, which is what stops a
+        // dark panel on a cream page reading as a hole cut in the page.
+        .overlay {
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .strokeBorder(stagePalette.type.opacity(0.10), lineWidth: 1)
+        }
+        // The shadow is cast by a plain shape behind the panel rather than
+        // by the panel itself. The panel contains a flame that redraws every
+        // frame, and a shadow on it would put that animation through an
+        // offscreen pass sixty times a second for a soft edge that never
+        // changes. This background sits outside the clip, so it is not
+        // clipped away.
+        .background {
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(Theme.wax)
+                .shadow(color: Theme.wax.opacity(0.26), radius: 22, x: 0, y: 12)
+        }
+        .padding(.horizontal, 16)
+        .animation(.spring(duration: 0.6), value: song)
     }
+
+    /// The date is the label of the panel rather than the news on it, so it
+    /// is set at a quarter of what it was. The news is the number below.
+    @ViewBuilder
+    private var header: some View {
+        if isBirthday {
+            Text("Happy birthday")
+                .font(.system(size: 40, weight: .black, design: .serif))
+                .foregroundStyle(stagePalette.type)
+                .lineLimit(2)
+                .minimumScaleFactor(0.6)
+            Text(observed.displayName())
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(stagePalette.type.opacity(0.65))
+                .padding(.top, 6)
+        } else {
+            Text(profile.birthday.date.displayName())
+                .font(.system(size: 27, weight: .bold, design: .serif))
+                .foregroundStyle(stagePalette.type)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+            if let birthWeekdayName {
+                Text("born on a \(birthWeekdayName)")
+                    .font(.system(size: 15, weight: .regular))
+                    .foregroundStyle(stagePalette.type.opacity(0.55))
+                    .padding(.top, 4)
+            }
+        }
+    }
+
+    // MARK: The one number
+
+    /// What the hero slot holds, and what sits under it in small type.
+    ///
+    /// One number wins by a factor of five rather than by argument. The two
+    /// counters used to be rendered identically, so neither won, and the day
+    /// count is the one number in the product per the feature table.
+    private struct Hero {
+        let value: Int
+        let label: String
+        let caption: String?
+    }
+
+    /// On the birthday the age takes the slot, because "31 today" is the
+    /// event and a day count is not, and the day count drops to the caption.
+    /// On the other 364 days the day count takes it. With no birth year
+    /// neither exists and the countdown stands in, so the slot is never
+    /// empty on a screen that has anything to say at all.
+    private var hero: Hero? {
+        let countdown = daysAway == 1 ? "1 day to your next birthday"
+                                      : "\(daysAway.formatted()) days to your next birthday"
+        if isBirthday {
+            guard let age = calendar.ageOnNextBirthday(profile.birthday, from: now) else { return nil }
+            return Hero(value: age, label: "today",
+                        caption: daysAlive.map { "\($0.formatted()) days old" })
+        }
+        if let daysAlive {
+            return Hero(value: daysAlive, label: "days old", caption: countdown)
+        }
+        return Hero(value: daysAway, label: daysAway == 1 ? "day to go" : "days to go", caption: nil)
+    }
+
+    @ViewBuilder
+    private var heroNumber: some View {
+        if let hero {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    CountingNumber(value: hero.value)
+                        .font(.system(size: 84, weight: .black, design: .serif))
+                        .foregroundStyle(stagePalette.type)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.4)
+                    Text(hero.label)
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(stagePalette.type.opacity(0.6))
+                }
+                if let caption = hero.caption {
+                    Text(caption)
+                        .font(.system(size: 15, weight: .regular))
+                        .foregroundStyle(stagePalette.type.opacity(0.5))
+                }
+            }
+        }
+    }
+
+    // MARK: The bottom band
+
+    /// The band the candle stands in.
+    ///
+    /// It is at least as tall as the candle is, less the drop and the panel's
+    /// own bottom padding, which is what keeps the flame away from the number
+    /// above it without anybody having to guess a margin. The one sentence
+    /// that sits in here is aligned to the bottom, next to the candle's body
+    /// rather than its flame, which is why it only needs a hundred points of
+    /// clearance instead of the hundred and sixty the flame would want.
+    ///
+    /// Empty for a reader with no birth year, and still this tall, because
+    /// the candle is in it. That is the difference between this and the dead
+    /// band it replaces: this space has something standing in it.
+    private var bottomBand: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            olderThanLine
+
+            if isBirthday {
+                Text("Hold the candle to blow it out")
+                    .font(.footnote)
+                    .foregroundStyle(stagePalette.type.opacity(0.45))
+            }
+        }
+        .padding(.trailing, 100)
+        .frame(maxWidth: .infinity,
+               minHeight: candleHeight - candleDrop - 24,
+               alignment: .bottomLeading)
+    }
+
+    /// The one sentence in the app that measures the world against the reader
+    /// rather than describing their date.
+    ///
+    /// "You are fifteen years older than Fortnite" is the mirror. It comes
+    /// from a table, so it is certain, costs nothing and needs no network,
+    /// which is why it can stand in the panel next to things the reader can
+    /// see are true.
+    ///
+    /// The sentence is also the control. Tapping it swaps in the next line
+    /// from the list below, and the choice is remembered, because the loudest
+    /// line by the table's ordering is not always the one that lands for a
+    /// given reader. It is the sentence itself and not a button beside it,
+    /// for the reason in `CLAUDE.md` section 5: a row showing a value with a
+    /// control under it is two controls doing one control's job. The cycle
+    /// glyph rides at the end of the sentence, inside the same tap target,
+    /// so it reads as part of the line rather than as a second thing.
+    ///
+    /// Nothing at all without a birth year, and nothing for a birth after the
+    /// last date any of the timelines is checked through. Absent beats wrong.
+    @ViewBuilder
+    private var olderThanLine: some View {
+        if let lead = leadLine {
+            Button(action: swapLeadLine) {
+                olderThanText(lead)
+                    .font(.system(size: 23, weight: .bold, design: .serif))
+                    .foregroundStyle(stagePalette.type)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .disabled(worldThen.count < 2)
+            .accessibilityLabel(lead.text)
+            .accessibilityHint(worldThen.count < 2 ? "" : "Shows another thing you are older than")
+        }
+    }
+
+    /// The sentence, with the cycle glyph set inline after the last word so
+    /// it lands at the end of the text rather than floating beside a block of
+    /// it. Concatenated rather than laid out, because a glyph in a stack next
+    /// to a sentence that wraps to three lines sits against the first line.
+    private func olderThanText(_ lead: WorldThen.Line) -> Text {
+        let sentence = Text(lead.text)
+        guard worldThen.count > 1 else { return sentence }
+        let glyph = Text(Image(systemName: "arrow.triangle.2.circlepath"))
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(stagePalette.type.opacity(0.38))
+        return sentence + Text("  ") + glyph
+    }
+
+    /// The next line in the list, wrapping round. Stored by subject, so the
+    /// choice survives the sentence changing on the reader's next birthday.
+    private func swapLeadLine() {
+        guard worldThen.count > 1 else { return }
+        let current = leadLine.flatMap { line in
+            worldThen.firstIndex(where: { $0.id == line.id })
+        } ?? 0
+        preferredWorldSubject = worldThen[(current + 1) % worldThen.count].kicker
+    }
+
+    // MARK: The candle, and the light it throws
 
     private var candleHeight: CGFloat { isBirthday ? 300 : 230 }
 
-    /// How far the candle hangs below the stage, and so how much of it the
-    /// stage clips off.
+    /// How far the candle hangs below the panel, and so how much of it the
+    /// panel clips off.
     ///
-    /// Zero, and that is a change. `CandleMark` is drawn with no base, to run
-    /// off the bottom of whatever it is placed in, which is right on the app
-    /// icon and on a share card because both of those have an edge. The stage
-    /// has no edge. It is a region in the middle of a scrolling page with the
-    /// same background above and below it, so a candle bleeding out of it was
-    /// not running off anything: it was a striped cylinder cut through the
-    /// middle with the next section starting underneath the cut.
+    /// It is back above zero, and that is the redesign rather than a revert.
+    /// `CandleMark` is drawn with no base so it can run off the bottom of
+    /// whatever it is placed in, which is right on the app icon and on a
+    /// share card because both of those have an edge. The stage had no edge:
+    /// it was a region in the middle of a scrolling page with the same
+    /// background above and below it, so a candle bleeding out of it was not
+    /// running off anything. Setting the drop to zero was the right fix for
+    /// that stage and it left a striped cylinder with a hard flat bottom
+    /// floating on cream, which is the thing this file was reopened to solve.
     ///
-    /// It cost more than it looks. The flame is 48 percent of the candle's
-    /// height, so dropping 52 of 230 points left about 67 points of body
-    /// under 111 points of flame, which reads as a stub rather than a candle.
-    /// At zero the body is 119 and the whole thing looks like the icon it
-    /// came from.
-    ///
-    /// The birthday candle keeps a small drop, because at 300 points tall it
-    /// has body to spare and sitting it flat on the edge wastes the height.
-    private var candleDrop: CGFloat { isBirthday ? 18 : 0 }
+    /// The stage is a panel now, so there is a real edge again, and the
+    /// candle stands on it. The drop is small on purpose: the flame is 48
+    /// percent of the height, so a large drop leaves a stub under a fire.
+    /// Eighteen of 230 leaves 105 points of body under 111 of flame, which
+    /// is the proportion the icon has.
+    private var candleDrop: CGFloat { isBirthday ? 26 : 18 }
 
-    /// The light the candle throws, centred on its flame. In a background it
-    /// takes no layout space, so it can be any size without moving the text.
+    /// The light the candle throws, centred on its flame.
+    ///
+    /// Ember rather than accent, and lightened rather than painted on. On
+    /// cream this was a pink circle sitting on top of a pale page, which read
+    /// as a smudge because there is nothing lighter than cream for light to
+    /// make. On wax it has somewhere to go. In a background it takes no
+    /// layout space, so it can be any size without moving the text.
     private var glow: some View {
         let candleHeight = self.candleHeight
         let drop = candleDrop
         let flameHeight = candleHeight * 0.484
         let flameWidth = flameHeight * (100.0 / 95.0)
-        // Where the flame's centre sits, measured from the stage's bottom
-        // trailing corner: the candle is padded 28 from the edge and pushed
+        // Where the flame's centre sits, measured from the panel's bottom
+        // trailing corner: the candle is padded 42 from the edge and pushed
         // down by `drop`, and the flame's centre is about 55 percent of the
         // way down the flame.
         let centreUp = candleHeight - flameHeight * 0.55 - drop
-        let centreIn = 28 + flameWidth / 2
-        let size: CGFloat = 340
+        let centreIn = 42 + flameWidth / 2
+        let size: CGFloat = 460
         return Circle()
             .fill(RadialGradient(
-                colors: [palette.glow.opacity(0.28), palette.glow.opacity(0.05), .clear],
-                center: .center, startRadius: 6, endRadius: size / 2
+                colors: [
+                    Theme.ember.opacity(0.24),
+                    Theme.emberDeep.opacity(0.09),
+                    .clear,
+                ],
+                center: .center, startRadius: 10, endRadius: size / 2
             ))
             .frame(width: size, height: size)
             .offset(x: size / 2 - centreIn, y: size / 2 - centreUp)
+            .blendMode(.plusLighter)
             .allowsHitTesting(false)
     }
 
+    /// The field the candle stands in.
+    ///
+    /// Wax on an ordinary day, with a light top corner and a dark bottom one
+    /// so the panel has a front and a back rather than being a flat colour.
+    /// The celebration gradient on the birthday, which is the app icon's own
+    /// field and is reserved by `Theme` for the days the product is
+    /// celebrating rather than informing.
+    private var panelFill: some View {
+        ZStack {
+            if isBirthday {
+                Theme.celebration
+            } else {
+                LinearGradient(
+                    colors: [Theme.waxLight, Theme.wax],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
+            glow
+        }
+        .compositingGroup()
+    }
+
+    /// Padded 42 from the trailing edge rather than 28, so the panel's
+    /// rounded corner does not take a bite out of the candle's bottom corner
+    /// on its way past.
     private var candle: some View {
         CandleMark(height: candleHeight, lit: lit)
-            .padding(.trailing, 28)
+            .padding(.trailing, 42)
             .offset(y: candleDrop)
             .onLongPressGesture(minimumDuration: 0.5, perform: { blowOut() })
             .accessibilityLabel(lit ? "A lit candle. Hold to blow it out." : "A candle, blown out")
             .animation(.spring(duration: 0.6), value: isBirthday)
     }
 
+    // MARK: What is in the panel
+
+    /// The one pink kicker left above the fold.
+    ///
+    /// There were six on one screen, which is not a kicker, it is a texture,
+    /// and it had stopped telling anybody what mattered. The song keeps it
+    /// because the song is the only thing up here whose label is itself the
+    /// fact: nobody says "my day" out loud, and people do say "the number one
+    /// song the week I was born". Everything else is labelled by size, by
+    /// position, or by the sentence containing its own subject.
+    ///
+    /// Soft rather than full accent, because full accent on wax is louder
+    /// than it was on cream and this is meant to glow, not shout.
     private func kicker(_ text: String) -> some View {
         Text(text)
             .font(.caption.weight(.heavy))
             .kerning(3)
-            .foregroundStyle(Theme.accent)
+            .foregroundStyle(Theme.accentSoft)
     }
 
     /// The one fact on this screen that somebody would read out loud to a
-    /// friend, so it is set like a title rather than like a row. It needs a
-    /// birth year, and it shows nothing at all when there is no chart
-    /// covering that week rather than reaching for the nearest one.
+    /// friend, so it is set like a title rather than like a row, and it sits
+    /// on a faint surface of its own so it reads as one object instead of
+    /// four unrelated lines. It needs a birth year, and it shows nothing at
+    /// all when there is no chart covering that week rather than reaching for
+    /// the nearest one.
     private func songBlock(_ song: ChartWeek) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             kicker("NUMBER ONE THE WEEK YOU WERE BORN")
 
             Text(song.song)
-                .font(.system(size: 40, weight: .black, design: .serif))
-                .foregroundStyle(palette.type)
+                .font(.system(size: 30, weight: .black, design: .serif))
+                .foregroundStyle(stagePalette.type)
                 .lineLimit(3)
                 .minimumScaleFactor(0.6)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(song.artist)
-                .font(.title3)
-                .foregroundStyle(palette.type.opacity(0.6))
+                .font(.system(size: 17, weight: .regular))
+                .foregroundStyle(stagePalette.type.opacity(0.6))
                 .lineLimit(2)
 
             // The issue date is here because it is what makes the claim
             // checkable rather than something Birthed asserts.
             Text(song.attribution())
-                .font(.caption)
-                .foregroundStyle(palette.type.opacity(0.4))
+                .font(.caption2)
+                .foregroundStyle(stagePalette.type.opacity(0.42))
                 .padding(.top, 2)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.trailing, 36)
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(stagePalette.type.opacity(0.08))
+        )
     }
 
     // The album and the film used to sit under the song here. They are filler
@@ -339,39 +618,29 @@ struct MyDayView: View {
         Button(action: onOpenSettings) {
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: "music.note")
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(Theme.accentSoft)
                 Text("Add your birth year to see the number one song the week you were born.")
                     .font(.subheadline)
-                    .foregroundStyle(palette.type.opacity(0.65))
+                    .foregroundStyle(stagePalette.type.opacity(0.7))
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
             }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(stagePalette.type.opacity(0.08))
+            )
         }
         .buttonStyle(.plain)
-        .padding(.trailing, 120)
-    }
-
-    private var counters: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if isBirthday {
-                if let age = calendar.ageOnNextBirthday(profile.birthday, from: now) {
-                    counter(age, label: "today")
-                }
-            } else {
-                counter(daysAway, label: daysAway == 1 ? "day to go" : "days to go")
-            }
-            if let daysAlive {
-                counter(daysAlive, label: "days old")
-            }
-        }
-        .padding(.trailing, 130)
     }
 
     // The next milestone, "9,000 days old on April 26, 2027", used to sit
     // under the counters. Two numbers stacked make neither of them the one
-    // number, and the days alive counter is the one number. It is good
-    // notification material and it keeps its share card, so the arithmetic in
-    // `facts.nextMilestone` stays where it is.
+    // number. It is good notification material and it keeps its share card,
+    // so the arithmetic in `facts.nextMilestone` stays where it is.
+
+    // MARK: Below the panel
 
     /// The small true things, below the fold.
     ///
@@ -382,7 +651,7 @@ struct MyDayView: View {
     /// still shows a birthstone and the lists are tested.
     ///
     /// The sign stays because it is the one of the five anybody says out
-    /// loud, and it is down here rather than in the stage for the same
+    /// loud, and it is down here rather than in the panel for the same
     /// reason: saying it out loud is not why anybody opened the app.
     private var chips: some View {
         let sign = facts.zodiacSign(for: profile.birthday.date)
@@ -397,55 +666,9 @@ struct MyDayView: View {
                 FactChip(label: "Day of the year", value: "\(dayNumber) of \(calendar.isLeapYear(profile.birthday.year ?? thisYear) ? 366 : 365)", palette: palette)
             }
         }
-        // It used to inherit the stage's margin. Out here it needs its own,
-        // and it no longer has to leave room for a candle.
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 22)
     }
-
-    /// The one sentence in the app that measures the world against the reader
-    /// rather than describing their date.
-    ///
-    /// "You are fifteen years older than Fortnite" is the mirror, and it was
-    /// four screens down under a section header. It comes from a table, so it
-    /// is certain, costs nothing and needs no network, which is why it can
-    /// stand in the stage next to things the reader can see are true.
-    ///
-    /// Nothing at all without a birth year, and nothing for a birth after the
-    /// last date any of the timelines is checked through. Absent beats wrong.
-    @ViewBuilder
-    private var olderThanLine: some View {
-        if let lead = worldThen.first {
-            VStack(alignment: .leading, spacing: 8) {
-                kicker(lead.kicker)
-                Text(lead.text)
-                    .font(.system(size: 25, weight: .bold, design: .serif))
-                    .foregroundStyle(palette.type)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .multilineTextAlignment(.leading)
-            }
-            // Clear of the candle, the same margin the chips used to keep.
-            .padding(.trailing, 110)
-            // Its own gap above it, so a reader with no birth year and no
-            // line does not get the gap on its own.
-            .padding(.top, 24)
-        }
-    }
-
-    private func counter(_ value: Int, label: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            CountingNumber(value: value)
-                .font(.system(size: 50, weight: .black, design: .serif))
-                .foregroundStyle(palette.type)
-                .lineLimit(1)
-                .minimumScaleFactor(0.5)
-            Text(label)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(palette.type.opacity(0.55))
-        }
-    }
-
-    // MARK: Below the stage
 
     /// "September 4, 2002", or just the date when no year was given. What the
     /// app says it is looking into, and the kicker on a shared fact.
@@ -579,14 +802,22 @@ struct MyDayView: View {
         }
     }
 
-    /// FR-117. Every card is rendered on device, in the palette the screen is
-    /// showing, so what is shared is what was on screen. The whole day first,
-    /// then one card per fact, in the order the facts sit on the screen.
-    /// Anything this person does not have, no year and so no song, is simply
-    /// not a card.
+    /// FR-117. Every card is rendered on device, and every one of them is the
+    /// panel's own palette rather than the page's.
+    ///
+    /// That is a change, and it is the same decision as the panel. The screen
+    /// and the export are meant to be the same picture, so when the picture
+    /// stopped following the system appearance the cards had to stop too, or
+    /// a reader in light mode would share a cream card of a wax screen. It
+    /// also means the thing people post is the app's own field with the
+    /// candle in it, which is what the icon is.
+    ///
+    /// The whole day first, then one card per fact, in the order the facts
+    /// sit on the screen. Anything this person does not have, no year and so
+    /// no song, is simply not a card.
     private var shareChoices: [ShareCardChoice] {
         let date = profile.birthday.date
-        let palette = palette
+        let palette = stagePalette
         var choices: [ShareCardChoice] = []
 
         // The whole day card is meant to be the screen they just saw, so it
@@ -636,8 +867,9 @@ struct MyDayView: View {
                           footnote: date.displayName(), palette: palette)
             })
         }
-        if let year = profile.birthday.year,
-           let lead = WorldThen.lines(month: date.month, day: date.day, year: year, limit: 1).first {
+        // The line the reader chose to have standing in the panel, not
+        // whichever one the table ranked first.
+        if let lead = leadLine {
             choices.append(WorldThenSection.shareChoice(for: lead, palette: palette))
         }
         // The sign and the animal, which are the two the screen still shows.

@@ -85,3 +85,24 @@ extension View {
             .background(palette.type.opacity(0.06), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
+
+extension StagePalette {
+    /// The panel the Mine tab stands on, and the ground of every card it
+    /// exports.
+    ///
+    /// It is the same in light and dark, which is the point rather than an
+    /// oversight. The candle works on the app icon and on the share card and
+    /// fails on the Mine screen, and the difference between those places is
+    /// that the first two are a bounded warm field with the candle as the
+    /// subject and the third was an unbounded cream page. This is that field.
+    ///
+    /// It also gives the flame something to light. Cream is already close to
+    /// white, so a glow laid on it has nowhere to go and reads as a stain,
+    /// which is what the pink bloom behind the flame looked like in light
+    /// mode. Wax is dark enough for warm light to fall across, so the glow is
+    /// ember here rather than accent: candlelight rather than a pink smudge.
+    ///
+    /// Only the page around the panel follows the system appearance. Inside
+    /// it there is one set of colours to keep right instead of two.
+    static let wax = StagePalette(ground: Theme.wax, type: Theme.cream, glow: Theme.ember)
+}
