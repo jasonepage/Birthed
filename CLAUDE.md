@@ -347,6 +347,46 @@ as a shelf, not a plan.
   either. A header that contradicts the page is invisible from the file on
   disk, which is why the test reads the header rather than the page.
 
+### How Birthed measures, decided September 6, 2026
+
+- **There is no analytics kit in this app and there is not going to be one.**
+  The live privacy page says Birthed contains no advertising and no third party
+  code that reports on you, on a page that opens by saying it was written from
+  what the app does rather than from a template. Dropping in PostHog or
+  anything like it would make that false on the day it ships. The handoff note
+  planned exactly that and also said the privacy promises must not be quietly
+  softened, and nobody had put those two sentences next to each other. If a
+  future session reaches for an analytics service, this is the entry that says
+  no.
+- **The four numbers ride on the profile row the app already writes.** One
+  request, no event stream, no device identifier beyond the random account
+  token already in the keychain, no session, no screen names, no timestamps.
+  `Tally` in the data layer holds the two that must survive a launch and says
+  at length what is deliberately not counted.
+- **The first of the four was already free.** `birth_year` is on `profiles`, so
+  how many people entered a year is a count of rows where it is not null. It
+  needed no code and no column.
+- **A count is not a list.** `people_added_count` is the length of the People
+  list and carries no name, date or note, so the promise that the list stays on
+  the phone survives it whole. That is the line this design walks and it is
+  worth checking any future number against it.
+- **Deliveries are counted from the schedule, not from Notification Centre.**
+  Asking iOS what is sitting in Notification Centre undercounts every time
+  somebody swipes their notifications away, and the people most likely to do
+  that are the people most likely to have acted on one.
+- **Messages sent undercounts on purpose and the number must be read knowing
+  it.** Only the iOS Messages composer reports back, so a share sheet send and
+  a friend texted from their own thread are both invisible. Messages sent for
+  every reminder delivered is a floor, not a rate. A low floor is a reason to
+  measure better before it is a reason to conclude nothing happened.
+- **The privacy page is edited in the same commit as the code, never after.**
+  That is the whole discipline here, and it is why the "What Birthed never
+  does" bullet now says what is true rather than what used to be.
+- **What this cannot do.** Current totals are not events. No funnel, no cohort,
+  no retention curve, and no question that nobody thought to ask in advance.
+  That is the trade, it is the right one for four numbers, and wanting more
+  later is a decision to reopen with the privacy page open beside it.
+
 ### What a public figure is for, decided September 6, 2026
 
 - **Somebody you follow gets no notification of any kind.** A notification is a

@@ -138,10 +138,16 @@ final class NotificationService {
         guard isEnabled, permission == .granted else {
             centre.removeAllPendingNotificationRequests()
             pendingCount = 0
+            // With an empty plan, so reminders that had already fired are
+            // counted and reminders that will now never fire are dropped.
+            Tally.noteScheduled([])
             return
         }
 
         let plan = planner.plan(for: birthday, people: reachable(people), from: now)
+        // One of the four numbers. Counted from the schedule rather than from
+        // Notification Centre, for the reason written over `noteScheduled`.
+        Tally.noteScheduled(plan, now: now)
         // uniquingKeysWith rather than uniqueKeysWithValues, which traps on a
         // duplicate identifier. Nothing should produce two people with the
         // same one, and a crash is not the right way to find out.

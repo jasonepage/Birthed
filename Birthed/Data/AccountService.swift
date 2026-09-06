@@ -148,7 +148,7 @@ final class AccountService {
     /// Mirrors the local profile onto the server. Failure is not an error the
     /// user needs to see: the local copy is what the interface reads.
     @discardableResult
-    func pushProfile(_ profile: Profile) async -> Bool {
+    func pushProfile(_ profile: Profile, counts: ProfileCounts? = nil) async -> Bool {
         guard case let .signedIn(userID) = state, let token = await freshAccessToken() else { return false }
 
         var body: [String: Any] = [
@@ -163,6 +163,18 @@ final class AccountService {
         }
         if let region = profile.regionCode?.trimmingCharacters(in: .whitespaces), !region.isEmpty {
             body["region_code"] = region
+        }
+        // The four numbers, on the row that was already being written, in the
+        // same request. Optional so that a push which does not have them, such
+        // as the one at the end of onboarding before there is anything to
+        // count, leaves the stored values alone rather than resetting them to
+        // zero. See `Tally` for what is counted and, more importantly, for
+        // what is not.
+        if let counts {
+            body["people_added_count"] = counts.peopleAdded
+            body["notification_permission_granted"] = counts.notificationPermissionGranted
+            body["reminders_delivered_count"] = counts.remindersDelivered
+            body["messages_sent_count"] = counts.messagesSent
         }
 
         var components = URLComponents(

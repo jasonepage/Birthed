@@ -204,6 +204,14 @@ struct SettingsView: View {
                 Text("Finish onboarding first.")
                     .foregroundStyle(.secondary)
             }
+            // Rehearsing does not count as a delivery, because the rehearsal
+            // builds its own request and never enters the schedule the count
+            // is swept from. Actually sending a test message does count, which
+            // is what this is for.
+            Button("Reset the four numbers", role: .destructive) {
+                Tally.reset()
+                rehearsal = "Reminders delivered and messages sent are back to zero on this phone. The next foreground sends the zeros."
+            }
         } header: {
             Text("Rehearse a reminder")
         } footer: {

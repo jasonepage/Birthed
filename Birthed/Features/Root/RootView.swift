@@ -150,6 +150,7 @@ struct RootView: View {
                 await account.pushProfile(profile)
             }
             await refreshReminders()
+            await pushCounts()
             await collectArrivals()
             // A tap that started the app cold can land before this view was
             // watching for changes, so whatever is waiting is acted on here.
@@ -169,6 +170,9 @@ struct RootView: View {
                 // cheaper than watching for a time zone change and cannot
                 // miss one.
                 await refreshReminders()
+                // After the rebuild, never before it: rebuilding the schedule
+                // is what notices that a reminder's moment has passed.
+                await pushCounts()
                 // The whole of the delivery mechanism. No push, no background
                 // fetch, nothing running while the app is closed: a birthday
                 // is at worst a year away, so the next time somebody opens
@@ -248,6 +252,23 @@ struct RootView: View {
         case .personSoon:
             tab = .people
         }
+    }
+
+    /// The four numbers from `docs/first-five-minutes.md`, sent on the profile
+    /// row the app already writes.
+    ///
+    /// Always after `refreshReminders`, because rebuilding the schedule is
+    /// what notices a reminder's moment has passed, and a push before it would
+    /// report yesterday's total.
+    ///
+    /// There is no analytics kit here and there is not going to be one. `Tally`
+    /// says what is counted and, at more length, what is deliberately not.
+    private func pushCounts() async {
+        guard let profile = profileStore.profile else { return }
+        await account.pushProfile(profile, counts: ProfileCounts.current(
+            peopleAdded: peopleStore.people.count,
+            permissionGranted: notifications.permission == .granted
+        ))
     }
 
     private func refreshReminders() async {

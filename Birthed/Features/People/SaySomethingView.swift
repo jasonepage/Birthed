@@ -204,9 +204,15 @@ private struct MessagesComposer: UIViewControllerRepresentable {
             _ controller: MFMessageComposeViewController,
             didFinishWith result: MessageComposeResult
         ) {
-            // Sent or cancelled, the composer is done either way. Whether the
-            // text went is between the user and Messages, and Birthed does not
-            // record it.
+            // Sent or cancelled, the composer is done either way.
+            //
+            // A count of the sent ones is recorded and the message is not.
+            // This is the only place in the app that can know, and messages
+            // sent for every reminder delivered is the one ratio that says
+            // whether this product works. No recipient, no words, no time, no
+            // person leaves the phone: a number does. `Tally` has the whole of
+            // what is counted and the privacy page lists it.
+            if result == .sent { Tally.noteMessageSent() }
             onFinish()
         }
     }

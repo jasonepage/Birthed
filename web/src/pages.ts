@@ -606,7 +606,15 @@ export function renderPrivacy(): string {
 <p>Birthed never asks for your name, email address, phone number, or a password. There is no sign up.</p>
 
 <h3>Where it goes</h3>
-<p>When you first open Birthed it silently creates an anonymous account with our account service, so that your profile can be counted and restored. The birthday, the birth year, the region and the February 29 preference are sent to that account. Nothing else is. The account is identified by a random token stored in your phone's keychain, not by anything about you.</p>
+<p>When you first open Birthed it silently creates an anonymous account with our account service, so that your profile can be counted and restored. The birthday, the birth year, the region and the February 29 preference are sent to that account. The account is identified by a random token stored in your phone's keychain, not by anything about you.</p>
+<p>Four numbers about your own use of the app go to that same account, so that we can tell whether Birthed actually works for people:</p>
+<ul>
+  <li><strong>How many people are on your list.</strong> The number only. It carries no name, no date and no note, so your people list stays on your phone exactly as described below.</li>
+  <li><strong>Whether you have given permission for reminders.</strong> True or false.</li>
+  <li><strong>How many reminders have reached their moment</strong> on your phone.</li>
+  <li><strong>How many messages you have sent</strong> after one, counted at the moment the iOS Messages composer reports that a message went. What was in it, and who it went to, are never known to Birthed.</li>
+</ul>
+<p>That is the whole list, and each one is a single current number rather than a history. There is no record of when you opened the app, what you looked at, or what you tapped, and nothing is timestamped. Deleting the app resets all four.</p>
 <p>The account service is <a href="https://supabase.com">Supabase</a>, which hosts the database on servers in the United States. The website you are reading is served by <a href="https://render.com">Render</a>.</p>
 
 <h3>Finding things about your day</h3>
@@ -624,7 +632,7 @@ export function renderPrivacy(): string {
 <ul>
   <li>It never reads your device's location. The region field is the only location it has, and it is optional.</li>
   <li>It never reads your contacts, photos, calendar, or anything else on the phone.</li>
-  <li>It contains no advertising, no analytics, and no tracking of any kind. There is no third party code in the app that reports on you.</li>
+  <li>It contains no advertising and no third party code of any kind. There is no analytics service, no tracking service and no advertising network behind it, nothing in it follows you between apps or across the web, and no company other than the ones named on this page receives anything at all. The four numbers described above are the whole of what Birthed counts, and Birthed counts them itself.</li>
   <li>It never sells or shares your information with anyone, for any reason.</li>
 </ul>
 
