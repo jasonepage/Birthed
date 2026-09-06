@@ -11,11 +11,20 @@ import SwiftUI
 /// system's location prompt is nowhere near here.
 ///
 /// The screens are not forms. The day wheel answers with how far away the day
-/// is and who shares it. The year wheel answers, as it turns, with the day of
+/// is and with one true thing that happened on it. The year wheel answers, as
+/// it turns, with the day of
 /// the week and how many days that has been, and once it settles, with the
 /// number one song that week. That is the best fact in the product, it needs
 /// the year, and the year is the field people skip. So it is paid for on the
 /// spot.
+///
+/// The day screen used to answer with who shares the date, and it must not.
+/// That list is `notable_people` ordered by `notability_score`, which is the
+/// same table, column and order the website's share card used before it was
+/// fixed, and it led with Ted Bundy on November 24, Charles Manson on
+/// November 12 and Bashar al-Assad on September 11. See `DayLine` for why the
+/// names were cut rather than filtered. Nothing on this screen reads a name
+/// now, and nothing here may ever fall back to one.
 ///
 /// The lookups use only the anonymous key, the same as every other read in
 /// the app, and the profile is not saved until the last button. Offline, the
@@ -53,11 +62,15 @@ struct OnboardingView: View {
     /// for it and finishing must not erase what Settings holds.
     @State private var region: String?
 
-    @State private var twins: [NotablePerson] = []
+    /// The one thing that happened on the chosen date, or nothing. Nothing is
+    /// an ordinary answer here: offline it is what every date gives back, and
+    /// the section is simply absent, exactly as the names were when they
+    /// failed to load.
+    @State private var happened: DayLine?
     @State private var song: ChartWeek?
     @State private var album: ChartWeek?
     @State private var film: ChartWeek?
-    @State private var twinsTask: Task<Void, Never>?
+    @State private var lineTask: Task<Void, Never>?
     @State private var songTask: Task<Void, Never>?
 
     private let calendar = BirthdayCalendar()
@@ -97,9 +110,9 @@ struct OnboardingView: View {
         .sensoryFeedback(.selection, trigger: chosenDate)
         .sensoryFeedback(.selection, trigger: year)
         .sensoryFeedback(.success, trigger: song) { _, found in found != nil }
-        .task { lookUpTwins() }
+        .task { lookUpDayLine() }
         .onChange(of: chosenDate) { _, _ in
-            lookUpTwins()
+            lookUpDayLine()
             if step == .year { lookUpSong() }
         }
         .onChange(of: year) { _, _ in lookUpSong() }
@@ -185,8 +198,8 @@ struct OnboardingView: View {
     }
 
     /// What the day wheel gives back: the countdown, which is offline and
-    /// instant, and the three people the date is best known for, which
-    /// arrives a beat after the wheel settles.
+    /// instant, and one thing that happened on the date, which arrives a beat
+    /// after the wheel settles.
     private var dayReveal: some View {
         let until = calendar.daysUntil(birthday(withYear: false), from: Date())
 
@@ -216,14 +229,15 @@ struct OnboardingView: View {
             .contentTransition(.opacity)
             .animation(.snappy, value: chosenDate)
 
-            if !twins.isEmpty {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("You share it with")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    Text(twins.map(\.name).joined(separator: ", "))
+            if let happened {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Text(String(happened.year))
+                        .font(.subheadline.weight(.bold))
+                        .monospacedDigit()
+                        .foregroundStyle(Theme.accentDeep)
+                    Text(happened.text)
                         .font(.subheadline.weight(.semibold))
-                        .lineLimit(2)
+                        .lineLimit(3)
                         .minimumScaleFactor(0.85)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -231,7 +245,7 @@ struct OnboardingView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .animation(.spring(duration: 0.45), value: twins)
+        .animation(.spring(duration: 0.45), value: happened)
     }
 
     /// What the year wheel gives back. The weekday and the day count follow
@@ -383,22 +397,50 @@ struct OnboardingView: View {
     }
 
     private func finish(with birthday: CalendarBirthday) {
-        twinsTask?.cancel()
+        lineTask?.cancel()
         songTask?.cancel()
         onFinish(Profile(birthday: birthday, regionCode: region))
     }
 
     /// Waits for the wheel to stop before asking, so a flick through six
     /// months is one request rather than six.
-    private func lookUpTwins() {
-        twinsTask?.cancel()
+    ///
+    /// The two reads are sequential rather than at the same time, and on
+    /// purpose. The researched facts win whenever there are any, and there are
+    /// any on most dates, so asking for the events first would be fetching a
+    /// hundred and fifty rows that get thrown away on most flicks of the
+    /// wheel. The dates with no researched fact pay one extra round trip for
+    /// that, which nobody can feel behind a wheel that already waits.
+    ///
+    /// Both reads are reads. Neither may ever start a search, because a search
+    /// costs money per date and this wheel walks across dates as fast as a
+    /// thumb can flick.
+    private func lookUpDayLine() {
+        lineTask?.cancel()
+        // Copied out before the task is made, because a child task may only
+        // carry what is Sendable and a view is not.
         let date = chosenDate
-        twinsTask = Task {
+        let repository = self.repository
+        // Cleared at once, the same as the song is, because a line about
+        // September 4 sitting under a countdown to September 12 is wrong
+        // rather than merely late.
+        happened = nil
+        lineTask = Task {
             try? await Task.sleep(for: .milliseconds(350))
             guard !Task.isCancelled else { return }
-            let people = (try? await repository.notablePeople(bornOn: date, limit: 3)) ?? []
+
+            let facts = (try? await repository.birthFacts(on: date, limit: 30)) ?? []
             guard !Task.isCancelled else { return }
-            twins = people
+            if let line = DayLine.choose(facts: facts, events: [], on: date) {
+                happened = line
+                return
+            }
+
+            let events = (try? await repository.events(on: date, limit: 150)) ?? []
+            guard !Task.isCancelled else { return }
+            // Nil when the date has nothing that passes, and nil is shown as
+            // nothing. It is never shown as a name.
+            happened = DayLine.choose(facts: [], events: events, on: date)
         }
     }
 

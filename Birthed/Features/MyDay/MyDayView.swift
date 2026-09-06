@@ -21,7 +21,13 @@ struct MyDayView: View {
     /// on this screen is already the arithmetic one.
     @Environment(FactsService.self) private var factsService
 
-    @State private var twins: [NotablePerson] = []
+    /// One thing that happened on this date, or nothing.
+    ///
+    /// This used to be the three people the date is best known for, and it had
+    /// the same hole the website's share card had: that list is ordered by how
+    /// much attention somebody gets, infamy is attention, and this is the
+    /// screen people screenshot. See `DayLine`.
+    @State private var happened: DayLine?
     @State private var song: ChartWeek?
     /// The other number ones that week, by chart. Loaded alongside the song
     /// and shown under it; each is absent rather than guessed when no chart
@@ -74,7 +80,7 @@ struct MyDayView: View {
                     // facts on this screen that are about this person's day
                     // rather than about every day.
                     foundFacts
-                    if !twins.isEmpty { twinsCard }
+                    if happened != nil { happenedCard }
                     leapNote
                     sources
                 }
@@ -104,7 +110,7 @@ struct MyDayView: View {
                 }
             }
             // Separate tasks, so no request waits on another.
-            .task { await loadTwins() }
+            .task { await loadDayLine() }
             .task { await loadSong() }
             .task { await loadOthers() }
             .task { await factsService.load(for: profile) }
@@ -425,39 +431,36 @@ struct MyDayView: View {
         .onDisappear { Task { await factsService.flushSeen() } }
     }
 
-    private var twinsCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("You share \(profile.birthday.date.displayName()) with")
-                .font(.headline)
-                .foregroundStyle(palette.type)
+    /// What happened on this date, set the way the day pages set it: the year
+    /// in the accent colour, then the sentence. No names, on a screen that
+    /// exists to be screenshotted.
+    @ViewBuilder
+    private var happenedCard: some View {
+        if let happened {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("On \(profile.birthday.date.displayName())")
+                    .font(.headline)
+                    .foregroundStyle(palette.type)
 
-            ForEach(twins) { person in
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text(person.birthYear.map { String($0) } ?? "")
+                    Text(String(happened.year))
                         .font(.footnote.weight(.bold).monospacedDigit())
                         .foregroundStyle(Theme.accent)
                         .frame(width: 46, alignment: .leading)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(person.name)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(palette.type)
-                        if let description = person.shortDescription, !description.isEmpty {
-                            Text(description)
-                                .font(.caption)
-                                .foregroundStyle(palette.type.opacity(0.55))
-                                .lineLimit(1)
-                        }
-                    }
+                    Text(happened.text)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(palette.type)
+                        .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
                 }
-            }
 
-            Text("The full list is on the Today tab, at your date.")
-                .font(.caption)
-                .foregroundStyle(palette.type.opacity(0.45))
+                Text("Everything else about this date is on the Today tab.")
+                    .font(.caption)
+                    .foregroundStyle(palette.type.opacity(0.45))
+            }
+            .stageCard(palette)
+            .padding(.horizontal, 20)
         }
-        .stageCard(palette)
-        .padding(.horizontal, 20)
     }
 
     @ViewBuilder
@@ -501,8 +504,19 @@ struct MyDayView: View {
         }
     }
 
-    private func loadTwins() async {
-        twins = (try? await repository.notablePeople(bornOn: profile.birthday.date, limit: 3)) ?? []
+    /// The researched facts first, the screened Wikipedia events only if there
+    /// are none. The same order and the same reason as onboarding, written out
+    /// in `lookUpDayLine` there: on most dates the second read never happens.
+    private func loadDayLine() async {
+        let date = profile.birthday.date
+        let facts = (try? await repository.birthFacts(on: date, limit: 30)) ?? []
+        if let line = DayLine.choose(facts: facts, events: [], on: date) {
+            happened = line
+            return
+        }
+        let events = (try? await repository.events(on: date, limit: 150)) ?? []
+        // Nothing is shown as nothing. It is never shown as a name.
+        happened = DayLine.choose(facts: [], events: events, on: date)
     }
 
     private func loadSong() async {
