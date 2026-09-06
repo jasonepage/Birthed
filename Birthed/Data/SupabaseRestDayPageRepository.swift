@@ -118,6 +118,59 @@ struct SupabaseRestDayPageRepository: DayPageRepository {
         }
     }
 
+    // MARK: What happened
+
+    private struct EventRow: Decodable {
+        let event_year: Int?
+        let description: String
+        let source_url: String
+    }
+
+    func events(on date: CalendarDate, limit: Int) async throws -> [DayFeed.Event] {
+        let rows: [EventRow] = try await fetch(
+            from: "historical_events",
+            query: [
+                URLQueryItem(name: "select", value: "event_year,description,source_url"),
+                URLQueryItem(name: "event_month", value: "eq.\(date.month)"),
+                URLQueryItem(name: "event_day", value: "eq.\(date.day)"),
+                URLQueryItem(name: "order", value: "event_year.desc.nullslast"),
+                URLQueryItem(name: "limit", value: String(limit)),
+            ]
+        )
+        return rows.map { row in
+            DayFeed.Event(year: row.event_year, description: row.description, sourceURL: URL(string: row.source_url))
+        }
+    }
+
+    // MARK: Number ones by year
+
+    private struct ChartYearRow: Decodable {
+        let year: Int
+        let chart_date: String
+        let song: String
+        let artist: String
+    }
+
+    /// One call to the `chart_on_date` function rather than one request per
+    /// year. The function is `stable`, so PostgREST accepts it as a GET, and
+    /// it applies the six day rule itself.
+    func numberOnes(on chart: ChartWeek.Chart, weekOf date: CalendarDate, fromYear: Int, toYear: Int) async throws -> [ChartWeek] {
+        guard fromYear <= toYear else { return [] }
+        let rows: [ChartYearRow] = try await fetch(
+            from: "rpc/chart_on_date",
+            query: [
+                URLQueryItem(name: "p_chart", value: chart.rawValue),
+                URLQueryItem(name: "p_month", value: String(date.month)),
+                URLQueryItem(name: "p_day", value: String(date.day)),
+                URLQueryItem(name: "p_from_year", value: String(fromYear)),
+                URLQueryItem(name: "p_to_year", value: String(toYear)),
+            ]
+        )
+        return rows.compactMap { row in
+            ChartWeek(isoDate: row.chart_date, song: row.song, artist: row.artist, chart: chart.rawValue)
+        }
+    }
+
     // MARK: Finding somebody
 
     private static let matchColumns =

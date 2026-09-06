@@ -5,7 +5,9 @@ import Foundation
 /// This is a protocol rather than a concrete type so that the network client
 /// underneath can change without anything above it moving. `SDS.md` section 3
 /// puts the data layer at the swap point on purpose.
-protocol DayPageRepository {
+/// `Sendable`, because the day page reads four things at once with `async let`
+/// and a child task may only capture what it is allowed to carry.
+protocol DayPageRepository: Sendable {
     func notablePeople(bornOn date: CalendarDate, limit: Int) async throws -> [NotablePerson]
 
     /// The number one on a chart the week somebody was born, or nil when
@@ -32,6 +34,15 @@ protocol DayPageRepository {
     /// A nil year means no year was given, and the answer falls back to the
     /// most looked up people who are on the internet at all.
     func recommended(bornNear year: Int?, limit: Int) async throws -> [NotableMatch]
+
+    /// What happened on a calendar date, from Wikipedia's date article, every
+    /// year it lists. Empty until the events import has run for that date.
+    func events(on date: CalendarDate, limit: Int) async throws -> [DayFeed.Event]
+
+    /// The number one on a chart in the week of this date, for every year in
+    /// the range, in one request. Years before the chart began, and years
+    /// where no issue falls within six days, are simply missing.
+    func numberOnes(on chart: ChartWeek.Chart, weekOf date: CalendarDate, fromYear: Int, toYear: Int) async throws -> [ChartWeek]
 }
 
 extension DayPageRepository {

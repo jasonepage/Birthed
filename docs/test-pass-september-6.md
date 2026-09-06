@@ -266,6 +266,43 @@ merely warns that the attribute has no effect, ignore it.
 31. **Long press still edits.** On the pink card, long press. Edit and Remove
     should be there. Edit should open the editor as before.
 
+## Added later still on September 6: the Today feed
+
+Unbuilt. `Birthed/Domain/DayFeed.swift` and its tests are new; `DayPageView`
+and `DayPageViewModel` are rewritten; `DayPageRepository` gained two reads and
+is now `Sendable`. Two migrations are already applied to the live database
+and checked in. The events import is written and has not been run against
+Wikipedia, because neither machine this was written from can reach it.
+
+32. **`swift test`.** `DayFeedTests` should pass, eleven of them.
+
+33. **`cd worker && npm test`**, then
+    `node dist/src/import-events.js --dry --print --month 9 --day 5`.
+    Send the output. It should be forty to a hundred lines, each a year and a
+    sentence, no `[12]` markers, no wiki markup, nothing from Births. If it
+    reads zero, send the notes the script prints under the count.
+
+34. **Then the lot:** `node dist/src/import-events.js`. About 366 requests and
+    a few minutes. Send the report at the end, especially the "things to look
+    at" list. Rerunning is safe.
+
+35. **Build, Today tab, September 4, 2002 profile.** The screen should be one
+    feed: a large first row, then rows taking turns between ON THIS DAY, BORN
+    TODAY, NUMBER ONE SONG and NUMBER ONE FILM, with the found facts mixed in
+    carrying their like and share. Each row has a pink kicker and a grey pill
+    reading YOU WERE 7 and so on. Scroll to the bottom: rows should read N
+    YEARS BEFORE YOU. Screenshot the top and the bottom.
+
+36. **Arrows.** Step to September 5 and back. Nothing should flash the wrong
+    date's rows under the new heading. Step to a date with no facts: the feed
+    should still be there from songs, films and people.
+
+37. **Settings, set the year to "Rather not say", back to Today.** No pills,
+    the line under the date says to add the year, songs run from 1959.
+
+38. **February 29 profile.** Today tab loads and songs appear. (The chart
+    function used to fall over on this and was fixed before you saw it.)
+
 ## What I need back
 
 The screenshots, in order, and any error text verbatim. For anything that

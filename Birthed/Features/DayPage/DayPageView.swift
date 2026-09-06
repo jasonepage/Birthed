@@ -1,13 +1,18 @@
 import SwiftUI
 
-/// The day page. The core object of the product, rendered.
+/// The Today tab: everything about a date, in one feed, with the reader's age
+/// on each item.
 ///
-/// `FR-020` through `FR-027` and `FR-030`. Names, years, descriptions,
-/// attribution that is visible on the page rather than buried, and the ability
-/// to walk to another date.
+/// `FR-020` through `FR-027` and `FR-030` still hold: names and years,
+/// attribution on the page, and two arrows to walk to another date. What
+/// changed is that the names are one kind of row among five. The order and
+/// the age labels come from `DayFeed` in the domain, where they are tested;
+/// this file only draws rows.
 struct DayPageView: View {
     @Environment(FactsService.self) private var factsService
+    @Environment(ProfileStore.self) private var profileStore
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.openURL) private var openURL
 
     @State private var model: DayPageViewModel
     @State private var showingAttributions = false
@@ -21,16 +26,18 @@ struct DayPageView: View {
         _model = State(initialValue: DayPageViewModel(date: date, repository: repository))
     }
 
+    private var readerBirthYear: Int? { profileStore.profile?.birthday.year }
+    private var palette: StagePalette { .forScheme(colorScheme) }
+
+    private var feed: [DayFeed.Item] {
+        model.feed(facts: factsService.dayFacts, readerBirthYear: readerBirthYear)
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 0) {
+                LazyVStack(alignment: .leading, spacing: 0) {
                     header
-                    // Above the names on purpose. Ten names is the part of
-                    // this screen that every competitor already has, and a
-                    // reader who has to scroll past them to reach the only
-                    // unusual thing on the page mostly does not scroll.
-                    found
                     content
                     attribution
                 }
@@ -63,16 +70,15 @@ struct DayPageView: View {
                 AttributionsView()
             }
             .sheet(item: $sharingFact) { fact in
-                // No date above the fact: a calendar date fact already names
-                // the date in its own sentence.
                 ShareCardPicker(
                     choices: [FoundFactsSection.shareChoice(
-                        for: fact, dateName: nil, palette: .forScheme(colorScheme)
+                        for: fact, dateName: nil, palette: palette
                     )],
                     subject: model.date.displayName()
                 )
             }
             .task { await reload() }
+            .onDisappear { Task { await factsService.flushSeen() } }
         }
         .tint(Theme.accent)
     }
@@ -133,94 +139,76 @@ struct DayPageView: View {
         .foregroundStyle(.secondary)
     }
 
+    /// The one line under the date. With a birth year it says what the feed
+    /// is: this date, in the reader's years. Without one it is the one place
+    /// in the app after onboarding that makes the case for adding it.
     private var subtitle: String {
         switch model.state {
         case .loading:
-            return "Looking up who shares it."
-        case .loaded:
-            return factsService.dayFacts.isEmpty
-                ? "The people most looked up on this day."
-                : "What happened on it, and who shares it."
-        case .empty:
-            return factsService.dayFacts.isEmpty
-                ? "Nobody imported yet."
-                : "What happened on it."
+            return "Looking up this day."
         case .failed:
             return "This day did not load."
+        case .empty, .loaded:
+            if readerBirthYear != nil {
+                return "What happened on this day, and how old you were."
+            }
+            return "What happened on this day. Add your birth year in Settings to see how old you were."
         }
     }
 
-    // MARK: What happened
-
-    /// The same section the Mine tab uses, reading the same rows, for a date
-    /// the reader is only visiting rather than one that is theirs.
-    ///
-    /// This reads and never asks. A search costs money for each date it has
-    /// never seen, and this screen walks from date to date, so a reader
-    /// flicking through a month must not be able to spend a month of them. A
-    /// date nobody has searched has no section here and nothing says so,
-    /// because a heading over an empty space reads as a broken screen.
-    private var found: some View {
-        FoundFactsSection(
-            facts: factsService.dayFacts,
-            status: .done,
-            dateName: model.date.displayName(),
-            palette: .forScheme(colorScheme),
-            onLike: { fact in Task { await factsService.toggleLike(fact) } },
-            title: "WHAT HAPPENED ON THIS DAY",
-            onSeen: { factsService.noteSeen($0.id) },
-            onShare: { fact in
-                sharingFact = fact
-                Task { await factsService.recordShareOpen(fact.id) }
-            }
-        )
-        .padding(.bottom, factsService.dayFacts.isEmpty ? 0 : 30)
-        .onDisappear { Task { await factsService.flushSeen() } }
-    }
-
-    // MARK: Content
+    // MARK: The feed
 
     @ViewBuilder
     private var content: some View {
+        let items = feed
         switch model.state {
-        case .loading:
+        case .loading where items.isEmpty:
             ProgressView()
                 .controlSize(.large)
                 .frame(maxWidth: .infinity, minHeight: 220)
 
-        case let .failed(message):
+        case let .failed(message) where items.isEmpty:
             // NFR-021: a failed request explains itself and offers a retry.
-            messageCard(
-                symbol: "wifi.exclamationmark",
-                title: "This day did not load",
-                body: message
-            ) {
-                Button("Try again") {
-                    Task { await reload() }
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(Theme.accent)
+            messageCard(symbol: "wifi.exclamationmark", title: "This day did not load", body: message) {
+                Button("Try again") { Task { await reload() } }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Theme.accent)
             }
 
-        case .empty:
-            // NFR-021: an empty list names the reason rather than showing
-            // nothing at all.
+        case .empty where items.isEmpty:
             messageCard(
                 symbol: "calendar",
-                title: "Nobody here yet",
-                body: "Birthed has not imported anyone born on \(model.date.displayName()) yet."
+                title: "Nothing here yet",
+                body: "Birthed has not imported anything for \(model.date.displayName()) yet."
             ) {
                 EmptyView()
             }
 
-        case let .loaded(people):
-            LazyVStack(spacing: 8) {
-                ForEach(people) { person in
-                    PersonCard(person: person)
+        default:
+            // Straight into the lazy stack, so a feed of a hundred and fifty
+            // rows builds the ones on screen and not the ones below it.
+            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                VStack(alignment: .leading, spacing: 0) {
+                    if index > 0 { hairline }
+                    FeedRow(item: item, palette: palette, isLead: index == 0,
+                            onLike: { fact in Task { await factsService.toggleLike(fact) } },
+                            onShare: { fact in
+                                sharingFact = fact
+                                Task { await factsService.recordShareOpen(fact.id) }
+                            },
+                            onOpen: { url in openURL(url) })
                 }
+                .padding(.horizontal, 22)
+                .onAppear { if let fact = item.fact { factsService.noteSeen(fact.id) } }
             }
-            .padding(.horizontal, 20)
         }
+    }
+
+    private var hairline: some View {
+        Rectangle()
+            .fill(palette.type.opacity(0.09))
+            .frame(height: 1)
+            .padding(.vertical, 16)
     }
 
     private func messageCard<Action: View>(
@@ -252,9 +240,9 @@ struct DayPageView: View {
     /// FR-027. Attribution is on the page, and the full text is one tap away.
     private var attribution: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Names, years and descriptions come from Wikidata.")
-            Text("What happened on this day was found by Google's Gemini searching the web, and each one carries the page it came from.")
-            Text("Credit to Wikipedia and Wikidata.")
+            Text("Names, years and descriptions come from Wikidata. What happened on this day and the chart weeks come from Wikipedia.")
+            Text("Facts marked with a source were found by Google's Gemini searching the web, and each carries the page it came from.")
+            Text("Credit to Wikipedia and Wikidata. Charts are Billboard's and the box office is as reported; Birthed is not affiliated with either.")
             Button("Read the full attribution") {
                 showingAttributions = true
             }
@@ -270,14 +258,17 @@ struct DayPageView: View {
     // MARK: Actions
 
     private func reload() async {
-        await model.load()
+        // Two awaits in a row rather than two child tasks. Both callees live
+        // on the main actor, so running them as children would carry nothing
+        // Sendable and buy no time.
+        await model.load(readerBirthYear: readerBirthYear)
         await factsService.readDay(month: model.date.month, day: model.date.day)
         shareImage = renderShareCard()
     }
 
     private func move(_ days: Int) async {
         shareImage = nil
-        await model.move(byDays: days)
+        await model.move(byDays: days, readerBirthYear: readerBirthYear)
         await factsService.readDay(month: model.date.month, day: model.date.day)
         shareImage = renderShareCard()
     }
@@ -295,58 +286,166 @@ struct DayPageView: View {
     }
 }
 
-// MARK: - Person card
+// MARK: - One row
 
-private struct PersonCard: View {
-    @Environment(\.openURL) private var openURL
-    let person: NotablePerson
+/// One item of the feed: the kind, the age, the thing, and where it came from.
+///
+/// The same shape as a found fact row on Mine, because the found facts are in
+/// this feed too and a reader should not be able to tell which rows a model
+/// found and which a table held. The age label is the one thing every row
+/// has that no other app's row does.
+private struct FeedRow: View {
+    let item: DayFeed.Item
+    let palette: StagePalette
+    var isLead: Bool = false
+    let onLike: (BirthFact) -> Void
+    let onShare: (BirthFact) -> Void
+    let onOpen: (URL) -> Void
 
     var body: some View {
-        // FR-024. Every entry links to the record it came from. Deliberately a
-        // plain button rather than a Link: a Link tints its whole label with
-        // the accent colour and centres wrapped text, which turned every name
-        // pink and every description into a greetings card.
-        Button {
-            openURL(person.sourceURL)
-        } label: {
-            HStack(alignment: .top, spacing: 12) {
-                yearBadge
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 8) {
+                Text(item.kicker)
+                    .font(.system(size: 10, weight: .heavy))
+                    .kerning(1.6)
+                    .foregroundStyle(Theme.accent)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(person.name)
-                        .font(.system(.headline, design: .default, weight: .semibold))
-                        .foregroundStyle(.primary)
-
-                    if let description = person.shortDescription, !description.isEmpty {
-                        Text(description)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                    }
-
-                    if let died = person.deathYear {
-                        Text("died \(String(died))")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    }
+                if let age = item.ageLabel {
+                    Text(age.uppercased())
+                        .font(.system(size: 9, weight: .heavy))
+                        .kerning(1.2)
+                        .foregroundStyle(palette.type.opacity(0.55))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(palette.type.opacity(0.09), in: Capsule())
+                } else if let year = item.year, item.kind != .song, item.kind != .film {
+                    Text(String(year))
+                        .font(.system(size: 9, weight: .heavy))
+                        .kerning(1.2)
+                        .foregroundStyle(palette.type.opacity(0.55))
                 }
-                .multilineTextAlignment(.leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
+
+                if let fact = item.fact, fact.isLocal {
+                    Text("NEAR YOU")
+                        .font(.system(size: 9, weight: .heavy))
+                        .kerning(1.2)
+                        .foregroundStyle(palette.type.opacity(0.55))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(palette.type.opacity(0.09), in: Capsule())
+                }
+
+                Spacer(minLength: 8)
+
+                if let fact = item.fact {
+                    shareButton(fact)
+                    likeButton(fact)
+                }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Theme.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+            Text(item.text)
+                .font(.system(size: isLead ? 27 : 19, weight: isLead ? .bold : .semibold, design: .serif))
+                .lineSpacing(isLead ? 2 : 0)
+                .foregroundStyle(palette.type)
+                .fixedSize(horizontal: false, vertical: true)
+                .multilineTextAlignment(.leading)
+
+            detailLine
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(person.name), \(person.lifespan). Opens the source record.")
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var yearBadge: some View {
-        Text(person.birthYear.map { String($0) } ?? "?")
-            .font(.caption.weight(.semibold).monospacedDigit())
-            .foregroundStyle(Theme.accent)
-            .frame(width: 42, alignment: .leading)
-            .padding(.top, 2)
+    /// The description under a name, the artist under a song, the host
+    /// under a sentence. One line, quiet, and a link when there is a page.
+    @ViewBuilder
+    private var detailLine: some View {
+        switch item.kind {
+        case .fact:
+            if let url = item.sourceURL, let host = FoundFactsSection.host(of: url) {
+                sourceLink(host, url)
+            }
+        case .event:
+            if let url = item.sourceURL {
+                sourceLink("en.wikipedia.org", url)
+            }
+        case .person:
+            HStack(spacing: 6) {
+                if let detail = item.detail, !detail.isEmpty {
+                    Text(detail)
+                        .lineLimit(2)
+                }
+                if let url = item.sourceURL {
+                    Button { onOpen(url) } label: {
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 9, weight: .bold))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Open the source record for \(item.text)")
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(palette.type.opacity(0.55))
+        case .song, .film:
+            if let detail = item.detail {
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(palette.type.opacity(0.55))
+            }
+        }
+    }
+
+    private func sourceLink(_ host: String, _ url: URL) -> some View {
+        Button { onOpen(url) } label: {
+            HStack(spacing: 4) {
+                Text(host)
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 9, weight: .bold))
+            }
+            .font(.caption)
+            .foregroundStyle(palette.type.opacity(0.42))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func shareButton(_ fact: BirthFact) -> some View {
+        Button {
+            onShare(fact)
+        } label: {
+            Image(systemName: "square.and.arrow.up")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(palette.type.opacity(0.45))
+                .padding(.horizontal, 9)
+                .padding(.vertical, 6)
+                .background(palette.type.opacity(0.07), in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Share this fact")
+    }
+
+    private func likeButton(_ fact: BirthFact) -> some View {
+        Button {
+            onLike(fact)
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: fact.likedByMe ? "hand.thumbsup.fill" : "hand.thumbsup")
+                    .font(.system(size: 12, weight: .semibold))
+                if fact.likes > 0 {
+                    Text(fact.likes.formatted())
+                        .font(.caption.weight(.bold).monospacedDigit())
+                        .contentTransition(.numericText())
+                }
+            }
+            .foregroundStyle(fact.likedByMe ? Theme.accent : palette.type.opacity(0.45))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                fact.likedByMe ? Theme.accent.opacity(0.15) : palette.type.opacity(0.07),
+                in: Capsule()
+            )
+        }
+        .buttonStyle(.plain)
+        .animation(.spring(duration: 0.3), value: fact.likes)
+        .sensoryFeedback(.impact(weight: .light), trigger: fact.likedByMe)
+        .accessibilityLabel(fact.likedByMe ? "Liked, tap to undo" : "Like this fact")
     }
 }

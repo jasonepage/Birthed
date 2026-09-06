@@ -20,37 +20,42 @@ to every day of the year instead of one.
 
 ## 2. What is on the screen
 
-The interface is the year wheel from onboarding, which is the gesture the app
-already owns. Today's date is fixed at the top. The wheel runs from the
-reader's birth year to this year. The screen answers as the wheel turns and
-settles when it stops.
+**Built September 6, 2026 as a feed, not a wheel.** The first draft of this
+section put the years on a wheel. Nathan's ask was a feed: events, people,
+songs, films, the found facts, everything about the day mixed together the way
+a timeline is, so that is what `DayPageView` is. The wheel idea survives as
+the ranking underneath it.
 
-For the year the wheel is on, top to bottom:
+Today's date at the top with the two arrows, then one list, with a hairline
+between rows and no cards. Every row has a small heading saying what kind of
+thing it is, and beside it the reader's age that year in a pill: YOU WERE 7,
+THE YEAR YOU WERE BORN, 4 YEARS BEFORE YOU. The first row is set large, the
+way the lead fact is on Mine.
 
-1. **The reader's age that year**, large, serif. "You were 7." For the birth
-   year, "The year you were born." For years before the reader was born (the
-   wheel can be spun past the start, dimmed), "4 years before you."
-2. **Number one song this week that year.** Title and artist, with the issue
-   date small beside it, the same presentation as Mine.
-3. **Number one film this week that year.** One line.
-4. **What happened today that year.** Up to three events from Wikipedia's date
-   page for this date, filtered to that year, each with its source host under
-   it. Set the way `FoundFactsSection` sets a fact: serif, hairline between.
-5. **Born today that year.** Anybody in `notable_people` with this date and
-   that birth year, up to three, most looked up first. This is where the ten
-   names went: a famous person is more interesting when the screen says they
-   were born the year you turned 3.
-6. **Found about this day.** The shared date facts from `birth_facts` that
-   carry this year, if any. They already have a year on most rows.
+Five kinds of row, from `DayFeed.Kind`:
 
-The wheel opens on the year that ranks highest by the rule in section 4, not
-on this year and not on the birth year.
+1. **Found facts.** The rows the fact finder already stores for the date, with
+   their category as the heading, the source host under, and the share and
+   like controls they have on Mine. Older-than leads the whole feed when one
+   exists.
+2. **On this day.** A sentence from Wikipedia's date article, verbatim, with
+   the year and a link to the article.
+3. **Born today.** A name and Wikidata's one line about them, with the year
+   they were born and the reader's age that year.
+4. **Number one song** in the week of this date in a given year, with the
+   artist.
+5. **Number one film** the same way.
 
-Below the wheel, one row: **Every year of your life**, which opens the song
-column card described in section 5.
+The order is `DayFeed.build`, in the domain and tested: rank by the score in
+section 4, then inside a rank the kinds take turns so no kind runs away with a
+stretch of the screen, then inside a kind the newest year first. For a
+September 4, 2002 reader that puts 2007 to 2017 at the top with a song, a
+film, an event and a person taking turns, and the Roman Empire at the bottom.
 
-Two arrows still move the date, as they do now. The date is rarely what
-people change; the year is.
+**No birth year.** The feed still builds. Nothing carries an age, the charts
+run from 1959, recent years rank first, and the line under the date says to
+add the year in Settings. It is the one screen after onboarding that makes
+the case for the year.
 
 ## 3. Where the material comes from, and what it costs
 
@@ -155,34 +160,28 @@ nameless like every card the app exports, both carrying the year but never
 the date of birth in a form that gives the day away beyond the date already
 on the card. The date is on the card; that is the point of the card.
 
-**Every year of your life.** Today's date at the top. Then a column: the year
+**Every year of your life** (not built yet). Today's date at the top. Then a column: the year
 down the left, the number one song and artist to its right, one row per year
 from birth to now. Twenty rows for a twenty year old, set small enough to
 fit, serif. Footer: "Number one on this day, every year I have been alive"
 and the Wikipedia and Billboard credit line. This card needs no new data and
 is the first thing to build.
 
-**Today, when I was 7.** The age large, one event sentence under it, the year
+**Today, when I was 7** (not built yet). The age large, one event sentence under it, the year
 and the date small, the source host smaller. Made from any event row by its
 own share control, the way facts already have one.
 
 ## 6. What this replaces and what it keeps
 
-- The list of ten names as the tab's body: **gone.** They are row 5 of the
-  wheel, at their birth year.
+- The list of ten names as the tab's body: **gone.** They are one kind of row
+  in the feed, thirty of them rather than six, each at its birth year.
 - `FoundFactsSection` on Today with the heading WHAT HAPPENED ON THIS DAY:
-  **folded into row 6**, shown by year.
+  **folded into the feed** as the fact rows, with their like and share.
 - The two date arrows: **kept.**
 - The anonymous `ShareCardView` for a date, six names: **kept** as the card
   for a date with no reader year, which is the case when the profile has no
   year.
 - `FactsService.readDay`, reads and never asks: **kept and relied on.**
-
-**No birth year.** The wheel is not shown. The tab is the date, the events
-by year without an age, the songs by year without an age, and one line at
-the top: "Add your birth year in Settings to see how old you were." It is
-still better than a list of names, and it is the one screen in the app that
-makes the case for the year after onboarding.
 
 ## 7. Acceptance
 
@@ -193,10 +192,11 @@ makes the case for the year after onboarding.
 - `chart_on_date('Billboard Hot 100', 9, 6, 2002, 2026)` returns 25 rows in
   one request, and the 2002 row matches what Mine shows for a September 6,
   2002 profile.
-- On a phone with a September 4, 2002 profile, the Today tab opens on a year
-  between 2007 and 2017, shows an age, a song, a film, up to three events with
-  sources, and anybody in `notable_people` born September 4 that year.
-- Spinning the wheel makes no network request that is not a read of a table.
+- On a phone with a September 4, 2002 profile, the top of the Today feed is
+  rows from 2007 to 2017 with YOU WERE pills, and the kinds take turns. Rows
+  from before 2002 read N YEARS BEFORE YOU and sit at the bottom.
+- Walking the date with the arrows makes no network request that is not a
+  read of a table or the `chart_on_date` function.
   `birth_fact_runs` does not gain a row from anything done on this tab.
 - Both cards render with the network off, given data already loaded.
 - No name, no day of birth beyond today's date, on either card.

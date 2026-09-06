@@ -243,12 +243,12 @@ as a shelf, not a plan.
 
 ### The Today tab, decided September 6, 2026
 
-- **Today is a time machine for today's date, indexed by the reader's age,
-  not a list of names.** The year wheel from onboarding, running over the
-  years of the reader's life; for each year the number one song and film
-  that week, the events on this date that year, and who was born. Every item
-  is measured against the reader: "You were 7." The specification is
-  `docs/today-in-your-years.md`.
+- **Today is a feed of everything about the date, ranked by the reader's
+  age, not a list of names.** Found facts, events from Wikipedia's date
+  article, people born, the number one song and film in every year, mixed so
+  the kinds take turns, each row carrying the reader's age that year: "You
+  were 7." `DayFeed` in the domain decides the order and is tested. The
+  specification is `docs/today-in-your-years.md`.
 - **No model runs for this tab.** Songs and films are `chart_weeks`, people
   are `notable_people`, and events are Wikipedia's own date articles, imported
   once by the worker into the `historical_events` table that was cut for

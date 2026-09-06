@@ -1,0 +1,251 @@
+import Foundation
+
+/// Everything the database knows about one calendar date, mixed into one
+/// order with the reader's age on each item.
+///
+/// This is the Today tab. Every "on this day" product answers what happened
+/// on September 6; Birthed knows the reader's birth year, so it answers what
+/// happened on September 6 while they were alive and how old they were. "You
+/// were 7. The Gotthard Road Tunnel opened today." The age is the mirror.
+///
+/// The order is arithmetic, not likes. The research in
+/// `docs/what-readers-respond-to.md` says nothing can be steered by likes
+/// below five thousand impressions, so this ranks by the reader's age at the
+/// time: the years somebody remembers first, the years before they were born
+/// last. Within a rank the kinds take turns, so the feed never becomes forty
+/// events followed by thirty names, which is the failure the old screen had.
+///
+/// Pure. It is handed the rows and hands back the order. Nothing in here
+/// fetches, and nothing in here may ever start a search: the tab walks from
+/// date to date and a search costs money per date.
+struct DayFeed {
+
+    enum Kind: String, Equatable, CaseIterable {
+        case fact, event, person, song, film
+    }
+
+    struct Item: Identifiable, Equatable {
+        let id: String
+        let kind: Kind
+        /// The small heading over the item: "SPORT", "BORN TODAY", "NUMBER ONE".
+        let kicker: String
+        /// The year the item belongs to. Nil for a fact whose row carries none.
+        let year: Int?
+        /// "You were 7", "The year you were born", "4 years before you". Nil
+        /// when the reader has no birth year or the item has no year.
+        let ageLabel: String?
+        /// The sentence, the name, or the title.
+        let text: String
+        /// The description, the artist, or the chart date. Optional.
+        let detail: String?
+        let sourceURL: URL?
+        /// The `BirthFact` this came from, for likes and shares.
+        let fact: BirthFact?
+    }
+
+    /// A row of `historical_events`.
+    struct Event: Equatable {
+        let year: Int?
+        let description: String
+        let sourceURL: URL?
+    }
+
+    // MARK: Ranking
+
+    /// How much a year is worth to this reader. The band is a guess about
+    /// nostalgia and is the one number here that should be tuned once share
+    /// counts exist to tune it against.
+    static func score(year: Int?, readerBirthYear: Int?) -> Int {
+        guard let year else { return 2 }
+        guard let born = readerBirthYear else {
+            // No reader year. Recent first, because that is the best guess
+            // about what a young audience remembers.
+            return year >= 1990 ? 2 : 1
+        }
+        let age = year - born
+        if age < 0 { return 0 }
+        if (5...15).contains(age) { return 3 }
+        if age <= 25 { return 2 }
+        return 1
+    }
+
+    static func ageLabel(year: Int?, readerBirthYear: Int?) -> String? {
+        guard let year, let born = readerBirthYear else { return nil }
+        let age = year - born
+        if age == 0 { return "The year you were born" }
+        if age < 0 {
+            let before = -age
+            return before == 1 ? "The year before you" : "\(before) years before you"
+        }
+        return "You were \(age)"
+    }
+
+    // MARK: Building
+
+    /// The feed, ranked and interleaved.
+    ///
+    /// Facts carry the year in their sentence and not in a column, so they
+    /// are scored with the top band and placed by likes, with the one that
+    /// measures the world against the reader first.
+    static func build(
+        facts: [BirthFact],
+        events: [Event],
+        people: [NotablePerson],
+        songs: [ChartWeek],
+        films: [ChartWeek],
+        readerBirthYear: Int?
+    ) -> [Item] {
+        var items: [(score: Int, order: Int, item: Item)] = []
+
+        for (index, fact) in facts.sorted(by: factOrder).enumerated() {
+            let item = Item(
+                id: "fact-\(fact.id)",
+                kind: .fact,
+                kicker: kicker(forFactCategory: fact.category),
+                year: nil,
+                ageLabel: nil,
+                text: fact.fact,
+                detail: fact.sourceURL?.host(),
+                sourceURL: fact.sourceURL,
+                fact: fact
+            )
+            // Facts rank with the reader's memorable years, because they are
+            // the one kind somebody went looking for. Older-than is the
+            // strongest sentence in the product and leads everything.
+            let score = fact.category == "older_than" ? 4 : 3
+            items.append((score, index, item))
+        }
+
+        for (index, event) in events.enumerated() {
+            let item = Item(
+                id: "event-\(event.year ?? 0)-\(stableHash(event.description))",
+                kind: .event,
+                kicker: "ON THIS DAY",
+                year: event.year,
+                ageLabel: ageLabel(year: event.year, readerBirthYear: readerBirthYear),
+                text: event.description,
+                detail: event.year.map(String.init),
+                sourceURL: event.sourceURL,
+                fact: nil
+            )
+            items.append((score(year: event.year, readerBirthYear: readerBirthYear), index, item))
+        }
+
+        for (index, person) in people.enumerated() {
+            let item = Item(
+                id: "person-\(person.id)",
+                kind: .person,
+                kicker: "BORN TODAY",
+                year: person.birthYear,
+                ageLabel: ageLabel(year: person.birthYear, readerBirthYear: readerBirthYear),
+                text: person.name,
+                detail: person.shortDescription,
+                sourceURL: person.sourceURL,
+                fact: nil
+            )
+            // People keep their popularity order inside a rank, and a person
+            // born in the reader's memorable years ranks like an event from
+            // those years, which is what puts "born the year you turned 3"
+            // where it belongs.
+            items.append((score(year: person.birthYear, readerBirthYear: readerBirthYear), index, item))
+        }
+
+        for (index, week) in songs.enumerated() {
+            items.append((score(year: week.year, readerBirthYear: readerBirthYear), index, chartItem(week, kind: .song, readerBirthYear: readerBirthYear)))
+        }
+        for (index, week) in films.enumerated() {
+            items.append((score(year: week.year, readerBirthYear: readerBirthYear), index, chartItem(week, kind: .film, readerBirthYear: readerBirthYear)))
+        }
+
+        return interleave(items)
+    }
+
+    private static func chartItem(_ week: ChartWeek, kind: Kind, readerBirthYear: Int?) -> Item {
+        Item(
+            id: "\(kind.rawValue)-\(week.year)",
+            kind: kind,
+            kicker: kind == .song ? "NUMBER ONE SONG" : "NUMBER ONE FILM",
+            year: week.year,
+            ageLabel: ageLabel(year: week.year, readerBirthYear: readerBirthYear),
+            text: week.song,
+            detail: week.artist.isEmpty ? String(week.year) : "\(week.artist), \(week.year)",
+            sourceURL: nil,
+            fact: nil
+        )
+    }
+
+    /// Highest score first. Inside a score the kinds take turns, each kind
+    /// keeping its own order, and a kind that runs out stops taking turns.
+    /// Inside a kind and a score, more recent years come first, because the
+    /// most recent year somebody remembers is the one they remember best.
+    private static func interleave(_ scored: [(score: Int, order: Int, item: Item)]) -> [Item] {
+        var result: [Item] = []
+        let scores = Set(scored.map(\.score)).sorted(by: >)
+        for score in scores {
+            let band = scored.filter { $0.score == score }
+            var queues: [Kind: [Item]] = [:]
+            for kind in Kind.allCases {
+                queues[kind] = band
+                    .filter { $0.item.kind == kind }
+                    .sorted { left, right in
+                        // Facts have no year and keep their category order.
+                        // Everything else: newest first, then input order.
+                        switch (left.item.year, right.item.year) {
+                        case let (l?, r?) where l != r: return l > r
+                        default: return left.order < right.order
+                        }
+                    }
+                    .map(\.item)
+            }
+            var progressed = true
+            while progressed {
+                progressed = false
+                for kind in Kind.allCases {
+                    guard var queue = queues[kind], !queue.isEmpty else { continue }
+                    result.append(queue.removeFirst())
+                    queues[kind] = queue
+                    progressed = true
+                }
+            }
+        }
+        return result
+    }
+
+    // MARK: Words
+
+    /// The category the fact finder stored, as a heading.
+    static func kicker(forFactCategory category: String) -> String {
+        switch category {
+        case "older_than": return "OLDER THAN"
+        case "release": return "RELEASED"
+        case "sport": return "SPORT"
+        case "science": return "SCIENCE"
+        case "price": return "PRICES"
+        case "weather": return "WEATHER"
+        case "local": return "NEAR YOU"
+        case "record": return "RECORD"
+        default: return "ON THIS DAY"
+        }
+    }
+
+    /// Older-than leads, then the order the categories were stored in, which
+    /// is by likes once there are any.
+    private static func factOrder(_ left: BirthFact, _ right: BirthFact) -> Bool {
+        let leftLead = left.category == "older_than"
+        let rightLead = right.category == "older_than"
+        if leftLead != rightLead { return leftLead }
+        if left.likes != right.likes { return left.likes > right.likes }
+        return left.id < right.id
+    }
+
+    /// A short stable key for a sentence. `Hasher` is seeded per launch and
+    /// an id that changed between two loads would make the list jump.
+    static func stableHash(_ text: String) -> String {
+        var hash: UInt32 = 2_166_136_261
+        for byte in text.utf8 {
+            hash ^= UInt32(byte)
+            hash = hash &* 16_777_619
+        }
+        return String(hash, radix: 16)
+    }
+}

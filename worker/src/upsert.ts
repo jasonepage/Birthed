@@ -103,3 +103,53 @@ export async function upsertChartWeeks(
 
   return written;
 }
+
+export interface HistoricalEventRow {
+  event_month: number;
+  event_day: number;
+  event_year: number;
+  description: string;
+  source_url: string;
+  content_license: string;
+  fingerprint: string;
+}
+
+/**
+ * One row per event, keyed on the fingerprint of its date, year and
+ * sentence, so running the import again corrects rows rather than doubling
+ * them. An edited sentence on Wikipedia arrives as a new row and the old
+ * one stays; that is rare enough to clean by hand.
+ */
+export async function upsertHistoricalEvents(
+  rows: HistoricalEventRow[],
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  batchSize = 500,
+): Promise<number> {
+  let written = 0;
+
+  for (let start = 0; start < rows.length; start += batchSize) {
+    const batch = rows.slice(start, start + batchSize);
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/historical_events?on_conflict=fingerprint`,
+      {
+        method: "POST",
+        headers: {
+          apikey: serviceRoleKey,
+          Authorization: `Bearer ${serviceRoleKey}`,
+          "Content-Type": "application/json",
+          Prefer: "resolution=merge-duplicates,return=minimal",
+        },
+        body: JSON.stringify(batch),
+      },
+    );
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`Event upsert failed with ${response.status}. ${body.slice(0, 400)}`);
+    }
+    written += batch.length;
+  }
+
+  return written;
+}
