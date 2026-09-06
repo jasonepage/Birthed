@@ -356,6 +356,23 @@ as a shelf, not a plan.
 - **birthed.app runs as a Render web service on the Starter plan, not a static site.** Render has no Starter plan for static sites; static hosting is their free product and Starter is a plan for services. `web/src/serve.ts` is that service: it reads the already rendered pages off disk and sets headers, with no dependencies and no database connection, so a Supabase outage cannot take the site down.
 - **The pages are baked into each deploy.** After the importer adds people, redeploy or the site keeps serving what it was built with.
 
+### A data change needs a manual deploy, September 6, 2026
+
+- **Render's buildFilter means pushing a data fix deploys nothing.**
+  `render.yaml` rebuilds only when something under `web/**` changes, which is
+  right for code and wrong for data. The pages are baked at build time, so a
+  change that lives entirely in the database or in `worker/` never triggers the
+  build that would publish it. The push succeeds, Render reports nothing, and
+  the site keeps serving the old pages with no error anywhere to notice it by.
+- **This was hit the day the adult performer fix and the event screen landed.**
+  Both were correct in the database, the iOS app had them immediately because
+  it reads live, and birthed.app served the previous build for another hour.
+- **So after any importer run, any screen, or any hand edit to the data:
+  Render dashboard, birthed-web, Manual Deploy, Deploy latest commit.** There
+  is no way around it short of widening the filter, and widening it means the
+  iOS target and the specs rebuild the site, which is what the filter is there
+  to prevent.
+
 ### Vercel, evaluated and rejected, September 6, 2026
 
 - **birthed.app is on Render and stays there.** A Vercel project was created
