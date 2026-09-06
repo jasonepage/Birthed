@@ -10,14 +10,16 @@ import SwiftUI
 /// the facts have loaded. Only shown when the year is known: every line here
 /// is about the year.
 struct WorldThenSection: View {
-    let birthday: CalendarBirthday
+    /// The lines to show, chosen by the caller rather than worked out here.
+    ///
+    /// Working them out here was right while this section was the only place
+    /// they appeared. The lead line is now promoted into the stage above, so
+    /// the caller reads them once and hands this one what is left. A section
+    /// that recomputed them would print the promoted sentence a second time,
+    /// a few inches further down the same screen.
+    let lines: [WorldThen.Line]
     let palette: StagePalette
     let onShare: (WorldThen.Line) -> Void
-
-    private var lines: [WorldThen.Line] {
-        guard let year = birthday.year else { return [] }
-        return WorldThen.lines(month: birthday.date.month, day: birthday.date.day, year: year)
-    }
 
     var body: some View {
         if !lines.isEmpty {
@@ -30,7 +32,7 @@ struct WorldThenSection: View {
 
                 ForEach(Array(lines.enumerated()), id: \.element.id) { index, line in
                     if index > 0 { hairline }
-                    row(line, isLead: index == 0)
+                    row(line)
                 }
             }
             .padding(.horizontal, 22)
@@ -38,7 +40,11 @@ struct WorldThenSection: View {
         }
     }
 
-    private func row(_ line: WorldThen.Line, isLead: Bool) -> some View {
+    /// Every row the same weight. The first one used to be set large, because
+    /// it was the loudest sentence in the section. The loudest sentence is in
+    /// the stage now, and a second headline directly under the first one reads
+    /// as the screen shouting twice.
+    private func row(_ line: WorldThen.Line) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center, spacing: 8) {
                 Text(line.kicker)
@@ -63,8 +69,7 @@ struct WorldThenSection: View {
             }
 
             Text(line.text)
-                .font(.system(size: isLead ? 27 : 19, weight: isLead ? .bold : .semibold, design: .serif))
-                .lineSpacing(isLead ? 2 : 0)
+                .font(.system(size: 19, weight: .semibold, design: .serif))
                 .foregroundStyle(palette.type)
                 .fixedSize(horizontal: false, vertical: true)
                 .multilineTextAlignment(.leading)

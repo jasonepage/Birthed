@@ -65,21 +65,42 @@ struct MyDayView: View {
         return names[weekday - 1]
     }
 
+    /// What version of the world this reader arrived into, loudest first.
+    ///
+    /// Read here rather than inside the section that shows them, because the
+    /// first line is promoted into the stage and the rest sit below it, and
+    /// two places that both worked them out would each reach for the first
+    /// one and print it twice.
+    ///
+    /// Empty without a birth year, because every line here is about the year.
+    private var worldThen: [WorldThen.Line] {
+        guard let year = profile.birthday.year else { return [] }
+        return WorldThen.lines(
+            month: profile.birthday.date.month,
+            day: profile.birthday.date.day,
+            year: year
+        )
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
                     stage
-                    // What version of the world they arrived into. First,
-                    // because it is certain, instant, and the "older than"
-                    // sentence the whole section under it was built to find.
-                    WorldThenSection(birthday: profile.birthday, palette: palette) { line in
+                    // The rest of the world they arrived into. The loudest of
+                    // these lines is in the stage above, so this picks up at
+                    // the second one.
+                    WorldThenSection(lines: Array(worldThen.dropFirst()), palette: palette) { line in
                         sharingLine = line
                     }
-                    // Directly under the stage, because these are the only
-                    // facts on this screen that are about this person's day
-                    // rather than about every day.
+                    // Under the world, because these are the only facts on
+                    // this screen that are about this person's day rather
+                    // than about every day.
                     foundFacts
+                    // Below the fold, and two chips shorter. Greeting card
+                    // content, for an audience that does not send greeting
+                    // cards, on the screen they came to see themselves on.
+                    chips
                     if happened != nil { happenedCard }
                     leapNote
                     sources
@@ -185,17 +206,11 @@ struct MyDayView: View {
                 yearNudge
             }
 
-            otherNumberOnes
-
             Spacer().frame(height: 40)
 
             counters
 
-            milestoneLine
-
-            Spacer().frame(height: 22)
-
-            chips
+            olderThanLine
 
             if isBirthday {
                 Text("Hold the candle to blow it out")
@@ -290,36 +305,10 @@ struct MyDayView: View {
         .padding(.trailing, 36)
     }
 
-    /// The album and the film, under the song. Smaller, because the song is
-    /// the one people read out loud, but the same shape so the screen reads
-    /// as one list of what was number one that week.
-    private var otherNumberOnes: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            ForEach([ChartWeek.Chart.billboard200, .boxOffice], id: \.rawValue) { chart in
-                if let week = others[chart] {
-                    VStack(alignment: .leading, spacing: 2) {
-                        kicker("NUMBER ONE \(chart.noun.uppercased())")
-                        Text(week.song)
-                            .font(Theme.display(.title3, weight: .bold))
-                            .foregroundStyle(palette.type)
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.8)
-                            .fixedSize(horizontal: false, vertical: true)
-                        if chart.hasCredit, !week.artist.isEmpty {
-                            Text(week.artist)
-                                .font(.subheadline)
-                                .foregroundStyle(palette.type.opacity(0.6))
-                                .lineLimit(1)
-                        }
-                    }
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-            }
-        }
-        .padding(.top, others.isEmpty ? 0 : 18)
-        .padding(.trailing, 36)
-        .animation(.spring(duration: 0.6), value: others)
-    }
+    // The album and the film used to sit under the song here. They are filler
+    // beside the one thing anybody reads out loud, and they are gone from the
+    // screen. The data stays: `others` is still loaded and the share picker
+    // still offers a card for each of them.
 
     /// The row is the control: tapping the sentence opens Settings, where the
     /// year is edited in place.
@@ -355,28 +344,25 @@ struct MyDayView: View {
         .padding(.trailing, 130)
     }
 
-    /// "9,000 days old on April 26, 2027." Arithmetic, so it never needs the
-    /// network and it changes the day it lands.
-    @ViewBuilder
-    private var milestoneLine: some View {
-        if let milestone = facts.nextMilestone(for: profile.birthday, from: now) {
-            let when = milestone.daysAway == 0
-                ? "today"
-                : "on \(milestone.date.formatted(.dateTime.month(.wide).day().year()))"
-            Text("\(milestone.days.formatted()) days old \(when)")
-                .font(.subheadline)
-                .foregroundStyle(palette.type.opacity(0.55))
-                .padding(.top, 6)
-                .padding(.trailing, 130)
-        }
-    }
+    // The next milestone, "9,000 days old on April 26, 2027", used to sit
+    // under the counters. Two numbers stacked make neither of them the one
+    // number, and the days alive counter is the one number. It is good
+    // notification material and it keeps its share card, so the arithmetic in
+    // `facts.nextMilestone` stays where it is.
 
-    /// The small true things. Each one is labelled with what it is, and the
-    /// two that come from traditional lists say so, because a birthstone is
-    /// an entry in a list, not a fact about the person.
+    /// The small true things, below the fold.
+    ///
+    /// Three of them, not five. The birthstone and the birth flower are gone:
+    /// they are entries in traditional lists rather than facts about the
+    /// person, and they are greeting card content for an audience that does
+    /// not send greeting cards. `DateFacts` keeps both, because onboarding
+    /// still shows a birthstone and the lists are tested.
+    ///
+    /// The sign stays because it is the one of the five anybody says out
+    /// loud, and it is down here rather than in the stage for the same
+    /// reason: saying it out loud is not why anybody opened the app.
     private var chips: some View {
-        let date = profile.birthday.date
-        let sign = facts.zodiacSign(for: date)
+        let sign = facts.zodiacSign(for: profile.birthday.date)
         let thisYear = Calendar.current.component(.year, from: now)
 
         return FlowLayout(spacing: 8) {
@@ -387,10 +373,40 @@ struct MyDayView: View {
             if let dayNumber = facts.dayOfYear(profile.birthday, in: profile.birthday.year ?? thisYear) {
                 FactChip(label: "Day of the year", value: "\(dayNumber) of \(calendar.isLeapYear(profile.birthday.year ?? thisYear) ? 366 : 365)", palette: palette)
             }
-            FactChip(label: "Birthstone", value: facts.birthstone(for: date), palette: palette)
-            FactChip(label: "Birth flower", value: facts.birthFlower(for: date), palette: palette)
         }
-        .padding(.trailing, 110)
+        // It used to inherit the stage's margin. Out here it needs its own,
+        // and it no longer has to leave room for a candle.
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 22)
+    }
+
+    /// The one sentence in the app that measures the world against the reader
+    /// rather than describing their date.
+    ///
+    /// "You are fifteen years older than Fortnite" is the mirror, and it was
+    /// four screens down under a section header. It comes from a table, so it
+    /// is certain, costs nothing and needs no network, which is why it can
+    /// stand in the stage next to things the reader can see are true.
+    ///
+    /// Nothing at all without a birth year, and nothing for a birth after the
+    /// last date any of the timelines is checked through. Absent beats wrong.
+    @ViewBuilder
+    private var olderThanLine: some View {
+        if let lead = worldThen.first {
+            VStack(alignment: .leading, spacing: 8) {
+                kicker(lead.kicker)
+                Text(lead.text)
+                    .font(.system(size: 25, weight: .bold, design: .serif))
+                    .foregroundStyle(palette.type)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .multilineTextAlignment(.leading)
+            }
+            // Clear of the candle, the same margin the chips used to keep.
+            .padding(.trailing, 110)
+            // Its own gap above it, so a reader with no birth year and no
+            // line does not get the gap on its own.
+            .padding(.top, 24)
+        }
     }
 
     private func counter(_ value: Int, label: String) -> some View {
@@ -550,13 +566,15 @@ struct MyDayView: View {
         let palette = palette
         var choices: [ShareCardChoice] = []
 
+        // The whole day card is meant to be the screen they just saw, so it
+        // carries what that screen carries. The album and the film came off
+        // the screen, so they come off this card. Both still have a card of
+        // their own further down this list for anybody who wants one.
         choices.append(ShareCardChoice(id: "day", label: "Your day") {
             MyDayShareCard(
                 date: date,
                 weekdayName: birthWeekdayName,
                 song: song,
-                album: others[.billboard200],
-                film: others[.boxOffice],
                 daysAlive: daysAlive,
                 palette: palette
             )
@@ -599,12 +617,14 @@ struct MyDayView: View {
            let lead = WorldThen.lines(month: date.month, day: date.day, year: year, limit: 1).first {
             choices.append(WorldThenSection.shareChoice(for: lead, palette: palette))
         }
+        // The sign and the animal, which are the two the screen still shows.
+        // The birthstone and the flower were on this card as well and are not
+        // any more, for the reason written over `chips`.
         let sign = facts.zodiacSign(for: date)
         let animal = facts.chineseAnimal(for: profile.birthday).map { "Year of the \($0.rawValue)" }
-        let traditional = [animal, facts.birthstone(for: date), facts.birthFlower(for: date)].compactMap { $0 }.joined(separator: "  ·  ")
         choices.append(ShareCardChoice(id: "sign", label: "Your sign") {
             FocusCard(kicker: date.displayName().uppercased(), title: "\(sign.symbol) \(sign.rawValue)",
-                      subtitle: traditional, footnote: "Traditional dates and lists", palette: palette)
+                      subtitle: animal, footnote: "Traditional dates", palette: palette)
         })
 
         return choices
