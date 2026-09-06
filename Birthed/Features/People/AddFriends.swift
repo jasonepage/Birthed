@@ -304,6 +304,14 @@ struct IncomingBirthdaySheet: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
+                    // Never compressed. This sheet is a medium detent with a
+                    // candle, a large date and a field in it, and when the
+                    // stack runs out of room the sentence with no line limit
+                    // is the thing the layout gives up on: the first real one
+                    // to arrive read "Jason sent you their birthday. What
+                    // do..." and stopped. A question that is cut off before
+                    // the question mark is worse than no question.
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 30)
 
                 TextField("Their name", text: $name)
