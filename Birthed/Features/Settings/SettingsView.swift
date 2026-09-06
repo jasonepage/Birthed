@@ -168,23 +168,19 @@ struct SettingsView: View {
     /// few seconds from now so that loop can be walked in under a minute
     /// instead of at eight tomorrow morning.
     ///
-    /// A friend and a public figure are offered separately, and they are not
-    /// the same test. Tapping a friend's reminder opens the message composer.
-    /// Tapping a followed person's opens a share card, because there is
-    /// nobody to send a message to. And a public figure gets no three day
-    /// warning at all, by a decision in `NotificationPlanner`: nobody needs
-    /// three days to think about wishing a stranger a happy birthday, and the
-    /// run up exists to buy something and have it arrive. The first version
-    /// of this screen offered that button anyway, for whoever happened to be
-    /// soonest, and answered "nothing in the plan matches that" when it was
-    /// pressed. The harness was wrong and the app was right, which is the
-    /// wrong way round for a test to fail.
+    /// Only friends are offered, and that is a change from September 6.
+    ///
+    /// Public figures get no reminder of any kind now, so a button offering to
+    /// fire one would answer "nothing in the plan matches that" when it was
+    /// pressed. This screen has already made that mistake once, when it
+    /// offered a three day warning for a followed person who by decision never
+    /// gets one. The harness was wrong and the app was right, which is the
+    /// wrong way round for a test to fail, and it is not worth making twice.
     ///
     /// Debug builds only. It is not a feature, it is a way of running a test.
     private var rehearsalSection: some View {
         let soonest = BirthdayAgenda().soonestFirst(peopleStore.people, on: Date()).filter(\.isUsable)
         let friend = soonest.first { !$0.isPublicFigure }
-        let followed = soonest.first(where: \.isPublicFigure)
 
         return Section {
             if let profile {
@@ -194,11 +190,6 @@ struct SettingsView: View {
                     }
                     Button("\(friend.trimmedName)'s birthday is in \(notifications.personDaysBefore) days") {
                         fire(.personSoon(personID: friend.id, daysBefore: notifications.personDaysBefore), profile)
-                    }
-                }
-                if let followed {
-                    Button("It is \(followed.trimmedName)'s birthday, followed") {
-                        fire(.personBirthday(personID: followed.id), profile)
                     }
                 }
                 Button("Your own birthday morning") {
@@ -223,9 +214,9 @@ struct SettingsView: View {
     private static let rehearsalHelp = """
         Debug builds only. Fires one reminder out of the real plan twelve \
         seconds from now, with the real identifier and the real words, so \
-        tapping it walks the shipping path. Lock the phone after you tap. A \
-        followed person gets no three day warning, by design, so none is \
-        offered.
+        tapping it walks the shipping path. Lock the phone after you tap. \
+        Public figures get no reminder of any kind, by design, so only \
+        friends are offered here.
         """
 
     /// The plan is rebuilt from the store rather than from anything cached, so

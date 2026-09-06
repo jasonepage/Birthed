@@ -134,8 +134,21 @@ struct PeopleView: View {
             .sheet(isPresented: $adding) {
                 PersonEditor(person: nil) { store.add($0); adding = false } onCancel: { adding = false }
             }
+            // A friend gets the composer. Somebody you follow gets a card,
+            // because a composer is a thing you send to somebody and a public
+            // figure has no somebody. See FigureCard.
             .sheet(item: $saying) { person in
-                SaySomethingView(person: person)
+                if person.isPublicFigure {
+                    ShareCardPicker(
+                        choices: [FigureCard.shareChoice(
+                            for: person,
+                            reader: profileStore.profile?.birthday
+                        )],
+                        subject: person.trimmedName
+                    )
+                } else {
+                    SaySomethingView(person: person)
+                }
             }
             .sheet(item: $editing) { person in
                 PersonEditor(person: person) { store.update($0); editing = nil } onCancel: { editing = nil }

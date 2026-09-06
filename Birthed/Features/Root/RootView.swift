@@ -105,8 +105,21 @@ struct RootView: View {
                 Task { await refreshReminders() }
             }
         }
+        // A friend gets the composer. Somebody you follow gets a card. They
+        // no longer arrive here from a notification, because they no longer
+        // get one, but their row on the People tab still opens this.
         .sheet(item: $saying) { person in
-            SaySomethingView(person: person)
+            if person.isPublicFigure {
+                ShareCardPicker(
+                    choices: [FigureCard.shareChoice(
+                        for: person,
+                        reader: profileStore.profile?.birthday
+                    )],
+                    subject: person.trimmedName
+                )
+            } else {
+                SaySomethingView(person: person)
+            }
         }
         .onChange(of: notifications.opened) { _, opened in
             act(on: opened)

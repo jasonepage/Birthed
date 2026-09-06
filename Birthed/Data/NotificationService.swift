@@ -97,6 +97,35 @@ final class NotificationService {
 
     // MARK: Scheduling
 
+    /// Everybody on the list who can actually be reminded about, which means
+    /// everybody except the public figures.
+    ///
+    /// Decided September 6, 2026. A notification is a promise that something
+    /// is worth doing when it arrives, and there is nothing to do about a
+    /// celebrity's birthday. You cannot text them, so the composer that opened
+    /// when one was tapped produced a sentence with nowhere to send it, which
+    /// is why it read as thin rather than as a feature.
+    ///
+    /// The feature table cut following in the first place for spending the
+    /// sixty four slots on people who will never text back, and the reversal
+    /// on the same day that brought public figures back argued only that an
+    /// empty People tab with nothing on it but an instruction is where this
+    /// app dies. That is an argument for their being on the tab. It was never
+    /// an argument for their waking anybody's phone, and Settings already gave
+    /// them no three day warning, which was the same instinct half applied.
+    ///
+    /// They keep everything else: the tab, the follow sheet, their row, and
+    /// the card that measures them against the reader.
+    ///
+    /// Here rather than at the four call sites that reschedule, because a
+    /// filter every caller has to remember is a filter one caller will forget.
+    /// `NotificationPlanner` still ranks people you know above people you
+    /// follow and its tests still pass, because it is fed directly and knows
+    /// nothing about this.
+    private func reachable(_ people: [Person]) -> [Person] {
+        people.filter { !$0.isPublicFigure }
+    }
+
     /// Replaces everything pending with the current plan.
     ///
     /// Clearing first rather than diffing, because the whole plan is cheap to
@@ -112,13 +141,13 @@ final class NotificationService {
             return
         }
 
-        let plan = planner.plan(for: birthday, people: people, from: now)
+        let plan = planner.plan(for: birthday, people: reachable(people), from: now)
         // uniquingKeysWith rather than uniqueKeysWithValues, which traps on a
         // duplicate identifier. Nothing should produce two people with the
         // same one, and a crash is not the right way to find out.
         // The whole person rather than just their name, because how their day
         // is worded depends on more than what they are called.
-        let known = Dictionary(people.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let known = Dictionary(reachable(people).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
 
         centre.removeAllPendingNotificationRequests()
 
@@ -259,12 +288,12 @@ final class NotificationService {
             return "Reminders are switched off, so there is no plan to take one from."
         }
 
-        let plan = planner.plan(for: birthday, people: people, from: now)
+        let plan = planner.plan(for: birthday, people: reachable(people), from: now)
         guard let notification = plan.first(where: { $0.kind == wanted }) else {
             return "Nothing in the plan matches that. The plan currently holds \(plan.count) reminders."
         }
 
-        let known = Dictionary(people.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let known = Dictionary(reachable(people).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         guard let content = content(for: notification, birthday: birthday, people: known) else {
             return "That person has no name, so no reminder is written for them at all."
         }

@@ -347,6 +347,45 @@ as a shelf, not a plan.
   either. A header that contradicts the page is invisible from the file on
   disk, which is why the test reads the header rather than the page.
 
+### What a public figure is for, decided September 6, 2026
+
+- **Somebody you follow gets no notification of any kind.** A notification is a
+  promise that something is worth doing when it arrives, and there is nothing
+  to do about a celebrity's birthday. The feature table cut following in the
+  first place for spending the sixty four slots on people who will never text
+  back, and the reversal on the same day that kept public figures argued only
+  that an empty People tab with nothing on it but an instruction is where this
+  app dies. That is an argument for their being on the tab. It was never an
+  argument for their waking anybody's phone. `SettingsView` already gave them
+  no three day warning, which was the same instinct half applied. This
+  supersedes that half measure.
+- **The filter is in `NotificationService.reachable`, not in the planner and
+  not at the call sites.** Four places call `reschedule`, and a filter every
+  caller has to remember is a filter one caller will forget.
+  `NotificationPlanner` still ranks people you know above people you follow,
+  and its tests still pass, because it is fed directly and knows nothing about
+  this.
+- **Tapping a public figure gives a card, not a composer.** A composer is a
+  thing you edit and send to somebody, and a public figure has no somebody:
+  `SaySomethingView` already turned Messages off for them, which left a large
+  empty text box, one flat sentence, and nowhere to send it. That is why it
+  read as thin.
+- **The line on that card puts the reader in it.** Not "Idris Elba turns 54
+  today", which anybody can look up in four seconds and nobody posts, but
+  "Idris Elba was 30 when I was born", which is the same two birth years
+  arranged so the sentence is about the reader. It is the move the whole
+  product is built on, applied to a person instead of to a video game, and it
+  needs no new data, no network and no model. `FigureCard` in the People
+  feature.
+- **The month and day are part of that arithmetic and are not decoration.**
+  Somebody born in December 1972 had not had their birthday yet when a reader
+  arrived in February 2002, so they were 29 that day and not 30. Absent beats
+  wrong, and so does one year out.
+- **The rehearsal harness in Settings offers friends only.** It has already
+  made the mistake of offering a reminder the app correctly refuses to send,
+  and answering "nothing in the plan matches that" is the harness being wrong
+  and the app being right, which is the wrong way round for a test to fail.
+
 ### The Mine panel, decided September 6, 2026
 
 - **The stage is a panel, not a page, and the candle stands on its bottom
