@@ -42,6 +42,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any
 
+import ingestion_agent
 from ingestion_agent import (
     Config,
     _call_anthropic,
@@ -56,7 +57,56 @@ TABLE = "historical_events"
 
 #: Written into suppressed_reason so a later, different screen can be told
 #: apart from this one without a migration.
-SCREEN_VERSION = "content screen v1"
+SCREEN_VERSION = "content screen v2"
+
+#: The screen for this table, which is NOT the ingestion prompt.
+#:
+#: The first run used the ingestion prompt unchanged, and it hid 42 of the 58
+#: events on September 6. Reading the list showed it was not judging the event.
+#: It was judging the era. Wikipedia's date articles prefix entries with the
+#: conflict they happened during, so "World War I: The first tank prototype is
+#: tested" and "World War II: The city of Ypres is liberated" were hidden for
+#: containing the words World War, alongside "American Civil War: Forces under
+#: Grant bloodlessly capture Paducah", which says bloodlessly.
+#:
+#: That is a real difference between the two tables and not a tuning problem.
+#: The ingestion screens product launches, where anything touching a war is
+#: correctly out. This table is recorded history, where the era is the
+#: backdrop to most of what happened and is not what happened.
+#:
+#: So the instruction that carries the weight is the third paragraph: judge the
+#: event, not the era. Everything else is the same bar as the ingestion.
+EVENT_SCREEN_SYSTEM_PROMPT = """\
+You are a content reviewer for a birthday app. It shows people what happened \
+on their birthday across history, so the feed should be something a person can \
+read on their birthday morning without it turning grim.
+
+You will be given one historical event. Judge only what actually happened in \
+that event.
+
+The most important rule: judge the event, not the era it happened in. \
+Wikipedia prefixes many entries with the conflict they took place during, such \
+as "World War II:" or "American Civil War:". That prefix is context, not the \
+event. An invention, a discovery, a city being liberated, a treaty, a founding, \
+an election, a resignation, a surrender that ends a conflict, or a peaceful \
+defection is ACCEPT even when the sentence names a war.
+
+Reply REJECT only when the substance of the event is one of these:
+- people being killed, wounded, or dying, including a death toll
+- a battle, attack, bombing, shooting, massacre, genocide, or act of terrorism
+- an assassination, execution, murder, or suicide
+- a disaster, crash, sinking, fire, earthquake, flood, famine, or epidemic \
+that harmed people
+- persecution, a pogrom, enslavement, or mass displacement of a group
+- an event whose plain reading is sombre, such as a funeral
+
+Reply ACCEPT for everything else, including politics, war era events where \
+nobody is described as harmed, sport, science, technology, exploration, \
+culture, and the founding or ending of institutions.
+
+Answer with exactly one word, either ACCEPT or REJECT. Write no explanation, \
+no punctuation, and no other text.\
+"""
 
 #: Rows read per request to Supabase. PostgREST caps a page anyway.
 PAGE_SIZE = 1000
@@ -157,7 +207,7 @@ def screen_one(config: Config, event: Event) -> Screened:
     ingestion.
     """
     try:
-        answer = _call_anthropic(config, event.as_prompt(), cache_system=True)
+        answer = _call_anthropic(config, event.as_prompt(), cache_system=True)  # uses the prompt set below
     except Exception as exc:
         log.warning("  could not screen id %s: %s", event.id, exc)
         return Screened(event=event, suppress=False, failed=True, answer=str(exc))
@@ -250,8 +300,8 @@ def run(month: int | None, day: int | None, limit: int | None,
     if not events:
         return Summary()
 
-    estimate = len(events) * 310 / 1_000_000
-    log.info("Roughly %.1f million input tokens, before the prompt cache discount.", estimate)
+    tokens = len(events) * 380
+    log.info("Roughly %s input tokens, before the prompt cache discount.", f"{tokens:,}")
     log.info("-" * 74)
 
     results = screen_all(config, events, workers)
@@ -309,11 +359,21 @@ def main() -> int:
     parser.add_argument("--apply", action="store_true", help="Write the flags. Without this nothing is written.")
     parser.add_argument("--rescreen", action="store_true", help="Include rows that were screened before.")
     parser.add_argument("--report", action="store_true", help="Count what is in the table and stop.")
+    parser.add_argument("--use-ingestion-prompt", action="store_true",
+                        help="Screen with the stricter ingestion prompt instead, for comparison.")
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
 
     configure_logging(args.verbose)
     month, day = parse_date(args.date)
+
+    # _call_anthropic reads VIBE_CHECK_SYSTEM_PROMPT off its own module, so the
+    # screen selects its prompt by setting it. One call path, two bars, and no
+    # copy of the request code.
+    if not args.use_ingestion_prompt:
+        ingestion_agent.VIBE_CHECK_SYSTEM_PROMPT = EVENT_SCREEN_SYSTEM_PROMPT
+    log.info("Prompt: %s", "ingestion (strict, judges the era)" if args.use_ingestion_prompt
+             else "event screen (judges the event)")
 
     try:
         if args.report:
