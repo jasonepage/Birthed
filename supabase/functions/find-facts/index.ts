@@ -110,8 +110,30 @@ const READER_LINE =
 const DATE_LINE =
   'the finding itself, as one plain sentence that names the date and the year it happened, for example "On September 4, 1957, Ford unveiled the Edsel". Do not address a reader and do not use the words you or your, because this sentence is read by anybody looking the date up and not only by somebody born on it;';
 
+/**
+ * What the reader would actually recognise.
+ *
+ * The first full backfill came back 26 percent space and science: comets,
+ * probes, discoveries. Every one of them true, sourced, and shaped like an
+ * encyclopedia rather than like something a nineteen year old screenshots. A
+ * fact nobody has heard of is a fact and not a good one, and left alone the
+ * model reaches for the encyclopedia every time because that is where the
+ * clean citations are.
+ *
+ * The internet is deliberately named. This audience knows when a video, a
+ * game, an app or a platform arrived far better than it knows what was number
+ * one on a chart, and "you are older than" is the strongest sentence the
+ * product has, because it is the only one that measures the world against the
+ * reader rather than just describing it.
+ */
+const TASTE = `Who is reading this: somebody in their teens or twenties. Weight what you look for toward things they would actually recognise, and name the specific thing rather than the category.
+That includes the internet: a video, a meme, a game, an app, a website, a phone, a console or a platform that arrived then, and anything they are older than and could say so about.
+At most two findings about space or science, and only genuinely famous ones. A comet discovery nobody has heard of is true and boring, and a page full of them is the failure this line exists to prevent.
+For anything from the internet, cite the encyclopedia article about it, the platform's own page, or a news archive. Do not cite a post that will not open for somebody who is not logged in.`;
+
 function shapeRules(voice: Voice): string {
-  return `Write your findings as a numbered list. For each finding, write three lines and nothing else:
+  return `${TASTE}
+Write your findings as a numbered list. For each finding, write three lines and nothing else:
 ${voice === "date" ? DATE_LINE : READER_LINE}
 then the full address of the page you opened;
 then a short verbatim quotation from that page, under 30 words, that supports it.
@@ -145,7 +167,9 @@ ${shapeRules("date")}`;
   }
   return `You are researching one birth date for a birthday app: ${monthName(month)} ${day}, ${year}.
 Run web searches and use what you find. Do not answer from memory.
-The reader is the person born that day. Find 8 to ${MAX_FACTS} specific, true, surprising facts tied to that exact day, that week, or that year: something that happened in the world on that day; a game, album, film, product or website that launched that week or shortly after, so the reader is "older than" it; a sports result that day; a record set; what a specific everyday thing cost that year; a space or science event.
+The reader is the person born that day. Find 8 to ${MAX_FACTS} specific, true, surprising facts tied to that exact day, that week, or that year.
+At least three of them must be things the reader is older than, because that is the sentence this app is for: a game, an app, a website, a video, a console, a phone, a film or a platform that arrived after they did, with the date it arrived. Say how much older they are.
+For the rest: something that happened in the world on that day, a sports result that day, a record set, what a specific everyday thing cost that year, and one thing from the internet or popular culture of that year that somebody their age would know.
 ${shapeRules("reader")}`;
 }
 
