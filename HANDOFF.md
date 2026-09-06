@@ -1,3 +1,106 @@
+# Handoff, September 6, 2026, late
+
+For the next session. Read this section, then `CLAUDE.md` sections 5 and 6,
+then the documents named below. This section wins where it disagrees with
+anything under it, because it is newer. The older handoff below is still
+true about how to work with Nathan and Jason and about the fact finder.
+
+## Where things stand
+
+Eleven commits on main since `17f025a`, all unpushed until Jason pushes,
+`swift test` at 185 passing plus twelve `WorldThenTests` and three new
+`DayFeedTests` not yet run. Jason has built the app in Xcode once since the
+composer and the Today feed landed, so those compile; the world timelines,
+the follow fix and the dealt feed have not met a compiler yet.
+
+What was built tonight, oldest first:
+
+1. **The birthday message.** Tapping "It is Sarah's birthday" opens a
+   composer with two sentences already in it; the user edits and sends
+   through Messages or the share sheet. `Domain/BirthdayMessage.swift`,
+   four decisions rather than templates, judged on one hundred messages in
+   `docs/birthday-messages.md` (two embarrassing, both the same known
+   limit). `NotificationTapHandler` in `NotificationService` is the
+   notification centre delegate. The pink card on People opens the same
+   composer.
+2. **The first five minutes.** `docs/first-five-minutes.md`: what activated
+   means (year entered and one person added, first session), the one loop
+   (reminder, composer, sent), and a keep, simplify, later, delete verdict
+   on every feature. **One decision is Nathan's and is still open:** asking
+   for notification permission from a row under the first added person
+   rather than the Settings switch. That changes `FR-070`.
+3. **The Today tab is a feed.** `docs/today-in-your-years.md`. Found facts,
+   Wikipedia events, thirty people, and the number one song and film in
+   every year of the reader's life, ranked by the reader's age at the time
+   ("You were 7"), kinds taking turns, dealt inside a rank on every load.
+   `Domain/DayFeed.swift`. Two migrations applied and checked in
+   (`historical_events.fingerprint`, `chart_on_date`). `worker/src/
+   import-events.ts` reads Wikipedia date articles and **has never been run
+   against a real page**, because neither machine can reach Wikipedia.
+   Until Jason runs it, the feed has no ON THIS DAY rows.
+4. **The found facts are dealt, not ranked.** `Domain/FactOrder.swift`:
+   likes count only from five; below that a seeded shuffle, new seed per
+   load and per date change, never per poll. Pull down on Mine deals again.
+5. **The Edge Function looks at a date again weekly** (deployed, version
+   16), told what it already found, never with the last five hundred
+   searches, and a failed second look leaves the date done.
+6. **Follow fixes.** `PersonEditor` used to drop `wikidataID` and `deathYear`
+   on save, so opening a followed person turned them into a friend. Fixed;
+   the store refuses a second row for one identifier; the follow sheet
+   deals a different twenty each open and leaves out people already
+   followed.
+7. **The world when you arrived.** `Domain/WorldThen.swift`: Fortnite
+   seasons, Minecraft versions, iPhones, PlayStations, Pokémon generations,
+   and arrival dates for ChatGPT, Instagram and others. "You are 15 years
+   older than Fortnite." Five lines on Mine under the candle, each with a
+   share. **The dates were written from memory** and are flagged for
+   checking against the linked pages before TestFlight (test pass item 47).
+8. **The site** has a "Born in" month strip under the TestFlight button.
+   Needs a Render redeploy to appear.
+
+## What Jason has to do, in order
+
+`docs/test-pass-september-6.md` items 27 to 48, and the order matters:
+
+1. `swift test`. Should be 200 for 200.
+2. `cd worker && npm test`, then
+   `node dist/src/import-events.js --dry --print --month 9 --day 5`. Send
+   the output. This is the parser's first real page.
+3. If it reads well, `node dist/src/import-events.js` for all 366 dates.
+4. Build. Screenshots of the Today feed top and bottom, the People card
+   with the paper plane and the composer, Mine with the new section.
+5. Check five `WorldThen` dates against their Wikipedia pages (item 47).
+6. Redeploy the site on Render.
+
+## The question that was open when the session ended
+
+Nathan asked, just before this handoff: the app is "giving vibecode", so
+how would a Native American in the 1930s critique it, how spiritual is it,
+how connected is it to the limited time we have on earth. It was not
+answered. It deserves a real answer, not a feature. The honest starting
+point: almost everything on Mine describes the world, and only two things
+measure the person's time in it, the day count and the milestone. The
+People tab and the remembered state for the dead are the most human parts
+of the app. Place, season and the land somebody was born on are absent
+entirely. Answer it in conversation first; do not turn it into a sprint.
+
+## Rules that bit tonight, added to the ones below
+
+- A representable's stored property cannot be called `body`; it is taken as
+  the `View` requirement.
+- An `async let` may only capture what is `Sendable`; copy `self`'s fields
+  to locals first. `DayPageRepository` is `Sendable` for this reason.
+- `nonisolated final class` for a delegate the system calls off the main
+  actor, with only a `String` crossing back.
+- `Hasher` is seeded per launch; anything that must be stable across loads
+  uses its own hash (`DayFeed.stableHash`, `BirthdayMessage.seed`).
+- The Linux shell on the Mac has node and no swift; Jason's own terminal
+  has swift. `swift test` is his two second loop.
+- Neither machine reaches Wikipedia or Google. Anything that reads them is
+  written blind and proved by Jason's first run.
+
+---
+
 # Handoff, September 6, 2026
 
 For the next session taking over the Birthed interface and the fact finder.
