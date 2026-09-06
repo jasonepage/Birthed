@@ -192,7 +192,7 @@ test("nothing grim reaches a birthday card", () => {
     { month: 9, day: 4, category: "event", sourceUrl: "https://e.com/c",
       fact: "On September 4, 1963, Swissair Flight 306 crashes, killing all 80 on board." },
   ];
-  assert.equal(cardHighlight(grim, 9, 4), null, "a card with none of these is the right card");
+  assert.equal(cardHighlight(grim, [], 9, 4), null, "a card with none of these is the right card");
 });
 
 test("the card takes the shortest clean fact, and the same one every build", () => {
@@ -204,16 +204,16 @@ test("the card takes the shortest clean fact, and the same one every build", () 
     { month: 9, day: 4, category: "event", sourceUrl: "https://e.com/c",
       fact: "On September 4, 1963, Swissair Flight 306 crashes, killing all 80 on board." },
   ];
-  const chosen = cardHighlight(facts, 9, 4);
+  const chosen = cardHighlight(facts, [], 9, 4);
   assert.equal(chosen?.year, 1998);
   assert.equal(chosen?.text, "Larry Page and Sergey Brin formally incorporated Google as a company.");
   // The Edison line is clean but too long for one line on a card, and the
   // Swissair line is refused whatever its length.
-  assert.deepEqual(cardHighlight(facts, 9, 4), cardHighlight([...facts].reverse(), 9, 4));
+  assert.deepEqual(cardHighlight(facts, [], 9, 4), cardHighlight([...facts].reverse(), [], 9, 4));
 });
 
 test("a date with no facts gets a card with no line, not a worse line", () => {
-  assert.equal(cardHighlight([], 9, 4), null);
+  assert.equal(cardHighlight([], [], 9, 4), null);
 });
 
 test("a fact that does not name this page's date is not put on the card", () => {
@@ -221,7 +221,7 @@ test("a fact that does not name this page's date is not put on the card", () => 
     { month: 9, day: 4, category: "event", sourceUrl: "https://e.com/a",
       fact: "Something true with no year anywhere in it." },
   ];
-  assert.equal(cardHighlight(facts, 9, 4), null, "the card prints a year beside the line");
+  assert.equal(cardHighlight(facts, [], 9, 4), null, "the card prints a year beside the line");
 });
 
 test("a card that says what happened does not also list names", () => {
@@ -248,4 +248,45 @@ test("a card with nothing that happened still shows the names it has", () => {
   const card = renderShareCard({ month: 12, day: 25, people }, null);
   assert.ok(card.includes("Somebody Ordinary"));
   assert.ok(card.includes("You share it with"));
+});
+
+test("with no researched fact, a screened Wikipedia line beats the names", () => {
+  // The 85 dates the backfill never reached fell through to names, and the
+  // names are ordered by attention. November 12 led with Charles Manson and
+  // November 24 with Ted Bundy. This is what replaces them, at no cost.
+  const events = [
+    { month: 11, day: 12, year: 1927, sourceUrl: "https://en.wikipedia.org/wiki/November_12",
+      description: "Leon Trotsky is expelled from the Soviet Communist Party, leaving Joseph Stalin in undisputed control." },
+    { month: 11, day: 12, year: 1970, sourceUrl: "https://en.wikipedia.org/wiki/November_12",
+      description: "The Bhola cyclone kills an estimated 500,000 people." },
+    { month: 11, day: 12, year: 2020, sourceUrl: "https://en.wikipedia.org/wiki/November_12",
+      description: "The PlayStation 5 is released." },
+  ];
+  const chosen = cardHighlight([], events, 11, 12);
+  assert.equal(chosen?.year, 2020);
+  assert.equal(chosen?.text, "The PlayStation 5 is released.");
+});
+
+test("the encyclopedia's habits are screened harder than the researched facts", () => {
+  // An event's sentence describes the thing being refused, which is why
+  // screening works on events and cannot work on people.
+  const events = [
+    { month: 7, day: 14, year: 1789, sourceUrl: "https://e.com",
+      description: "Citizens storm the Bastille, and troops are deposed in the rebellion." },
+    { month: 7, day: 14, year: 1867, sourceUrl: "https://e.com",
+      description: "Alfred Nobel demonstrates dynamite for the first time." },
+  ];
+  assert.equal(cardHighlight([], events, 7, 14)?.year, 1867);
+});
+
+test("a researched fact still beats a Wikipedia line when there is one", () => {
+  const facts = [{ month: 11, day: 12, category: "event", sourceUrl: "https://e.com/a",
+    fact: "On November 12, 1990, the World Wide Web proposal was published." }];
+  const events = [{ month: 11, day: 12, year: 2020, sourceUrl: "https://e.com",
+    description: "The PlayStation 5 is released." }];
+  assert.equal(cardHighlight(facts, events, 11, 12)?.year, 1990);
+});
+
+test("a date with neither still falls through to nothing, not to something worse", () => {
+  assert.equal(cardHighlight([], [], 12, 25), null);
 });

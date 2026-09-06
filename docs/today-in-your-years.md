@@ -291,6 +291,25 @@ because names are all they have, and the fix for those is to finish searching
 the 85 dates the backfill never reached rather than to start keeping a list of
 people.
 
+**Then the names went entirely, because a screened event beats them.** The
+targeted backfill that would have given the worst dates a researched fact could
+not run: `fact_searches_left()` is 0 against a 3,000 monthly limit with 3,182
+already spent, so the Edge Function refuses every run. The free route was to
+fall back to Wikipedia's own line for the date rather than to the names, run
+through the same word list plus a stricter one for the habits of an
+encyclopedia. November 12 becomes the PlayStation 5 being released instead of
+Charles Manson, and November 24 becomes the Atlantis launch instead of Ted
+Bundy.
+
+**All 366 dates now carry a line and none falls through to names**: 278 from a
+researched fact, 88 from a screened event. The names branch stays in the code
+for a date that has neither, which no date currently is.
+
+The reason screening works on events and cannot work on people is worth
+keeping: an event's sentence describes the thing being refused, and a person's
+description does not. Wikidata calls Assad a politician and Tate a
+businessman. That asymmetry is the whole argument.
+
 **This is not fixed anywhere else.** The day pages still list these people, and
 there the case is different, because a list of who was born on a date is a
 record rather than a celebration and Wikipedia does the same. The app is the

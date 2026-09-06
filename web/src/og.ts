@@ -13,6 +13,7 @@ import { chromium } from "playwright";
 import { factsByDay, factsForDate, fetchFacts } from "./facts.js";
 import { everyDate, slug, type DayPage, type Person } from "./model.js";
 import { cardHighlight, renderShareCard } from "./share.js";
+import { eventsByDay, eventsForDate, fetchEvents } from "./timeline.js";
 
 const OUT = join("out", "og");
 const WIDTH = 1200;
@@ -67,6 +68,8 @@ async function main(): Promise<void> {
   // out of a few thousand rows, and 366 lookups for that would be silly.
   const facts = factsByDay(await fetchFacts(url, key));
   console.log(`facts loaded for ${facts.size} dates`);
+  const events = eventsByDay(await fetchEvents(url, key));
+  console.log(`events loaded for ${events.size} dates`);
 
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: WIDTH, height: HEIGHT } });
@@ -75,7 +78,12 @@ async function main(): Promise<void> {
   let carrying = 0;
   for (const date of everyDate()) {
     const day = await fetchDay(date.month, date.day, url, key);
-    const highlight = cardHighlight(factsForDate(facts, date.month, date.day), date.month, date.day);
+    const highlight = cardHighlight(
+      factsForDate(facts, date.month, date.day),
+      eventsForDate(events, date.month, date.day),
+      date.month,
+      date.day,
+    );
     if (highlight) carrying++;
     await page.setContent(renderShareCard(day, highlight), { waitUntil: "load" });
     const shot = await page.screenshot({ type: "png", clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } });
