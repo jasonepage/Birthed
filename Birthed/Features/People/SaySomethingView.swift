@@ -9,37 +9,91 @@ import SwiftUI
 /// sheet. This view has no way to send anything on its own, makes no network
 /// call, and shows nothing that was not already on the People tab.
 ///
-/// The draft is made once, when the sheet opens, and kept in `text`. It is
-/// not remade when the person changes underneath, because the user may have
-/// started editing.
+/// The drafts are made once, when the sheet opens, and the chosen one is kept
+/// in `text`. They are not remade when the person changes underneath, because
+/// the user may have started editing.
+///
+/// There is more than one, and that is the September 6 change. `BirthdayMessage`
+/// already picks a closing line from three per register and only one of them
+/// ever reached the screen, so somebody who did not like "hope it is a good
+/// one" had a large empty text box and a typing job. Now the same generator is
+/// asked for every distinct draft it can make for this person and "Try another"
+/// walks them. No network, no model, no cost, and nothing new leaves the phone,
+/// which matters because the whole claim that the people list stays on the
+/// phone rests on this screen never calling anything.
+///
+/// Three is what the generator holds today. Widening it is adding strings to
+/// `BirthdayMessage.closings`, and this screen picks them up with no change.
 struct SaySomethingView: View {
     let person: Person
 
     @Environment(\.dismiss) private var dismiss
     @State private var text: String
     @State private var messaging = false
+    /// Which of `drafts` is on screen. Not the text itself, so that swapping
+    /// and editing cannot disagree about what is showing.
+    @State private var variant = 0
     @FocusState private var editing: Bool
 
     private let canUseMessages: Bool
+
+    /// Every distinct opening this generator can produce for this person, in
+    /// the order the seed produces them. Usually three. One for a public
+    /// figure, whose line ignores the seed, which is why the control below
+    /// never appears for one.
+    private let drafts: [String]
 
     init(person: Person, now: Date = Date()) {
         self.person = person
         let calendar = BirthdayCalendar()
         let age = calendar.ageOnNextBirthday(person.birthday, from: now)
         let year = calendar.calendar.component(.year, from: now)
-        let draft = BirthdayMessage.draft(
-            for: person,
-            age: age,
-            dateName: person.birthday.date.displayName(),
-            seed: BirthdayMessage.seed(year: year, person: person)
-        )
-        _text = State(initialValue: draft ?? "")
+        // The seed picks the closing line and nothing else, so walking it
+        // collects the whole set. Eight passes rather than three, so that
+        // adding a fourth closing to `BirthdayMessage` needs no change here,
+        // and distinct only, so a generator that ignores the seed for
+        // somebody yields one draft rather than eight copies of it.
+        let base = BirthdayMessage.seed(year: year, person: person)
+        var collected: [String] = []
+        for offset in 0..<8 {
+            guard let draft = BirthdayMessage.draft(
+                for: person,
+                age: age,
+                dateName: person.birthday.date.displayName(),
+                seed: base + offset
+            ) else { continue }
+            if !collected.contains(draft) { collected.append(draft) }
+        }
+        drafts = collected
+        _text = State(initialValue: collected.first ?? "")
         // A public figure cannot be texted, so the only way out is the share
         // sheet, whoever the user turns out to want to send it to.
         canUseMessages = !person.isPublicFigure && MFMessageComposeViewController.canSendText()
     }
 
     private var trimmed: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    /// Whether what is on screen is still the draft this screen wrote.
+    ///
+    /// Read from the text rather than held in a flag, so deleting an edit back
+    /// to the original brings the control back, which is what somebody who
+    /// changed their mind would expect.
+    private var isUnedited: Bool {
+        drafts.indices.contains(variant) && text == drafts[variant]
+    }
+
+    /// Offered only while the words are still ours. Once the user has typed
+    /// anything, their sentence outranks our next suggestion, and a control
+    /// that would silently throw it away should not be on the screen. There is
+    /// nothing to confirm and nothing to warn about, because the control is
+    /// simply not there.
+    private var canSwap: Bool { drafts.count > 1 && isUnedited }
+
+    private func nextDraft() {
+        guard canSwap else { return }
+        variant = (variant + 1) % drafts.count
+        text = drafts[variant]
+    }
 
     var body: some View {
         NavigationStack {
@@ -66,11 +120,38 @@ struct SaySomethingView: View {
                     .padding(14)
                     .background(Theme.card, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
 
-                Text(person.isPublicFigure
-                     ? "Something to send to a friend. Nothing is shared until you share it."
-                     : "Written on your phone from your own note about them. Nothing is sent until you send it.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                // The footnote and the swap share a line, so the control
+                // costs no vertical space and reads as a note about the
+                // draft rather than as a second action competing with Send.
+                //
+                // A button here rather than the sentence itself, which is the
+                // opposite of the rule the Mine panel follows. The reason is
+                // that this sentence lives in a `TextEditor`: tapping it has
+                // to put a caret in it, so the text cannot also be the swap.
+                // Where a control has to exist, it is small, it sits beside
+                // the thing it changes, and it disappears when it would do
+                // harm.
+                HStack(alignment: .top, spacing: 12) {
+                    Text(person.isPublicFigure
+                         ? "Something to send to a friend. Nothing is shared until you share it."
+                         : "Written on your phone from your own note about them. Nothing is sent until you send it.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+                    Spacer(minLength: 0)
+
+                    if canSwap {
+                        Button(action: nextDraft) {
+                            Label("Try another", systemImage: "arrow.triangle.2.circlepath")
+                                .font(.footnote.weight(.semibold))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Theme.accent)
+                        .fixedSize()
+                        .accessibilityHint("Replaces the message with another wording")
+                    }
+                }
+                .animation(.easeInOut(duration: 0.2), value: canSwap)
 
                 Spacer(minLength: 0)
 
@@ -89,6 +170,7 @@ struct SaySomethingView: View {
                         .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
+            .sensoryFeedback(.selection, trigger: variant)
             .sheet(isPresented: $messaging) {
                 MessagesComposer(messageBody: trimmed) {
                     messaging = false
