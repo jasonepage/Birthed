@@ -27,6 +27,8 @@ const JSON_HEADERS = { "Content-Type": "application/json" };
 const MODEL = "gemini-2.5-flash";
 const MAX_FACTS = 14;
 const RUN_STALE_MS = 4 * 60 * 1000;
+/** A failed search is tried again after this long, not left failed forever. */
+const RETRY_AFTER_MS = 2 * 60 * 1000;
 
 interface Candidate {
   fact: string;
@@ -201,8 +203,12 @@ Deno.serve(async (request: Request) => {
   for (const regionKeyValue of keys) {
     const where = { birth_month: month, birth_day: day, birth_year: year, region_key: regionKeyValue };
     const { data: run } = await admin.from("birth_fact_runs").select("*").match(where).maybeSingle();
-    if (run?.status === "done" || run?.status === "failed") {
-      statuses.push(run.status);
+    if (run?.status === "done") {
+      statuses.push("done");
+      continue;
+    }
+    if (run?.status === "failed" && run.finished_at && Date.now() - new Date(run.finished_at).getTime() < RETRY_AFTER_MS) {
+      statuses.push("failed");
       continue;
     }
     if (run?.status === "running" && Date.now() - new Date(run.started_at).getTime() < RUN_STALE_MS) {

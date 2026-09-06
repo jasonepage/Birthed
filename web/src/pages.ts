@@ -15,8 +15,9 @@ import { FOOT, SITE, head } from "./render.js";
 /** Where a person can reach us. One place, so it changes in one place. */
 export const SUPPORT_EMAIL = "support@birthed.app";
 
-/** Empty until the app is on the store. The page shows "coming soon" until then. */
+/** Empty until the app is on the store. Until then the TestFlight link is the button. */
 export const APP_STORE_URL = "";
+export const TESTFLIGHT_URL = "https://testflight.apple.com/join/hzm6Mhhm";
 
 const UPDATED = "September 6, 2026";
 
@@ -82,9 +83,9 @@ ${months.join("\n")}
 }
 
 function storeButton(): string {
-  return APP_STORE_URL
-    ? `<a class="btn" href="${APP_STORE_URL}">Get Birthed on the App Store</a>`
-    : `<span class="soon">Coming soon to the App Store</span>`;
+  if (APP_STORE_URL) return `<a class="btn" href="${APP_STORE_URL}">Get Birthed on the App Store</a>`;
+  return `<a class="btn" href="${TESTFLIGHT_URL}">Try the beta on TestFlight</a>
+<p class="lede" style="margin:10px 0 0;font-size:14px">iPhone only for now. TestFlight is Apple's free app for trying apps before they are on the store.</p>`;
 }
 
 export function renderHome(year: number = new Date().getUTCFullYear()): string {
