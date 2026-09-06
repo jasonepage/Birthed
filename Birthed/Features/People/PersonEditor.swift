@@ -43,16 +43,19 @@ struct PersonEditor: View {
                     TextField("Name", text: $name)
                         .focused($nameFocused)
                         .textInputAutocapitalization(.words)
-                    TextField("Mum, work, from school", text: $note)
+                    TextField("Note, like Mum or from school", text: $note)
                         .textInputAutocapitalization(.sentences)
                 } footer: {
                     Text("The note is just for you, to tell two Sarahs apart.")
                 }
 
                 Section("Their day") {
-                    BirthdayPicker(month: $month, day: $day, observance: $observance)
+                    BirthdayPicker(month: $month, day: $day, observance: $observance,
+                                   showsChoice: true)
                 }
 
+                // No section header. The row is already called Year and
+                // saying it twice is the screen talking to itself.
                 Section {
                     Picker("Year", selection: $year) {
                         Text("Do not know").tag(Int?.none)
@@ -60,8 +63,6 @@ struct PersonEditor: View {
                             Text(String(value)).tag(Int?.some(value))
                         }
                     }
-                } header: {
-                    Text("Year")
                 } footer: {
                     Text("Optional. Only used to say the age they are turning.")
                 }
