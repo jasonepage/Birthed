@@ -33,6 +33,27 @@ struct PeopleView: View {
     /// Guards the two ways of leaving from both asking at once.
     @State private var answering = false
 
+    /// Who is ticked while the list is selecting. Identifiers rather than
+    /// people, because a row can be edited or have its countdown tick over
+    /// while it is selected and the tick must not lose the selection.
+    @State private var selected: Set<Person.ID> = []
+
+    /// Owned here rather than read out of the environment.
+    ///
+    /// `EditButton` writes into whatever edit mode binding it finds, and
+    /// reading that same value back in the view that installed the toolbar is
+    /// the kind of thing that works until it does not. Holding the state and
+    /// writing it from a plain button means the value the toolbar reads and
+    /// the value the list obeys are the same one, and it is visible in this
+    /// file.
+    @State private var editMode: EditMode = .inactive
+
+    private var isEditing: Bool { editMode == .active }
+
+    /// Which group holds the first person on screen, so the reminder row can
+    /// sit under them wherever they happen to be.
+    private enum Slot { case today, friends, following }
+
     private let agenda = BirthdayAgenda()
     private var now: Date { Date() }
 
@@ -55,22 +76,44 @@ struct PeopleView: View {
                     .tint(.primary)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    // A menu rather than two buttons. Most people arrive with
-                    // a list somewhere and a few arrive with one name, and the
-                    // list is the one that makes this tab work at all, so it
-                    // is first.
-                    Menu {
-                        Button { addingMany = true } label: {
-                            Label("Paste a list or send a link", systemImage: "square.and.arrow.down.on.square")
+                    // One slot, two jobs. Adding somebody while ticking people
+                    // to delete is not a thing anybody does, and two live
+                    // buttons plus a Done is more than a top bar should carry.
+                    if isEditing {
+                        Button(role: .destructive) {
+                            deleteSelected()
+                        } label: {
+                            Text(selected.isEmpty ? "Delete" : "Delete \(selected.count)")
                         }
-                        Button { following = true } label: {
-                            Label("Follow someone famous", systemImage: "star")
+                        .disabled(selected.isEmpty)
+                        .tint(.red)
+                    } else {
+                        // A menu rather than two buttons. Most people arrive
+                        // with a list somewhere and a few arrive with one
+                        // name, and the list is the one that makes this tab
+                        // work at all, so it is first.
+                        Menu {
+                            Button { addingMany = true } label: {
+                                Label("Paste a list or send a link", systemImage: "square.and.arrow.down.on.square")
+                            }
+                            Button { following = true } label: {
+                                Label("Follow someone famous", systemImage: "star")
+                            }
+                            Button { adding = true } label: {
+                                Label("Type one in", systemImage: "square.and.pencil")
+                            }
+                        } label: {
+                            Label("Add someone", systemImage: "plus")
                         }
-                        Button { adding = true } label: {
-                            Label("Type one in", systemImage: "square.and.pencil")
-                        }
-                    } label: {
-                        Label("Add someone", systemImage: "plus")
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    // "Select" rather than "Edit", because the only thing this
+                    // mode does is tick people and remove them. Editing one
+                    // person is still a tap on them. Hidden while the list is
+                    // empty, since there is nothing to select.
+                    if !store.people.isEmpty {
+                        Button(isEditing ? "Done" : "Select") { toggleSelecting() }
                     }
                 }
             }
@@ -215,33 +258,174 @@ struct PeopleView: View {
 
     // MARK: List
 
+    /// Two groups, because they are two different things.
+    ///
+    /// Somebody you know and somebody you follow were in one flat list ordered
+    /// by who is next, so Mum sat between two YouTubers. The countdown is the
+    /// same question for both, but the answer means something different: one
+    /// is a person who will notice whether you said anything, and the other is
+    /// a date you thought was fun. `Person.isPublicFigure` already tells them
+    /// apart, because `NotificationPlanner` has to know the difference to
+    /// protect a friend's reminder from twenty follows against the 64 slot
+    /// limit. This is the same line drawn on screen.
+    ///
+    /// Anybody celebrating today stays pinned above both, in a section with no
+    /// heading, because the card already says TODAY in type the size of the
+    /// heading and the day is the day whichever group they are in.
+    ///
+    /// Headings only appear when both groups have somebody in them. A heading
+    /// over the only group there is names nothing, which is a label doing no
+    /// work.
     private var list: some View {
         let celebrants = today
-        // One array rather than two loops, so "under the first person" means
-        // the same thing whether or not somebody is celebrating today.
-        let cards = celebrants + ordered.filter { person in !celebrants.contains(person) }
+        let rest = ordered.filter { person in !celebrants.contains(person) }
+        let friends = rest.filter { !$0.isPublicFigure }
+        let followed = rest.filter { $0.isPublicFigure }
+        let headings = !friends.isEmpty && !followed.isEmpty
+        let reminderIn: Slot = !celebrants.isEmpty ? .today : (friends.isEmpty ? .following : .friends)
 
-        return ScrollView {
-            LazyVStack(spacing: 8) {
-                ForEach(Array(cards.enumerated()), id: \.element.id) { index, person in
-                    Group {
-                        if celebrants.contains(person) {
-                            celebrating(person)
-                                .padding(.bottom, index == celebrants.count - 1 ? 6 : 0)
-                        } else {
-                            row(person)
-                        }
-                    }
+        return List(selection: $selected) {
+            peopleSection(nil, celebrants, isToday: true, carriesReminder: reminderIn == .today)
+            peopleSection(headings ? "FRIENDS" : nil, friends, isToday: false, carriesReminder: reminderIn == .friends)
+            peopleSection(headings ? "PUBLIC FIGURES" : nil, followed, isToday: false, carriesReminder: reminderIn == .following)
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(Theme.canvas)
+        // Applied to the list rather than left to `EditButton`, so the value
+        // the list obeys is the one this file holds.
+        .environment(\.editMode, $editMode)
+    }
 
-                    if index == 0, showsReminderRow {
-                        reminderRow
-                    }
+    /// A section, with a heading or without one. Written as two branches
+    /// rather than one section with a conditional heading, because a heading
+    /// that resolves to nothing still leaves a gap where it would have been.
+    @ViewBuilder
+    private func peopleSection(_ heading: String?, _ people: [Person], isToday: Bool, carriesReminder: Bool) -> some View {
+        if !people.isEmpty {
+            if let heading {
+                Section {
+                    rows(people, isToday: isToday, carriesReminder: carriesReminder)
+                } header: {
+                    Text(heading)
+                        .font(.caption.weight(.heavy))
+                        .kerning(2.5)
+                        .foregroundStyle(Theme.accent)
+                        .textCase(nil)
+                        .listRowInsets(EdgeInsets(top: 18, leading: 20, bottom: 6, trailing: 20))
+                        .listRowBackground(Color.clear)
+                }
+            } else {
+                Section {
+                    rows(people, isToday: isToday, carriesReminder: carriesReminder)
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 8)
-            .padding(.bottom, 32)
         }
+    }
+
+    /// The first person, then the reminder row if this is where it goes, then
+    /// everybody else. Split rather than interleaved inside one `ForEach`,
+    /// because a row that is not a person has no identifier to select and must
+    /// not pretend to have one.
+    @ViewBuilder
+    private func rows(_ people: [Person], isToday: Bool, carriesReminder: Bool) -> some View {
+        if let first = people.first {
+            personRow(first, isToday: isToday)
+
+            if carriesReminder && showsReminderRow {
+                reminderRow
+                    .listRowInsets(rowInsets)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    // It is a question, not a person. Ticking it would put an
+                    // empty identifier into the set that Delete reads.
+                    .selectionDisabled()
+            }
+
+            ForEach(people.dropFirst()) { person in
+                personRow(person, isToday: isToday)
+            }
+        }
+    }
+
+    /// One row, tagged with the person it is, dressed so the list still looks
+    /// like the cards it looked like before it was a list.
+    ///
+    /// `allowsHitTesting` is the whole trick for selecting. The card is a
+    /// button, and a button inside a list row swallows the tap that would have
+    /// ticked it, so while the list is selecting the card stops taking hits
+    /// and the row underneath gets them. Disabling the button instead would
+    /// have dimmed it, which reads as a row you are not allowed to choose.
+    private func personRow(_ person: Person, isToday: Bool) -> some View {
+        Group {
+            if isToday {
+                celebrating(person)
+            } else {
+                row(person)
+            }
+        }
+        .allowsHitTesting(!isEditing)
+        .tag(person.id)
+        .listRowInsets(rowInsets)
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+        .swipeActions(edge: .trailing) {
+            Button(role: .destructive) { remove(person) } label: {
+                Label("Remove", systemImage: "trash")
+            }
+        }
+    }
+
+    /// Four above and four below makes the eight the cards had between them
+    /// when this was a stack, and twenty at the sides matches every other
+    /// screen.
+    private var rowInsets: EdgeInsets {
+        EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20)
+    }
+
+    // MARK: Selecting, and removing several at once
+
+    private func toggleSelecting() {
+        withAnimation {
+            if isEditing {
+                editMode = .inactive
+                selected = []
+            } else {
+                editMode = .active
+            }
+        }
+    }
+
+    /// Removes everybody ticked, in one go.
+    ///
+    /// The schedule is rebuilt here rather than left to the next foreground.
+    /// It is rebuilt on every foreground anyway, per `FR-074`, but anyway is
+    /// not soon enough: somebody who removes a person whose birthday is
+    /// tomorrow and then puts the phone down still has that person's
+    /// notification sitting in the queue, and it would arrive.
+    private func deleteSelected() {
+        let doomed = store.people.filter { selected.contains($0.id) }
+        guard !doomed.isEmpty else { return }
+        withAnimation {
+            for person in doomed { store.remove(person) }
+            selected = []
+            if store.people.isEmpty { editMode = .inactive }
+        }
+        rescheduleReminders()
+    }
+
+    /// One person, from a swipe or from the menu on a card. Same rebuild, same
+    /// reason.
+    private func remove(_ person: Person) {
+        withAnimation { store.remove(person) }
+        if store.people.isEmpty { editMode = .inactive }
+        rescheduleReminders()
+    }
+
+    private func rescheduleReminders() {
+        guard let profile = profileStore.profile else { return }
+        let people = store.people
+        Task { await notifications.reschedule(birthday: profile.birthday, people: people) }
     }
 
     // MARK: The one permission
@@ -344,7 +528,9 @@ struct PeopleView: View {
         .buttonStyle(.plain)
         .contextMenu {
             Button("Edit") { editing = person }
-            Button("Remove", role: .destructive) { store.remove(person) }
+            // Through the view rather than straight at the store, so the
+            // notification schedule is rebuilt with them gone.
+            Button("Remove", role: .destructive) { remove(person) }
         }
     }
 
@@ -375,7 +561,9 @@ struct PeopleView: View {
         .buttonStyle(.plain)
         .contextMenu {
             Button("Edit") { editing = person }
-            Button("Remove", role: .destructive) { store.remove(person) }
+            // Through the view rather than straight at the store, so the
+            // notification schedule is rebuilt with them gone.
+            Button("Remove", role: .destructive) { remove(person) }
         }
     }
 
