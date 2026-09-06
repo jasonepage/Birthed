@@ -106,11 +106,31 @@ import { calendar, isLeapYear, renderAdd, renderHome, renderPrivacy, renderSuppo
 import { asHighlight, pickHighlights, type Fact } from "../src/facts.js";
 import { redirectFor } from "../src/serve.js";
 
-test("the front door still links every date, and the two pages people need", () => {
+test("the front door still reaches every date, and the two pages people need", () => {
   const html = renderHome();
-  assert.equal((html.match(/href="\/[a-z]+-\d+\/"/g) ?? []).length, 366);
+  const links = new Set(html.match(/href="\/[a-z]+-\d+\/"/g) ?? []);
+  assert.equal(links.size, 366);
   assert.ok(html.includes('href="/support/"'));
   assert.ok(html.includes('href="/privacy/"'));
+});
+
+test("the front door offers a random day and today, and neither is a page", () => {
+  const html = renderHome();
+  assert.ok(html.includes('href="/random/"'));
+  assert.ok(html.includes('href="/today/"'));
+  // Both are answered by a redirect. If either ever became a file, the built
+  // site would have a page nothing links to it correctly and this would say so.
+  assert.equal(redirectFor("/random/") === null, false);
+  assert.equal(redirectFor("/today/") === null, false);
+});
+
+test("an icon only link still has a name when its words are hidden", () => {
+  // Under 430 pixels the stylesheet hides the words in these two links. A
+  // link whose remaining content is a decorative svg has no accessible name
+  // at all unless one is on the link itself.
+  const html = renderHome();
+  assert.ok(html.includes('href="/today/" aria-label='));
+  assert.ok(html.includes('href="/random/" aria-label='));
 });
 
 test("the born in strip jumps to a month that exists on the page", () => {
@@ -628,6 +648,21 @@ test("the same seed deals the same hand, and a different one does not", () => {
   const other = pickHighlights(facts, 6, 778).map((row) => row.text).join("|");
   assert.equal(one, same, "a build is not reproducible");
   assert.notEqual(one, other, "the seed does nothing");
+});
+
+test("no facts is a missing section rather than a heading over nothing", () => {
+  const html = renderHome(2026, []);
+  assert.ok(!html.includes("Every date has a day like this in it"));
+  // And the page still works.
+  assert.equal(new Set(html.match(/href="\/[a-z]+-\d+\/"/g) ?? []).size, 366);
+});
+
+test("the front door still runs nothing", () => {
+  // The site sends default-src 'none'. Every piece of behaviour on this page
+  // is a link, a fragment or a stylesheet rule, and it has to stay that way.
+  const html = renderHome(2026, pickHighlights([HIGHLIGHT_FACT], 6, 1));
+  assert.ok(!html.includes("<script"));
+  assert.ok(!html.includes("onclick"));
 });
 
 const MONTH_WORDS = [

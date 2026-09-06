@@ -158,8 +158,6 @@ footer { margin: 40px 0 0; color: #7C7570; font-size: 13px; }
 footer a { color: #9C9490; }
 /* The year as twelve calendars. Seven columns, so a row is a week and the page
    reads the way a wall calendar does instead of as a column of 366 lines. */
-.months { display: grid; grid-template-columns: repeat(3, 1fr); gap: 26px 18px; margin: 24px 0 0; padding: 0; }
-.cal { min-width: 0; }
 .cal h3 {
   font-family: Georgia, "Times New Roman", serif; font-weight: 800;
   font-size: 19px; margin: 0 0 8px;
@@ -175,43 +173,21 @@ footer a { color: #9C9490; }
   aspect-ratio: 1 / 1; border-radius: 8px;
   font-size: 13px; font-variant-numeric: tabular-nums;
 }
-.cal .days a { background: #17141F; color: #D9D2CC; text-decoration: none; }
-.cal .days a:hover, .cal .days a:focus { background: ${ACCENT}; color: #FFF7EE; }
-/* February 29 in a year that does not have one. It still has a page. */
-.cal .days a.leap { background: none; color: #7C7570; box-shadow: inset 0 0 0 1px #2A2434; }
-.cal .days a.leap:hover, .cal .days a.leap:focus { background: ${ACCENT}; color: #FFF7EE; box-shadow: none; }
 p.calnote { color: #6E6862; font-size: 13px; margin: 22px 0 0; }
-@media (max-width: 680px) { .months { grid-template-columns: repeat(2, 1fr); gap: 22px 14px; } }
-@media (max-width: 430px) { .months { grid-template-columns: 1fr; gap: 26px; } .cal .days a { font-size: 15px; } }
 footer .sitelinks { color: #B9B2AD; font-size: 14px; }
 footer .sitelinks a { color: ${ACCENT}; text-decoration: none; }
-.hero { display: flex; gap: 22px; align-items: flex-start; margin: 10px 0 0; }
-.hero img { width: 92px; height: 92px; border-radius: 22px; flex: none; }
-.hero h1 { font-size: clamp(34px, 8vw, 58px); }
 .btn {
   display: inline-block; margin: 6px 0 0; padding: 12px 20px; border-radius: 999px;
   background: #FFF7EE; color: #A8265A; font-weight: 700; text-decoration: none; font-size: 15px;
 }
-.bornin { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 18px 0 0; }
-.bornin span { color: #7C7570; font-size: 13px; margin-right: 4px; }
-.bornin a {
-  display: inline-block; padding: 6px 11px; border-radius: 999px; font-size: 13px; font-weight: 600;
-  color: #D9D2CC; text-decoration: none; box-shadow: inset 0 0 0 1px #3A3342;
-}
-.bornin a:hover, .bornin a:focus { background: ${ACCENT}; color: #FFF7EE; box-shadow: none; }
 .cal { scroll-margin-top: 24px; }
 html { scroll-behavior: smooth; }
 .soon { display: inline-block; margin: 6px 0 0; padding: 12px 20px; border-radius: 999px; border: 1px solid #3A3342; color: #B9B2AD; font-size: 15px; }
-.features { display: grid; gap: 10px; margin: 34px 0 0; padding: 0; list-style: none; }
-.features li { display: block; }
-.features h3 { margin: 0 0 4px; font-size: 17px; }
-.features p { margin: 0; color: #B9B2AD; font-size: 15px; }
 h2.plain { font-family: Georgia, "Times New Roman", serif; font-weight: 800; font-size: clamp(22px, 5vw, 28px); margin: 40px 0 8px; }
 .prose p, .prose li { color: #D9D2CC; }
 .prose ul { padding-left: 20px; }
 .prose h3 { margin: 26px 0 4px; font-size: 17px; }
 .prose .updated { color: #7C7570; font-size: 13px; }
-@media (max-width: 520px) { .hero { flex-direction: column; gap: 14px; } }
 
 /* ---- The form on /add ----------------------------------------------------
 
@@ -309,14 +285,338 @@ h2.plain { font-family: Georgia, "Times New Roman", serif; font-weight: 800; fon
 .problem { margin: 16px 0 0; font-size: 15px; color: #FFB3C6; }
 .result { margin: 18px 0 0; font-size: 15px; overflow-wrap: anywhere; }
 .result a { color: ${ACCENT}; }
+
+/* ---- The front door ------------------------------------------------------
+
+   Everything below here is the home page and only the home page. It asks for
+   itself by name, through the "home" class that "head" puts on the body,
+   rather than every other page being told to opt out of it. A date page is a
+   document and is read at the measure prose is read at; the front door is a
+   landing page and needs a wider one for the calendar and a louder one
+   everywhere else, and those two things should not have to argue.
+
+   Nothing here runs. The site sends default-src 'none' and this page has no
+   script in it at all, so every piece of behaviour on it is either a link the
+   server answers, a fragment the browser resolves, or a rule in this
+   stylesheet. That is a real constraint and it is also why the interactions
+   are honest: there is no state to get out of step with what is on screen.
+*/
+
+/* The light behind the heading. On the body rather than on an element, because
+   a decorative layer behind content wants a negative z-index and a negative
+   z-index paints behind the page's own background, which is the oldest way to
+   make a glow that nobody can see. A background image on the body has no such
+   problem. Left to scroll with the page rather than fixed: a fixed attachment
+   is repainted on every frame of a scroll on iOS and it shows. */
+body.home {
+  background-image:
+    radial-gradient(1100px 620px at 6% -12%, rgba(239, 86, 128, 0.20), transparent 60%),
+    radial-gradient(900px 560px at 98% -6%, rgba(139, 92, 246, 0.16), transparent 62%),
+    radial-gradient(760px 520px at 48% 4%, rgba(255, 136, 168, 0.06), transparent 66%);
+  background-repeat: no-repeat;
+}
+/* The calendar wants room and prose does not, so the page is wide and the
+   words inside it are not. */
+.wrap.home { max-width: 1120px; padding-top: 24px; }
+.home .col { max-width: 720px; margin-inline: auto; }
+
+/* The strip across the top. The two things here are redirects the server
+   answers, not pages, which is the only way a static site with no script can
+   offer a random date at all. */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 14px; margin: 0 0 26px;
+}
+.mark {
+  font-size: 12px; font-weight: 800; letter-spacing: 0.22em;
+  color: ${ACCENT}; text-transform: uppercase; text-decoration: none;
+}
+.quick { display: flex; gap: 8px; }
+.quick a {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 15px; border-radius: 999px;
+  font-size: 13px; font-weight: 600; color: #D9D2CC; text-decoration: none;
+  background: rgba(255, 247, 238, 0.045);
+  box-shadow: inset 0 0 0 1px rgba(255, 247, 238, 0.13);
+  transition: color 140ms ease, background 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+.quick a:hover, .quick a:focus-visible {
+  color: #FFF7EE; background: rgba(239, 86, 128, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(239, 86, 128, 0.55);
+  transform: translateY(-1px);
+}
+.quick .ic { flex: none; opacity: 0.85; }
+.quick a:hover .ic { opacity: 1; }
+@media (max-width: 430px) { .quick a span { display: none; } .quick a { padding: 10px; } }
+
+.home .hero { display: flex; gap: 26px; align-items: flex-start; margin: 8px 0 0; }
+.home .hero h1 { font-size: clamp(35px, 6.6vw, 60px); letter-spacing: -0.012em; }
+.herotext { min-width: 0; }
+/* The second half of the sentence, lit. Guarded, because the fallback for an
+   unsupported background-clip is transparent text, which is a headline nobody
+   can read rather than a headline that is not pink. */
+.glow { color: #FFB9CC; }
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .glow {
+    background-image: linear-gradient(118deg, #FFCBD9 0%, ${ACCENT} 44%, #B98CFF 100%);
+    -webkit-background-clip: text; background-clip: text;
+    color: transparent;
+  }
+}
+.heroart { position: relative; flex: none; display: block; line-height: 0; }
+.heroart::before {
+  content: ""; position: absolute; inset: -22px; border-radius: 44px;
+  background: radial-gradient(closest-side, rgba(239, 86, 128, 0.45), transparent 72%);
+  filter: blur(12px);
+}
+.heroart img {
+  position: relative; width: 104px; height: 104px; border-radius: 26px; display: block;
+  box-shadow: 0 20px 46px rgba(239, 86, 128, 0.30), 0 0 0 1px rgba(255, 247, 238, 0.10);
+  animation: bob 6s ease-in-out infinite;
+}
+@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 22px 0 0; }
+.actions .btn { margin: 0; }
+.btn.brand {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 14px 24px; font-size: 16px;
+  background-image: linear-gradient(135deg, #FF9BB6, ${ACCENT} 52%, #C0335F);
+  color: #FFF7EE;
+  box-shadow: 0 14px 34px rgba(239, 86, 128, 0.30);
+  transition: transform 140ms ease, box-shadow 140ms ease, filter 140ms ease;
+}
+.btn.brand:hover {
+  filter: brightness(1.07); transform: translateY(-2px);
+  box-shadow: 0 20px 44px rgba(239, 86, 128, 0.40);
+}
+.btn.brand:active { transform: translateY(0); }
+.btn.ghost {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 14px 20px; font-size: 15px;
+  background: transparent; color: #E7E0DA;
+  box-shadow: inset 0 0 0 1px rgba(255, 247, 238, 0.20);
+  transition: color 140ms ease, background 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+.btn.ghost:hover {
+  color: #FFF7EE; background: rgba(239, 86, 128, 0.10);
+  box-shadow: inset 0 0 0 1px rgba(239, 86, 128, 0.60);
+  transform: translateY(-2px);
+}
+.fine { color: #7C7570; font-size: 13px; margin: 14px 0 0; max-width: 46ch; }
+
+/* Pick your month. A band rather than a line of small links, because this is
+   the one thing on the page a visitor who knows what they want is looking for,
+   and it used to be six words of grey text. */
+.picker {
+  margin: 34px 0 0; padding: 18px 20px 20px; border-radius: 22px;
+  background: linear-gradient(180deg, rgba(255, 247, 238, 0.06), rgba(255, 247, 238, 0.02));
+  box-shadow: inset 0 0 0 1px rgba(255, 247, 238, 0.09);
+}
+.pickerlabel {
+  margin: 0 0 13px; font-family: inherit;
+  font-size: 12px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase;
+  color: #8A8280;
+}
+.bornin { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+.bornin a {
+  display: flex; align-items: center; justify-content: center;
+  padding: 12px 4px; border-radius: 13px;
+  font-size: 14px; font-weight: 700; color: #D9D2CC; text-decoration: none;
+  background: rgba(255, 247, 238, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(255, 247, 238, 0.10);
+  transition: color 140ms ease, background 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+.bornin a:hover, .bornin a:focus-visible {
+  color: #23090F; background-image: linear-gradient(135deg, #FFB0C6, ${ACCENT});
+  box-shadow: 0 10px 22px rgba(239, 86, 128, 0.34);
+  transform: translateY(-2px);
+}
+@media (max-width: 560px) { .bornin { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+/* The rail of real facts, moving.
+
+   It moves without a script, because default-src 'none' means nothing on this
+   page may run one. The track is a keyframe animation, the pause is a hover
+   rule, and the loop is seamless because the track is written out twice: the
+   first copy slides exactly its own width plus the gap, by which point the
+   second copy is standing where the first one started.
+
+   The distance has to be its own width plus one gap and not just its width.
+   The two tracks are laid out side by side inside a flex row with a gap
+   between them, so a copy that only travelled 100 percent would stop one gap
+   short and the rail would jump by that much, once a minute, forever.
+
+   Cards are a fixed width rather than a share of the rail. A share of what:
+   the track is wider than the screen by design, so a percentage would be a
+   percentage of a number nobody chose. Fixed also means the whole track is a
+   known length, which is what lets one duration read as one steady speed.
+*/
+.proof { margin: 46px 0 0; }
+.rail {
+  overflow: hidden; display: flex; gap: 14px; margin: 24px 0 0;
+  /* Fades the cards in and out at both ends instead of cutting them off at a
+     hard edge, which is what makes it read as a wheel turning past rather
+     than as a list that has been clipped. A gradient, not an image: the
+     security header for this page says img-src 'self' and would refuse one. */
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+}
+.railtrack {
+  display: flex; gap: 14px; flex: none; list-style: none; margin: 0; padding: 0;
+  animation: rail 72s linear infinite;
+}
+@keyframes rail { to { transform: translateX(calc(-100% - 14px)); } }
+/* Hold it still to read one. Focus as well as hover, because a keyboard is
+   how somebody reaches these without a pointer and a link that keeps sliding
+   out from under the focus ring is unusable. */
+.rail:hover .railtrack, .rail:focus-within .railtrack { animation-play-state: paused; }
+.railtrack li.hlcard {
+  flex: none; width: 320px;
+  display: flex; flex-direction: column;
+  background: linear-gradient(180deg, rgba(255, 247, 238, 0.055), rgba(255, 247, 238, 0.022));
+  box-shadow: inset 0 0 0 1px rgba(255, 247, 238, 0.09);
+  border-radius: 18px; padding: 16px 18px 14px;
+  transition: box-shadow 160ms ease, background 160ms ease;
+}
+.railtrack li.hlcard:hover {
+  background: linear-gradient(180deg, rgba(239, 86, 128, 0.13), rgba(255, 247, 238, 0.03));
+  box-shadow: inset 0 0 0 1px rgba(239, 86, 128, 0.50), 0 20px 40px rgba(0, 0, 0, 0.34);
+}
+.hl { display: block; text-decoration: none; color: inherit; flex: 1; }
+.hlhead { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.hldate {
+  font-size: 11px; font-weight: 800; letter-spacing: 0.13em; text-transform: uppercase;
+  color: ${ACCENT};
+}
+.hlyear {
+  font-size: 13px; font-weight: 700; color: #7C7570; font-variant-numeric: tabular-nums;
+}
+.hltext {
+  display: block; margin: 9px 0 0;
+  font-family: Georgia, "Times New Roman", serif; font-size: 17px; line-height: 1.42;
+  color: #FFF7EE;
+}
+.hlsrc { margin: 11px 0 0; font-size: 12px; }
+.hlsrc a { color: #6E6862; text-decoration: none; }
+.hlsrc a:hover { color: ${ACCENT}; text-decoration: underline; }
+.proof .credit { margin-top: 18px; }
+
+/* What is on a day. Six of them in two columns, hung off a hairline each,
+   because six rounded rectangles in a row is the shape of a page that has run
+   out of things to say. */
+.features {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 26px; margin: 22px 0 0; padding: 0; list-style: none;
+}
+.features li {
+  display: block; background: none; border-radius: 0;
+  padding: 15px 0 4px; border-top: 1px solid rgba(255, 247, 238, 0.11);
+}
+.features h3 { margin: 0 0 5px; font-size: 16px; }
+.features h3::before {
+  content: ""; display: inline-block; vertical-align: 0.12em;
+  width: 7px; height: 7px; border-radius: 2px; margin-right: 9px;
+  background-image: linear-gradient(135deg, #FFB0C6, ${ACCENT});
+}
+.features p { margin: 0; color: #B9B2AD; font-size: 15px; }
+.features a { color: ${ACCENT}; }
+@media (max-width: 560px) { .features { grid-template-columns: 1fr; } }
+
+/* The year as twelve calendars, in the full width of the page rather than in
+   the width of a paragraph. Seven columns, so a row is a week and it reads the
+   way a wall calendar does instead of as a column of 366 lines. */
+.allyear { margin-top: 52px; }
+.months {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px; margin: 22px 0 0; padding: 0;
+}
+.cal {
+  min-width: 0; border-radius: 18px; padding: 15px 15px 12px;
+  box-shadow: inset 0 0 0 1px transparent;
+  transition: background 260ms ease, box-shadow 260ms ease;
+}
+/* The month that was jumped to, lit. This is the whole answer to a real
+   problem: tapping a month scrolled the page a long way and landed on twelve
+   identical grids with nothing saying which one had been asked for, so the one
+   interactive thing on the page gave no sign at all that it had worked. A
+   fragment is the only state a page with no script has, and ":target" is how
+   it is read. */
+.cal:target {
+  background: rgba(239, 86, 128, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(239, 86, 128, 0.42), 0 22px 50px rgba(239, 86, 128, 0.12);
+}
+.cal:target h3 { color: #FFD3E0; }
+.cal:target .dow { border-bottom-color: rgba(239, 86, 128, 0.30); }
+.cal .days a {
+  background: rgba(255, 247, 238, 0.055); color: #CFC7C1; text-decoration: none; font-weight: 600;
+  box-shadow: inset 0 0 0 1px rgba(255, 247, 238, 0.05);
+  transition: transform 120ms ease, background 120ms ease, box-shadow 120ms ease, color 120ms ease;
+}
+.cal .days a:hover, .cal .days a:focus-visible {
+  background-image: linear-gradient(140deg, #FFB0C6, ${ACCENT});
+  background-color: ${ACCENT};
+  color: #23090F; transform: translateY(-2px) scale(1.07);
+  box-shadow: 0 10px 20px rgba(239, 86, 128, 0.38);
+}
+.cal .days a:focus-visible { outline: 2px solid #FFF7EE; outline-offset: 2px; }
+/* February 29 in a year that does not have one. It still has a page, so it
+   still has a square, marked rather than quietly dropped. */
+.cal .days a.leap {
+  background: none; color: #7C7570;
+  box-shadow: inset 0 0 0 1px rgba(239, 86, 128, 0.30);
+}
+.cal .days a.leap:hover, .cal .days a.leap:focus-visible {
+  color: #23090F; box-shadow: 0 10px 20px rgba(239, 86, 128, 0.38);
+}
+@media (max-width: 900px) { .months { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .railtrack li.hlcard { width: 74vw; } }
+@media (max-width: 600px) {
+  .months { grid-template-columns: 1fr; gap: 10px; }
+  .cal .days a { font-size: 16px; border-radius: 12px; }
+  .home .hero { flex-direction: column; gap: 16px; }
+  .wrap.home { padding-left: 16px; padding-right: 16px; }
+  .picker { padding: 16px 15px 17px; }
+}
+
+/* Nothing on this page needs to move for it to work. */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .heroart img { animation: none; }
+  /* Nothing moves on its own, so the rail becomes one the reader pushes, and
+     the second copy of the track is dropped rather than left sitting there as
+     twelve cards nobody asked for twice. */
+  .railtrack { animation: none; }
+  .railtrack[aria-hidden="true"] { display: none; }
+  .rail {
+    overflow-x: auto; scroll-snap-type: x mandatory;
+    scrollbar-width: none; padding-bottom: 4px;
+  }
+  .rail::-webkit-scrollbar { display: none; }
+  .railtrack li.hlcard { scroll-snap-align: start; }
+  .quick a, .btn.brand, .btn.ghost, .bornin a, .railtrack li.hlcard, .cal, .cal .days a {
+    transition: none;
+  }
+  .btn.brand:hover, .btn.ghost:hover, .bornin a:hover, .cal .days a:hover { transform: none; }
+}
 `;
 
+/**
+ * The top of every page.
+ *
+ * `bodyClass` is how one page gets a look the others do not. The front door
+ * is the only page on the site that is a landing page rather than a document,
+ * so it is the only one that gets the wider column and the light behind the
+ * heading, and it asks for those by name rather than by every other page
+ * being told to opt out of them.
+ */
 export function head(
   title: string,
   description: string,
   canonical: string,
   image?: string,
   noindex = false,
+  bodyClass = "",
 ): string {
   return `<!doctype html>
 <html lang="en">
@@ -341,7 +641,7 @@ ${image ? `<meta property="og:image" content="${image}">
 <meta name="twitter:card" content="summary_large_image">
 <style>${STYLE}</style>
 </head>
-<body><div class="wrap">`;
+<body${bodyClass ? ` class="${bodyClass}"` : ""}><div class="wrap${bodyClass ? ` ${bodyClass}` : ""}">`;
 }
 
 export const FOOT = `<footer>

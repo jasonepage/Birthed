@@ -11,7 +11,8 @@
 // the comments say where. When the code changes, this changes with it.
 
 import { DAYS_IN_MONTH, monthName, slug } from "./model.js";
-import { FOOT, SITE, head } from "./render.js";
+import { hostOf, type Highlight } from "./facts.js";
+import { FOOT, SITE, escapeHtml, head } from "./render.js";
 
 /** Where a person can reach us. One place, so it changes in one place. */
 export const SUPPORT_EMAIL = "support@birthed.app";
@@ -90,59 +91,200 @@ export function monthAnchor(month: number): string {
 }
 
 /**
- * Twelve links beside the store button, one per month, each jumping to that
- * month's calendar further down the page.
+ * Two small icons, drawn in the page rather than fetched.
  *
- * The page cannot know when a visitor was born, and a picker that asked
- * would need a script, which the privacy page says only one page runs. So the
- * visitor tells it with one tap, and the answer is a fragment, which the
- * browser resolves without a request and without the month ever leaving it.
+ * The security header for every page but one says `img-src 'self'`, so a
+ * data: URI is refused and nothing is drawn and no error appears anywhere a
+ * person would look. An inline svg element is markup rather than a request,
+ * so it is not covered by that rule and cannot fail the same silent way.
+ * They take their colour from whatever they sit in.
+ */
+const ICON_DICE = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="4.6"/><circle cx="8.4" cy="8.4" r="1.35" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.35" fill="currentColor" stroke="none"/><circle cx="15.6" cy="15.6" r="1.35" fill="currentColor" stroke="none"/></svg>`;
+
+const ICON_CALENDAR = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3.4" y="5" width="17.2" height="15.6" rx="3.6"/><path d="M3.4 10.2h17.2M8.2 3.2v3.6M15.8 3.2v3.6"/></svg>`;
+
+/**
+ * The strip across the top: the name on the left, and on the right the two
+ * things a visitor can do that are not "pick your own birthday".
+ *
+ * Neither is a page. `/today/` and `/random/` are redirects the server
+ * answers, which is what lets them exist at all: this site sends
+ * `default-src 'none'`, so no page here may run a script, and a script is the
+ * only way a page could pick a date for itself. See `redirectFor` in
+ * `serve.ts`, which also says why "today" is decided the way it is.
+ *
+ * Random is here because the 366 pages are the product and a visitor who does
+ * not want to think about their own birthday yet has, until now, had no way
+ * into any of them except by hunting for a square.
+ */
+function topBar(): string {
+  return `<header class="topbar">
+<a class="mark" href="/">Birthed</a>
+<nav class="quick" aria-label="Jump to a date">
+<a href="/today/" aria-label="Today's date">${ICON_CALENDAR}<span>Today</span></a>
+<a href="/random/" aria-label="A random day of the year">${ICON_DICE}<span>Random day</span></a>
+</nav>
+</header>`;
+}
+
+/**
+ * Twelve month buttons, each jumping to that month's calendar further down.
+ *
+ * The page cannot know when a visitor was born, and a picker that asked would
+ * need a script. So the visitor tells it with one tap, and the answer is a
+ * fragment, which the browser resolves without a request and without the
+ * month ever leaving it.
+ *
+ * The month that has been jumped to lights up, which is a `:target` rule in
+ * the stylesheet and not a script. That matters more than it sounds: before
+ * it, tapping a month scrolled the page a long way and landed on twelve
+ * identical grids with nothing saying which one had been asked for, so the
+ * one interactive thing on the page gave no sign it had worked.
  */
 function bornInStrip(): string {
   const links = Array.from({ length: 12 }, (_, index) => {
     const month = index + 1;
-    return `<a href="#${monthAnchor(month)}">${monthName(month).slice(0, 3)}</a>`;
+    const name = monthName(month);
+    return `<a href="#${monthAnchor(month)}" aria-label="Born in ${name}"><span aria-hidden="true">${name.slice(0, 3)}</span></a>`;
   }).join("");
-  return `<p class="bornin"><span>Born in</span>${links}</p>`;
+  return `<section class="picker">
+<h2 class="pickerlabel">Born in</h2>
+<nav class="bornin" aria-label="Pick the month you were born in">${links}</nav>
+</section>`;
 }
 
 function storeButton(): string {
-  if (APP_STORE_URL) return `<a class="btn" href="${APP_STORE_URL}">Get Birthed on the App Store</a>`;
-  return `<a class="btn" href="${TESTFLIGHT_URL}">Try the beta on TestFlight</a>
-<p class="lede" style="margin:10px 0 0;font-size:14px">iPhone only for now. TestFlight is Apple's free app for trying apps before they are on the store.</p>`;
+  if (APP_STORE_URL) return `<a class="btn brand" href="${APP_STORE_URL}">Get Birthed on the App Store</a>`;
+  return `<a class="btn brand" href="${TESTFLIGHT_URL}">Try the beta on TestFlight</a>`;
 }
 
-export function renderHome(year: number = new Date().getUTCFullYear()): string {
+/**
+ * The rail of real facts: one off each month's date pages, moving.
+ *
+ * A landing page for a site whose whole value is 366 pages of content, that
+ * shows none of the content, is asking to be taken on trust by somebody who
+ * has no reason to. These rows cost the build nothing, because every fact on
+ * the site is already in memory by the time this page is written.
+ *
+ * It moves because a still grid of six is a thing you read once and a rail
+ * that keeps bringing another one past is a thing you watch, and what it is
+ * bringing past is the argument for the product. It moves without a script,
+ * which on this site is not a preference: default-src 'none' means no page
+ * here may run one. So the track is a keyframe animation and the pause is a
+ * hover rule, and there is no state anywhere that can get out of step with
+ * what is on screen.
+ *
+ * The track is written out twice. That is what makes the loop seamless: the
+ * first copy slides its own width to the left, by which point the second copy
+ * is standing exactly where the first one started, and the animation restarts
+ * with nothing having moved. The second copy is the same links a second time,
+ * so it is hidden from anything that reads the page out loud and taken out of
+ * the tab order, or a keyboard would walk the same twelve dates twice.
+ *
+ * Empty when the facts have not been imported yet, which is a section that is
+ * simply not there rather than a heading over nothing.
+ */
+function highlightStrip(highlights: Highlight[]): string {
+  if (highlights.length === 0) return "";
+  // Spelled out, because a numeral in the middle of a sentence reads as a
+  // quantity worth noting and this one is not.
+  const words = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve"];
+  const count = words[highlights.length] ?? String(highlights.length);
+
+  const card = (row: Highlight, duplicate: boolean): string => {
+    const name = `${monthName(row.month)} ${row.day}`;
+    // The second copy is furniture. It says the same thing as the first and
+    // goes to the same place, so it is not announced and cannot be tabbed to.
+    const spare = duplicate ? ' tabindex="-1"' : "";
+    return `<li class="hlcard">
+<a class="hl" href="/${slug(row.month, row.day)}/"${spare}>
+<span class="hlhead"><span class="hldate">${escapeHtml(name)}</span><span class="hlyear">${row.year}</span></span>
+<span class="hltext">${escapeHtml(row.text)}</span>
+</a>
+<p class="hlsrc"><a href="${escapeHtml(row.sourceUrl)}" rel="nofollow noopener"${spare}>${escapeHtml(hostOf(row.sourceUrl))}</a></p>
+</li>`;
+  };
+
+  const track = (duplicate: boolean): string =>
+    `<ul class="railtrack"${duplicate ? ' aria-hidden="true"' : ""}>
+${highlights.map((row) => card(row, duplicate)).join("\n")}
+</ul>`;
+
+  return `<section class="proof">
+<div class="col">
+<h2 class="plain">Every date has a day like this in it</h2>
+<p class="lede">${count} of them, spread across the year, off ${count.toLowerCase()} of the 366 pages. Tap one for the rest of that date.</p>
+</div>
+<div class="rail">
+${track(false)}
+${track(true)}
+</div>
+<p class="col credit">Each of these was found by a model searching the web and kept only because the page it cites answered when it was checked. The page under each one is where it came from.</p>
+</section>`;
+}
+
+/**
+ * The front door.
+ *
+ * It has three jobs, in this order: say what Birthed is, show that the thing
+ * it says is true, and get the visitor onto their own date. The order used to
+ * be the first job five times over and then a wall of 366 numbers, which is a
+ * page that argues rather than one that demonstrates.
+ *
+ * It is the only page on the site that takes a `bodyClass`, because it is the
+ * only one that is a landing page rather than a document: it gets the wider
+ * column the calendar needs and the light behind the heading, and every other
+ * page keeps the narrow measure that prose is meant to be read at.
+ */
+export function renderHome(
+  year: number = new Date().getUTCFullYear(),
+  highlights: Highlight[] = [],
+): string {
   const canonical = `${SITE}/`;
   return `${head(
     "Birthed: the day you were born",
     "Who shares your birthday, what happened on it, what was number one the week you were born, how many days you have been here, and whose birthdays you keep forgetting.",
     canonical,
+    undefined,
+    false,
+    "home",
   )}
-<p class="kicker">Birthed</p>
-<div class="hero">
-  <img src="/icon-192.png" alt="" width="92" height="92">
-  <div>
-    <h1>The day you were born, and everything that was true about it.</h1>
+${topBar()}
+<div class="col">
+<section class="hero">
+  <span class="heroart"><img src="/icon-192.png" alt="" width="104" height="104"></span>
+  <div class="herotext">
+    <h1>The day you were born, <span class="glow">and everything that was true about it.</span></h1>
     <p class="lede">Who shares it. What happened on it. What was number one that week. How many days you have been here. And whose birthdays you keep forgetting.</p>
-    ${storeButton()}
-    ${bornInStrip()}
+    <p class="actions">
+      ${storeButton()}
+      <a class="btn ghost" href="/random/">${ICON_DICE}<span>Surprise me</span></a>
+    </p>
+    <p class="fine">iPhone only for now. TestFlight is Apple's free app for trying apps before they are on the store.</p>
   </div>
+</section>
+${bornInStrip()}
 </div>
 
+${highlightStrip(highlights)}
+
+<section class="col">
+<h2 class="plain">What is on a day</h2>
 <ul class="features">
   <li><h3>The week you were born</h3><p>The number one song, album and film the week you arrived, with the chart date next to each so you can check it.</p></li>
   <li><h3>Your day, counted</h3><p>The day of the week you were born, how many days that has been, and the day you turn ten thousand.</p></li>
   <li><h3>Who shares it</h3><p>The people most looked up who were born on your date, from Wikidata.</p></li>
-  <li><h3>What happened on it</h3><p>Specific things that happened on your date across history, found by a model that searches, each one showing the page it came from so you can check it yourself.</p></li>
+  <li><h3>What happened on it</h3><p>Specific things that happened on your date across history, each one showing the page it came from so you can check it yourself.</p></li>
   <li><h3>Other people's days</h3><p>Add the people you care about. Birthed tells you three days before and on the day, so you are never the one who forgot.</p></li>
+  <li><h3>Nothing about you leaves</h3><p>No sign up and no name. Nothing Birthed makes carries your name, and nothing shared out of it carries your birth year. <a href="/privacy/">How your data is handled</a>.</p></li>
 </ul>
+</section>
 
-<p class="lede" style="margin-top:34px">No sign up. No name. Nothing Birthed makes carries your name, and nothing shared out of it carries your birth year. <a href="/privacy/">How your data is handled</a>.</p>
-
+<section class="allyear">
 <h2 class="plain">Every day of the year</h2>
-<p class="lede" style="margin-bottom:0">Pick a date and see who shares it and what happened on it. The weeks are laid out the way they fall in ${year}.</p>
+<p class="lede">Pick a date and see who shares it and what happened on it. The weeks are laid out the way they fall in ${year}.</p>
 ${calendar(year)}
+</section>
 ${FOOT}`;
 }
 

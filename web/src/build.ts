@@ -14,7 +14,7 @@ import { cp, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DayPage, Person, everyDate, slug } from "./model.js";
 import { coverageByDay, fetchChartWeeks, songsForDate } from "./songs.js";
-import { factsByDay, factsForDate, fetchFacts } from "./facts.js";
+import { buildSeed, factsByDay, factsForDate, fetchFacts, pickHighlights } from "./facts.js";
 import { isReady, renderDayPage, renderNotFound, renderRobots, renderSitemap } from "./render.js";
 import { eventsByDay, eventsForDate, fetchEvents } from "./timeline.js";
 import { renderAdd, renderHome, renderPrivacy, renderSupport } from "./pages.js";
@@ -77,6 +77,9 @@ async function inBatches<T>(items: T[], size: number, work: (item: T) => Promise
 
 const FIRST_CHART_YEAR = 1959;
 
+/** How many real facts the front door carries. Twelve is one out of every month. */
+const HOME_HIGHLIGHTS = 12;
+
 async function main(): Promise<void> {
   const { url, key } = config();
   const dates = everyDate();
@@ -125,7 +128,15 @@ async function main(): Promise<void> {
     written++;
   });
 
-  await writeFile(join(OUT, "index.html"), renderHome(), "utf8");
+  // The front door shows six real facts off six real date pages, because a
+  // landing page for a site whose value is 366 pages of content that shows
+  // none of the content is asking to be taken on trust. They cost nothing:
+  // every fact is already in memory by the time this line runs.
+  const highlights = pickHighlights(facts, HOME_HIGHLIGHTS, buildSeed());
+  if (highlights.length < HOME_HIGHLIGHTS) {
+    console.log(`only ${highlights.length} facts on the front door, out of ${HOME_HIGHLIGHTS}`);
+  }
+  await writeFile(join(OUT, "index.html"), renderHome(thisYear, highlights), "utf8");
   await mkdir(join(OUT, "support"), { recursive: true });
   await writeFile(join(OUT, "support", "index.html"), renderSupport(), "utf8");
   await mkdir(join(OUT, "privacy"), { recursive: true });
