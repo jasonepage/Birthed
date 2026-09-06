@@ -15,7 +15,7 @@
 // duplicates.
 
 import { loadConfig, loadDotEnv } from "./config.js";
-import { columnMatching, readGrid, readTables } from "./html.js";
+import { columnMatching, decodeEntities, readGrid, readTables } from "./html.js";
 import { articleUrl, fetchPage } from "./wikipedia.js";
 
 const LICENSE = "CC-BY-SA-4.0";
@@ -26,7 +26,6 @@ interface YearChartSpec {
   /** Header patterns, matched against lower case header text. */
   yearHeader: RegExp;
   titleHeader: RegExp;
-  creditHeader: RegExp | null;
   /** The earliest year worth trusting from this page. */
   firstYear: number;
   /** What the interface shows beside the claim. */
@@ -36,10 +35,12 @@ interface YearChartSpec {
 export const US_BEST_SELLING_GAME: YearChartSpec = {
   chart: "us_best_selling_game",
   pageTitle: "List of best-selling video games in the United States by year",
+  // Distinctive on purpose. "Title" alone also matches the all-time top ten
+  // table further down, whose Year column is a release year, and matching it
+  // is exactly the wrong answer wearing the right shape: the first dry run
+  // returned nine scattered years and developers where publishers belong.
   yearHeader: /^year/,
-  titleHeader: /^game|^title/,
-  creditHeader: /^publisher|^developer/,
-  // The page runs from 1980. Anything earlier is not on it.
+  titleHeader: /top.selling title/,
   firstYear: 1980,
   // Short on purpose: it sits in the panel next to the song's issue date and
   // does the same job, which is making the claim checkable rather than
@@ -55,49 +56,54 @@ export interface YearChartRow {
   source_url: string;
   content_license: string;
   note: string;
+  /** Which reader produced it. Printed in dry mode, never stored. */
+  from?: "table" | "sentence";
 }
 
 /**
- * Reads the one table on the page that has a year column and a title column.
- *
- * Deliberately not "the first table": these pages carry navigation boxes and
- * summary tables that a positional rule picks up silently. Matching on the
- * headers means a page that has been restructured returns nothing and says so,
- * rather than returning the wrong thing and looking fine.
+ * Everything between two HTML tags, as plain text.
  */
-export function parsePage(html: string, spec: YearChartSpec): YearChartRow[] {
+function stripTags(html: string): string {
+  return decodeEntities(html.replace(/<[^>]*>/g, "")).replace(/\s+/g, " ").trim();
+}
+
+/**
+ * The years 1980 to 1997, from the one table that lists them.
+ *
+ * That table is found by its "Top-selling title" header rather than by
+ * position, because the page carries more than twenty tables and several of
+ * them have a column called Title. A page that has been restructured returns
+ * nothing here and says so, which is the failure worth having.
+ */
+export function parseYearTable(html: string, spec: YearChartSpec): YearChartRow[] {
   const url = articleUrl(spec.pageTitle);
   const rows: YearChartRow[] = [];
   const seen = new Set<number>();
 
   for (const table of readTables(html)) {
     const grid = readGrid(table);
-    if (grid.length < 2) continue;
-
     const first = grid[0];
     if (!first) continue;
+
     const header = first.map((cell) => cell.trim().toLowerCase());
     const yearColumn = columnMatching(header, spec.yearHeader);
     const titleColumn = columnMatching(header, spec.titleHeader);
     if (yearColumn < 0 || titleColumn < 0) continue;
-    const creditColumn = spec.creditHeader ? columnMatching(header, spec.creditHeader) : -1;
+    const creditColumn = columnMatching(header, /^publisher/);
 
     for (const line of grid.slice(1)) {
       const rawYear = (line[yearColumn] ?? "").trim();
-      // A four digit year and nothing else. A cell reading "1994-95" or
-      // "Notes" is skipped rather than coerced, because half a guess about
-      // which year a row belongs to is worse than no row at all.
+      // Four digits and nothing else. A cell reading "1994-95" or "Notes" is
+      // skipped rather than coerced, because half a guess about which year a
+      // row belongs to is worse than no row.
       const match = /^(\d{4})$/.exec(rawYear);
       if (!match) continue;
       const year = Number(match[1]);
       if (year < spec.firstYear) continue;
-      // The first table that matches wins for a given year. A later summary
-      // table repeating the same years must not overwrite it.
       if (seen.has(year)) continue;
 
       const title = (line[titleColumn] ?? "").trim();
       if (!title) continue;
-
       const credit = creditColumn >= 0 ? (line[creditColumn] ?? "").trim() : "";
 
       seen.add(year);
@@ -109,12 +115,78 @@ export function parsePage(html: string, spec: YearChartSpec): YearChartRow[] {
         source_url: url,
         content_license: LICENSE,
         note: spec.note,
+        from: "table",
       });
     }
   }
 
-  rows.sort((a, b) => a.year - b.year);
   return rows;
+}
+
+/**
+ * The years from 1998, which the page does not put in a table at all.
+ *
+ * From 1998 onward it gives each year its own top ten, with columns Rank,
+ * Title, Developer and Publisher and no year anywhere in the table. The year
+ * lives in the sentence above it: "The Legend of Zelda: Ocarina of Time was
+ * the best-selling game of 1998."
+ *
+ * So the sentence is the source, which is better than it sounds. It states
+ * the title and the year in one place, in the page's own words, and it is the
+ * same discipline the reward pipeline uses: take the sentence that makes the
+ * claim rather than assembling the claim from parts and hoping.
+ *
+ * Reading the rank one row of each table instead would mean pairing every
+ * table with a heading by document position, and a page with one stray
+ * heading would shift every year after it by one and look perfectly fine.
+ */
+export function parseYearSentences(html: string, spec: YearChartSpec): YearChartRow[] {
+  const url = articleUrl(spec.pageTitle);
+  const rows: YearChartRow[] = [];
+  const seen = new Set<number>();
+
+  const phrase = /\s+was the (?:best|top)[-\s]selling (?:video )?game of\s*(\d{4})/g;
+  let match: RegExpExecArray | null;
+  while ((match = phrase.exec(html)) !== null) {
+    const yearText = match[1];
+    if (!yearText) continue;
+    const year = Number(yearText);
+    if (year < spec.firstYear) continue;
+    if (seen.has(year)) continue;
+
+    // The title is whatever sentence the phrase is the end of. Take a window
+    // back from the match, drop the markup, and keep the last sentence in it.
+    const window = html.slice(Math.max(0, match.index - 400), match.index);
+    const text = stripTags(window);
+    const title = (text.split(/(?<=[.!?])\s+/).pop() ?? "").trim();
+    // A title long enough to be a paragraph is a failed match, not a game.
+    if (!title || title.length > 120) continue;
+
+    seen.add(year);
+    rows.push({
+      chart: spec.chart,
+      year,
+      title,
+      credit: null,
+      source_url: url,
+      content_license: LICENSE,
+      note: spec.note,
+      from: "sentence",
+    });
+  }
+
+  return rows;
+}
+
+/**
+ * Both readers, with the table winning where they overlap, because a column
+ * is a stronger claim than a sentence.
+ */
+export function parsePage(html: string, spec: YearChartSpec): YearChartRow[] {
+  const byYear = new Map<number, YearChartRow>();
+  for (const row of parseYearSentences(html, spec)) byYear.set(row.year, row);
+  for (const row of parseYearTable(html, spec)) byYear.set(row.year, row);
+  return [...byYear.values()].sort((a, b) => a.year - b.year);
 }
 
 /**
@@ -146,7 +218,8 @@ async function upsertYearCharts(
         "Content-Type": "application/json",
         Prefer: "resolution=merge-duplicates,return=minimal",
       },
-      body: JSON.stringify(rows),
+      // `from` is a diagnostic for the dry run and is not a column.
+      body: JSON.stringify(rows.map(({ from, ...row }) => row)),
     },
   );
   if (!response.ok) {
@@ -171,7 +244,7 @@ async function main(): Promise<void> {
 
   // Every row, not a count. Reading them is the point of the dry run.
   for (const row of rows) {
-    console.log(`${row.year}  ${row.title}${row.credit ? `  (${row.credit})` : ""}`);
+    console.log(`${row.year}  ${row.from === "table" ? "tbl" : "txt"}  ${row.title}${row.credit ? `  (${row.credit})` : ""}`);
   }
 
   const thisYear = new Date().getUTCFullYear();
