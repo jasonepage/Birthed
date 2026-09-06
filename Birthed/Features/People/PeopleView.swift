@@ -8,11 +8,13 @@ import SwiftUI
 /// list answers a question nobody asked.
 struct PeopleView: View {
     @Environment(PeopleStore.self) private var store
+    let repository: DayPageRepository
     let onOpenSettings: () -> Void
 
     @State private var editing: Person?
     @State private var adding = false
     @State private var addingMany = false
+    @State private var following = false
 
     private let agenda = BirthdayAgenda()
     private var now: Date { Date() }
@@ -44,6 +46,9 @@ struct PeopleView: View {
                         Button { addingMany = true } label: {
                             Label("Paste a list or send a link", systemImage: "square.and.arrow.down.on.square")
                         }
+                        Button { following = true } label: {
+                            Label("Follow someone famous", systemImage: "star")
+                        }
                         Button { adding = true } label: {
                             Label("Type one in", systemImage: "square.and.pencil")
                         }
@@ -51,6 +56,9 @@ struct PeopleView: View {
                         Label("Add someone", systemImage: "plus")
                     }
                 }
+            }
+            .sheet(isPresented: $following) {
+                FindFamousView(repository: repository)
             }
             .sheet(isPresented: $addingMany) {
                 AddFriendsView { people in

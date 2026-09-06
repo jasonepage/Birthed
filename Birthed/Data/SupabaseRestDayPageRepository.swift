@@ -70,6 +70,18 @@ struct SupabaseRestDayPageRepository: DayPageRepository {
 
     /// The shape the server sends. It stays private to this file so the column
     /// names never leak upward into the domain.
+    private struct MatchRow: Decodable {
+        let wikidata_qid: String
+        let name: String
+        let birth_year: Int?
+        let death_year: Int?
+        let short_description: String?
+        let source_url: String
+        let content_license: String
+        let birth_month: Int
+        let birth_day: Int
+    }
+
     private struct PersonRow: Decodable {
         let wikidata_qid: String
         let name: String
@@ -104,6 +116,72 @@ struct SupabaseRestDayPageRepository: DayPageRepository {
                 contentLicense: row.content_license
             )
         }
+    }
+
+    // MARK: Finding somebody
+
+    private static let matchColumns =
+        "wikidata_qid,name,birth_year,death_year,short_description,source_url,content_license,birth_month,birth_day"
+
+    /// How near counts as near, in years either side.
+    ///
+    /// Wide enough that a nineteen year old is offered people in their late
+    /// twenties, narrow enough that they are not offered a Victorian.
+    private static let nearYears = 9
+
+    private func matches(_ query: [URLQueryItem]) async throws -> [NotableMatch] {
+        let rows: [MatchRow] = try await fetch(from: "notable_people", query: query)
+        return rows.compactMap { row in
+            guard let sourceURL = URL(string: row.source_url),
+                  let date = CalendarDate(month: row.birth_month, day: row.birth_day)
+            else { return nil }
+            return NotableMatch(
+                person: NotablePerson(
+                    id: row.wikidata_qid,
+                    name: row.name,
+                    birthYear: row.birth_year,
+                    deathYear: row.death_year,
+                    shortDescription: row.short_description,
+                    sourceURL: sourceURL,
+                    contentLicense: row.content_license
+                ),
+                birthDate: date
+            )
+        }
+    }
+
+    func search(name query: String, limit: Int) async throws -> [NotableMatch] {
+        // Commas, brackets and stars are how PostgREST separates and wildcards
+        // its own filters, so a name containing one would not be a search, it
+        // would be a different query. They are dropped rather than escaped,
+        // because none of them appear in a name anybody is looking for.
+        let cleaned = query
+            .components(separatedBy: CharacterSet(charactersIn: ",()*%\"'"))
+            .joined()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard cleaned.count >= 2 else { return [] }
+
+        return try await matches([
+            URLQueryItem(name: "select", value: Self.matchColumns),
+            URLQueryItem(name: "name", value: "ilike.*\(cleaned)*"),
+            URLQueryItem(name: "order", value: "notability_score.desc"),
+            URLQueryItem(name: "limit", value: String(limit)),
+        ])
+    }
+
+    func recommended(bornNear year: Int?, limit: Int) async throws -> [NotableMatch] {
+        var query = [
+            URLQueryItem(name: "select", value: Self.matchColumns),
+            URLQueryItem(name: "has_social", value: "is.true"),
+            URLQueryItem(name: "monthly_views", value: "gt.0"),
+            URLQueryItem(name: "order", value: "monthly_views.desc"),
+            URLQueryItem(name: "limit", value: String(limit)),
+        ]
+        if let year {
+            query.append(URLQueryItem(name: "birth_year", value: "gte.\(year - Self.nearYears)"))
+            query.append(URLQueryItem(name: "birth_year", value: "lte.\(year + Self.nearYears)"))
+        }
+        return try await matches(query)
     }
 
     // MARK: The number ones

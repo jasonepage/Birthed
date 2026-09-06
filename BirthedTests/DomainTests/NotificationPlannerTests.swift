@@ -215,3 +215,94 @@ final class NotificationPlannerTests: XCTestCase {
         }
     }
 }
+
+// MARK: People you follow
+
+// Following public figures must never cost somebody a friend's birthday. iOS
+// keeps 64 pending requests and drops the rest without saying so, which makes
+// this a failure nobody can see: a notification that was never registered does
+// not announce itself, it simply never arrives.
+
+extension NotificationPlannerTests {
+
+    private func followed(_ month: Int, _ day: Int, name: String = "Figure") -> Person {
+        Person(name: name, birthday: birthday(month, day), wikidataID: "Q\(month)\(day)")
+    }
+
+    private func kinds(_ plan: [PlannedNotification], soon: Bool) -> [PlannedNotification] {
+        plan.filter {
+            switch $0.kind {
+            case .personSoon: return soon
+            case .personBirthday: return !soon
+            default: return false
+            }
+        }
+    }
+
+    func testAPublicFigureGetsTheDayItselfAndNoRunUp() {
+        let plan = planner().plan(
+            for: birthday(6, 1),
+            people: [followed(9, 5, name: "Freddie Mercury")],
+            from: instant(2026, 1, 10, zone: losAngeles)
+        )
+        XCTAssertEqual(kinds(plan, soon: false).count, 1)
+        XCTAssertTrue(kinds(plan, soon: true).isEmpty,
+                      "nobody needs three days to wish a stranger a happy birthday")
+    }
+
+    func testSomebodyYouKnowStillGetsBoth() {
+        let plan = planner().plan(
+            for: birthday(6, 1),
+            people: [person(9, 5, name: "Mum")],
+            from: instant(2026, 1, 10, zone: losAngeles)
+        )
+        XCTAssertEqual(kinds(plan, soon: false).count, 1)
+        XCTAssertEqual(kinds(plan, soon: true).count, 1)
+    }
+
+    func testFollowingACrowdCannotPushAFriendOffThePhone() {
+        // The friend's birthday is in December and every followed person is in
+        // January, February or March, so on date order alone the friend would
+        // be trimmed away and never told about.
+        var crowd: [Person] = []
+        for month in 1...3 {
+            for day in 1...28 { crowd.append(followed(month, day)) }
+        }
+        let mum = person(12, 20, name: "Mum")
+
+        let plan = planner().plan(
+            for: birthday(6, 1),
+            people: crowd + [mum],
+            from: instant(2026, 1, 10, zone: losAngeles)
+        )
+
+        XCTAssertLessThanOrEqual(plan.count, NotificationPlanner.systemLimit)
+        let hers = plan.filter { $0.identifier.contains(mum.id.uuidString) }
+        XCTAssertEqual(hers.count, 2, "the one person she knows keeps both, ahead of 84 she follows")
+
+        let theirs = plan.filter { notification in
+            crowd.contains { notification.identifier.contains($0.id.uuidString) }
+        }
+        XCTAssertLessThan(theirs.count, crowd.count, "the trim fell on the followed, which is the point")
+    }
+
+    func testTheUsersOwnBirthdayStillOutranksEverybody() {
+        var crowd: [Person] = []
+        for month in 1...3 {
+            for day in 1...28 { crowd.append(followed(month, day)) }
+        }
+        let plan = planner().plan(
+            for: birthday(6, 1),
+            people: crowd,
+            from: instant(2026, 1, 10, zone: losAngeles)
+        )
+        let own = plan.filter {
+            switch $0.kind {
+            case .ownBirthday, .ownCountdown: return true
+            default: return false
+            }
+        }
+        XCTAssertFalse(own.isEmpty, "a hundred followed people cannot cost you your own birthday")
+        XCTAssertLessThanOrEqual(plan.count, NotificationPlanner.systemLimit)
+    }
+}

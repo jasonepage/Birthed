@@ -23,6 +23,10 @@ final class PeopleStore {
         var year: Int?
         var leapObservance: String
         var note: String?
+        /// Optional on purpose. A list written before this existed decodes
+        /// with nil here rather than failing, so nobody loses their people to
+        /// a schema change. Everything already on a phone is somebody known.
+        var wikidataID: String?
     }
 
     private let defaults: UserDefaults
@@ -65,7 +69,8 @@ final class PeopleStore {
                 day: $0.birthday.date.day,
                 year: $0.birthday.year,
                 leapObservance: $0.birthday.leapObservance.rawValue,
-                note: $0.note
+                note: $0.note,
+                wikidataID: $0.wikidataID
             )
         }
         if let data = try? JSONEncoder().encode(stored) {
@@ -88,7 +93,8 @@ final class PeopleStore {
                     year: row.year,
                     leapObservance: LeapObservance(rawValue: row.leapObservance) ?? .february28
                 ),
-                note: row.note
+                note: row.note,
+                wikidataID: row.wikidataID
             )
         }
     }

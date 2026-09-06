@@ -342,6 +342,37 @@ an array of dictionaries that `INFOPLIST_KEY_` settings cannot express. It is
 in the test list at the top. Without it the link items do nothing and it looks
 like broken code.
 
+## Following public figures, September 6
+
+You can now add somebody out of Birthed's own list to the People tab, from a
+search or from a suggestion list. They sit in the same countdown, marked by
+carrying a `wikidataID`.
+
+**The notification rule is the part with teeth.** iOS keeps 64 pending
+requests and drops the rest silently, so following people could quietly cost
+somebody a friend's birthday and nothing would say so. A public figure gets the
+morning of, and not the three days before, because the run up is for buying
+something and having it arrive. And people you know fill the plan before people
+you follow, whatever the dates. Four tests, one of which follows 84 people in
+January to February and checks a friend in December still keeps both of hers.
+
+**The suggestions are a query, not a model, and Nathan asked for a model.**
+`has_social` already exists and its own comment describes it as the signal that
+somebody exists on the internet rather than only in an encyclopedia, which is
+the internet versus real life axis. Born near you is subtraction. For a birth
+year of 2003 that is 2,107 candidates, 999 genuinely looked up. A model would
+cost money per request, could name somebody who does not exist, and would not
+order them better than the number of people who looked them up.
+
+**But the straight sort was wrong and shipping it would have been bad.** The
+first real query returned Haaland, Bellingham, Sinner, Cucurella, Paredes and
+Zverev. Six of six athletes, because they carry enormous encyclopedia traffic
+and all have an Instagram, so every signal says footballer loudest. That is the
+same failure the day page ranking hit before sitelinks were replaced.
+`Domain/NotableMix.swift` fixes it by reading a coarse kind off the one
+sentence Wikidata writes and rotating between kinds, so popularity still picks
+who is on the list and this decides how many of each. Six tests.
+
 ## Things Jason still has to do or test
 
 - **`docs/test-pass-september-6.md` is the list**, written for him, in order,

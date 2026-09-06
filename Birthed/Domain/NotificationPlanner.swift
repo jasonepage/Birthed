@@ -78,22 +78,26 @@ struct NotificationPlanner {
     /// The user's own birthday is placed first and never trimmed. A hundred
     /// contacts should not be able to push somebody's own birthday off their
     /// own phone.
+    ///
+    /// People you know fill the remaining room before people you follow, for
+    /// the same reason one step down. Following twenty public figures must not
+    /// quietly cost somebody a friend's birthday, and the failure would be
+    /// invisible: a notification that was never registered does not announce
+    /// itself, it just never arrives.
     func plan(
         for birthday: CalendarBirthday,
         people: [Person] = [],
         from reference: Date
     ) -> [PlannedNotification] {
         let own = ownNotifications(for: birthday, from: reference)
-        let others = peopleNotifications(people, from: reference)
-            .sorted { left, right in
-                let leftDate = left.instant(in: calendar.calendar) ?? .distantFuture
-                let rightDate = right.instant(in: calendar.calendar) ?? .distantFuture
-                if leftDate != rightDate { return leftDate < rightDate }
-                return left.identifier < right.identifier
-            }
+
+        let known = people.filter { !$0.isPublicFigure }
+        let followed = people.filter(\.isPublicFigure)
+        let byDate = soonestFirst(peopleNotifications(known, from: reference))
+            + soonestFirst(peopleNotifications(followed, from: reference))
 
         let room = max(0, Self.systemLimit - own.count)
-        return own + others.prefix(room)
+        return own + byDate.prefix(room)
     }
 
     // MARK: The user's own day
@@ -132,6 +136,15 @@ struct NotificationPlanner {
         return planned
     }
 
+    private func soonestFirst(_ notifications: [PlannedNotification]) -> [PlannedNotification] {
+        notifications.sorted { left, right in
+            let leftDate = left.instant(in: calendar.calendar) ?? .distantFuture
+            let rightDate = right.instant(in: calendar.calendar) ?? .distantFuture
+            if leftDate != rightDate { return leftDate < rightDate }
+            return left.identifier < right.identifier
+        }
+    }
+
     // MARK: Other people
 
     private func peopleNotifications(_ people: [Person], from reference: Date) -> [PlannedNotification] {
@@ -150,7 +163,11 @@ struct NotificationPlanner {
                 ))
             }
 
-            if personDaysBefore > 0,
+            // Nobody needs three days' warning to wish a stranger a happy
+            // birthday. The run up is for buying something and having it
+            // arrive, which is a thing you do for people you know.
+            if !person.isPublicFigure,
+               personDaysBefore > 0,
                let earlier = calendar.calendar.date(byAdding: .day, value: -personDaysBefore, to: occurrence),
                let components = fireComponents(on: earlier),
                isFuture(components, from: reference) {

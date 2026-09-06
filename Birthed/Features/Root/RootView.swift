@@ -120,7 +120,7 @@ struct RootView: View {
             .tabItem { Label("Mine", systemImage: "flame") }
             .tag(Tab.mine)
 
-            PeopleView(onOpenSettings: { showingSettings = true })
+            PeopleView(repository: repository, onOpenSettings: { showingSettings = true })
                 .tabItem { Label("People", systemImage: "person.2") }
                 .tag(Tab.people)
         }

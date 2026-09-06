@@ -13,6 +13,25 @@ protocol DayPageRepository {
     /// for a birth before the chart began, and callers show nothing rather
     /// than a guess.
     func numberOne(on chart: ChartWeek.Chart, theWeekOf birthDate: CalendarDate, birthYear: Int) async throws -> ChartWeek?
+
+    /// People whose name contains what was typed, most looked up first.
+    func search(name query: String, limit: Int) async throws -> [NotableMatch]
+
+    /// Who somebody is likely to care about, without asking a model.
+    ///
+    /// Two signals already in the table do this job. `has_social` is whether
+    /// Wikidata carries a TikTok, Instagram or YouTube identifier for them,
+    /// which separates somebody who exists on the internet from somebody who
+    /// exists only in an encyclopedia. And being born near the reader is
+    /// subtraction. For a birth year of 2003 that is over two thousand
+    /// candidates, a thousand of them genuinely looked up, ordered by how
+    /// often. A model would cost money per request, could name somebody who
+    /// does not exist, and would not order them better than the number of
+    /// people who actually looked them up.
+    ///
+    /// A nil year means no year was given, and the answer falls back to the
+    /// most looked up people who are on the internet at all.
+    func recommended(bornNear year: Int?, limit: Int) async throws -> [NotableMatch]
 }
 
 extension DayPageRepository {

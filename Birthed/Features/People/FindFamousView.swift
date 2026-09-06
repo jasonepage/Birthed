@@ -1,0 +1,143 @@
+import SwiftUI
+
+/// Finding somebody public to follow, out of Birthed's own list.
+///
+/// With nothing typed this is a suggestion list, and the suggestions are a
+/// database query rather than a model: people born near the reader who carry a
+/// social identifier in Wikidata, ordered by how many people actually look
+/// them up, then spread across kinds so it does not come back as six
+/// footballers. That last part is not a flourish. The straight popularity
+/// order for a birth year of 2003 was Haaland, Bellingham, Sinner, Cucurella,
+/// Paredes and Zverev, and a list like that answers a question nobody asked.
+struct FindFamousView: View {
+    @Environment(PeopleStore.self) private var store
+    @Environment(ProfileStore.self) private var profileStore
+    @Environment(\.dismiss) private var dismiss
+
+    let repository: DayPageRepository
+
+    @State private var query = ""
+    @State private var results: [NotableMatch] = []
+    @State private var suggestions: [NotableMatch] = []
+    @State private var searching = false
+    @State private var failed = false
+
+    private var showing: [NotableMatch] {
+        query.trimmingCharacters(in: .whitespaces).isEmpty ? suggestions : results
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if showing.isEmpty && !searching {
+                    Section { emptyLine }
+                } else {
+                    Section {
+                        ForEach(showing) { match in
+                            row(match)
+                        }
+                    } header: {
+                        Text(query.trimmingCharacters(in: .whitespaces).isEmpty
+                             ? "People around your age" : "Results")
+                    }
+                }
+            }
+            .listStyle(.insetGrouped)
+            .navigationTitle("Follow someone")
+            .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $query, prompt: "Search by name")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .overlay {
+                if searching && showing.isEmpty { ProgressView() }
+            }
+            .task { await loadSuggestions() }
+            .task(id: query) { await runSearch() }
+        }
+        .tint(Theme.accent)
+    }
+
+    @ViewBuilder
+    private var emptyLine: some View {
+        if failed {
+            Text("Could not reach the list just now.")
+                .foregroundStyle(.secondary)
+        } else if !query.trimmingCharacters(in: .whitespaces).isEmpty {
+            Text("Nobody by that name.")
+                .foregroundStyle(.secondary)
+        } else {
+            Text("Nobody to suggest yet.")
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func row(_ match: NotableMatch) -> some View {
+        let already = store.people.contains { $0.wikidataID == match.person.id }
+        return HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(match.person.name)
+                    .font(.headline)
+                Text(match.birthDate.displayName())
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.accent)
+                if let description = match.person.shortDescription, !description.isEmpty {
+                    Text(description)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+            }
+            Spacer(minLength: 0)
+
+            Button {
+                store.add(match.asPerson())
+            } label: {
+                Image(systemName: already ? "checkmark" : "plus")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(already ? Color.secondary : Theme.cream)
+                    .frame(width: 34, height: 34)
+                    .background(already ? Color.clear : Theme.accent, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .disabled(already)
+            .accessibilityLabel(already ? "Already following \(match.person.name)"
+                                        : "Follow \(match.person.name)")
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func loadSuggestions() async {
+        guard suggestions.isEmpty else { return }
+        searching = true
+        defer { searching = false }
+        do {
+            let found = try await repository.recommended(
+                bornNear: profileStore.profile?.birthday.year, limit: 60)
+            suggestions = NotableMix.spread(found, limit: 20)
+        } catch {
+            failed = true
+        }
+    }
+
+    private func runSearch() async {
+        let text = query.trimmingCharacters(in: .whitespaces)
+        guard text.count >= 2 else { results = []; return }
+        // Typing is faster than the network, so a pause is waited out rather
+        // than sending a request per keystroke.
+        try? await Task.sleep(for: .milliseconds(300))
+        guard !Task.isCancelled else { return }
+
+        searching = true
+        defer { searching = false }
+        failed = false
+        do {
+            results = try await repository.search(name: text, limit: 30)
+        } catch {
+            failed = true
+            results = []
+        }
+    }
+}

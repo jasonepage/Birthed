@@ -146,7 +146,18 @@ so use September 4, 2002 unless a step below says otherwise.
     should arrive with the name already filled in. This is the flow a friend
     uses to send you theirs.
 
-19. **The old screens still work.** These are the ones tonight's changes could
+19. **Following someone famous.** People tab, the plus, then "Follow someone
+    famous". With nothing typed you should get a list headed "People around
+    your age". The thing to judge is whether it reads like a mix. If it is six
+    footballers in a row, the spread is not working and I want to know.
+    Screenshot it.
+
+    Then type "mercury". You should get Freddie Mercury and a TikToker called
+    Mercury Stardust. Tap the plus on one, go to the People tab, and confirm
+    they are in the list with their date. Go back into the search and the plus
+    on that person should now be a tick.
+
+20. **The old screens still work.** These are the ones tonight's changes could
     have broken by accident, so a quick look at each is enough:
     - Fresh onboarding, day wheel then year wheel, answering as you turn it.
     - The birthday state. Set the date to today, hold the candle, watch it
@@ -158,5 +169,5 @@ so use September 4, 2002 unless a step below says otherwise.
 
 The screenshots, in order, and any error text verbatim. For anything that
 looks wrong rather than broken, say what you expected instead. Item 2, item 8,
-item 9, item 12, item 14 and item 16 are the six that matter most, because nobody has seen any
+item 9, item 12, item 14, item 16 and item 19 are the seven that matter most, because nobody has seen any
 of those states yet.
