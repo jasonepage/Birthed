@@ -362,3 +362,12 @@ test("the privacy page no longer claims the site runs no scripts", () => {
   assert.ok(html.includes("after the hash symbol"));
   assert.ok(html.includes("sets no cookies"));
 });
+
+test("the hidden attribute beats the stylesheet", () => {
+  // The /add page switches its two buttons with the hidden attribute, and
+  // .btn sets display, which wins over the browser's own [hidden] rule. The
+  // page shipped offering "Make my link" and "Send it" at once, on a screen
+  // where only one of them does the right thing.
+  const html = renderDayPage(page);
+  assert.match(html, /\[hidden\]\s*{\s*display:\s*none\s*!important;\s*}/);
+});

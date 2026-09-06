@@ -88,6 +88,12 @@ h1 {
   font-size: clamp(38px, 9vw, 64px); line-height: 1.05; margin: 0 0 10px;
 }
 .lede { color: #B9B2AD; margin: 0 0 30px; }
+/* The hidden attribute has to beat every display rule below it. A browser
+   hides [hidden] with its own stylesheet, and any author rule that sets
+   display wins over that, so .btn made the two buttons on /add ignore being
+   hidden and the page offered both at once. Anything switched on and off from
+   a script depends on this line. */
+[hidden] { display: none !important; }
 ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 li {
   background: #17141F; border-radius: 14px; padding: 13px 15px;
