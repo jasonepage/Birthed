@@ -181,7 +181,9 @@ This document turns `PRD.md` into requirements an engineer can build and a teste
 
 ## 8. Notifications
 
-**FR-070** The app must request notification permission only after the user has completed onboarding and viewed at least one screen of content, and must explain the benefit in an in-app screen before the system prompt.
+**FR-070** The app must request notification permission from a control the user has touched, never on launch and never during onboarding. That control is a row shown under the first person on the People list once the list is not empty and permission has never been asked for, reading "Remind me the morning of and three days before", switched on when it appears, and the system prompt must be presented when the user leaves that screen with the row still switched on. Leaving the screen with the row switched off is an answer, and the row must not be shown again. A switch in Settings must offer the same thing to anybody who turns the row off or reaches Settings first. Test: with permission never asked, add one person, leave the People screen, and confirm the system prompt is presented; repeat with the row switched off and confirm no prompt is presented and the row does not return.
+
+Revised September 6, 2026. The original rule put the prompt behind a switch in Settings, which kept it out of onboarding and was right about that. But a permission asked from a switch nobody visits is a permission never granted, and a reminder application with no permission is a list. The row is still a control the user touched, which is what the original rule was protecting; the difference is that it is in front of them at the moment it makes sense rather than three taps away in a screen they will never open. The reasoning is in `docs/first-five-minutes.md`.
 
 **FR-071** The app must schedule a notification for each offer's real deadline rather than on a fixed generic schedule. Test: with one offer requiring 7 days advance signup and another requiring enrollment before the birthday month, confirm two separately dated notifications exist.
 

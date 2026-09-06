@@ -9,6 +9,8 @@ import SwiftUI
 struct PeopleView: View {
     @Environment(PeopleStore.self) private var store
     @Environment(ProfileStore.self) private var profileStore
+    @Environment(NotificationService.self) private var notifications
+    @Environment(\.scenePhase) private var scenePhase
     let repository: DayPageRepository
     let onOpenSettings: () -> Void
 
@@ -24,6 +26,12 @@ struct PeopleView: View {
     /// screen that decides whether this tab is worth anything has something on
     /// it besides an instruction.
     @State private var suggestions: [NotableMatch] = []
+    /// Whether the reminder row has already had its answer. Written when the
+    /// user leaves the screen, so a no is a no: the row asks once and then
+    /// the switch in Settings is the only place it lives.
+    @AppStorage("birthed.reminders.asked.v1") private var reminderRowAnswered = false
+    /// Guards the two ways of leaving from both asking at once.
+    @State private var answering = false
 
     private let agenda = BirthdayAgenda()
     private var now: Date { Date() }
@@ -66,7 +74,12 @@ struct PeopleView: View {
                     }
                 }
             }
-            .task { await loadSuggestions() }
+            .task {
+                // Before the row can be shown, because it only shows on
+                // .notAsked and the service starts on .unknown.
+                await notifications.refresh()
+                await loadSuggestions()
+            }
             .sheet(isPresented: $following) {
                 FindFamousView(repository: repository)
             }
@@ -87,6 +100,12 @@ struct PeopleView: View {
             }
         }
         .tint(Theme.accent)
+        // The two ways somebody leaves this screen. Whichever happens first
+        // does the asking; the second finds the question already answered.
+        .onDisappear { Task { await answerReminderRow() } }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active { Task { await answerReminderRow() } }
+        }
     }
 
     /// Only ever asked for when there is nobody in the list, because that is
@@ -187,23 +206,95 @@ struct PeopleView: View {
     // MARK: List
 
     private var list: some View {
-        ScrollView {
-            LazyVStack(spacing: 8) {
-                if !today.isEmpty {
-                    ForEach(today) { person in
-                        celebrating(person)
-                    }
-                    .padding(.bottom, 6)
-                }
+        let celebrants = today
+        // One array rather than two loops, so "under the first person" means
+        // the same thing whether or not somebody is celebrating today.
+        let cards = celebrants + ordered.filter { person in !celebrants.contains(person) }
 
-                ForEach(ordered.filter { person in !today.contains(person) }) { person in
-                    row(person)
+        return ScrollView {
+            LazyVStack(spacing: 8) {
+                ForEach(Array(cards.enumerated()), id: \.element.id) { index, person in
+                    Group {
+                        if celebrants.contains(person) {
+                            celebrating(person)
+                                .padding(.bottom, index == celebrants.count - 1 ? 6 : 0)
+                        } else {
+                            row(person)
+                        }
+                    }
+
+                    if index == 0, showsReminderRow {
+                        reminderRow
+                    }
                 }
             }
             .padding(.horizontal, 20)
             .padding(.top, 8)
             .padding(.bottom, 32)
         }
+    }
+
+    // MARK: The one permission
+
+    /// `FR-070`. Under the first person on the list, which in the session this
+    /// was written for is the person they have just added.
+    ///
+    /// Not above the list. A row above the list is a banner, and a banner
+    /// asking for notifications is the one thing `docs/first-five-minutes.md`
+    /// says the last two minutes must not contain. Under the person, it reads
+    /// as what happens next about that person, which is what it is.
+    private var showsReminderRow: Bool {
+        !store.people.isEmpty && notifications.permission == .notAsked && !reminderRowAnswered
+    }
+
+    /// Switched on when it appears, and nothing is asked while they look at
+    /// it.
+    ///
+    /// On, because they have just added somebody to a list whose only purpose
+    /// is being told about them, and starting it off would be pretending not
+    /// to know that. Nothing asked yet, because the system prompt on top of
+    /// the screen they are still reading is the interruption this design is
+    /// avoiding: it comes when they leave.
+    private var reminderRow: some View {
+        Toggle(isOn: Binding(
+            get: { notifications.isEnabled },
+            set: { notifications.isEnabled = $0 }
+        )) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Remind me the morning of and three days before")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("For everybody on this list. Nothing else.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .tint(Theme.accent)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(Theme.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    /// The system prompt, on the way out.
+    ///
+    /// It asks once. A person who turned the row off has answered the question
+    /// already, and putting the iOS prompt in front of them anyway would be
+    /// asking something we have been told.
+    private func answerReminderRow() async {
+        guard showsReminderRow, !answering else { return }
+        answering = true
+        defer { answering = false }
+
+        guard notifications.isEnabled else {
+            reminderRowAnswered = true
+            return
+        }
+
+        let granted = await notifications.askPermission()
+        reminderRowAnswered = true
+        guard granted, let profile = profileStore.profile else { return }
+        await notifications.reschedule(birthday: profile.birthday, people: store.people)
     }
 
     private func celebrating(_ person: Person) -> some View {

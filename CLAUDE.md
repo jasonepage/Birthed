@@ -299,6 +299,23 @@ as a shelf, not a plan.
   checked against their pages before TestFlight. Absent beats wrong, and a
   wrong version number is the kind of wrong this audience notices first.
 
+### The one permission, decided September 6, 2026
+
+- **Notification permission is asked from a row under the first person on the
+  People list, not from the switch in Settings.** The row reads "Remind me the
+  morning of and three days before", it is switched on when it appears, and
+  the system prompt comes when the user leaves the screen with it still on.
+  This rewrites `FR-070`, which put the prompt behind a Settings switch. A
+  permission asked from a switch nobody visits is a permission never granted,
+  and the reminder is the whole loop. The reasoning is
+  `docs/first-five-minutes.md`.
+- **Under the first person, never above the list.** A row above the list is a
+  banner asking for notifications, which is the one thing the last two minutes
+  of that document say must not happen.
+- **Turning the row off is an answer.** It is written down and the row does not
+  come back; Settings is then the only place reminders live. Nothing is asked
+  of iOS in that case, because we have already been told.
+
 ### Search, decided September 5, 2026
 
 - **A date page with fewer than eight people carries `noindex` and stays out of the sitemap.** It is still built and still loads. A new domain that hands a crawler 366 URLs with most of them empty teaches the crawler that the site is thin, and that judgement is made once and is expensive to undo. The threshold is eight rather than `FR-022`'s ten because a few real dates have fewer people with English Wikipedia articles.

@@ -188,7 +188,9 @@ The row is still a control the user touched, which is what the rule was
 protecting. The difference is that it is in front of them at the moment it
 makes sense instead of three taps away in a screen they will never open.
 
-**This is the one decision in this document that is Nathan's, not mine.**
+**Nathan decided this on September 6, 2026: build it.** `FR-070` in `SRS.md`
+has been rewritten to match, and it is item 2 of the build order at the foot
+of this document.
 
 ### 3:00 to 5:00. Leaving
 
@@ -227,7 +229,7 @@ it stays in the code, off the screen. Delete means it goes.
 | Suggested public figures on the empty People tab | **Delete** | A list of strangers where the mother should go. |
 | The composer with the written message | **Keep** | It closes the loop. Without it the reminder is a chore. |
 | Reminders, the morning of and three days before | **Keep** | The loop firing. |
-| The permission prompt in Settings only | **Simplify, move** | Ask on the first added person, from a row they touched. Nathan's call. |
+| The permission prompt in Settings only | **Simplify, move** | Ask on the first added person, from a row they touched. Decided September 6, 2026. `FR-070` rewritten. |
 | Own birthday morning notification | **Keep** | It opens the app on the one day the Mine screen is at its best. |
 | Own 45 day countdown notification | **Later** | One ping a year about yourself, counting nothing. Not wrong, not needed. |
 | Region and regional facts | **Later** | Good content nobody sets up. Out of the first session entirely. |
@@ -251,7 +253,7 @@ benefit from the answers.
 
 1. The People screen shown once after the first share, with the sender card
    and the paste box. Smallest change, biggest effect on activation.
-2. The reminder row on the first added person, if Nathan agrees.
+2. The reminder row on the first added person. Decided and built.
 3. Mine trimmed to five things above the fold.
 4. The one tap "today" entry from a link.
 5. Today becomes a screen reached from a person rather than a tab.
