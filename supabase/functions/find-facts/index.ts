@@ -3,11 +3,16 @@
 //   POST /functions/v1/find-facts
 //   { "month": 9, "day": 4, "year": 2002, "region": "Salem, Oregon" }
 //
-// Answers at once with the state of that date: "done" and the facts
-// when a search has already happened, "running" when one is under way, and
-// "started" when this call kicked one off. The search itself runs after the
-// response goes out, because it takes tens of seconds and the phone would
-// rather poll the table than hold a connection open.
+// Answers at once with the state of that date: "done" and the facts when a
+// search has already happened, "running" when one is under way, "started"
+// when this call kicked one off, and "paused" when the month's search budget
+// is spent. The search itself runs after the response goes out, because it
+// takes tens of seconds and the phone would rather poll the table than hold
+// a connection open.
+//
+// A date that was searched more than a month ago is searched again when it
+// is next opened, told what it already found so the new run adds rather than
+// repeats, and never with the last of the budget.
 //
 // Two calls to the model, not one, and the reason matters. Asking for facts
 // and for a JSON array in the same breath made the model skip searching
@@ -47,6 +52,22 @@ const MAX_FACTS = 14;
 const RUN_STALE_MS = 4 * 60 * 1000;
 /** A failed search is tried again after this long, not left failed forever. */
 const RETRY_AFTER_MS = 2 * 60 * 1000;
+/**
+ * A finished date is looked at again after this long, when somebody opens it.
+ *
+ * The first search on a date finds eight to fourteen things and stops, and a
+ * reader who opens the app every week sees the same fourteen forever. Once a
+ * month, if the date is opened and the budget has room to spare, the model
+ * is asked again and told what it already found, so the new run adds to the
+ * list rather than repeating it. A date nobody opens is never searched
+ * twice, which is what keeps this from being a standing bill.
+ */
+const REFRESH_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
+/**
+ * Another look never takes the last of the month's searches. First looks at
+ * dates nobody has searched come first; this many are held back for them.
+ */
+const REFRESH_RESERVE = 500;
 /** How long one cited page gets to answer before it counts as missing. */
 const LINK_CHECK_MS = 8000;
 /**
@@ -354,6 +375,21 @@ async function pageAnswers(url: string): Promise<boolean> {
   }
 }
 
+/**
+ * What earlier runs found for this cell, as a note to the model, or nothing
+ * on a first run. Sentences only: the model is not shown addresses or
+ * categories, just told not to say these things again.
+ */
+async function alreadyFound(
+  admin: ReturnType<typeof createClient>,
+  where: Record<string, unknown>,
+): Promise<string> {
+  const { data: rows } = await admin.from("birth_facts").select("fact").match(where).order("id").limit(60);
+  const sentences = (rows ?? []).map((row) => String(row.fact ?? "").trim()).filter((fact) => fact.length > 0);
+  if (sentences.length === 0) return "";
+  return `\n\nThese have already been found for this date and must not be repeated, in these words or others. Find different things:\n${sentences.map((fact) => `- ${fact}`).join("\n")}`;
+}
+
 async function search(
   admin: ReturnType<typeof createClient>,
   key: string,
@@ -364,11 +400,17 @@ async function search(
   regionKeyValue: string,
 ): Promise<void> {
   const where = { birth_month: month, birth_day: day, birth_year: year, region_key: regionKeyValue };
+  // Whether this is another look at a date that already has facts. A first
+  // look that fails is a failed run; another look that fails is a date that
+  // still has everything it had, so it is written as done and waits a month.
+  let anotherLook = false;
   try {
     // An answer that ran no searches was written from memory, whatever it
     // says, and its citations are guesses, so this throws rather than store it.
     const preference = await readerPreference(admin);
-    const notes = await research(key, researchPrompt(month, day, year, region) + preference);
+    const already = await alreadyFound(admin, where);
+    anotherLook = already.length > 0;
+    const notes = await research(key, researchPrompt(month, day, year, region) + preference + already);
     const shaped = await askGemini(key, shapePrompt(notes.text, voiceFor(year)), false);
     const candidates = parseCandidates(shaped.text);
     // Nothing parsed is a failure, so the run is retried rather than cached
@@ -413,7 +455,7 @@ async function search(
   } catch (error) {
     await admin.from("birth_fact_runs").upsert({
       ...where,
-      status: "failed",
+      status: anotherLook ? "done" : "failed",
       error: String(error instanceof Error ? error.message : error).slice(0, 500),
       finished_at: new Date().toISOString(),
     });
@@ -471,8 +513,14 @@ Deno.serve(async (request: Request) => {
     const where = { birth_month: month, birth_day: day, birth_year: year, region_key: regionKeyValue };
     const { data: run } = await admin.from("birth_fact_runs").select("*").match(where).maybeSingle();
     if (run?.status === "done") {
-      statuses.push("done");
-      continue;
+      // Finished, and finished recently enough, or the month is too tight
+      // to spend a search on a date that already has facts: done.
+      const age = run.finished_at ? Date.now() - new Date(run.finished_at).getTime() : 0;
+      if (age < REFRESH_AFTER_MS || searchesLeft <= REFRESH_RESERVE) {
+        statuses.push("done");
+        continue;
+      }
+      // Otherwise fall through and take another look, told what it found.
     }
     if (run?.status === "failed" && run.finished_at && Date.now() - new Date(run.finished_at).getTime() < RETRY_AFTER_MS) {
       statuses.push("failed");

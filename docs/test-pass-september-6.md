@@ -303,6 +303,22 @@ Wikipedia, because neither machine this was written from can reach it.
 38. **February 29 profile.** Today tab loads and songs appear. (The chart
     function used to fall over on this and was fixed before you saw it.)
 
+## Added later still: the facts are dealt, not ranked
+
+39. **`swift test`**, `FactOrderTests`, seven of them.
+
+40. **Mine, twice.** Open Mine, note which fact is set large at the top. Pull
+    down to refresh. A different fact should usually lead, and the like
+    counts should be unchanged. Open the app again tomorrow: different again.
+    Tap like on a fact: the count moves and nothing reorders.
+
+41. **The Edge Function is deployed (version 15).** Nothing to do until a
+    date's first search is thirty days old, which is October 4 for September
+    4, 2002. On that day, opening Mine should show "Still looking" under the
+    facts for about half a minute and then new rows should arrive without
+    repeating the old ones. `birth_fact_runs.searches` for that row is the
+    cost.
+
 ## What I need back
 
 The screenshots, in order, and any error text verbatim. For anything that

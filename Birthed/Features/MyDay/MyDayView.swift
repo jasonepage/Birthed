@@ -73,6 +73,10 @@ struct MyDayView: View {
                 .padding(.bottom, 36)
             }
             .background(palette.ground.ignoresSafeArea())
+            // Pulling down deals the facts again and, once a month, asks the
+            // server for another look at the date. Neither costs anything
+            // the server has not already decided to spend.
+            .refreshable { await factsService.load(for: profile) }
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {

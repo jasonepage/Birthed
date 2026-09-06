@@ -37,6 +37,13 @@ final class FactsService {
     /// under another date's heading.
     private var dayFactsDate: CalendarDate?
 
+    /// What deals the order of facts nobody has voted on. New on every load
+    /// and on every change of date, never on a poll, so the list is stable
+    /// while it is on screen and different the next time it is opened. See
+    /// `FactOrder`.
+    private var ownSalt: UInt64 = FactOrder.newSalt()
+    private var daySalt: UInt64 = FactOrder.newSalt()
+
     private let baseURL: URL
     private let anonKey: String
     private let session: URLSession
@@ -83,6 +90,9 @@ final class FactsService {
     func load(for profile: Profile) async {
         let token = await account.freshAccessToken() ?? anonKey
         status = .searching
+        // A fresh deal every time the reader comes back, so the row set large
+        // is not the same row every day, and no fact earns likes by position.
+        ownSalt = FactOrder.newSalt()
 
         var request = URLRequest(url: baseURL.appending(path: "functions/v1/find-facts"))
         request.httpMethod = "POST"
@@ -134,7 +144,7 @@ final class FactsService {
             year: profile.birthday.year ?? 0,
             regionKey: Self.regionKey(profile.regionCode)
         )
-        if let found { facts = found }
+        if let found { facts = FactOrder.order(found, salt: ownSalt) }
     }
 
     /// The facts for one calendar date, with no year and no region.
@@ -152,6 +162,7 @@ final class FactsService {
         if dayFactsDate != date {
             dayFacts = []
             dayFactsDate = date
+            daySalt = FactOrder.newSalt()
         }
 
         // A nil answer is the request failing, which is not the same as a date
@@ -160,7 +171,7 @@ final class FactsService {
         // first version of this line ignored it.
         guard let found = await fetch(month: month, day: day, year: 0, regionKey: "") else { return }
         guard dayFactsDate == date else { return }
-        dayFacts = found
+        dayFacts = FactOrder.order(found, salt: daySalt)
     }
 
     /// One read, whatever is asking. Nil means the request itself failed,
@@ -202,9 +213,9 @@ final class FactsService {
                 likedByMe: mine.contains(row.id)
             )
         }
-        // Most liked first, then the order they were found in, which keeps
-        // the list stable for a date nobody has voted on yet.
-        return loaded.sorted { ($0.likes, -$0.id) > ($1.likes, -$1.id) }
+        // Unordered. The callers deal the order with `FactOrder` and a salt
+        // they own, because which salt applies depends on which list this is.
+        return loaded
     }
 
     private func likedByMe() async -> Set<Int> {

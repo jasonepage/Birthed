@@ -258,6 +258,20 @@ as a shelf, not a plan.
   most likely to remember, by an age band, because likes cannot steer
   anything at this size and the research document says so.
 
+### The order of the found facts, decided September 6, 2026
+
+- **Likes do not count until a fact has five of them.** The first row is set
+  large, so it collected the likes, so it stayed first. Below five likes the
+  facts are dealt by a seeded shuffle in `FactOrder`, and the seed changes on
+  every load and every change of date, never on a poll, so the list is stable
+  while it is on screen and different the next time. Pulling down on Mine
+  deals again.
+- **A date is searched again once a month, when opened, told what it already
+  found.** `REFRESH_AFTER_MS` in the Edge Function. It never takes the last
+  five hundred searches of the month, and another look that fails leaves the
+  date done rather than failed, so it cannot retry itself into the budget.
+  A date nobody opens is never searched twice.
+
 ### Search, decided September 5, 2026
 
 - **A date page with fewer than eight people carries `noindex` and stays out of the sitemap.** It is still built and still loads. A new domain that hands a crawler 366 URLs with most of them empty teaches the crawler that the site is thin, and that judgement is made once and is expensive to undo. The threshold is eight rather than `FR-022`'s ten because a few real dates have fewer people with English Wikipedia articles.
