@@ -4,7 +4,7 @@
 import { DayPage, Person, monthName, neighbours, slug, everyDate } from "./model.js";
 import { CHART_NAME, coverName, SongOfTheYear } from "./songs.js";
 import { Fact, hostOf } from "./facts.js";
-import { buildTimeline, type DayEvent, type TimelineRow } from "./timeline.js";
+import { buildTimeline, pickHighlights, theRest, type DayEvent, type TimelineRow } from "./timeline.js";
 
 /**
  * How many people a date page needs before it is worth putting in front of a
@@ -649,6 +649,224 @@ body.home {
   }
   .btn.brand:hover, .btn.ghost:hover, .bornin a:hover, .cal .days a:hover { transform: none; }
 }
+
+/* ---- The date page as a feed ---------------------------------------------
+
+   Everything below here belongs to a date page. It is the half of the
+   redesign that is not the covers: a bar you can move dates from, a count of
+   what the page holds, six things picked out of everything, and the people as
+   a row you push rather than a column you scroll.
+
+   Nothing here runs. Same rule as the rest of the site: default-src 'none',
+   so the drawer is <details>, the row is scroll snapping, and the motion is
+   a keyframe. A script would be dropped by the browser with nothing drawn.
+*/
+
+/* The month's own colour, set per page on the wrapper. September is violet
+   and March is not, so 366 pages that share a layout do not share a face.
+   Only ever a second colour: the pink is the brand and it does not move. */
+.day { --day: #8B5CF6; --day-soft: #C4AEFF; }
+
+.daybar {
+  position: sticky; top: 0; z-index: 40;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 11px 0 10px; margin: 0 0 4px;
+  /* Nearly solid, not translucent. The blur is an enhancement and not every
+     browser applies it; without it a lighter wash leaves the drawer summary
+     and the feed legible straight through the bar, which reads as broken
+     rather than as layered. */
+  background: rgba(14, 12, 22, 0.94);
+  -webkit-backdrop-filter: saturate(140%) blur(14px);
+  backdrop-filter: saturate(140%) blur(14px);
+  box-shadow: 0 1px 0 rgba(255, 247, 238, 0.07);
+}
+.daybar .mark {
+  font-size: 11px; font-weight: 800; letter-spacing: 0.22em; text-transform: uppercase;
+  color: ${ACCENT}; text-decoration: none;
+}
+.barnav { display: flex; align-items: center; gap: 4px; }
+.barnav .here {
+  font-size: 13px; font-weight: 700; color: #B9B2AD; padding: 0 4px;
+  min-width: 52px; text-align: center; font-variant-numeric: tabular-nums;
+}
+.arrow {
+  width: 32px; height: 32px; flex: none; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center;
+  color: #B9B2AD; text-decoration: none; font-size: 15px;
+  box-shadow: inset 0 0 0 1px rgba(255, 247, 238, 0.12);
+  transition: color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+}
+.arrow:hover {
+  color: #FFF7EE; background: rgba(239, 86, 128, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(239, 86, 128, 0.55);
+}
+.daybar .get {
+  display: inline-flex; align-items: center; padding: 8px 14px; border-radius: 999px;
+  font-size: 13px; font-weight: 700; text-decoration: none; color: #FFF7EE;
+  background-image: linear-gradient(135deg, #FF9BB6, ${ACCENT} 52%, #C0335F);
+  box-shadow: 0 10px 26px rgba(239, 86, 128, 0.26);
+}
+@media (max-width: 400px) { .barnav .here { min-width: 44px; font-size: 12px; } }
+
+/* What the page holds, as one object rather than three sentences. */
+.counts {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  margin: 22px 0 0; padding: 14px 4px;
+  border-top: 1px solid #2A2434; border-bottom: 1px solid #2A2434;
+}
+.counts div { text-align: center; border-left: 1px solid #2A2434; }
+.counts div:first-child { border-left: none; }
+.counts b {
+  display: block; font-family: Georgia, serif; font-size: 22px; line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.counts span {
+  display: block; margin-top: 5px; font-size: 10px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: #6E6862;
+}
+
+.hrow { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.hrow h2.section { margin-bottom: 0; }
+.hrow a { font-size: 13px; color: ${ACCENT}; text-decoration: none; font-weight: 600; white-space: nowrap; }
+
+/* The six. A card here is a card because it is one thing to read, not because
+   every block on the page got the same rectangle. */
+ul.feed { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 12px; }
+ul.feed li {
+  display: block; border-radius: 18px; padding: 16px 18px;
+  background: linear-gradient(180deg, rgba(255, 247, 238, 0.055), rgba(255, 247, 238, 0.022));
+  box-shadow: inset 0 0 0 1px rgba(255, 247, 238, 0.09);
+  transition: box-shadow 180ms ease, background 180ms ease;
+}
+ul.feed li:hover {
+  background: linear-gradient(180deg, rgba(239, 86, 128, 0.10), rgba(255, 247, 238, 0.03));
+  box-shadow: inset 0 0 0 1px rgba(239, 86, 128, 0.42), 0 18px 38px rgba(0, 0, 0, 0.34);
+}
+ul.feed .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+ul.feed .tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 10px; font-weight: 800; letter-spacing: 0.13em; text-transform: uppercase;
+}
+ul.feed .tag::before { content: ""; width: 6px; height: 6px; border-radius: 2px; background: currentColor; }
+/* One hue per kind of thing, so the badge carries information rather than
+   colour. Every value the researcher is allowed to return has a line here.
+   Fixed colours, deliberately not the month's: a badge that is violet in
+   September and green in March tells a reader nothing at all. */
+.k-event { color: #F0A63C; }
+.k-release { color: #3FBFA3; }
+.k-sport { color: #6FA8FF; }
+.k-science { color: #C4AEFF; }
+.k-record { color: #6FA8FF; }
+.k-price { color: #F0A63C; }
+.k-weather { color: #6FA8FF; }
+.k-local { color: #3FBFA3; }
+.k-older { color: #C4AEFF; }
+ul.feed .yr {
+  font-family: Georgia, serif; font-size: 15px; font-weight: 700; color: #7C7570;
+  font-variant-numeric: tabular-nums;
+}
+ul.feed .said {
+  font-family: Georgia, "Times New Roman", serif; font-size: 18px; line-height: 1.4;
+  margin: 10px 0 0; text-wrap: pretty;
+}
+ul.feed .src { margin: 11px 0 0; font-size: 12px; }
+ul.feed .src a { color: #6E6862; text-decoration: none; }
+ul.feed .src a:hover { color: ${ACCENT}; text-decoration: underline; }
+/* The oldest thing on the date, given the room to be the thing you read. */
+ul.feed li.lead { padding: 22px 20px 20px; }
+ul.feed li.lead .said { font-size: 23px; line-height: 1.28; }
+ul.feed li.lead .yr { font-size: 30px; color: var(--day-soft); }
+
+/* The rest, behind one tap. Present in the HTML, so it is still indexed and
+   still answers a search: closed is a display state, not a missing page. */
+details.more {
+  margin: 12px 0 0; border-radius: 16px; overflow: hidden;
+  background: rgba(255, 247, 238, 0.035);
+  box-shadow: inset 0 0 0 1px rgba(255, 247, 238, 0.09);
+}
+details.more > summary {
+  cursor: pointer; list-style: none; padding: 14px 18px;
+  font-size: 14px; font-weight: 700; color: #FFF7EE;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+}
+details.more > summary::-webkit-details-marker { display: none; }
+details.more > summary::after { content: "+"; color: ${ACCENT}; font-size: 17px; font-weight: 700; }
+details.more[open] > summary::after { content: "\\2212"; }
+details.more > summary:hover { background: rgba(239, 86, 128, 0.10); }
+details.more .inner { padding: 2px 18px 16px; }
+details.more ul { list-style: none; margin: 0; padding: 0; }
+details.more ul li {
+  display: flex; gap: 12px; align-items: baseline; background: none; border-radius: 0;
+  padding: 12px 0; border-top: 1px solid #2A2434;
+}
+details.more ul li:first-child { border-top: none; }
+details.more .y {
+  color: ${ACCENT}; font-weight: 700; font-size: 13px; width: 44px; flex: none;
+  font-variant-numeric: tabular-nums;
+}
+details.more .x { font-family: Georgia, serif; font-size: 16px; line-height: 1.4; margin: 0; color: #E9E1DB; }
+details.more .src { margin: 6px 0 0; font-size: 12px; }
+details.more .src a { color: #6E6862; text-decoration: none; }
+
+/* The people, as a row you push. Ten boxes stacked down a page is ten
+   scrolls; ten cards in a row is one gesture. */
+.rail {
+  display: flex; gap: 10px; margin: 16px 0 0; padding: 2px 20px 12px;
+  margin-left: -20px; margin-right: -20px;
+  overflow-x: auto; scroll-snap-type: x mandatory;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.rail::-webkit-scrollbar { display: none; }
+.rail > * { scroll-snap-align: start; flex: none; }
+.who {
+  width: 138px; border-radius: 16px; padding: 14px 13px 13px;
+  background: linear-gradient(180deg, rgba(255, 247, 238, 0.055), rgba(255, 247, 238, 0.02));
+  box-shadow: inset 0 0 0 1px rgba(255, 247, 238, 0.09);
+  text-decoration: none; color: inherit; display: block;
+  transition: box-shadow 160ms ease;
+}
+.who:hover { box-shadow: inset 0 0 0 1px rgba(239, 86, 128, 0.45), 0 16px 32px rgba(0, 0, 0, 0.4); }
+.face {
+  width: 54px; height: 54px; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: Georgia, serif; font-size: 20px; font-weight: 700; color: #2A0B15;
+  background-image: linear-gradient(140deg, #FFB0C6, ${ACCENT});
+}
+/* Four so the row is not one colour, dealt by position and nothing else. No
+   meaning is claimed by which face gets which. */
+.who:nth-child(4n+2) .face { background-image: linear-gradient(140deg, var(--day-soft), var(--day)); }
+.who:nth-child(4n+3) .face { background-image: linear-gradient(140deg, #9FE8D6, #3FBFA3); }
+.who:nth-child(4n+4) .face { background-image: linear-gradient(140deg, #FFD79B, #F0A63C); }
+.who .n { font-weight: 700; font-size: 14px; margin: 11px 0 0; line-height: 1.25; }
+.who .w { color: #7C7570; font-size: 12px; margin: 4px 0 0; line-height: 1.3; }
+.who .b { color: ${ACCENT}; font-size: 11px; font-weight: 700; margin: 8px 0 0; font-variant-numeric: tabular-nums; }
+.who .d { color: #6E6862; font-size: 11px; margin: 2px 0 0; }
+
+/* The two dates either side, as somewhere to go rather than two arrows. */
+nav.pager.cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+nav.pager.cards a {
+  display: block; padding: 14px 16px; border-radius: 16px; text-decoration: none; color: inherit;
+  background: linear-gradient(180deg, rgba(255, 247, 238, 0.05), rgba(255, 247, 238, 0.02));
+  box-shadow: inset 0 0 0 1px rgba(255, 247, 238, 0.09);
+  transition: background 160ms ease, box-shadow 160ms ease;
+}
+nav.pager.cards a:hover {
+  background: rgba(239, 86, 128, 0.10);
+  box-shadow: inset 0 0 0 1px rgba(239, 86, 128, 0.45), 0 16px 32px rgba(0, 0, 0, 0.34);
+}
+nav.pager.cards .dir {
+  font-size: 10px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase;
+  color: #6E6862; margin: 0;
+}
+nav.pager.cards .when {
+  font-family: Georgia, serif; font-size: 19px; font-weight: 700; margin: 6px 0 0; color: ${ACCENT};
+}
+nav.pager.cards .after { text-align: right; }
+
+@media (prefers-reduced-motion: no-preference) {
+  ul.feed li { animation: rise 460ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards; }
+  ul.feed li[style] { animation-delay: calc(var(--i) * 45ms); }
+}
 `;
 
 /**
@@ -847,26 +1065,93 @@ ${rows}
 }
 
 /**
- * The merged list: what was researched about the date and what Wikipedia's own
- * article for it says, in one column ordered by year.
+ * The month's own colour.
  *
- * Two credits rather than one, and each only when that source is actually on
- * the page. The researched facts carry a link per row because their sources
- * are all different and the link is the point. The Wikipedia lines carry one
- * credit at the foot instead, the way the chart weeks already do, because
- * fifty four rows saying "en.wikipedia.org" underneath each other is noise
- * that tells the reader nothing the credit does not.
+ * By month rather than by date, so September is violet on all thirty of its
+ * pages and a reader moving between neighbouring days is not repainted every
+ * tap. Twelve hues around the wheel, kept away from the brand pink so the two
+ * never argue, and given to the page as a custom property rather than to any
+ * one rule.
  */
-function timelineSection(rows: TimelineRow[], name: string, searched: number, fromWikipedia: number): string {
-  if (rows.length === 0) return "";
+export function dayHue(month: number): { day: string; soft: string } {
+  // 25 puts January in orange and September in violet, and steps a month
+  // every 30 degrees from there, which keeps all twelve clear of the pink.
+  const hue = ((month - 1) * 30 + 25) % 360;
+  return { day: `hsl(${hue} 72% 62%)`, soft: `hsl(${hue} 82% 80%)` };
+}
 
-  const items = rows.map((row) => `<li>
-<span class="year">${row.year === null ? "&nbsp;" : row.year}</span>
-<span class="said">
-<p class="what">${escapeHtml(row.text)}</p>
+/**
+ * What a researched fact's kind is called on the page.
+ *
+ * Every value the researcher is allowed to return is here. A Wikipedia line
+ * has no kind, so it is called an event, which is what its section of the
+ * article is called and is true of all of them.
+ */
+const KINDS: Record<string, { label: string; klass: string }> = {
+  event: { label: "Event", klass: "k-event" },
+  release: { label: "Released", klass: "k-release" },
+  sport: { label: "Sport", klass: "k-sport" },
+  science: { label: "Science", klass: "k-science" },
+  record: { label: "Record", klass: "k-record" },
+  price: { label: "Then and now", klass: "k-price" },
+  weather: { label: "Weather", klass: "k-weather" },
+  local: { label: "Local", klass: "k-local" },
+  older_than: { label: "Older than", klass: "k-older" },
+};
+
+function kindOf(category: string | null): { label: string; klass: string } {
+  if (category === null) return { label: "Event", klass: "k-event" };
+  return KINDS[category] ?? { label: "Event", klass: "k-event" };
+}
+
+/**
+ * The things worth stopping on, and a drawer holding all the others.
+ *
+ * The whole list is still in the HTML. A closed drawer is a display state, so
+ * a search engine reads every line and a reader is not handed forty three of
+ * them at once. That is the entire idea: nothing is thrown away, one thing is
+ * put in front.
+ */
+function feedSection(
+  picked: TimelineRow[],
+  rest: TimelineRow[],
+  total: number,
+  name: string,
+  searched: number,
+  fromWikipedia: number,
+): string {
+  if (picked.length === 0) return "";
+
+  const cards = picked.map((row, index) => {
+    const kind = kindOf(row.category);
+    // Only the first few are staggered. The rest are below the fold on every
+    // screen, so animating them would move things nobody is looking at.
+    const delay = index < 6 ? ` style="--i:${index}"` : "";
+    return `<li class="${index === 0 ? "lead" : ""}"${delay}>
+<span class="head"><span class="tag ${kind.klass}">${kind.label}</span><span class="yr">${row.year === null ? "" : row.year}</span></span>
+<p class="said">${escapeHtml(row.text)}</p>
+${row.sourceUrl ? `<p class="src"><a href="${escapeHtml(row.sourceUrl)}" rel="nofollow noopener">${escapeHtml(hostOf(row.sourceUrl))}</a></p>` : ""}
+</li>`;
+  }).join("\n");
+
+  const others = rest.map((row) => `<li>
+<span class="y">${row.year === null ? "&nbsp;" : row.year}</span>
+<span>
+<p class="x">${escapeHtml(row.text)}</p>
 ${row.sourceUrl ? `<p class="src"><a href="${escapeHtml(row.sourceUrl)}" rel="nofollow noopener">${escapeHtml(hostOf(row.sourceUrl))}</a></p>` : ""}
 </span>
 </li>`).join("\n");
+
+  const drawer = rest.length > 0
+    ? `<details class="more">
+<summary><span>Everything else that happened</span><span>${rest.length} more</span></summary>
+<div class="inner">
+<ul>
+${others}
+</ul>
+</div>
+</details>`
+    : "";
 
   const credits = [
     searched > 0
@@ -877,12 +1162,40 @@ ${row.sourceUrl ? `<p class="src"><a href="${escapeHtml(row.sourceUrl)}" rel="no
       : "",
   ].filter((line) => line !== "").join("\n");
 
-  return `<h2 class="section">What happened on ${escapeHtml(name)}</h2>
-<p class="lede">${rows.length} things, oldest first.</p>
-<ul class="facts">
-${items}
+  return `<div class="hrow"><h2 class="section">What happened</h2></div>
+<p class="lede">${rest.length === 0 ? `${total} things, oldest first.` : `${picked.length} worth stopping on, out of ${total}.`}</p>
+<ul class="feed">
+${cards}
 </ul>
+${drawer}
 ${credits}`;
+}
+
+/** The initials on a face, which is all we have: there are no photographs. */
+function initialsOf(name: string): string {
+  const parts = name.split(/\s+/).filter((part) => part.length > 0);
+  const first = parts[0]?.charAt(0) ?? "";
+  const second = parts.length > 1 ? parts[parts.length - 1]?.charAt(0) ?? "" : "";
+  return (first + second).toUpperCase();
+}
+
+/** Ten people as a row that is pushed, not a column that is scrolled past. */
+function peopleRail(page: DayPage, name: string): string {
+  if (page.people.length === 0) return `<p class="lede">Nobody imported for this date yet.</p>`;
+
+  const cards = page.people.map((person) => `<a class="who" href="https://www.wikidata.org/wiki/${escapeHtml(person.qid)}" rel="nofollow noopener">
+<span class="face">${escapeHtml(initialsOf(person.name))}</span>
+<p class="n">${escapeHtml(person.name)}</p>
+${person.description && tidyDescription(person.description) ? `<p class="w">${escapeHtml(tidyDescription(person.description))}</p>` : ""}
+<p class="b">${escapeHtml(birthYearLabel(person)) || "&nbsp;"}</p>
+${person.deathYear ? `<p class="d">died ${person.deathYear}</p>` : ""}
+</a>`).join("\n");
+
+  return `<div class="hrow"><h2 class="section">Who shares it</h2></div>
+<p class="lede">${page.people.length} ${page.people.length === 1 ? "person" : "people"} born on ${escapeHtml(name)}.</p>
+<div class="rail">
+${cards}
+</div>`;
 }
 
 export function renderDayPage(
@@ -943,34 +1256,50 @@ export function renderDayPage(
 
   const { previous, next } = neighbours(page.month, page.day);
 
-  const list = page.people.map((person) => `<li>
-<span class="year">${escapeHtml(birthYearLabel(person)) || "&nbsp;"}</span>
-<span class="who">
-<p class="name"><a href="https://www.wikidata.org/wiki/${escapeHtml(person.qid)}" rel="nofollow noopener">${escapeHtml(person.name)}</a></p>
-${person.description && tidyDescription(person.description) ? `<p class="what">${escapeHtml(tidyDescription(person.description))}</p>` : ""}
-${person.deathYear ? `<p class="died">died ${person.deathYear}</p>` : ""}
-</span>
-</li>`).join("\n");
-
   const image = `${SITE}/og/${slug(page.month, page.day)}.png`;
 
+  const picked = pickHighlights(timeline);
+  const rest = theRest(timeline, picked);
+  const hue = dayHue(page.month);
+  const shortName = `${monthName(page.month).slice(0, 3)} ${page.day}`;
+
   return `${head(`Born on ${name}`, description, canonical, image, !isReady(page, facts))}
+<div class="day" style="--day:${hue.day};--day-soft:${hue.soft}">
+<div class="daybar">
+<a class="mark" href="/">Birthed</a>
+<span class="barnav">
+<a class="arrow" href="/${slug(previous.month, previous.day)}/" title="${monthName(previous.month)} ${previous.day}" aria-label="${monthName(previous.month)} ${previous.day}">&lsaquo;</a>
+<span class="here">${shortName}</span>
+<a class="arrow" href="/${slug(next.month, next.day)}/" title="${monthName(next.month)} ${next.day}" aria-label="${monthName(next.month)} ${next.day}">&rsaquo;</a>
+</span>
+<a class="get" href="/">Get Birthed</a>
+</div>
 <p class="kicker">Born on</p>
 <h1>${name}</h1>
 <p class="lede">${headline}</p>
-${timelineSection(timeline, name, searched, timeline.length - searched)}
+<div class="counts">
+<div><b>${timeline.length}</b><span>things</span></div>
+<div><b>${songs.length}</b><span>number ones</span></div>
+<div><b>${count}</b><span>people</span></div>
+</div>
+${feedSection(picked, rest, timeline.length, name, searched, timeline.length - searched)}
 ${songSection(songs, name)}
-${count > 0
-  ? `<h2 class="section">People born on ${escapeHtml(name)}</h2>\n<ol>\n${list}\n</ol>`
-  : `<p class="lede">Nobody imported for this date yet.</p>`}
-<nav class="pager">
-<a href="/${slug(previous.month, previous.day)}/">&larr; ${monthName(previous.month)} ${previous.day}</a>
-<a href="/${slug(next.month, next.day)}/">${monthName(next.month)} ${next.day} &rarr;</a>
+${peopleRail(page, name)}
+<nav class="pager cards">
+<a href="/${slug(previous.month, previous.day)}/">
+<p class="dir">&larr; The day before</p>
+<p class="when">${monthName(previous.month)} ${previous.day}</p>
+</a>
+<a class="after" href="/${slug(next.month, next.day)}/">
+<p class="dir">The day after &rarr;</p>
+<p class="when">${monthName(next.month)} ${next.day}</p>
+</a>
 </nav>
 <section class="cta">
 <h2>Is ${name} yours?</h2>
 <p>Birthed is an app about the day you were born. Who shares it, what happened on it, and what to do with it.</p>
 </section>
+</div>
 ${jsonLd(page, canonical)}
 ${FOOT}`;
 }

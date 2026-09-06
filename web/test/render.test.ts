@@ -53,8 +53,8 @@ test("a name from the data cannot inject markup", () => {
 
 test("the year column carries the birth year and nothing that could wrap", () => {
   const html = renderDayPage(page);
-  assert.ok(html.includes('<span class="year">1824</span>'));
-  assert.ok(html.includes('<span class="year">1982</span>'));
+  assert.ok(html.includes('<p class="b">1824</p>'));
+  assert.ok(html.includes('<p class="b">1982</p>'));
   assert.ok(!html.includes("1824 to 1896"), "a range in the column pushes every name out of line");
 });
 
@@ -253,12 +253,12 @@ const facts = [
 
 test("a date page carries its found facts and the page each came from", () => {
   const html = renderDayPage(page, [], facts);
-  assert.ok(html.includes("What happened on September 4"));
+  assert.match(html, /<h2 class="section">What happened<\/h2>/);
   // The date comes off the front and becomes the anchor in the margin. It
   // used to be printed inside every sentence, on a page titled with it.
   assert.ok(html.includes("Ford unveiled the Edsel."));
   assert.ok(!html.includes("On September 4, 1957, Ford"), "the page's own date is not repeated per row");
-  assert.match(html, /<span class="year">1957<\/span>/);
+  assert.match(html, /<span class="yr">1957<\/span>/);
   assert.ok(html.includes("en.wikipedia.org"));
   assert.ok(html.includes("2 things, oldest first."));
 });
@@ -301,7 +301,7 @@ test("a page with no researched facts still has a section when Wikipedia does", 
       description: "George Eastman registers the trademark Kodak." },
   ];
   const html = renderDayPage(page, [], [], events);
-  assert.ok(html.includes("What happened on September 4"));
+  assert.match(html, /<h2 class="section">What happened<\/h2>/);
   assert.ok(html.includes("1 things, oldest first."));
   assert.ok(!html.includes("Google's Gemini"), "no Gemini credit when no Gemini rows");
   assert.match(html, /Creative Commons Attribution ShareAlike/);
@@ -321,7 +321,7 @@ test("a description stops repeating the year the row already prints", () => {
   // Wikidata's own data disagreed with itself here: the birth date says 1952
   // and the description said 1951, so the page printed both next to each other.
   assert.ok(!html.includes("1951"), "the prose copy of the years goes, the structured one stays");
-  assert.match(html, /<span class="year">1952<\/span>/);
+  assert.match(html, /<p class="b">1952<\/p>/);
   assert.ok(html.includes("died 2020"));
 });
 
@@ -341,7 +341,7 @@ test("a fact from the model cannot inject markup", () => {
 test("a date with no facts yet has no heading standing over nothing", () => {
   const html = renderDayPage(page, [], []);
   assert.ok(!html.includes("What happened on September 4"));
-  assert.ok(!html.includes('class="facts"'));
+  assert.ok(!html.includes('class="feed"'));
 });
 
 test("the description leads with the facts, because the names are what everyone else has", () => {
@@ -360,7 +360,7 @@ test("nothing on a date page is written to somebody born that day", () => {
   // also asserting that no CSS comment anywhere on the site contains the word
   // "you". It caught one, and the comment was about dropdown chevrons.
   const html = renderDayPage(page, [], facts);
-  const section = html.slice(html.indexOf("<ul class=\"facts\">"), html.indexOf("<nav class=\"pager\">"));
+  const section = html.slice(html.indexOf("<ul class=\"feed\">"), html.indexOf("<nav class=\"pager"));
   assert.ok(section.length > 0, "the facts list is on the page to be read");
   assert.ok(!/\byour?\b/i.test(section), "the facts section must not address a reader");
 });
@@ -696,3 +696,41 @@ const MONTH_WORDS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
+
+
+test("the drawer holds everything the feed did not, and the page still carries it all", () => {
+  // The reason this matters is not tidiness. The whole list is what answers a
+  // search for any one of these events, so a page that showed six and dropped
+  // thirty seven would be a page that stopped answering thirty seven queries.
+  // Closed is a display state; absent is a different page.
+  const many = Array.from({ length: 20 }, (unused, index) => ({
+    month: 9,
+    day: 4,
+    year: 1500 + index * 25,
+    sourceUrl: "https://en.wikipedia.org/wiki/September_4",
+    description: `the thing that happened in ${1500 + index * 25}`,
+  }));
+  const html = renderDayPage(page, [], [], many);
+  assert.match(html, /<details class="more">/);
+  assert.ok(html.includes("14 more"), "the drawer says how much is behind it");
+  for (const event of many) {
+    assert.ok(html.includes(event.description), `${event.year} is not on the page at all`);
+  }
+});
+
+test("a date page can be moved off in both directions without reaching the foot", () => {
+  const html = renderDayPage(page);
+  const bar = html.slice(html.indexOf('<div class="daybar">'), html.indexOf('<p class="kicker">'));
+  assert.ok(bar.includes('href="/september-3/"'), "the day before is not reachable from the bar");
+  assert.ok(bar.includes('href="/september-5/"'), "the day after is not reachable from the bar");
+  // The pair at the foot stays, because that is how a crawler walks all 366.
+  assert.match(html, /<nav class="pager cards">/);
+});
+
+test("a month has its own colour and the brand pink is not it", () => {
+  const september = renderDayPage(page);
+  assert.match(september, /<div class="day" style="--day:hsl\(/);
+  const march = renderDayPage({ month: 3, day: 12, people: [] });
+  const hueOf = (html: string) => /--day:hsl\((\d+)/.exec(html)?.[1];
+  assert.notEqual(hueOf(september), hueOf(march), "every page would wear the same second colour");
+});
