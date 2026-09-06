@@ -168,11 +168,19 @@ in this category already has.
   at 19 points to be read, with a hairline between and the source host under
   each one.
 
-**Not decided, and worth deciding.** `isReady` still gates noindex and the
-sitemap on eight people with pageviews. That rule was written when a date page
-was only a list of names, and it is why a page can be held back for thinness.
-A page with ten sourced facts on it is not thin any more. Whether facts should
-count toward readiness is Nathan's call and it is in `CLAUDE.md` section 5.
+**Settled, September 6.** The pageview run finished and the site now builds
+366 ready and 0 carrying noindex, up from 194. The readiness rule did not need
+changing and was not the problem: 171 dates had about fifty people each and no
+pageviews, so they were ordered by how many languages have an article. March 31
+now opens Jack Antonoff, Ewan McGregor, Christopher Walken, with Bach ninth.
+Under the old ordering Bach was first on that page by a mile.
+
+January 1 is the single exception and always will be. Wikidata files every
+birth date known only to a year on January 1, so that query is enormous and
+times out at their gateway with a 504 after four attempts, and even when it
+answers the importer's precision filter correctly refuses every row. It has no
+people and never will. It is ready on its twelve facts instead, which is what
+the one carve out in `isReady` is for. Do not spend time trying to import it.
 
 ## The Today tab, September 6
 
