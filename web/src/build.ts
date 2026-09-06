@@ -108,11 +108,11 @@ async function main(): Promise<void> {
   await inBatches(dates, CONCURRENCY, async (date) => {
     const page = await fetchDay(date.month, date.day, url, key);
     if (page.people.length === 0) empty++;
-    if (isReady(page)) ready.push(date);
-    const directory = join(OUT, slug(date.month, date.day));
-    await mkdir(directory, { recursive: true });
     const songs = songsForDate(covered, date.month, date.day, FIRST_CHART_YEAR, thisYear);
     const found = factsForDate(factsFor, date.month, date.day);
+    if (isReady(page, found)) ready.push(date);
+    const directory = join(OUT, slug(date.month, date.day));
+    await mkdir(directory, { recursive: true });
     await writeFile(join(directory, "index.html"), renderDayPage(page, songs, found), "utf8");
     written++;
   });

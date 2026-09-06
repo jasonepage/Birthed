@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { renderDayPage, renderSitemap, escapeHtml } from "../src/render.js";
+import { renderDayPage, renderSitemap, escapeHtml, isReady } from "../src/render.js";
 import { everyDate, neighbours, slug } from "../src/model.js";
 
 const page = {
@@ -232,4 +232,38 @@ test("nothing on a date page is written to somebody born that day", () => {
   const html = renderDayPage(page, [], facts);
   const section = html.slice(html.indexOf("What happened on"), html.indexOf("<nav class=\"pager\">"));
   assert.ok(!/\byour?\b/i.test(section), "the facts section must not address a reader");
+});
+
+test("a date with nobody on it is ready when it has facts instead", () => {
+  // January 1 has nobody and never will: Wikidata files a year-only birth date
+  // as January 1, and the importer's precision filter correctly refuses all of
+  // them. Holding one of the most searched dates of the year out of the
+  // sitemap forever, on a head count it cannot meet, is the rule misfiring.
+  const nobody = { month: 1, day: 1, people: [] };
+  const twelve = Array.from({ length: 12 }, (_, index) => ({
+    month: 1, day: 1, fact: `On January 1, thing number ${index} happened.`,
+    category: "event", sourceUrl: "https://en.wikipedia.org/wiki/January_1",
+  }));
+  assert.equal(isReady(nobody, twelve), true);
+  assert.equal(isReady(nobody, twelve.slice(0, 3)), false, "a few facts is not a page");
+  assert.equal(isReady(nobody), false);
+});
+
+test("facts do not rescue a page whose people were never ranked", () => {
+  // The other 171 are not thin, they have about fifty people each and no
+  // pageviews, so they are ordered by how many languages have an article,
+  // which fills a page with footballers. That is a worker run, not a rule
+  // change, and facts must not paper over it.
+  const unranked = {
+    month: 6, day: 8,
+    people: Array.from({ length: 10 }, (_, i) => ({
+      qid: `Q${i}`, name: `Person ${i}`, birthYear: 1960 + i,
+      deathYear: null, description: null, monthlyViews: 0,
+    })),
+  };
+  const plenty = Array.from({ length: 12 }, (_, index) => ({
+    month: 6, day: 8, fact: `On June 8, thing number ${index} happened.`,
+    category: "event", sourceUrl: "https://en.wikipedia.org/wiki/June_8",
+  }));
+  assert.equal(isReady(unranked, plenty), false);
 });

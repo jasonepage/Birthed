@@ -36,7 +36,16 @@ export const READY_PEOPLE = 8;
  * pageviews. This is the same test the worker's --only-missing uses, for the
  * same reason.
  */
-export function isReady(page: DayPage): boolean {
+export function isReady(page: DayPage, facts: Fact[] = []): boolean {
+  // January 1, and only January 1. Wikidata files a birth date known only to
+  // the year as January 1 with a precision of 9, so the importer's precision
+  // filter correctly refuses every one of them and this date has nobody on it
+  // and never will. It is also one of the most searched dates of the year.
+  // A page with a dozen sourced facts, the number one song for every year
+  // since 1959, and an honest line saying nobody is imported yet, is not a
+  // thin page, and holding it back forever on a head count it can never meet
+  // is the rule misfiring rather than working.
+  if (page.people.length === 0) return facts.length >= READY_PEOPLE;
   if (page.people.length < READY_PEOPLE) return false;
   return page.people.some((person) => person.monthlyViews > 0);
 }
@@ -325,7 +334,7 @@ ${person.deathYear ? `<p class="died">died ${person.deathYear}</p>` : ""}
 
   const image = `${SITE}/og/${slug(page.month, page.day)}.png`;
 
-  return `${head(`Born on ${name}`, description, canonical, image, !isReady(page))}
+  return `${head(`Born on ${name}`, description, canonical, image, !isReady(page, facts))}
 <p class="kicker">Born on</p>
 <h1>${name}</h1>
 <p class="lede">${headline}</p>
