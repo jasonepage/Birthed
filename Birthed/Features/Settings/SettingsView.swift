@@ -168,36 +168,65 @@ struct SettingsView: View {
     /// few seconds from now so that loop can be walked in under a minute
     /// instead of at eight tomorrow morning.
     ///
+    /// A friend and a public figure are offered separately, and they are not
+    /// the same test. Tapping a friend's reminder opens the message composer.
+    /// Tapping a followed person's opens a share card, because there is
+    /// nobody to send a message to. And a public figure gets no three day
+    /// warning at all, by a decision in `NotificationPlanner`: nobody needs
+    /// three days to think about wishing a stranger a happy birthday, and the
+    /// run up exists to buy something and have it arrive. The first version
+    /// of this screen offered that button anyway, for whoever happened to be
+    /// soonest, and answered "nothing in the plan matches that" when it was
+    /// pressed. The harness was wrong and the app was right, which is the
+    /// wrong way round for a test to fail.
+    ///
     /// Debug builds only. It is not a feature, it is a way of running a test.
     private var rehearsalSection: some View {
-        Section {
-            // The soonest person rather than the first one added. iOS keeps 64
-            // pending requests and the planner trims to fit, soonest first, so
-            // somebody far enough down the list is not in the plan at all and
-            // the rehearsal would answer "nothing matches that" for a reason
-            // that has nothing to do with what is being tested.
-            if let profile, let person = BirthdayAgenda().soonestFirst(peopleStore.people, on: Date()).first(where: { $0.isUsable }) {
-                Button("It is \(person.trimmedName)'s birthday") {
-                    fire(.personBirthday(personID: person.id), profile)
+        let soonest = BirthdayAgenda().soonestFirst(peopleStore.people, on: Date()).filter(\.isUsable)
+        let friend = soonest.first { !$0.isPublicFigure }
+        let followed = soonest.first(where: \.isPublicFigure)
+
+        return Section {
+            if let profile {
+                if let friend {
+                    Button("It is \(friend.trimmedName)'s birthday, a friend") {
+                        fire(.personBirthday(personID: friend.id), profile)
+                    }
+                    Button("\(friend.trimmedName)'s birthday is in \(notifications.personDaysBefore) days") {
+                        fire(.personSoon(personID: friend.id, daysBefore: notifications.personDaysBefore), profile)
+                    }
                 }
-                Button("\(person.trimmedName)'s birthday is in \(notifications.personDaysBefore) days") {
-                    fire(.personSoon(personID: person.id, daysBefore: notifications.personDaysBefore), profile)
+                if let followed {
+                    Button("It is \(followed.trimmedName)'s birthday, followed") {
+                        fire(.personBirthday(personID: followed.id), profile)
+                    }
                 }
                 Button("Your own birthday morning") {
                     fire(.ownBirthday, profile)
                 }
+                if friend == nil {
+                    Text("No friends on the list, so the message composer cannot be reached from here. Add somebody without a Wikidata identifier.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
             } else {
-                Text("Add somebody on the People tab first.")
+                Text("Finish onboarding first.")
                     .foregroundStyle(.secondary)
             }
         } header: {
             Text("Rehearse a reminder")
         } footer: {
-            Text(rehearsal.isEmpty
-                 ? "Debug builds only. Fires one reminder from the real plan twelve seconds from now, with the real identifier and the real words, so tapping it walks the shipping path. Lock the phone after you tap."
-                 : rehearsal)
+            Text(rehearsal.isEmpty ? Self.rehearsalHelp : rehearsal)
         }
     }
+
+    private static let rehearsalHelp = """
+        Debug builds only. Fires one reminder out of the real plan twelve \
+        seconds from now, with the real identifier and the real words, so \
+        tapping it walks the shipping path. Lock the phone after you tap. A \
+        followed person gets no three day warning, by design, so none is \
+        offered.
+        """
 
     /// The plan is rebuilt from the store rather than from anything cached, so
     /// a person added a moment ago is in it.
