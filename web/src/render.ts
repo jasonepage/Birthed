@@ -812,9 +812,33 @@ export function renderDayPage(
   const name = `${monthName(page.month)} ${page.day}`;
   const canonical = `${SITE}/${slug(page.month, page.day)}/`;
   const count = page.people.length;
-  // Not a count. Ten rows is what we show, not how many people share a date,
-  // and claiming otherwise would be a small lie on 366 pages.
-  const headline = "The people most looked up on this day.";
+  // The lede describes the day, not the people on it, and that is the whole
+  // September 6 change to this page.
+  //
+  // It used to read "The people most looked up on this day", above a list
+  // ordered by exactly that. notability_score is attention and infamy is
+  // attention, so on five dates the first row was a serial killer or a
+  // dictator: Ted Bundy on November 24, Charles Manson on November 12, Ed Gein
+  // on August 27, John Wayne Gacy on March 17, Benito Mussolini on July 29.
+  // DayLine.swift had already worked this out and taken the names off the
+  // app's celebration screens, and the fix was never carried here.
+  //
+  // The data half of that is fixed in 20260906240000. This half is the more
+  // important one, because a word list only catches people whose description
+  // says what they did, and Wikidata calls Bashar al-Assad a politician.
+  //
+  // It is also the better page. A ranked list of names is the one thing
+  // Famous Birthdays already wins at with fifteen years of authority and the
+  // same public data, and it is the least distinctive thing here. What is
+  // distinctive sits below it. The description a few lines down worked this
+  // out for search results months ago and said so in its own comment. Nobody
+  // applied it to the page.
+  //
+  // Worded so it does not contain the string "What happened on <date>". That
+  // is the timeline section's own heading, and a test asserts that heading is
+  // absent on a date with nothing in it. A lede that quoted it would have made
+  // that test pass or fail for the wrong reason forever after.
+  const headline = `Everything that was true about ${name}: what happened, the number one song, and who shares it.`;
   const songLine = songs.length > 0
     ? ` And the number one song on ${name} in every year since ${songs[songs.length - 1]?.year}.`
     : "";
@@ -828,9 +852,12 @@ export function renderDayPage(
   const factLine = timeline.length > 0
     ? ` What happened on ${name}, in ${timeline.length} sourced things.`
     : "";
-  const description = count > 0
-    ? `Who was born on ${name}. ${page.people.slice(0, 3).map((p) => p.name).join(", ")} and ${Math.max(0, count - 3)} more.${factLine}${songLine}`
-    : `Who was born on ${name}.${factLine}${songLine}`;
+  // Now in the order the page itself uses, which is what that comment above
+  // asked for and did not get.
+  const whoLine = count > 0 ? ` And who was born on it.` : "";
+  const description = timeline.length > 0 || songs.length > 0
+    ? `${name}, and everything that was true about it.${factLine}${songLine}${whoLine}`.trim()
+    : `Who was born on ${name}.`;
 
   const { previous, next } = neighbours(page.month, page.day);
 
@@ -849,9 +876,11 @@ ${person.deathYear ? `<p class="died">died ${person.deathYear}</p>` : ""}
 <p class="kicker">Born on</p>
 <h1>${name}</h1>
 <p class="lede">${headline}</p>
-${count > 0 ? `<ol>\n${list}\n</ol>` : `<p class="lede">Nobody imported for this date yet.</p>`}
 ${timelineSection(timeline, name, searched, timeline.length - searched)}
 ${songSection(songs, name)}
+${count > 0
+  ? `<h2 class="section">People born on ${escapeHtml(name)}</h2>\n<ol>\n${list}\n</ol>`
+  : `<p class="lede">Nobody imported for this date yet.</p>`}
 <nav class="pager">
 <a href="/${slug(previous.month, previous.day)}/">&larr; ${monthName(previous.month)} ${previous.day}</a>
 <a href="/${slug(next.month, next.day)}/">${monthName(next.month)} ${next.day} &rarr;</a>

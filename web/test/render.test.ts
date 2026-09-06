@@ -16,8 +16,32 @@ test("the page names the date in the title and the heading", () => {
   const html = renderDayPage(page);
   assert.ok(html.includes("<title>Born on September 4</title>"));
   assert.ok(html.includes("<h1>September 4</h1>"));
-  assert.ok(html.includes("The people most looked up on this day."));
+  assert.ok(html.includes("Everything that was true about September 4: what happened, the number one song, and who shares it."));
   assert.ok(!html.includes("2 notable people"), "the row count is not the number of people who share a date");
+});
+
+test("the page does not lead with the list of names", () => {
+  // The regression this guards is not cosmetic. The list is ordered by
+  // notability_score, which is attention, and infamy is attention, so leading
+  // with it put Ted Bundy at the top of November 24 and a serial killer or a
+  // dictator at the top of four other dates. The data screen in
+  // 20260906240000 catches the ones whose description says what they did, and
+  // Wikidata calls Bashar al-Assad a politician, so the ordering must not be
+  // the first thing on the page even when the screen is working.
+  const html = renderDayPage(page, [], [
+    { month: 9, day: 4, fact: "Something sourced happened.", category: "event",
+      sourceUrl: "https://example.org/september-4" },
+  ]);
+  const people = html.indexOf("People born on September 4");
+  const happened = html.indexOf('class="section">What happened');
+  assert.ok(people > 0, "the people section is still on the page");
+  assert.ok(happened > 0, "the timeline section is still on the page");
+  assert.ok(happened < people, "what happened on the date comes before who was born on it");
+});
+
+test("the lede never claims the list is ranked by attention", () => {
+  const html = renderDayPage(page);
+  assert.ok(!html.includes("most looked up"));
 });
 
 test("a name from the data cannot inject markup", () => {

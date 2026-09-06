@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isAdultContent, notabilityScore, signals } from "../src/notability.js";
+import { isAdultContent, isViolentNotoriety, notabilityScore, signals } from "../src/notability.js";
 
 const plain = { monthlyViews: 100_000, birthYear: 1900, isLiving: false, hasSocial: false, description: null };
 
@@ -204,5 +204,56 @@ test("the reason shows up in the signals, so a zero is explainable", () => {
     signals({ monthlyViews: 1, birthYear: 1990, isLiving: true, hasSocial: false,
               description: "American pornographic actress" })
       .includes("adult, score forced to 0"),
+  );
+});
+
+// ---------------------------------------------------------------------------
+// The fourth bug, and it is the third one again. Infamy is attention, and
+// nobody carried the September 6 adult performer fix to the rest of the list.
+
+test("the five real rows that were opening date pages all score zero", () => {
+  // Every one of these was rank one on its own date on September 6, on the
+  // page the site asks Google to rank, above a heading reading "The people
+  // most looked up on this day".
+  for (const [description, who] of [
+    ["American serial killer (1946-1989)", "Ted Bundy, November 24"],
+    ["American criminal and cult leader (1934-2017)", "Charles Manson, November 12"],
+    ["American murderer and human trophy collector (1906-1983)", "Ed Gein, August 27"],
+    ["American serial killer (1942-1994)", "John Wayne Gacy, March 17"],
+    ["dictator of Italy from 1922 to 1945", "Benito Mussolini, July 29"],
+  ] as const) {
+    assert.equal(isViolentNotoriety(description), true, who);
+    assert.equal(
+      notabilityScore({
+        monthlyViews: 287_085, birthYear: 1946, isLiving: false, hasSocial: false, description,
+      }),
+      0,
+      who,
+    );
+  }
+});
+
+test("ordinary descriptions are not caught by the violence list", () => {
+  for (const description of [
+    "American actor and martial artist",
+    "British actor",
+    "South Korean actress and singer",
+    "American comedian, writer, and actor",
+    "American professional wrestler",
+    "Norwegian actress",
+    "English association football player",
+    "American criminal defense attorney",
+    "American author of crime fiction",
+  ]) {
+    assert.equal(isViolentNotoriety(description), false, description);
+  }
+});
+
+test("the screen says why, so a zero can be explained rather than guessed at", () => {
+  assert.ok(
+    signals({
+      monthlyViews: 1, birthYear: 1946, isLiving: false, hasSocial: false,
+      description: "American serial killer (1946-1989)",
+    }).includes("violence, score forced to 0"),
   );
 });

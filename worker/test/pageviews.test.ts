@@ -105,7 +105,7 @@ function row(title: string | null, views: number) {
     birth_year: 1990, death_year: null, short_description: null,
     birth_precision: 11, sitelink_count: 5, is_living: true,
     notability_score: 0, enwiki_title: title, monthly_views: views,
-    has_social: false, adult_content: false,
+    has_social: false, adult_content: false, violence_content: false,
     source_url: "https://example.org", content_license: "CC0-1.0",
   };
 }

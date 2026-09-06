@@ -18,6 +18,7 @@ export interface NotablePersonRow {
   monthly_views: number;
   has_social: boolean;
   adult_content: boolean;
+  violence_content: boolean;
   source_url: string;
   content_license: string;
 }

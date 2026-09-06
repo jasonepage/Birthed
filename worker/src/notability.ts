@@ -34,6 +34,8 @@ export interface NotabilityWeights {
   commentaryTerms: string[];
   /** Descriptions that must never open a date page. See isAdultContent. */
   adultTerms: string[];
+  /** The same, for notoriety earned by harming people. See isViolentNotoriety. */
+  violenceTerms: string[];
 }
 
 export const DEFAULT_WEIGHTS: NotabilityWeights = {
@@ -67,6 +69,17 @@ export const DEFAULT_WEIGHTS: NotabilityWeights = {
     "pornographic", "porn actor", "porn actress", "porn star", "pornstar",
     "adult film", "adult video", "adult actress", "adult actor",
     "adult entertainer", "adult performer", "adult model", "erotic",
+  ],
+  // Matched against the same one line Wikidata description. Found on
+  // September 6: five date pages opened with one of these people, because
+  // notability_score is attention and infamy is attention.
+  violenceTerms: [
+    "serial killer", "serial murderer", "murderer", "mass murderer",
+    "spree killer", "mass shooter", "school shooter", "killer",
+    "terrorist", "war criminal", "genocide", "dictator", "nazi",
+    "rapist", "child abuser", "sex offender", "cult leader",
+    "assassin", "mobster", "gangster", "crime boss", "mafia",
+    "kidnapper", "arsonist", "torturer", "slave trader",
   ],
 };
 
@@ -117,6 +130,43 @@ function mentions(description: string | null, terms: string[]): boolean {
   return terms.some((term) => lower.includes(term));
 }
 
+/**
+ * Whether this person is known for harming people, and so must never be the
+ * first thing somebody reads on their own birthday.
+ *
+ * Found on September 6, months after the same problem was fixed for adult
+ * performers and in exactly the same place. Five of the 366 date pages opened
+ * with one of these: Ted Bundy on November 24, Charles Manson on November 12,
+ * Ed Gein on August 27, John Wayne Gacy on March 17 and Benito Mussolini on
+ * July 29. Every one of them was first because notability_score is attention
+ * and infamy is attention, which is the same sentence that was written about
+ * the adult performers and was not followed anywhere else at the time.
+ *
+ * **What this cannot do, and it is the larger half.** Screening.swift says it
+ * plainly: an event's sentence describes the thing being refused, and a
+ * person's description does not. Wikidata calls Bashar al-Assad a politician
+ * and Andrew Tate a businessman, and no list of words will ever reach them. So
+ * this catches the people whose description says what they did and misses the
+ * people whose description does not, which is a floor rather than a solution.
+ * The solution is the page not leading with a ranked list of names at all,
+ * which is the change this landed beside.
+ *
+ * The bare word "criminal" was in this list and is not any more, because the
+ * test below caught it hiding "American criminal defense attorney". Removing
+ * it costs nothing that matters: all five of the real rows are still caught,
+ * Charles Manson by "cult leader" rather than by "criminal". What it does
+ * leave through is somebody Wikidata describes only as "American criminal",
+ * which is a gap worth knowing about rather than closing with a word that
+ * takes lawyers with it. "war criminal" stays, because that phrase means one
+ * thing.
+ */
+export function isViolentNotoriety(
+  description: string | null,
+  weights: NotabilityWeights = DEFAULT_WEIGHTS,
+): boolean {
+  return mentions(description, weights.violenceTerms);
+}
+
 export function notabilityScore(
   input: ScoreInput,
   weights: NotabilityWeights = DEFAULT_WEIGHTS,
@@ -124,6 +174,7 @@ export function notabilityScore(
   // Before anything else, and it returns rather than subtracting, because a
   // bonus large enough to outrank a penalty is how this would come back.
   if (isAdultContent(input.description, weights)) return 0;
+  if (isViolentNotoriety(input.description, weights)) return 0;
 
   let multiplier = 1;
   if (input.hasSocial) multiplier += weights.socialBonus;
@@ -146,6 +197,7 @@ export function signals(input: ScoreInput, weights: NotabilityWeights = DEFAULT_
   if (input.hasSocial) found.push("social");
   if (!input.isLiving) found.push("died");
   if (isAdultContent(input.description, weights)) found.push("adult, score forced to 0");
+  if (isViolentNotoriety(input.description, weights)) found.push("violence, score forced to 0");
   return found;
 }
 

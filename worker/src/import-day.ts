@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { loadConfig, loadDotEnv } from "./config.js";
 import { fetchPeopleBornOn, type WikidataPerson } from "./wikidata.js";
 import { monthlyViewsForTitles, titleFromArticleUrl } from "./pageviews.js";
-import { isAdultContent, notabilityScore, selectCandidates, signals } from "./notability.js";
+import { isAdultContent, isViolentNotoriety, notabilityScore, selectCandidates, signals } from "./notability.js";
 import { upsertNotablePeople, type NotablePersonRow } from "./upsert.js";
 
 const WIKIDATA_LICENSE = "CC0-1.0";
@@ -44,6 +44,7 @@ export function toRows(
         monthly_views: monthlyViews,
         has_social: person.hasSocial,
         adult_content: isAdultContent(person.shortDescription),
+        violence_content: isViolentNotoriety(person.shortDescription),
         notability_score: notabilityScore({
           monthlyViews,
           birthYear: person.birthYear,
