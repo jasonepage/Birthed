@@ -217,6 +217,39 @@ own share control, the way facts already have one.
 - Both cards render with the network off, given data already loaded.
 - No name, no day of birth beyond today's date, on either card.
 
+## 9. The events on the web pages, September 6, 2026
+
+The same events are on birthed.app, merged with the researched facts into one
+list ordered by year rather than sitting in a section of their own. September 4
+went from 13 things to 60.
+
+**Seven of the thirteen were already there.** Both sources answer the same
+question and neither knows about the other, so the founding of Google, the
+opening of Pearl Street Station and five more were about to be printed twice.
+`saysTheSameThing` in `web/src/timeline.ts` compares the carrying words of two
+sentences in the same year, measured against the shorter of the two, and the
+threshold is set from the twelve real pairs on September 4 where a fact and an
+event share a year. Seven of those are the same event and score 0.50 to 0.80;
+five are different events and score 0.00 to 0.14. The tests use those exact
+sentences rather than invented ones.
+
+The researched fact wins a collision, because it is the one whose cited page
+was opened and checked, and because it is already serving searches. Dropping
+by year alone would have been simpler and would have lost the Little Rock
+Crisis, which shares 1957 with the Edsel launch.
+
+**The date came off the front of every fact.** They are written naming the
+date on purpose, so the same sentence works for somebody born on it and for a
+stranger who searched it. On a page already titled with that date it was
+printed once per row, and the year, which every other list on the page puts in
+the margin, was buried mid sentence. `splitDatePrefix` moves it, and only ever
+strips the page's own date.
+
+**The Wikipedia rows carry one credit rather than fifty four.** Their source is
+the same article every time, so it is credited at the foot the way the chart
+weeks are. The researched facts keep a link each, because their sources are all
+different and the link is the point.
+
 ## 8. Honest limits
 
 - This is a recombination, not an invention. Timehop did "this day in your

@@ -208,9 +208,75 @@ const facts = [
 test("a date page carries its found facts and the page each came from", () => {
   const html = renderDayPage(page, [], facts);
   assert.ok(html.includes("What happened on September 4"));
-  assert.ok(html.includes("On September 4, 1957, Ford unveiled the Edsel."));
+  // The date comes off the front and becomes the anchor in the margin. It
+  // used to be printed inside every sentence, on a page titled with it.
+  assert.ok(html.includes("Ford unveiled the Edsel."));
+  assert.ok(!html.includes("On September 4, 1957, Ford"), "the page's own date is not repeated per row");
+  assert.match(html, /<span class="year">1957<\/span>/);
   assert.ok(html.includes("en.wikipedia.org"));
-  assert.ok(html.includes("2 things, each with the page it came from."));
+  assert.ok(html.includes("2 things, oldest first."));
+});
+
+test("Wikipedia's own events join the researched ones, oldest first", () => {
+  const events = [
+    { month: 9, day: 4, year: 1888, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
+      description: "George Eastman registers the trademark Kodak." },
+  ];
+  const html = renderDayPage(page, [], facts, events);
+  assert.ok(html.includes("George Eastman registers the trademark Kodak."));
+  assert.ok(html.includes("3 things, oldest first."));
+  // 1888 is older than the 1957 fact, so it comes first in the list.
+  assert.ok(
+    html.indexOf("Kodak") < html.indexOf("Edsel"),
+    "the list is ordered by year, not by which source it came from",
+  );
+  // One credit for each source that is actually on the page, and the
+  // Wikipedia rows do not each carry their own host line.
+  assert.match(html, /Creative Commons Attribution ShareAlike/);
+  assert.match(html, /Google's Gemini/);
+});
+
+test("the same event from both sources is printed once", () => {
+  const events = [
+    { month: 9, day: 4, year: 1957, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
+      description: "Ford unveils the Edsel to the public." },
+  ];
+  const html = renderDayPage(page, [], facts, events);
+  assert.ok(html.includes("2 things, oldest first."), "the duplicate is dropped, not added");
+  // Counting the word will not do: the fixture's own source address contains
+  // it. What must not survive is Wikipedia's second telling of the event.
+  assert.ok(!html.includes("Ford unveils the Edsel to the public."));
+  assert.ok(html.includes("Ford unveiled the Edsel."), "the researched one is the one kept");
+});
+
+test("a page with no researched facts still has a section when Wikipedia does", () => {
+  const events = [
+    { month: 9, day: 4, year: 1888, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
+      description: "George Eastman registers the trademark Kodak." },
+  ];
+  const html = renderDayPage(page, [], [], events);
+  assert.ok(html.includes("What happened on September 4"));
+  assert.ok(html.includes("1 things, oldest first."));
+  assert.ok(!html.includes("Google's Gemini"), "no Gemini credit when no Gemini rows");
+  assert.match(html, /Creative Commons Attribution ShareAlike/);
+});
+
+test("a description stops repeating the year the row already prints", () => {
+  const dead = {
+    month: 9,
+    day: 4,
+    people: [
+      { qid: "Q9", name: "Rishi Kapoor", birthYear: 1952, deathYear: 2020,
+        description: "Indian film actor (1951\u20132020)", monthlyViews: 900 },
+    ],
+  };
+  const html = renderDayPage(dead);
+  assert.ok(html.includes("Indian film actor"));
+  // Wikidata's own data disagreed with itself here: the birth date says 1952
+  // and the description said 1951, so the page printed both next to each other.
+  assert.ok(!html.includes("1951"), "the prose copy of the years goes, the structured one stays");
+  assert.match(html, /<span class="year">1952<\/span>/);
+  assert.ok(html.includes("died 2020"));
 });
 
 test("the source host is shown without the www, which nobody reads", () => {
@@ -234,7 +300,7 @@ test("a date with no facts yet has no heading standing over nothing", () => {
 
 test("the description leads with the facts, because the names are what everyone else has", () => {
   const html = renderDayPage(page, [], facts);
-  assert.ok(html.includes("What happened on September 4, in 2 sourced facts."));
+  assert.ok(html.includes("What happened on September 4, in 2 sourced things."));
 });
 
 test("nothing on a date page is written to somebody born that day", () => {

@@ -16,6 +16,7 @@ import { DayPage, Person, everyDate, slug } from "./model.js";
 import { coverageByDay, fetchChartWeeks, songsForDate } from "./songs.js";
 import { factsByDay, factsForDate, fetchFacts } from "./facts.js";
 import { isReady, renderDayPage, renderNotFound, renderRobots, renderSitemap } from "./render.js";
+import { eventsByDay, eventsForDate, fetchEvents } from "./timeline.js";
 import { renderAdd, renderHome, renderPrivacy, renderSupport } from "./pages.js";
 
 const OUT = "out";
@@ -105,15 +106,22 @@ async function main(): Promise<void> {
     console.log(`${366 - factsFor.size} dates have no facts yet, and their pages simply will not have that section`);
   }
 
+  // Read whole for the same reason the facts are: twenty thousand rows answer
+  // all 366 pages in one pass, and 366 lookups would not.
+  const events = await fetchEvents(url, key);
+  const eventsFor = eventsByDay(events);
+  console.log(`${events.length} Wikipedia events loaded, covering ${eventsFor.size} dates`);
+
   await inBatches(dates, CONCURRENCY, async (date) => {
     const page = await fetchDay(date.month, date.day, url, key);
     if (page.people.length === 0) empty++;
     const songs = songsForDate(covered, date.month, date.day, FIRST_CHART_YEAR, thisYear);
     const found = factsForDate(factsFor, date.month, date.day);
+    const happened = eventsForDate(eventsFor, date.month, date.day);
     if (isReady(page, found)) ready.push(date);
     const directory = join(OUT, slug(date.month, date.day));
     await mkdir(directory, { recursive: true });
-    await writeFile(join(directory, "index.html"), renderDayPage(page, songs, found), "utf8");
+    await writeFile(join(directory, "index.html"), renderDayPage(page, songs, found, happened), "utf8");
     written++;
   });
 

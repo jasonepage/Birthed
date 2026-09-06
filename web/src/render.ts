@@ -4,6 +4,7 @@
 import { DayPage, Person, monthName, neighbours, slug, everyDate } from "./model.js";
 import { CHART_NAME, SongOfTheYear } from "./songs.js";
 import { Fact, hostOf } from "./facts.js";
+import { buildTimeline, type DayEvent, type TimelineRow } from "./timeline.js";
 
 /**
  * How many people a date page needs before it is worth putting in front of a
@@ -117,12 +118,20 @@ ol.songs li { display: flex; gap: 13px; align-items: baseline; padding: 11px 15p
 ol.songs .title { font-weight: 600; margin: 0; }
 ol.songs .by { color: #9C9490; font-size: 15px; margin: 2px 0 0; }
 p.credit { color: #6E6862; font-size: 13px; margin: 14px 0 0; }
-/* Found facts. Not the rounded rectangles the people and the songs use: a
+/* What happened. Not the rounded rectangles the people and the songs use: a
    sentence is the content here, so it is set to be read rather than scanned,
-   and a hairline is enough to separate one from the next. */
+   and a hairline is enough to separate one from the next.
+   The year sits in the margin, the width the people and the songs use, so all
+   three lists on the page hang off the same column and the eye can run down
+   the years without reading a word. It used to be inside the sentence, which
+   printed the page's own date once per row. */
 ul.facts { list-style: none; margin: 0; padding: 0; }
-ul.facts li { display: block; background: none; border-radius: 0; padding: 16px 0; border-top: 1px solid #2A2434; }
+ul.facts li {
+  background: none; border-radius: 0; padding: 16px 0; border-top: 1px solid #2A2434;
+  display: flex; gap: 13px; align-items: baseline;
+}
 ul.facts li:first-child { border-top: none; padding-top: 6px; }
+ul.facts .said { min-width: 0; }
 ul.facts .what {
   font-family: Georgia, "Times New Roman", serif; font-size: 19px; line-height: 1.42;
   color: #FFF7EE; margin: 0;
@@ -247,7 +256,12 @@ function jsonLd(page: DayPage, canonical: string): string {
     item: {
       "@type": "Person",
       name: person.name,
-      ...(person.description ? { description: person.description } : {}),
+      // Tidied like the visible row, because this is the copy handed to
+      // search engines and it carried the same contradiction: Wikidata says
+      // Rishi Kapoor was born in 1952 and its description said 1951.
+      ...(person.description && tidyDescription(person.description)
+        ? { description: tidyDescription(person.description) }
+        : {}),
       sameAs: `https://www.wikidata.org/wiki/${person.qid}`,
     },
   }));
@@ -302,6 +316,30 @@ ${rows}
  * page mostly does not scroll. Nothing here is written in the second person,
  * because a stranger who typed this date into a search box was not born on it.
  */
+/**
+ * Takes a trailing year range off a Wikidata description.
+ *
+ * "American actor and martial artist (1973-2022)" arrives on a row that
+ * already prints 1973 in the margin and "died 2022" underneath, so the same
+ * two numbers appear three times in one card, on every person who has died,
+ * on all 366 pages.
+ *
+ * It also fixes a contradiction rather than only tidying one. Wikidata's own
+ * data disagrees with itself on Rishi Kapoor: the birth date says 1952 and the
+ * description says (1951-2020), so the page printed 1952 beside 1951 and
+ * looked wrong to anybody reading it. We print the structured year, which is
+ * the one the whole site is ordered by, and drop the prose copy of it.
+ *
+ * Only a parenthetical made of nothing but years, dashes and the word "born"
+ * is removed. "Apollo 11 (1969 mission)" keeps its bracket, because the
+ * bracket is saying something.
+ */
+export function tidyDescription(description: string): string {
+  return description
+    .replace(/\s*\((?:born\s+)?\d{3,4}\s*(?:[\u2013\u2014-]\s*\d{3,4})?\)\s*$/u, "")
+    .trim();
+}
+
 function factsSection(facts: Fact[], name: string): string {
   if (facts.length === 0) return "";
 
@@ -318,7 +356,51 @@ ${rows}
 <p class="credit">Found by Google's Gemini searching the web, and kept only when the page it cited answered. Birthed is not affiliated with Google.</p>`;
 }
 
-export function renderDayPage(page: DayPage, songs: SongOfTheYear[] = [], facts: Fact[] = []): string {
+/**
+ * The merged list: what was researched about the date and what Wikipedia's own
+ * article for it says, in one column ordered by year.
+ *
+ * Two credits rather than one, and each only when that source is actually on
+ * the page. The researched facts carry a link per row because their sources
+ * are all different and the link is the point. The Wikipedia lines carry one
+ * credit at the foot instead, the way the chart weeks already do, because
+ * fifty four rows saying "en.wikipedia.org" underneath each other is noise
+ * that tells the reader nothing the credit does not.
+ */
+function timelineSection(rows: TimelineRow[], name: string, searched: number, fromWikipedia: number): string {
+  if (rows.length === 0) return "";
+
+  const items = rows.map((row) => `<li>
+<span class="year">${row.year === null ? "&nbsp;" : row.year}</span>
+<span class="said">
+<p class="what">${escapeHtml(row.text)}</p>
+${row.sourceUrl ? `<p class="src"><a href="${escapeHtml(row.sourceUrl)}" rel="nofollow noopener">${escapeHtml(hostOf(row.sourceUrl))}</a></p>` : ""}
+</span>
+</li>`).join("\n");
+
+  const credits = [
+    searched > 0
+      ? `<p class="credit">The ${searched} with a source link under them were found by Google's Gemini searching the web, and kept only when the page each one cites answered. Birthed is not affiliated with Google.</p>`
+      : "",
+    fromWikipedia > 0
+      ? `<p class="credit">The other ${fromWikipedia} are from the ${escapeHtml(name)} article on Wikipedia, quoted as written and released under Creative Commons Attribution ShareAlike. Birthed is not affiliated with Wikipedia or the Wikimedia Foundation.</p>`
+      : "",
+  ].filter((line) => line !== "").join("\n");
+
+  return `<h2 class="section">What happened on ${escapeHtml(name)}</h2>
+<p class="lede">${rows.length} things, oldest first.</p>
+<ul class="facts">
+${items}
+</ul>
+${credits}`;
+}
+
+export function renderDayPage(
+  page: DayPage,
+  songs: SongOfTheYear[] = [],
+  facts: Fact[] = [],
+  events: DayEvent[] = [],
+): string {
   const name = `${monthName(page.month)} ${page.day}`;
   const canonical = `${SITE}/${slug(page.month, page.day)}/`;
   const count = page.people.length;
@@ -331,7 +413,13 @@ export function renderDayPage(page: DayPage, songs: SongOfTheYear[] = [], facts:
   // The description is what a search result shows, so the facts go in front
   // of the names when there are any: the names are what every other site in
   // this category already says.
-  const factLine = facts.length > 0 ? ` What happened on ${name}, in ${facts.length} sourced facts.` : "";
+  // Built here rather than inside the section, because the description a
+  // search result shows has to count the same rows the page ends up with.
+  const timeline = buildTimeline(facts, events, monthName(page.month), page.day);
+  const searched = timeline.filter((row) => row.sourceUrl !== null).length;
+  const factLine = timeline.length > 0
+    ? ` What happened on ${name}, in ${timeline.length} sourced things.`
+    : "";
   const description = count > 0
     ? `Who was born on ${name}. ${page.people.slice(0, 3).map((p) => p.name).join(", ")} and ${Math.max(0, count - 3)} more.${factLine}${songLine}`
     : `Who was born on ${name}.${factLine}${songLine}`;
@@ -342,7 +430,7 @@ export function renderDayPage(page: DayPage, songs: SongOfTheYear[] = [], facts:
 <span class="year">${escapeHtml(birthYearLabel(person)) || "&nbsp;"}</span>
 <span class="who">
 <p class="name"><a href="https://www.wikidata.org/wiki/${escapeHtml(person.qid)}" rel="nofollow noopener">${escapeHtml(person.name)}</a></p>
-${person.description ? `<p class="what">${escapeHtml(person.description)}</p>` : ""}
+${person.description && tidyDescription(person.description) ? `<p class="what">${escapeHtml(tidyDescription(person.description))}</p>` : ""}
 ${person.deathYear ? `<p class="died">died ${person.deathYear}</p>` : ""}
 </span>
 </li>`).join("\n");
@@ -354,7 +442,7 @@ ${person.deathYear ? `<p class="died">died ${person.deathYear}</p>` : ""}
 <h1>${name}</h1>
 <p class="lede">${headline}</p>
 ${count > 0 ? `<ol>\n${list}\n</ol>` : `<p class="lede">Nobody imported for this date yet.</p>`}
-${factsSection(facts, name)}
+${timelineSection(timeline, name, searched, timeline.length - searched)}
 ${songSection(songs, name)}
 <nav class="pager">
 <a href="/${slug(previous.month, previous.day)}/">&larr; ${monthName(previous.month)} ${previous.day}</a>
