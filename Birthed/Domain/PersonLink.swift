@@ -47,6 +47,79 @@ enum PersonLink {
         return URL(string: "https://\(host)/\(slug)/")
     }
 
+    /// The date a link points at, or nil when it points at no date.
+    ///
+    /// The other direction of `dayPage(for:)`. Birthed has been writing these
+    /// addresses since public figures became shareable, and the website has
+    /// 366 of them indexed, so they arrive from messages, from search results
+    /// and from anybody who pasted one. Until now the app could write one and
+    /// not read one, and tapping birthed.app/september-4/ opened a web page
+    /// beside an installed app that had that date already built.
+    ///
+    /// This is the whole of build order item 4, "the one tap today entry from
+    /// a link": a reader with the app lands on the date rather than on the
+    /// web, and a reader without it lands on onboarding with the date already
+    /// filled in and one button to press.
+    ///
+    /// Accepts both spellings for the same reason `incoming(from:)` does. The
+    /// web address is what gets shared, and the custom scheme is how the web
+    /// page hands off to the app.
+    ///
+    ///     https://birthed.app/september-4/     birthed://september-4
+    ///
+    /// It refuses anything it does not recognise rather than reaching for the
+    /// nearest date. "/septmber-4" is a typo, not September 4, and answering
+    /// a typo with a confident date is how a reader ends up looking at the
+    /// wrong day and believing it.
+    static func date(from url: URL) -> CalendarDate? {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
+
+        let isWebLink = components.host?.lowercased() == host
+        let isAppLink = components.scheme?.lowercased() == scheme
+        guard isWebLink || isAppLink else { return nil }
+
+        // A scheme link carries the slug as the host, because birthed://x has
+        // no path at all. A web link carries it as the one path segment.
+        let candidate: String?
+        if isWebLink {
+            let parts = components.path.split(separator: "/")
+            candidate = parts.count == 1 ? String(parts[0]) : nil
+        } else {
+            candidate = components.host ?? components.path.split(separator: "/").first.map(String.init)
+        }
+        guard let slug = candidate?.lowercased(), !slug.isEmpty else { return nil }
+
+        // Split on the last hyphen, not the first: no English month name has
+        // one in it today, and a split on the first would still be the line
+        // that broke if one ever did.
+        guard let hyphen = slug.lastIndex(of: "-") else { return nil }
+        let monthWord = String(slug[slug.startIndex..<hyphen])
+        guard let day = Int(slug[slug.index(after: hyphen)...]) else { return nil }
+        guard let month = CalendarDate.englishMonths
+            .firstIndex(where: { $0.lowercased() == monthWord })
+            .map({ $0 + 1 })
+        else { return nil }
+
+        // CalendarDate takes any day from 1 to 31 in any month, on purpose: a
+        // birthday there is two integers and nothing else. An address is not.
+        // The website publishes exactly 366 pages, so this reader accepts
+        // exactly those 366, and /february-30/ comes back as nothing rather
+        // than as a page nobody can have been born on and the site has never
+        // built. February gets 29, because February 29 has a page in every
+        // year whether or not that year has the day.
+        guard day <= Self.daysIn(month: month) else { return nil }
+        return CalendarDate(month: month, day: day)
+    }
+
+    /// The length of a month for the purpose of reading an address, with
+    /// February at its longest. Not a calendar calculation: an address names
+    /// one of the 366 calendar dates and carries no year to be leap or not.
+    static func daysIn(month: Int) -> Int {
+        let lengths = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+        guard month >= 1, month <= lengths.count else { return 0 }
+        return lengths[month - 1]
+    }
+
     /// Long enough for any real name and short enough that the link still
     /// looks like a link in a message rather than a wall of characters.
     static let maxNameLength = 60

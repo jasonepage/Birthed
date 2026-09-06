@@ -156,3 +156,101 @@ final class DayPageLinkTests: XCTestCase {
         XCTAssertEqual(CalendarDate.englishMonths.last, "December")
     }
 }
+
+/// Reading a date page address back into a date.
+///
+/// The app has been writing these since public figures became shareable and
+/// the website has all 366 of them indexed, so they arrive from messages,
+/// search results and anybody who pasted one. Build order item 4 is that
+/// tapping one lands on that date inside the app rather than on the web.
+///
+/// The refusals matter more than the acceptances here. A reader who is shown
+/// the wrong day has no way to tell, because every one of the 366 is a real
+/// page full of real facts, so anything not recognised has to come back as
+/// nothing rather than as the nearest date.
+final class DayPageAddressTests: XCTestCase {
+    private func date(_ address: String) -> CalendarDate? {
+        guard let url = URL(string: address) else { return nil }
+        return PersonLink.date(from: url)
+    }
+
+    func testTheAddressTheAppWritesIsTheAddressItReads() {
+        // Every one of the 366, through both directions, which is the only
+        // check that catches a month name the two halves spell differently.
+        var walked = 0
+        for month in 1...12 {
+            for day in 1...PersonLink.daysIn(month: month) {
+                guard let subject = CalendarDate(month: month, day: day) else {
+                    return XCTFail("no date for \(month)/\(day)")
+                }
+                guard let url = PersonLink.dayPage(for: subject) else {
+                    return XCTFail("no address for \(month)/\(day)")
+                }
+                XCTAssertEqual(PersonLink.date(from: url), subject, url.absoluteString)
+                walked += 1
+            }
+        }
+        XCTAssertEqual(walked, 366, "the site publishes 366 pages")
+    }
+
+    func testTheSchemeSpellingIsReadToo() {
+        // The web page hands off to the app this way, and a scheme address has
+        // no path at all: the slug arrives as the host.
+        XCTAssertEqual(date("birthed://september-4"), CalendarDate(month: 9, day: 4))
+        XCTAssertEqual(date("birthed://december-25/"), CalendarDate(month: 12, day: 25))
+    }
+
+    func testCaseAndATrailingSlashDoNotMatter() {
+        XCTAssertEqual(date("https://birthed.app/September-4/"), CalendarDate(month: 9, day: 4))
+        XCTAssertEqual(date("https://birthed.app/september-4"), CalendarDate(month: 9, day: 4))
+    }
+
+    func testFebruary29IsADateLikeAnyOther() {
+        // It has a page in every year, so it has an address in every year.
+        XCTAssertEqual(date("https://birthed.app/february-29/"), CalendarDate(month: 2, day: 29))
+    }
+
+    func testATypoIsNothingRatherThanTheNearestDate() {
+        XCTAssertNil(date("https://birthed.app/septmber-4/"))
+        XCTAssertNil(date("https://birthed.app/sept-4/"))
+        XCTAssertNil(date("https://birthed.app/september/"))
+        XCTAssertNil(date("https://birthed.app/september-/"))
+        XCTAssertNil(date("https://birthed.app/-4/"))
+        XCTAssertNil(date("https://birthed.app/september-four/"))
+    }
+
+    func testADayThatCannotExistIsRefused() {
+        // These are addresses somebody typed. The website has no page for
+        // either, and answering with February 28 would be Birthed inventing
+        // a birthday nobody has.
+        XCTAssertNil(date("https://birthed.app/february-30/"))
+        XCTAssertNil(date("https://birthed.app/april-31/"))
+        XCTAssertNil(date("https://birthed.app/september-0/"))
+    }
+
+    func testTheOtherPagesOnTheSiteAreNotDates() {
+        for address in [
+            "https://birthed.app/",
+            "https://birthed.app/privacy/",
+            "https://birthed.app/support/",
+            "https://birthed.app/add/",
+            // Two segments, so not one of the 366 whatever it says.
+            "https://birthed.app/og/september-4.png",
+            "https://birthed.app/a/september-4/",
+        ] {
+            XCTAssertNil(date(address), address)
+        }
+    }
+
+    func testSomebodyElsesSiteIsRefused() {
+        XCTAssertNil(date("https://example.com/september-4/"))
+        XCTAssertNil(date("https://notbirthed.app/september-4/"))
+    }
+
+    func testAnAddBirthdayLinkIsNotADatePage() {
+        // /add is one path segment and carries a date, so this is the case
+        // that would quietly turn a person into a page if the two readers
+        // were ever tried in the wrong order.
+        XCTAssertNil(date("https://birthed.app/add#m=9&d=4"))
+    }
+}

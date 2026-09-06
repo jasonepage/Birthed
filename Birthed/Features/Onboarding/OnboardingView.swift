@@ -39,6 +39,19 @@ struct OnboardingView: View {
     let onFinish: (Profile) -> Void
 
     @State private var step: Step = .day
+    /// True when a link brought a date with it and the screen is asking about
+    /// that date instead of offering a wheel.
+    ///
+    /// The premise in docs/first-five-minutes.md is that it is the reader's
+    /// birthday and a friend just sent them something. Handing that person a
+    /// wheel and asking them to find the day they were born, on the day they
+    /// were born, when the thing they tapped already said which day it was,
+    /// is the app's first move being a chore. One button instead.
+    ///
+    /// It is a state and not a constant because saying no has to work: the
+    /// date can be somebody else's, or a friend can be sharing a date for its
+    /// own sake, and the answer to both is the wheel this screen already had.
+    @State private var confirming: Bool
     @State private var month: Int
     @State private var day: Int
     @State private var observance: LeapObservance
@@ -46,13 +59,25 @@ struct OnboardingView: View {
 
     /// A first run starts on September 4 and nineteen years ago. A replay
     /// from Settings starts on the day and year already saved, so the
-    /// wheels are already right and the reveal is the point.
-    init(repository: DayPageRepository, starting profile: Profile? = nil, onFinish: @escaping (Profile) -> Void) {
+    /// wheels are already right and the reveal is the point. A first run that
+    /// came from a link starts on the date the link named, with the wheel put
+    /// away until somebody says the date is wrong.
+    /// `arriving` is a date a link carried in. It only ever applies to a first
+    /// run: a replay from Settings is somebody editing what they already
+    /// saved, and a link should not quietly offer to overwrite it.
+    init(
+        repository: DayPageRepository,
+        starting profile: Profile? = nil,
+        arriving: CalendarDate? = nil,
+        onFinish: @escaping (Profile) -> Void
+    ) {
         self.repository = repository
         self.onFinish = onFinish
         let birthday = profile?.birthday
-        _month = State(initialValue: birthday?.date.month ?? 9)
-        _day = State(initialValue: birthday?.date.day ?? 4)
+        let arrived = profile == nil ? arriving : nil
+        _confirming = State(initialValue: arrived != nil)
+        _month = State(initialValue: birthday?.date.month ?? arrived?.month ?? 9)
+        _day = State(initialValue: birthday?.date.day ?? arrived?.day ?? 4)
         _observance = State(initialValue: birthday?.leapObservance ?? .february28)
         _year = State(initialValue: birthday?.year ?? (OnboardingView.thisYear - 19))
         _region = State(initialValue: profile?.regionCode)
@@ -154,10 +179,17 @@ struct OnboardingView: View {
 
     private var title: String {
         switch step {
-        case .day: return "When is your day?"
+        case .day:
+            guard confirming else { return "When is your day?" }
+            // "Is today your birthday?" is only true on the day, and on any
+            // other day it would be the app's first sentence being wrong.
+            return isArrivedDateToday ? "Is today your birthday?" : "Is this your day?"
         case .year: return "Which year?"
         }
     }
+
+    /// Whether the date a link brought is the date it is now.
+    private var isArrivedDateToday: Bool { chosenDate == CalendarDate.today() }
 
     /// Two rules for this copy. It says what the field buys, because a field
     /// with no stated reason gets skipped. And it does not overclaim: the
@@ -167,7 +199,8 @@ struct OnboardingView: View {
     private var subtitle: String {
         switch step {
         case .day:
-            return "This is the only thing Birthed needs."
+            guard confirming else { return "This is the only thing Birthed needs." }
+            return "Somebody sent you \(chosenDate.displayName()). If it is yours, that is the only thing Birthed needs."
         case .year:
             return "Optional. It turns on the number one song the week you were born, and the day of the week it was. Your name is never on anything Birthed makes."
         }
@@ -180,9 +213,13 @@ struct OnboardingView: View {
         VStack(spacing: 0) {
             switch step {
             case .day:
-                BirthdayPicker(month: $month, day: $day, observance: $observance)
-                    .tint(Theme.accentDeep)
-                dayReveal
+                if confirming {
+                    arrivedDay
+                } else {
+                    BirthdayPicker(month: $month, day: $day, observance: $observance)
+                        .tint(Theme.accentDeep)
+                    dayReveal
+                }
             case .year:
                 YearWheel(year: $year, newest: Self.thisYear, oldest: Self.oldestYear)
                 yearReveal
@@ -195,6 +232,42 @@ struct OnboardingView: View {
         .frame(maxWidth: .infinity)
         .background(Theme.cream, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .colorScheme(.light)
+    }
+
+    /// The date a link named, set large, with the one thing already known
+    /// about it underneath.
+    ///
+    /// Deliberately not the wheel with the answer pre-spun. A wheel is an
+    /// invitation to turn it, and this screen is not asking a question with
+    /// 366 answers, it is asking one with two. The fact under the date is the
+    /// same one the wheel reveals, because a screen that asks for a yes owes
+    /// the reader a reason to give one.
+    private var arrivedDay: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(chosenDate.displayName())
+                .font(.system(size: 46, weight: .black, design: .serif))
+                .foregroundStyle(Theme.accentDeep)
+                .lineLimit(2)
+                .minimumScaleFactor(0.6)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if let happened {
+                Divider()
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Text(String(happened.year))
+                        .font(.subheadline.weight(.bold))
+                        .monospacedDigit()
+                        .foregroundStyle(Theme.accentDeep)
+                    Text(happened.text)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+        .padding(.vertical, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// What the day wheel gives back: the countdown, which is offline and
@@ -361,7 +434,7 @@ struct OnboardingView: View {
             .animation(.easeInOut(duration: 0.25), value: step)
 
             Button(action: advance) {
-                Text(step == .year ? "Start" : "Continue")
+                Text(primaryLabel)
                     .font(.headline)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 15)
@@ -373,6 +446,14 @@ struct OnboardingView: View {
                 Button("Skip the year", action: finishWithoutYear)
                     .font(.subheadline.weight(.semibold))
                     .opacity(0.9)
+            } else if confirming {
+                // Saying no is not a dead end and not another screen. It puts
+                // back the wheel this screen would have shown, already turned
+                // to the date that arrived, so the reader is nudging it rather
+                // than starting from September 4.
+                Button("No, my day is another one") { confirming = false }
+                    .font(.subheadline.weight(.semibold))
+                    .opacity(0.9)
             } else {
                 Text(chosenDate.displayName())
                     .font(.subheadline.weight(.semibold))
@@ -382,6 +463,13 @@ struct OnboardingView: View {
     }
 
     // MARK: Actions
+
+    /// "Yes" only when the screen asked a question. Everywhere else the button
+    /// moves the reader on and says so.
+    private var primaryLabel: String {
+        if step == .year { return "Start" }
+        return confirming ? "Yes, that is my day" : "Continue"
+    }
 
     private func advance() {
         switch step {

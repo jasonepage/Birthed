@@ -32,6 +32,22 @@ struct RootView: View {
     @State private var arriving: ArrivingBirthday?
     /// Somebody whose birthday is today, with the composer open for them.
     @State private var saying: Person?
+    /// The date the Today tab is showing. Today, until a link says otherwise.
+    ///
+    /// Birthed writes addresses like birthed.app/september-4/ whenever a date
+    /// is shared, and the website has all 366 of them indexed. Before this,
+    /// tapping one opened a web page next to an installed app that had that
+    /// date already built. Build order item 4.
+    @State private var showingDate: CalendarDate = .today()
+    /// A date carried in a link, waiting for onboarding to ask about it.
+    /// Only ever set when there is no profile yet.
+    @State private var arrivingDate: CalendarDate?
+    /// Set when a link picked the tab, so the rule below does not overrule it.
+    ///
+    /// `FR-033` opens the app on the reader's own day inside their birthday
+    /// window, which is right when nobody asked for anything else. Somebody
+    /// who just tapped a link at a named date did ask.
+    @State private var tabChosenByLink = false
 
     enum Tab: Hashable { case today, mine, people }
 
@@ -40,7 +56,7 @@ struct RootView: View {
             if let profile = profileStore.profile {
                 tabs(for: profile)
             } else {
-                OnboardingView(repository: repository) { profile in
+                OnboardingView(repository: repository, arriving: arrivingDate) { profile in
                     profileStore.save(profile)
                     Task {
                         await account.ensureAccount()
@@ -53,8 +69,23 @@ struct RootView: View {
         // On the outer Group rather than inside the tabs, so a link tapped
         // before onboarding is finished is still caught rather than dropped.
         .onOpenURL { url in
-            guard let incoming = PersonLink.incoming(from: url) else { return }
-            arriving = ArrivingBirthday(incoming: incoming)
+            // A birthday to keep and a date to look at are two different
+            // links. The birthday is read first because /add carries a date
+            // as well and only the person on it is the point.
+            if let incoming = PersonLink.incoming(from: url) {
+                arriving = ArrivingBirthday(incoming: incoming)
+                return
+            }
+            guard let date = PersonLink.date(from: url) else { return }
+            if profileStore.profile == nil {
+                // Nobody has said when their day is yet, so the date becomes
+                // onboarding's opening answer rather than a page to read.
+                arrivingDate = date
+            } else {
+                showingDate = date
+                tab = .today
+                tabChosenByLink = true
+            }
         }
         .sheet(item: $arriving, onDismiss: {
             // Whatever they chose, the copy on the server is dealt with, and
@@ -99,7 +130,10 @@ struct RootView: View {
             // FR-010. Silent, on first launch, with no screen and no action.
             await account.ensureAccount()
             if let profile = profileStore.profile {
-                tab = openingTab(for: profile)
+                // A cold launch from a link can run this after the link has
+                // already chosen, and the birthday window rule must not undo
+                // the tap that started the app.
+                if !tabChosenByLink { tab = openingTab(for: profile) }
                 await account.pushProfile(profile)
             }
             await refreshReminders()
@@ -135,10 +169,15 @@ struct RootView: View {
     private func tabs(for profile: Profile) -> some View {
         TabView(selection: $tab) {
             DayPageView(
-                date: CalendarDate.today(),
+                date: showingDate,
                 repository: repository,
                 onOpenSettings: { showingSettings = true }
             )
+            // The date is read once, in the view's own init, so a new date
+            // has to be a new view. Without this the tab would keep showing
+            // the date it was first built with and the link would look like
+            // it had done nothing.
+            .id(showingDate)
             .tabItem { Label("Today", systemImage: "calendar") }
             .tag(Tab.today)
 
