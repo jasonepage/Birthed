@@ -1,3 +1,142 @@
+# Handoff, September 6, 2026, afternoon
+
+For the next session, which Nathan is opening to redesign the web frontend.
+Read this, then `CLAUDE.md` sections 5 and 6. This section wins where it
+disagrees with anything under it, because it is newer.
+
+## Start here
+
+**Nathan is starting a fresh session for the web frontend redesign.** The iOS
+app is done for now and should be left alone. Ten commits today, all pushed,
+`swift test` green, the app built and run on a physical iPhone.
+
+Before touching the website, read `web/src/serve.ts`. The security header is
+per path, `/add` is the only page allowed to run a script, and `img-src` is
+`'self'` with no `data:`. That last one is not a detail. It silently refuses
+any background image written as a data URI, draws nothing, and reports
+nothing. It nearly ate the dropdown chevrons today. There is a test that the
+whole stylesheet fetches nothing at all, and it exists for that reason.
+
+## Where things stand
+
+Ten commits on `main` since `dff5cf2`, all pushed, working tree clean. The web
+suite is 92 for 92. `swift test` passes with the new `Screening`, `DayLine` and
+day page link tests. Jason built the app in Xcode and ran the whole notification
+loop on his own phone.
+
+## The two things that were blocking TestFlight are closed
+
+**Item 30, the notification loop, is proved.** It was the central claim of the
+product and nobody had ever walked it. It now has: a reminder arrives on a real
+phone, it is tapped from the lock screen, the app opens on the right tab, the
+composer opens with the right person in it, and a message goes. Tested cold and
+backgrounded, for a friend and for a followed person, and the three day warning
+correctly opens no sheet.
+
+The way it got tested is worth keeping. `NotificationService.rehearse`, debug
+builds only, fires one reminder out of the real plan twelve seconds from now.
+It changes the trigger and nothing else: real plan, real identifier, real
+words. The identifier matters most, because the identifier is the routing, so
+a hand written one would test a path the app does not have. Waiting until
+eight tomorrow is not a test anybody runs twice, and moving the phone's clock
+changes what a calendar trigger resolves against, which is the machinery under
+test.
+
+**Item 47, the dates written from memory, is closed properly.** This session
+could reach the web, which no earlier one could. All 101 rows in `WorldThen`
+were checked against pages that state the day, one quoted sentence each. Full
+table in `docs/worldthen-verification.md`.
+
+## The thing worth reading twice
+
+Eleven of those 101 dates were wrong, and every single one was a real date.
+The first three PlayStations and every Pokemon generation before X and Y held
+the Japanese launch. Spotify held the Swedish one. Each would pass a check
+asking "is this a real release date". None would pass a check asking "is this
+the date this reader's world changed".
+
+So the app told an American born in June 2000 that the newest PlayStation was
+the PlayStation 2, four months before it existed where they were, and told
+anyone born between February 1996 and September 1998 that Pokemon was already
+out, two and a half years early.
+
+**A fact check is worthless until you have decided what question the data
+answers.** Checking those rows before settling the convention would have
+confirmed all of them. The rule is now written at the top of the timelines:
+every date is a United States date, because the sentence is about the reader's
+world and not about the object.
+
+Three arrival dates were deliberately left wrong by that rule and right by
+another. Facebook is the Harvard launch, YouTube is a domain registration,
+Google is an incorporation. Nathan's call, and it was the right one: "older
+than Facebook" is a claim about cultural intuition rather than corporate
+paperwork.
+
+## What else was built
+
+1. **The names are gone from the app's celebration screens.** Onboarding and
+   Mine both read `notable_people` ordered by `notability_score` and took the
+   top three, which is the same table, column and order that put Ted Bundy on
+   the website's November 24 card. `Domain/DayLine.swift` picks one screened
+   line about the date instead, preferring a researched fact and falling back
+   to a screened Wikipedia event, and returning nothing rather than a name.
+   `Domain/Screening.swift` holds the word lists at three strengths in one
+   place, because the Swift copy and the TypeScript copy had already drifted.
+2. **The paste box is the front door of an empty People tab.** Build order
+   item 1, finally. Candle, one sentence, a paste control, the box, names
+   appearing as they are read. `PasteImport` is written once and used by both
+   the tab and the sheet.
+3. **The People list is two sections**, friends and public figures, off
+   `Person.isPublicFigure`, with edit mode and bulk delete. Removing somebody
+   now rebuilds the notification schedule immediately rather than waiting for
+   the next foreground.
+4. **The `/add` form** has real controls instead of the browser's. Rendered at
+   402, 375 and 320 points and looked at.
+5. **Sharing about a followed person hands over a link**, not a bare string. It
+   used to AirDrop as a text file with one line in it.
+
+## Open, and honest
+
+- **Nothing in the app measures anything.** `docs/first-five-minutes.md` names
+  four numbers and none exist. Messages sent per reminder delivered is the
+  whole product in one ratio. The loop is now proved to work and nobody can
+  tell whether anyone walks it. Nathan is setting up PostHog or similar
+  outside a Claude session. Whatever lands, the privacy page makes specific
+  promises about what leaves the phone and they must not be quietly softened.
+- **85 dates still have no researched facts** and the search budget is spent.
+  Covered by the event fallback, so not urgent.
+- **`knownThrough` on Fortnite and Minecraft is late 2024.** Nobody has a
+  birthday in the future so this only affects babies, but it ages a year every
+  year.
+- **Search Console** was verified on September 5. Give it until late
+  September, then let the Performance tab decide the title format and whether
+  the 85 dates are worth topping up.
+
+## Rules that bit today
+
+- A header can refuse something and say nothing. `img-src 'self'` would have
+  eaten the chevrons. Test the header, not the page.
+- A backtick inside a TypeScript template literal ends the string. Two CSS
+  comments did that and the compiler caught it, which is the only reason it
+  was cheap.
+- Safari on iOS zooms the page in when a control smaller than 16px takes
+  focus and does not zoom back out.
+- A `TextEditor` takes every point it is offered, so `minHeight` next to a
+  `Spacer(minLength: 0)` bounds nothing.
+- `ShareLink(item:)` with a `String` gives the receiver a text file. Share a
+  URL when you want a link.
+- A test that slices from the first match of a phrase may be reading the head
+  and the whole inlined stylesheet. One was asserting that no CSS comment on
+  the site contains the word "you".
+- A test harness that fails while the code under test is correct is worse than
+  no harness. The rehearsal offered a three day warning for a public figure,
+  who by design never gets one.
+- This session had web access and previous ones did not. Check before assuming
+  the old constraint still holds. It is the difference between spot checking
+  five dates and closing the item.
+
+---
+
 # Handoff, September 6, 2026, small hours
 
 For the next session. Read this, then `CLAUDE.md` sections 5 and 6, then
