@@ -10,11 +10,17 @@
 // chart covering a date is the first issue dated on or after it, and at most
 // six days after it. See CLAUDE.md section 5.
 
+import { createHash } from "node:crypto";
+
 export interface ChartWeek {
   /** yyyy-mm-dd, the issue date printed on the chart. */
   chartDate: string;
   song: string;
   artist: string;
+  /** The Apple Music page for the recording, when one was matched. */
+  storeUrl?: string | null;
+  /** Whether a cover was found. The path is worked out, not stored. */
+  hasArtwork?: boolean;
 }
 
 export interface SongOfTheYear {
@@ -23,6 +29,26 @@ export interface SongOfTheYear {
   chartDate: string;
   song: string;
   artist: string;
+  storeUrl?: string | null;
+  hasArtwork?: boolean;
+}
+
+/**
+ * Where this song's cover lives on birthed.app.
+ *
+ * Named from the song and the artist rather than from Apple's address, so the
+ * name does not change when Apple rotates a URL, and so the renderer can work
+ * out the path without carrying it through three files.
+ *
+ * The covers are downloaded and served from this domain rather than hotlinked.
+ * The site sends `img-src 'self'` and the privacy page names Supabase and
+ * Render as the only third parties that see anything. Pointing every cover at
+ * Apple would have meant widening that header and adding a company to that
+ * list, in exchange for a thumbnail.
+ */
+export function coverName(song: string, artist: string): string {
+  const identity = `${song}|${artist}`.toLowerCase().normalize("NFC");
+  return createHash("sha1").update(identity).digest("hex").slice(0, 16);
 }
 
 export const CHART_NAME = "Billboard Hot 100";
@@ -89,7 +115,10 @@ export function songsForDate(
     if (!dateExists(year, month, day)) continue;
     const week = covered.get(isoFor(year, month, day));
     if (week === undefined) continue;
-    songs.push({ year, chartDate: week.chartDate, song: week.song, artist: week.artist });
+    songs.push({
+      year, chartDate: week.chartDate, song: week.song, artist: week.artist,
+      storeUrl: week.storeUrl, hasArtwork: week.hasArtwork,
+    });
   }
   return songs;
 }
@@ -108,7 +137,7 @@ export async function fetchChartWeeks(url: string, key: string): Promise<ChartWe
 
   for (let offset = 0; ; offset += pageSize) {
     const query = new URLSearchParams({
-      select: "chart_date,song,artist",
+      select: "chart_date,song,artist,store_url,artwork_url",
       chart_name: `eq.${CHART_NAME}`,
       order: "chart_date.asc",
       limit: String(pageSize),
@@ -120,9 +149,20 @@ export async function fetchChartWeeks(url: string, key: string): Promise<ChartWe
     if (!response.ok) {
       throw new Error(`chart weeks failed with ${response.status}`);
     }
-    const rows = (await response.json()) as { chart_date: string; song: string; artist: string }[];
+    const rows = (await response.json()) as {
+      chart_date: string; song: string; artist: string;
+      store_url: string | null; artwork_url: string | null;
+    }[];
     for (const row of rows) {
-      weeks.push({ chartDate: row.chart_date, song: row.song, artist: row.artist });
+      weeks.push({
+        chartDate: row.chart_date,
+        song: row.song,
+        artist: row.artist,
+        storeUrl: row.store_url,
+        // The address is not kept. What matters here is only whether there is
+        // a cover to point at, and the local path comes from `coverName`.
+        hasArtwork: row.artwork_url !== null,
+      });
     }
     if (rows.length < pageSize) break;
   }
