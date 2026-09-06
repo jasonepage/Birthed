@@ -157,7 +157,14 @@ so use September 4, 2002 unless a step below says otherwise.
     they are in the list with their date. Go back into the search and the plus
     on that person should now be a tick.
 
-20. **The old screens still work.** These are the ones tonight's changes could
+20. **The empty People tab.** Delete everybody from People so the list is
+    empty, then leave the tab and come back. Under the candle and the paste
+    button there should be a heading OR FOLLOW SOMEBODY and three people with
+    plus buttons. Tap one plus. That person should appear in the list and the
+    empty state should go, because the list is no longer empty. Screenshot the
+    empty state before you tap.
+
+21. **The old screens still work.** These are the ones tonight's changes could
     have broken by accident, so a quick look at each is enough:
     - Fresh onboarding, day wheel then year wheel, answering as you turn it.
     - The birthday state. Set the date to today, hold the candle, watch it

@@ -8,6 +8,7 @@ import SwiftUI
 /// list answers a question nobody asked.
 struct PeopleView: View {
     @Environment(PeopleStore.self) private var store
+    @Environment(ProfileStore.self) private var profileStore
     let repository: DayPageRepository
     let onOpenSettings: () -> Void
 
@@ -15,6 +16,10 @@ struct PeopleView: View {
     @State private var adding = false
     @State private var addingMany = false
     @State private var following = false
+    /// A couple of public figures to offer when the list is empty, so the
+    /// screen that decides whether this tab is worth anything has something on
+    /// it besides an instruction.
+    @State private var suggestions: [NotableMatch] = []
 
     private let agenda = BirthdayAgenda()
     private var now: Date { Date() }
@@ -57,6 +62,7 @@ struct PeopleView: View {
                     }
                 }
             }
+            .task { await loadSuggestions() }
             .sheet(isPresented: $following) {
                 FindFamousView(repository: repository)
             }
@@ -74,6 +80,16 @@ struct PeopleView: View {
             }
         }
         .tint(Theme.accent)
+    }
+
+    /// Only ever asked for when there is nobody in the list, because that is
+    /// the only screen it is shown on and nobody should pay for a request they
+    /// will not see the answer to.
+    private func loadSuggestions() async {
+        guard store.people.isEmpty, suggestions.isEmpty else { return }
+        let found = try? await repository.recommended(
+            bornNear: profileStore.profile?.birthday.year, limit: 40)
+        suggestions = NotableMix.spread(found ?? [], limit: 3)
     }
 
     // MARK: Empty
@@ -102,6 +118,35 @@ struct PeopleView: View {
                     .foregroundStyle(Theme.cream)
             }
             .padding(.top, 4)
+
+            // Offered, not added. Putting somebody in a list nobody asked for
+            // means notifications about people they never chose, and this list
+            // is theirs. One tap is the same outcome and it is their tap.
+            if !suggestions.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("OR FOLLOW SOMEBODY")
+                        .font(.caption.weight(.heavy))
+                        .kerning(2.5)
+                        .foregroundStyle(Theme.accent)
+                        .padding(.bottom, 2)
+
+                    ForEach(suggestions) { match in
+                        FollowRow(match: match)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 4)
+                            .background(Theme.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+
+                    Button { following = true } label: {
+                        Text("Find someone else")
+                            .font(.footnote.weight(.semibold))
+                    }
+                    .padding(.top, 2)
+                }
+                .padding(.top, 26)
+                .padding(.horizontal, 20)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
 
             Button {
                 adding = true

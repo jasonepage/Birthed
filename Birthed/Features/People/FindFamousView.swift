@@ -75,38 +75,7 @@ struct FindFamousView: View {
     }
 
     private func row(_ match: NotableMatch) -> some View {
-        let already = store.people.contains { $0.wikidataID == match.person.id }
-        return HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(match.person.name)
-                    .font(.headline)
-                Text(match.birthDate.displayName())
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.accent)
-                if let description = match.person.shortDescription, !description.isEmpty {
-                    Text(description)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-            }
-            Spacer(minLength: 0)
-
-            Button {
-                store.add(match.asPerson())
-            } label: {
-                Image(systemName: already ? "checkmark" : "plus")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(already ? Color.secondary : Theme.cream)
-                    .frame(width: 34, height: 34)
-                    .background(already ? Color.clear : Theme.accent, in: Circle())
-            }
-            .buttonStyle(.plain)
-            .disabled(already)
-            .accessibilityLabel(already ? "Already following \(match.person.name)"
-                                        : "Follow \(match.person.name)")
-        }
-        .padding(.vertical, 4)
+        FollowRow(match: match)
     }
 
     private func loadSuggestions() async {
@@ -139,5 +108,53 @@ struct FindFamousView: View {
             failed = true
             results = []
         }
+    }
+}
+
+/// One public figure, offered. Shared by the search screen and by the empty
+/// People tab, so following somebody is the same gesture wherever it is met.
+struct FollowRow: View {
+    @Environment(PeopleStore.self) private var store
+    let match: NotableMatch
+
+    private var already: Bool {
+        store.people.contains { $0.wikidataID == match.person.id }
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(match.person.name)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                Text(match.birthDate.displayName())
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.accent)
+                if let description = match.person.shortDescription, !description.isEmpty {
+                    Text(description)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+            }
+            .multilineTextAlignment(.leading)
+
+            Spacer(minLength: 0)
+
+            Button {
+                store.add(match.asPerson())
+            } label: {
+                Image(systemName: already ? "checkmark" : "plus")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(already ? Color.secondary : Theme.cream)
+                    .frame(width: 34, height: 34)
+                    .background(already ? Color.clear : Theme.accent, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .disabled(already)
+            .accessibilityLabel(already ? "Already following \(match.person.name)"
+                                        : "Follow \(match.person.name)")
+        }
+        .padding(.vertical, 4)
     }
 }
