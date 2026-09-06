@@ -245,7 +245,20 @@ export function renderHome(
     "Birthed: the day you were born",
     "Who shares your birthday, what happened on it, what was number one the week you were born, how many days you have been here, and whose birthdays you keep forgetting.",
     canonical,
-    undefined,
+    // The card. Every date page has had one since it was built and the home
+    // page never did, so this was the one page on the site that shared as a
+    // bare link. It was posted to Reddit on September 6 with no thumbnail,
+    // next to three posts that had one, which is the whole cost of the
+    // omission: a link with no picture on an aggregator loses to the links
+    // beside it before anybody reads the title.
+    //
+    // A file rather than a render. The date cards come out of og.ts, which
+    // needs Chromium and is deliberately kept out of `npm run site` so a
+    // content rebuild stays fast and needs no browser. One unchanging card
+    // does not need that machinery, and putting it in static/ means it can
+    // never be missing because somebody rebuilt the site without running the
+    // slow step.
+    `${SITE}/og-home.png`,
     false,
     "home",
   )}
@@ -553,7 +566,7 @@ ${FOOT}`;
 
 export function renderSupport(): string {
   const canonical = `${SITE}/support/`;
-  return `${head("Birthed support", "Help with the Birthed app: your birthday, the number one song, reminders, and deleting your data.", canonical)}
+  return `${head("Birthed support", "Help with the Birthed app: your birthday, the number one song, reminders, and deleting your data.", canonical, `${SITE}/og-home.png`)}
 <p class="kicker">Birthed</p>
 <h1>Support</h1>
 <p class="lede">Most questions are answered below. For anything else, write to <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a> and a person will answer.</p>
@@ -588,7 +601,7 @@ ${FOOT}`;
 
 export function renderPrivacy(): string {
   const canonical = `${SITE}/privacy/`;
-  return `${head("Birthed privacy policy", "What Birthed collects, where it goes, and how to delete it. Written from what the app actually does.", canonical)}
+  return `${head("Birthed privacy policy", "What Birthed collects, where it goes, and how to delete it. Written from what the app actually does.", canonical, `${SITE}/og-home.png`)}
 <p class="kicker">Birthed</p>
 <h1>Privacy</h1>
 <p class="lede">This is written from what the app does, not from a template. It is short because Birthed does not collect much.</p>
