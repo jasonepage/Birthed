@@ -24,6 +24,13 @@ struct SettingsView: View {
     @State private var region = ""
     @FocusState private var regionFocused: Bool
 
+    #if DEBUG
+    /// What the last rehearsal said. Shown rather than logged, because the
+    /// phone is face down on a desk during this test and nobody is watching a
+    /// console.
+    @State private var rehearsal = ""
+    #endif
+
     private var profile: Profile? { profileStore.profile }
 
     var body: some View {
@@ -81,6 +88,10 @@ struct SettingsView: View {
                 } footer: {
                     Text(accountFooter)
                 }
+
+                #if DEBUG
+                rehearsalSection
+                #endif
 
                 Section {
                     Button("Delete my account and data", role: .destructive) {
@@ -147,6 +158,60 @@ struct SettingsView: View {
             Text(reminderFooter)
         }
     }
+
+    #if DEBUG
+    /// Test pass item 30, made runnable.
+    ///
+    /// The loop this app is for has never been walked end to end: a reminder
+    /// arrives, it is tapped, the composer opens with the right person in it,
+    /// and a message goes. This fires a real reminder out of the real plan a
+    /// few seconds from now so that loop can be walked in under a minute
+    /// instead of at eight tomorrow morning.
+    ///
+    /// Debug builds only. It is not a feature, it is a way of running a test.
+    private var rehearsalSection: some View {
+        Section {
+            // The soonest person rather than the first one added. iOS keeps 64
+            // pending requests and the planner trims to fit, soonest first, so
+            // somebody far enough down the list is not in the plan at all and
+            // the rehearsal would answer "nothing matches that" for a reason
+            // that has nothing to do with what is being tested.
+            if let profile, let person = BirthdayAgenda().soonestFirst(peopleStore.people, on: Date()).first(where: { $0.isUsable }) {
+                Button("It is \(person.trimmedName)'s birthday") {
+                    fire(.personBirthday(personID: person.id), profile)
+                }
+                Button("\(person.trimmedName)'s birthday is in \(notifications.personDaysBefore) days") {
+                    fire(.personSoon(personID: person.id, daysBefore: notifications.personDaysBefore), profile)
+                }
+                Button("Your own birthday morning") {
+                    fire(.ownBirthday, profile)
+                }
+            } else {
+                Text("Add somebody on the People tab first.")
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("Rehearse a reminder")
+        } footer: {
+            Text(rehearsal.isEmpty
+                 ? "Debug builds only. Fires one reminder from the real plan twelve seconds from now, with the real identifier and the real words, so tapping it walks the shipping path. Lock the phone after you tap."
+                 : rehearsal)
+        }
+    }
+
+    /// The plan is rebuilt from the store rather than from anything cached, so
+    /// a person added a moment ago is in it.
+    private func fire(_ kind: PlannedNotification.Kind, _ profile: Profile) {
+        rehearsal = "Asking iOS..."
+        Task {
+            rehearsal = await notifications.rehearse(
+                kind,
+                birthday: profile.birthday,
+                people: peopleStore.people
+            )
+        }
+    }
+    #endif
 
     private var reminderFooter: String {
         switch notifications.permission {

@@ -199,6 +199,91 @@ final class NotificationService {
         guard let year = person.birthday.year else { return "Born today." }
         return "Born today in \(year)."
     }
+
+    // MARK: Rehearsing the loop
+
+    #if DEBUG
+    /// The plan's own warning distance, so a rehearsal cannot ask for a
+    /// number the planner has stopped using. Matching a `Kind` is exact, and
+    /// a hardcoded 3 here would silently stop finding anything the day
+    /// somebody changed the default.
+    var personDaysBefore: Int { planner.personDaysBefore }
+
+    /// Fires one reminder out of the real plan, a few seconds from now.
+    ///
+    /// Test pass item 30 is the loop nothing has ever proved: a reminder
+    /// arrives, somebody taps it, the composer opens with the right person in
+    /// it, and a message goes. It is the central claim of the product and the
+    /// only part of it that cannot be checked by `swift test`, because the
+    /// thing being checked is iOS delivering something tomorrow morning.
+    ///
+    /// The two ways it was tested before are both bad. Waiting until eight
+    /// tomorrow is not a test anybody runs twice, so it never got run once.
+    /// Moving the phone's clock forward changes what a
+    /// `UNCalendarNotificationTrigger` resolves against, which is precisely
+    /// the machinery under test, and iOS does not reliably re-evaluate
+    /// pending triggers after a clock change anyway, so a failure proves
+    /// nothing and a pass proves less.
+    ///
+    /// So this changes the trigger and nothing else at all. The plan is the
+    /// real plan from `NotificationPlanner`. The identifier is the real
+    /// identifier, and that matters more than anything else here: the
+    /// identifier IS the routing, since `PlannedNotification.opened` reads
+    /// the person's UUID back out of it, so a hand written identifier would
+    /// test a path the app does not have. The words come from the same
+    /// `content` that writes them in production. Everything from the banner
+    /// onwards is the shipping path, untouched.
+    ///
+    /// One side effect, and it is worth knowing rather than being surprised
+    /// by. Adding a request whose identifier is already pending replaces it,
+    /// so rehearsing a person's birthday consumes the real reminder for that
+    /// person. `FR-074` rebuilds the whole schedule on every foreground, and
+    /// tapping the banner foregrounds the app, so the ordinary path puts it
+    /// straight back. Force quitting instead of tapping leaves it missing
+    /// until the next launch.
+    ///
+    /// Compiled out of a release build. It is not a feature and it must never
+    /// become one.
+    func rehearse(
+        _ wanted: PlannedNotification.Kind,
+        birthday: CalendarBirthday,
+        people: [Person],
+        after seconds: TimeInterval = 12,
+        now: Date = Date()
+    ) async -> String {
+        await refresh()
+        guard permission == .granted else {
+            return "iOS has not been asked yet, or it said no. Turn Reminders on above, answer the prompt, then try again."
+        }
+        guard isEnabled else {
+            return "Reminders are switched off, so there is no plan to take one from."
+        }
+
+        let plan = planner.plan(for: birthday, people: people, from: now)
+        guard let notification = plan.first(where: { $0.kind == wanted }) else {
+            return "Nothing in the plan matches that. The plan currently holds \(plan.count) reminders."
+        }
+
+        let known = Dictionary(people.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        guard let content = content(for: notification, birthday: birthday, people: known) else {
+            return "That person has no name, so no reminder is written for them at all."
+        }
+
+        let request = UNNotificationRequest(
+            identifier: notification.identifier,
+            content: content,
+            // The one and only difference from a real reminder.
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: max(seconds, 1), repeats: false)
+        )
+        do {
+            try await centre.add(request)
+        } catch {
+            return "The notification centre refused it: \(error.localizedDescription)"
+        }
+        pendingCount = await centre.pendingNotificationRequests().count
+        return "\"\(content.title)\" arrives in \(Int(seconds)) seconds. Lock the phone now."
+    }
+    #endif
 }
 
 /// Hands a tapped notification's identifier back to the main actor.

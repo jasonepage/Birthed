@@ -243,7 +243,14 @@ struct WorldThen {
                 Version(from: Day(2024, 8, 16), name: "Chapter 5 Season 4"),
             ],
             knownThrough: Day(2024, 10, 31),
-            sourceURL: URL(string: "https://en.wikipedia.org/wiki/Fortnite_Battle_Royale")!
+            // Not the Wikipedia article. Test pass item 47 sent somebody to
+            // check these against the linked page, and the linked page does
+            // not carry season start dates at all: it gives the September 26,
+            // 2017 launch, which is the first row here and is right, and then
+            // nothing until Chapter 3. A citation that does not state the
+            // thing it is cited for is worse than no citation, because the
+            // reader who follows it concludes the app made the date up.
+            sourceURL: URL(string: "https://fortnite.fandom.com/wiki/Chapter_2:_Season_1")!
         ),
         Timeline(
             subject: "Minecraft",
@@ -279,7 +286,10 @@ struct WorldThen {
                 Version(from: Day(2024, 6, 13), name: "1.21, Tricky Trials"),
             ],
             knownThrough: Day(2024, 12, 31),
-            sourceURL: URL(string: "https://en.wikipedia.org/wiki/Minecraft")!
+            // The same problem. The Wikipedia article has a version table with
+            // years in it and no days, so 1.16 reads as "2020" there and the
+            // row below says June 23. This page states the day.
+            sourceURL: URL(string: "https://minecraft.wiki/w/Java_Edition_version_history")!
         ),
         Timeline(
             subject: "the iPhone",
