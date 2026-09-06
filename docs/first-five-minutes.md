@@ -275,6 +275,20 @@ was competing with. An empty People tab with nothing on it but an instruction
 is where this app dies, and one tap on a real name is a better first move than
 no move at all.
 
+**Discovery went behind the menu, September 6.** The ask was a three section
+People tab with the carousels in the middle of it. That is the arrangement this
+document argues against: the tab has one job, getting real people into it, and
+a permanent module of strangers in the middle of it teaches the opposite. So
+the carousels live inside the follow sheet, which is reached from "Add someone"
+and is only opened by somebody who has already decided they want a public
+figure. Same feature, same data, none of the teaching.
+
+Two carousels, and neither is called trending, because nothing in the data
+supports that word. There is no time series anywhere, only a monthly pageview
+figure, so "trending" would be a claim we cannot make. They are "birthdays this
+week", which is real, computed from the calendar and the most useful thing this
+screen can say, and "born around your year", which already existed.
+
 **What did not change.** Everything else in the table, and items 1 through 4 of
 the build order. The trimming of Mine in item 3 is smaller than it reads: the
 table demotes most of what it lists rather than removing it, and only the

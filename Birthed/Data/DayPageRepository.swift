@@ -35,6 +35,13 @@ protocol DayPageRepository: Sendable {
     /// most looked up people who are on the internet at all.
     func recommended(bornNear year: Int?, limit: Int) async throws -> [NotableMatch]
 
+    /// Public figures whose birthday falls on one of these dates.
+    ///
+    /// The dates are passed in rather than a number of days, so the calendar
+    /// arithmetic stays in the domain where it is tested and this layer only
+    /// asks the question.
+    func celebrating(on dates: [CalendarDate], limit: Int) async throws -> [NotableMatch]
+
     /// What happened on a calendar date, from Wikipedia's date article, every
     /// year it lists. Empty until the events import has run for that date.
     func events(on date: CalendarDate, limit: Int) async throws -> [DayFeed.Event]

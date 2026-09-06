@@ -237,6 +237,32 @@ struct SupabaseRestDayPageRepository: DayPageRepository {
         return try await matches(query)
     }
 
+    /// Whose birthday is on one of these days.
+    ///
+    /// One request with an `or` of month and day pairs rather than a request
+    /// per day. The pairs come from `UpcomingDates`, so the turn of a month and
+    /// the turn of a year are already handled and this only has to ask.
+    ///
+    /// The same two conditions as the suggestions: somebody who exists on the
+    /// internet rather than only in an encyclopedia, and somebody people
+    /// actually look up. Ordered by that second one, because on any given week
+    /// there are hundreds of birthdays and the question is which of them
+    /// somebody would recognise.
+    func celebrating(on dates: [CalendarDate], limit: Int) async throws -> [NotableMatch] {
+        guard !dates.isEmpty else { return [] }
+        let pairs = dates
+            .map { "and(birth_month.eq.\($0.month),birth_day.eq.\($0.day))" }
+            .joined(separator: ",")
+        return try await matches([
+            URLQueryItem(name: "select", value: Self.matchColumns),
+            URLQueryItem(name: "or", value: "(\(pairs))"),
+            URLQueryItem(name: "has_social", value: "is.true"),
+            URLQueryItem(name: "monthly_views", value: "gt.0"),
+            URLQueryItem(name: "order", value: "monthly_views.desc"),
+            URLQueryItem(name: "limit", value: String(limit)),
+        ])
+    }
+
     // MARK: The number ones
 
     private struct ChartRow: Decodable {
