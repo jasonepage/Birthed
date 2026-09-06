@@ -246,6 +246,49 @@ being large, and the counters are inflatable by anyone holding the key that
 ships in the app. They rank a prompt and nothing else, and that is the only
 reason those limits are acceptable.
 
+## What the facts are made of, and the one thing not yet proved
+
+The first full backfill came back 26 percent space and science: 720 of 2,751
+facts about comets, probes and discoveries. All true, all sourced, all shaped
+like an encyclopedia rather than like something a nineteen year old
+screenshots. The model reaches for that because it is where the clean
+citations are, and nothing was telling it not to.
+
+`TASTE` in the Edge Function is the correction. It names who is reading, names
+the internet explicitly, caps space and science at two per date, and steers
+internet citations at the encyclopedia article or the platform's own page and
+away from posts that will not open when logged out, since those fail the link
+check and take a good fact down with them. The birth year run must now return
+at least three things the reader is older than, with the date each arrived.
+
+That last one matters more than it looks. "You are older than Kingdom Hearts"
+is the strongest sentence the product has, because it is the only one that
+measures the world against the reader rather than describing it, and it was 4
+facts out of 2,751. A calendar date run cannot produce one at all: there is no
+birth year to compare against. It only exists on the birth year path.
+
+**None of this is verified.** The Gemini credits emptied before any search ran
+against the new prompt. The first run after a top up is the test, not the
+prompt reading well. Check it with:
+
+```sql
+select category, count(*) from birth_facts
+where verified and generated_at > now() - interval '1 hour'
+group by category order by count(*) desc;
+```
+
+Science and space should be at most two per date, and `older_than` should be
+the top category on a birth year run rather than a rounding error.
+
+### Decided, September 6
+
+The number one album and the number one film stay on the Mine tab as they are
+for now. Nathan called the chart data filler and he is right about those two
+and wrong about the song, which is the one thing the design brief says people
+read out loud. The decision is to wait for Jason's screenshots before moving
+them, because nobody has seen that stack with a facts section underneath it
+and the answer may be obvious once somebody has.
+
 ## Things Jason still has to do or test
 
 - **`docs/test-pass-september-6.md` is the list**, written for him, in order,
