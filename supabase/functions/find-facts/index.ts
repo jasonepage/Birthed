@@ -10,7 +10,7 @@
 // takes tens of seconds and the phone would rather poll the table than hold
 // a connection open.
 //
-// A date that was searched more than a month ago is searched again when it
+// A date that was searched more than a week ago is searched again when it
 // is next opened, told what it already found so the new run adds rather than
 // repeats, and never with the last of the budget.
 //
@@ -57,12 +57,17 @@ const RETRY_AFTER_MS = 2 * 60 * 1000;
  *
  * The first search on a date finds eight to fourteen things and stops, and a
  * reader who opens the app every week sees the same fourteen forever. Once a
- * month, if the date is opened and the budget has room to spare, the model
- * is asked again and told what it already found, so the new run adds to the
+ * week, if the date is opened and the budget has room to spare, the model is
+ * asked again and told what it already found, so the new run adds to the
  * list rather than repeating it. A date nobody opens is never searched
  * twice, which is what keeps this from being a standing bill.
+ *
+ * Seven days rather than thirty: a reader who opens the app every day sees
+ * new rows weekly and the pool under the shuffle keeps growing. At about
+ * thirteen searches a look, a date opened every week costs about seventy
+ * cents a month, and the reserve below keeps first looks ahead of it.
  */
-const REFRESH_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
+const REFRESH_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
 /**
  * Another look never takes the last of the month's searches. First looks at
  * dates nobody has searched come first; this many are held back for them.
@@ -402,7 +407,7 @@ async function search(
   const where = { birth_month: month, birth_day: day, birth_year: year, region_key: regionKeyValue };
   // Whether this is another look at a date that already has facts. A first
   // look that fails is a failed run; another look that fails is a date that
-  // still has everything it had, so it is written as done and waits a month.
+  // still has everything it had, so it is written as done and waits a week.
   let anotherLook = false;
   try {
     // An answer that ran no searches was written from memory, whatever it

@@ -22,6 +22,10 @@ final class DayPageViewModel {
     private(set) var events: [DayFeed.Event] = []
     private(set) var songs: [ChartWeek] = []
     private(set) var films: [ChartWeek] = []
+    /// Deals the order inside each rank. New on every load, so pulling down
+    /// or coming back reads as a new feed, and fixed between loads so the
+    /// list holds still while it is on screen.
+    private(set) var salt: UInt64 = FactOrder.newSalt()
 
     private let repository: DayPageRepository
     private let peopleLimit: Int
@@ -44,7 +48,7 @@ final class DayPageViewModel {
     /// change under the screen.
     func feed(facts: [BirthFact], readerBirthYear: Int?) -> [DayFeed.Item] {
         DayFeed.build(facts: facts, events: events, people: people, songs: songs, films: films,
-                      readerBirthYear: readerBirthYear)
+                      readerBirthYear: readerBirthYear, salt: salt)
     }
 
     /// The first year the charts are asked for. The reader's birth year when
@@ -52,6 +56,7 @@ final class DayPageViewModel {
     /// first year with a Hot 100.
     func load(readerBirthYear: Int?, now: Date = Date()) async {
         state = .loading
+        salt = FactOrder.newSalt()
         let thisYear = Calendar.current.component(.year, from: now)
         let fromYear = readerBirthYear ?? 1959
         // Copied out before the child tasks are made, because an `async let`

@@ -266,11 +266,21 @@ as a shelf, not a plan.
   every load and every change of date, never on a poll, so the list is stable
   while it is on screen and different the next time. Pulling down on Mine
   deals again.
-- **A date is searched again once a month, when opened, told what it already
+- **A date is searched again once a week, when opened, told what it already
   found.** `REFRESH_AFTER_MS` in the Edge Function. It never takes the last
   five hundred searches of the month, and another look that fails leaves the
   date done rather than failed, so it cannot retry itself into the budget.
-  A date nobody opens is never searched twice.
+  A date nobody opens is never searched twice. A date opened weekly costs
+  about seventy cents a month.
+- **The Today feed is dealt on every load too.** `DayFeed.build` takes a salt;
+  the rank never moves, the order inside a rank and kind does. Fresh on every
+  pull costs nothing, because the pool under it is a hundred rows a date
+  from tables. The model is the top up, not the feed.
+- **What could be paid for, later, not now.** "Look again now" on a date
+  outside the weekly window, the regional facts, and looks past a monthly
+  allowance. All three are things the budget table already meters, so a
+  paid tier is a per user allowance in front of a meter that exists. Not
+  built, and not before there are users to charge.
 
 ### The world when you arrived, decided September 6, 2026
 

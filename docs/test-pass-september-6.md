@@ -354,6 +354,13 @@ Wikipedia, because neither machine this was written from can reach it.
     the PlayStation 4 release, and the Instagram launch. If any is off, fix
     the row and tell me which, and I will go through the rest.
 
+## Added later still: the feed is dealt on every pull
+
+48. **Today, pull down twice.** The rows near the top should come in a
+    different order each pull, and rows from before you were born should
+    still be at the bottom both times. `swift test` has three tests for this
+    in `DayFeedTests`.
+
 ## What I need back
 
 The screenshots, in order, and any error text verbatim. For anything that

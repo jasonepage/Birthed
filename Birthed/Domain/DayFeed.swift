@@ -87,17 +87,25 @@ struct DayFeed {
     /// Facts carry the year in their sentence and not in a column, so they
     /// are scored with the top band and placed by likes, with the one that
     /// measures the world against the reader first.
+    /// `salt` deals the order inside each rank and kind. A new salt on every
+    /// load means the same hundred rows read as a new feed each time the tab
+    /// is opened or pulled down, which is the whole of what "fresh" costs
+    /// here: nothing. The rank itself does not move, so the years somebody
+    /// remembers still come first.
     static func build(
         facts: [BirthFact],
         events: [Event],
         people: [NotablePerson],
         songs: [ChartWeek],
         films: [ChartWeek],
-        readerBirthYear: Int?
+        readerBirthYear: Int?,
+        salt: UInt64 = 0
     ) -> [Item] {
         var items: [(score: Int, order: Int, item: Item)] = []
 
-        for (index, fact) in facts.sorted(by: factOrder).enumerated() {
+        // Likes order the facts once they have enough of them, and the rest
+        // are dealt, the same rule as Mine. Older-than leads whatever the deal.
+        for (index, fact) in FactOrder.order(facts, salt: salt).enumerated() {
             let item = Item(
                 id: "fact-\(fact.id)",
                 kind: .fact,
@@ -157,7 +165,21 @@ struct DayFeed {
             items.append((score(year: week.year, readerBirthYear: readerBirthYear), index, chartItem(week, kind: .film, readerBirthYear: readerBirthYear)))
         }
 
-        return interleave(items)
+        return interleave(items, salt: salt)
+    }
+
+    /// The same deal `FactOrder` uses, over feed items. The ids are the
+    /// stable thing about a row, so the deal depends on the set and the salt
+    /// and not on the order the server sent them in.
+    static func deal(_ items: [Item], salt: UInt64) -> [Item] {
+        guard items.count > 1 else { return items }
+        var dealt = items.sorted { $0.id < $1.id }
+        var state = salt
+        for index in stride(from: dealt.count - 1, to: 0, by: -1) {
+            let swap = Int(FactOrder.next(&state) % UInt64(index + 1))
+            dealt.swapAt(index, swap)
+        }
+        return dealt
     }
 
     private static func chartItem(_ week: ChartWeek, kind: Kind, readerBirthYear: Int?) -> Item {
@@ -176,26 +198,20 @@ struct DayFeed {
 
     /// Highest score first. Inside a score the kinds take turns, each kind
     /// keeping its own order, and a kind that runs out stops taking turns.
-    /// Inside a kind and a score, more recent years come first, because the
-    /// most recent year somebody remembers is the one they remember best.
-    private static func interleave(_ scored: [(score: Int, order: Int, item: Item)]) -> [Item] {
+    /// Inside a kind and a score the rows are dealt by the salt, except facts,
+    /// which arrive already ordered.
+    private static func interleave(_ scored: [(score: Int, order: Int, item: Item)], salt: UInt64) -> [Item] {
         var result: [Item] = []
         let scores = Set(scored.map(\.score)).sorted(by: >)
         for score in scores {
             let band = scored.filter { $0.score == score }
             var queues: [Kind: [Item]] = [:]
             for kind in Kind.allCases {
-                queues[kind] = band
+                let inOrder = band
                     .filter { $0.item.kind == kind }
-                    .sorted { left, right in
-                        // Facts have no year and keep their category order.
-                        // Everything else: newest first, then input order.
-                        switch (left.item.year, right.item.year) {
-                        case let (l?, r?) where l != r: return l > r
-                        default: return left.order < right.order
-                        }
-                    }
+                    .sorted { $0.order < $1.order }
                     .map(\.item)
+                queues[kind] = kind == .fact ? inOrder : deal(inOrder, salt: salt &+ UInt64(score) &* 31)
             }
             var progressed = true
             while progressed {
@@ -226,16 +242,6 @@ struct DayFeed {
         case "record": return "RECORD"
         default: return "ON THIS DAY"
         }
-    }
-
-    /// Older-than leads, then the order the categories were stored in, which
-    /// is by likes once there are any.
-    private static func factOrder(_ left: BirthFact, _ right: BirthFact) -> Bool {
-        let leftLead = left.category == "older_than"
-        let rightLead = right.category == "older_than"
-        if leftLead != rightLead { return leftLead }
-        if left.likes != right.likes { return left.likes > right.likes }
-        return left.id < right.id
     }
 
     /// A short stable key for a sentence. `Hasher` is seeded per launch and

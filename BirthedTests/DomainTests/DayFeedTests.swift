@@ -63,7 +63,9 @@ final class DayFeedTests: XCTestCase {
         )
         let years = feed.compactMap(\.year)
         XCTAssertEqual(years.prefix(2).sorted(), [2010, 2010])
-        XCTAssertEqual(years.last, 1917)
+        // The three from before the reader was born are the last three,
+        // dealt among themselves.
+        XCTAssertEqual(Array(years.suffix(3)).sorted(), [1917, 1972, 1972])
     }
 
     func testKindsTakeTurnsInsideARank() {
@@ -95,26 +97,47 @@ final class DayFeedTests: XCTestCase {
         XCTAssertEqual(feed.first?.kicker, "OLDER THAN")
     }
 
-    func testFactsRankWithTheMemorableYearsAndByLikes() {
+    func testFactsRankWithTheMemorableYearsAndByLikesOnceTheyHaveEnough() {
+        // Six and nine likes both count, so the order is by likes whatever
+        // the salt. One like would not count and would be dealt.
         let feed = DayFeed.build(
-            facts: [fact(1, "Less liked.", likes: 1), fact(2, "More liked.", likes: 9)],
+            facts: [fact(1, "Less liked.", likes: 6), fact(2, "More liked.", likes: 9)],
             events: [event(1917, "Long ago.")],
             people: [],
             songs: [],
             films: [],
-            readerBirthYear: 2002
+            readerBirthYear: 2002,
+            salt: 12345
         )
         XCTAssertEqual(feed.map(\.id), ["fact-2", "fact-1", "event-1917-\(DayFeed.stableHash("Long ago."))"])
     }
 
-    func testNewestFirstInsideAKindAndABand() {
-        let feed = DayFeed.build(
-            facts: [], events: [], people: [],
-            songs: [song(2008, "Old"), song(2012, "New"), song(2010, "Middle")],
-            films: [],
-            readerBirthYear: 2002
-        )
-        XCTAssertEqual(feed.map(\.text), ["New", "Middle", "Old"])
+    func testTheSameSaltDealsTheSameFeedAndAnotherSaltDealsAnother() {
+        let songs = (2007...2015).map { song($0, "Song \($0)") }
+        let first = DayFeed.build(facts: [], events: [], people: [], songs: songs, films: [],
+                                  readerBirthYear: 2002, salt: 1)
+        let again = DayFeed.build(facts: [], events: [], people: [], songs: songs, films: [],
+                                  readerBirthYear: 2002, salt: 1)
+        XCTAssertEqual(first.map(\.id), again.map(\.id))
+
+        // Nine rows and twenty salts: if the lead never changes it is not a
+        // deal. One repeat is fine; eighteen is a bug.
+        let leads = Set((1...20).map { salt in
+            DayFeed.build(facts: [], events: [], people: [], songs: songs, films: [],
+                          readerBirthYear: 2002, salt: UInt64(salt) * 7919).first!.id
+        })
+        XCTAssertGreaterThan(leads.count, 3, "\(leads)")
+    }
+
+    func testTheDealNeverCrossesARank() {
+        // Whatever the salt, a song from the memorable years comes before a
+        // song from before the reader was born.
+        let songs = [song(1972, "Before"), song(2010, "Remembered"), song(1980, "Also before")]
+        for salt in 1...20 {
+            let feed = DayFeed.build(facts: [], events: [], people: [], songs: songs, films: [],
+                                     readerBirthYear: 2002, salt: UInt64(salt))
+            XCTAssertEqual(feed.first?.text, "Remembered", "salt \(salt)")
+        }
     }
 
     // MARK: Identity

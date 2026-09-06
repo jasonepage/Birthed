@@ -45,8 +45,9 @@ enum FactOrder {
         return dealt
     }
 
-    /// SplitMix64. Small, fast, and good enough to deal a dozen cards.
-    private static func next(_ state: inout UInt64) -> UInt64 {
+    /// SplitMix64. Small, fast, and good enough to deal a dozen cards. Shared
+    /// with `DayFeed`, which deals a hundred.
+    static func next(_ state: inout UInt64) -> UInt64 {
         state &+= 0x9E37_79B9_7F4A_7C15
         var z = state
         z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
