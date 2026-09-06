@@ -17,6 +17,9 @@ struct MyDayView: View {
     let onOpenSettings: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
+    /// Named for what it is rather than for what it holds, because `facts`
+    /// on this screen is already the arithmetic one.
+    @Environment(FactsService.self) private var factsService
 
     @State private var twins: [NotablePerson] = []
     @State private var song: ChartWeek?
@@ -25,6 +28,9 @@ struct MyDayView: View {
     /// week covers the birth date.
     @State private var others: [ChartWeek.Chart: ChartWeek] = [:]
     @State private var showingShare = false
+    /// The one fact the reader tapped share on. A separate sheet from the
+    /// whole day picker, because it is one card and not a choice of eight.
+    @State private var sharingFact: BirthFact?
     @State private var lit = true
     @State private var relightTask: Task<Void, Never>?
 
@@ -56,6 +62,10 @@ struct MyDayView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     stage
+                    // Directly under the stage, because these are the only
+                    // facts on this screen that are about this person's day
+                    // rather than about every day.
+                    foundFacts
                     if !twins.isEmpty { twinsCard }
                     leapNote
                     sources
@@ -85,8 +95,19 @@ struct MyDayView: View {
             .task { await loadTwins() }
             .task { await loadSong() }
             .task { await loadOthers() }
+            .task { await factsService.load(for: profile) }
             .sheet(isPresented: $showingShare) {
                 ShareCardPicker(choices: shareChoices, subject: profile.birthday.date.displayName())
+            }
+            .sheet(item: $sharingFact) { fact in
+                ShareCardPicker(
+                    choices: [FoundFactsSection.shareChoice(
+                        for: fact,
+                        dateName: profile.birthday.year == nil ? nil : searchedDateName,
+                        palette: palette
+                    )],
+                    subject: profile.birthday.date.displayName()
+                )
             }
             .sensoryFeedback(.impact(weight: .heavy), trigger: lit) { _, isLit in !isLit }
         }
@@ -363,6 +384,29 @@ struct MyDayView: View {
 
     // MARK: Below the stage
 
+    /// "September 4, 2002", or just the date when no year was given. What the
+    /// app says it is looking into, and the kicker on a shared fact.
+    private var searchedDateName: String {
+        guard let year = profile.birthday.year else { return profile.birthday.date.displayName() }
+        return "\(profile.birthday.date.displayName()), \(String(year))"
+    }
+
+    private var foundFacts: some View {
+        FoundFactsSection(
+            facts: factsService.facts,
+            status: factsService.status,
+            dateName: searchedDateName,
+            palette: palette,
+            onLike: { fact in Task { await factsService.toggleLike(fact) } },
+            onSeen: { factsService.noteSeen($0.id) },
+            onShare: { fact in
+                sharingFact = fact
+                Task { await factsService.recordShareOpen(fact.id) }
+            }
+        )
+        .onDisappear { Task { await factsService.flushSeen() } }
+    }
+
     private var twinsCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("You share \(profile.birthday.date.displayName()) with")
@@ -416,7 +460,7 @@ struct MyDayView: View {
     }
 
     private var sources: some View {
-        Text("Names from Wikidata. Chart weeks from Wikipedia. Credit to both.")
+        Text("Names from Wikidata. Chart weeks from Wikipedia. What was found about your day was searched for by Google's Gemini, and each fact carries the page it came from.")
             .font(.caption2)
             .foregroundStyle(palette.type.opacity(0.35))
             .frame(maxWidth: .infinity, alignment: .leading)

@@ -6,9 +6,13 @@ import SwiftUI
 /// attribution that is visible on the page rather than buried, and the ability
 /// to walk to another date.
 struct DayPageView: View {
+    @Environment(FactsService.self) private var factsService
+    @Environment(\.colorScheme) private var colorScheme
+
     @State private var model: DayPageViewModel
     @State private var showingAttributions = false
     @State private var shareImage: Image?
+    @State private var sharingFact: BirthFact?
 
     let onOpenSettings: () -> Void
 
@@ -22,6 +26,11 @@ struct DayPageView: View {
             ScrollView {
                 VStack(spacing: 0) {
                     header
+                    // Above the names on purpose. Ten names is the part of
+                    // this screen that every competitor already has, and a
+                    // reader who has to scroll past them to reach the only
+                    // unusual thing on the page mostly does not scroll.
+                    found
                     content
                     attribution
                 }
@@ -52,6 +61,16 @@ struct DayPageView: View {
             }
             .sheet(isPresented: $showingAttributions) {
                 AttributionsView()
+            }
+            .sheet(item: $sharingFact) { fact in
+                // No date above the fact: a calendar date fact already names
+                // the date in its own sentence.
+                ShareCardPicker(
+                    choices: [FoundFactsSection.shareChoice(
+                        for: fact, dateName: nil, palette: .forScheme(colorScheme)
+                    )],
+                    subject: model.date.displayName()
+                )
             }
             .task { await reload() }
         }
@@ -119,12 +138,44 @@ struct DayPageView: View {
         case .loading:
             return "Looking up who shares it."
         case .loaded:
-            return "The people most looked up on this day."
+            return factsService.dayFacts.isEmpty
+                ? "The people most looked up on this day."
+                : "What happened on it, and who shares it."
         case .empty:
-            return "Nobody imported yet."
+            return factsService.dayFacts.isEmpty
+                ? "Nobody imported yet."
+                : "What happened on it."
         case .failed:
             return "This day did not load."
         }
+    }
+
+    // MARK: What happened
+
+    /// The same section the Mine tab uses, reading the same rows, for a date
+    /// the reader is only visiting rather than one that is theirs.
+    ///
+    /// This reads and never asks. A search costs money for each date it has
+    /// never seen, and this screen walks from date to date, so a reader
+    /// flicking through a month must not be able to spend a month of them. A
+    /// date nobody has searched has no section here and nothing says so,
+    /// because a heading over an empty space reads as a broken screen.
+    private var found: some View {
+        FoundFactsSection(
+            facts: factsService.dayFacts,
+            status: .done,
+            dateName: model.date.displayName(),
+            palette: .forScheme(colorScheme),
+            onLike: { fact in Task { await factsService.toggleLike(fact) } },
+            title: "WHAT HAPPENED ON THIS DAY",
+            onSeen: { factsService.noteSeen($0.id) },
+            onShare: { fact in
+                sharingFact = fact
+                Task { await factsService.recordShareOpen(fact.id) }
+            }
+        )
+        .padding(.bottom, factsService.dayFacts.isEmpty ? 0 : 30)
+        .onDisappear { Task { await factsService.flushSeen() } }
     }
 
     // MARK: Content
@@ -202,6 +253,7 @@ struct DayPageView: View {
     private var attribution: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Names, years and descriptions come from Wikidata.")
+            Text("What happened on this day was found by Google's Gemini searching the web, and each one carries the page it came from.")
             Text("Credit to Wikipedia and Wikidata.")
             Button("Read the full attribution") {
                 showingAttributions = true
@@ -219,12 +271,14 @@ struct DayPageView: View {
 
     private func reload() async {
         await model.load()
+        await factsService.readDay(month: model.date.month, day: model.date.day)
         shareImage = renderShareCard()
     }
 
     private func move(_ days: Int) async {
         shareImage = nil
         await model.move(byDays: days)
+        await factsService.readDay(month: model.date.month, day: model.date.day)
         shareImage = renderShareCard()
     }
 

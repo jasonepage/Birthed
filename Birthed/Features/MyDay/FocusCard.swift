@@ -19,6 +19,9 @@ struct FocusCard: View {
     /// The line that makes the claim checkable. Optional.
     var footnote: String? = nil
     var palette: StagePalette = .ink
+    /// A song title is three words and a found fact is a whole sentence, so
+    /// the one face size that suited the first is far too big for the second.
+    var titleSize: CGFloat = 104
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -52,9 +55,9 @@ struct FocusCard: View {
                 Spacer().frame(height: 28)
 
                 Text(title)
-                    .font(.system(size: 104, weight: .black, design: .serif))
+                    .font(.system(size: titleSize, weight: .black, design: .serif))
                     .foregroundStyle(palette.type)
-                    .lineLimit(4)
+                    .lineLimit(titleSize < 80 ? 8 : 4)
                     .minimumScaleFactor(0.4)
                     .fixedSize(horizontal: false, vertical: true)
 

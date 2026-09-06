@@ -15,6 +15,7 @@ struct RootView: View {
     @Environment(AccountService.self) private var account
     @Environment(PeopleStore.self) private var peopleStore
     @Environment(NotificationService.self) private var notifications
+    @Environment(FactsService.self) private var facts
     @Environment(\.scenePhase) private var scenePhase
 
     let repository: DayPageRepository
@@ -69,8 +70,13 @@ struct RootView: View {
             await refreshReminders()
         }
         .onChange(of: scenePhase) { _, phase in
+            // Counting what was on screen is held until a screen goes away,
+            // and the app being backgrounded is the other way that happens.
+            if phase != .active {
+                Task { await facts.flushSeen() }
+                return
+            }
             // FR-011. Retry on every foreground until it takes.
-            guard phase == .active else { return }
             Task {
                 await account.ensureAccount()
                 // FR-074. Rebuilding the whole schedule on every foreground is

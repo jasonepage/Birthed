@@ -22,6 +22,11 @@ final class FactsService {
     private(set) var facts: [BirthFact] = []
     private(set) var status: Status = .idle
 
+    /// The facts for whatever calendar date the Today tab is showing, kept
+    /// apart from the reader's own because that tab walks from date to date
+    /// and the two lists are never the same thing.
+    private(set) var dayFacts: [BirthFact] = []
+
     private let baseURL: URL
     private let anonKey: String
     private let session: URLSession
@@ -113,19 +118,42 @@ final class FactsService {
 
     /// Everything on the table for this date, most liked first.
     func read(for profile: Profile) async {
-        let key = Self.regionKey(profile.regionCode)
+        let found = await fetch(
+            month: profile.birthday.date.month,
+            day: profile.birthday.date.day,
+            year: profile.birthday.year ?? 0,
+            regionKey: Self.regionKey(profile.regionCode)
+        )
+        if let found { facts = found }
+    }
+
+    /// The facts for one calendar date, with no year and no region.
+    ///
+    /// This reads and never asks. The Today tab walks from date to date, and
+    /// a search costs real money per date, so a reader flicking through a
+    /// month must not be able to spend a month of them. Dates that have never
+    /// been searched simply have no section here; they are filled by the
+    /// backfill, or by the first reader whose own birthday that is.
+    func readDay(month: Int, day: Int) async {
+        dayFacts = await fetch(month: month, day: day, year: 0, regionKey: "") ?? []
+    }
+
+    /// One read, whatever is asking. Nil means the request itself failed,
+    /// which is not the same as a date with nothing on it, so a caller can
+    /// keep showing what it already had.
+    private func fetch(month: Int, day: Int, year: Int, regionKey key: String) async -> [BirthFact]? {
         let regionList = key.isEmpty ? "(\"\")" : "(\"\",\"\(key)\")"
         var components = URLComponents(url: baseURL.appending(path: "rest/v1/birth_facts"), resolvingAgainstBaseURL: false)
         components?.queryItems = [
             URLQueryItem(name: "select", value: "id,fact,category,source_url,region_key,birth_fact_likes(count)"),
-            URLQueryItem(name: "birth_month", value: "eq.\(profile.birthday.date.month)"),
-            URLQueryItem(name: "birth_day", value: "eq.\(profile.birthday.date.day)"),
-            URLQueryItem(name: "birth_year", value: "eq.\(profile.birthday.year ?? 0)"),
+            URLQueryItem(name: "birth_month", value: "eq.\(month)"),
+            URLQueryItem(name: "birth_day", value: "eq.\(day)"),
+            URLQueryItem(name: "birth_year", value: "eq.\(year)"),
             URLQueryItem(name: "region_key", value: "in.\(regionList)"),
             URLQueryItem(name: "verified", value: "eq.true"),
             URLQueryItem(name: "order", value: "id.asc"),
         ]
-        guard let url = components?.url else { return }
+        guard let url = components?.url else { return nil }
         var request = URLRequest(url: url)
         request.setValue(anonKey, forHTTPHeaderField: "apikey")
         request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
@@ -135,7 +163,7 @@ final class FactsService {
         guard let (data, response) = try? await session.data(for: request),
               let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
               let rows = try? JSONDecoder().decode([FactRow].self, from: data)
-        else { return }
+        else { return nil }
 
         let mine = await likedByMe()
         let loaded = rows.map { row in
@@ -151,7 +179,7 @@ final class FactsService {
         }
         // Most liked first, then the order they were found in, which keeps
         // the list stable for a date nobody has voted on yet.
-        facts = loaded.sorted { ($0.likes, -$0.id) > ($1.likes, -$1.id) }
+        return loaded.sorted { ($0.likes, -$0.id) > ($1.likes, -$1.id) }
     }
 
     private func likedByMe() async -> Set<Int> {
@@ -171,13 +199,75 @@ final class FactsService {
         return Set(rows.map(\.fact_id))
     }
 
+    // MARK: What readers do with them
+
+    /// Facts that have been on screen and are waiting to be counted.
+    private var pendingSeen: Set<Int> = []
+
+    /// One fact was rendered in a list somebody opened.
+    ///
+    /// Held rather than sent, because a screen of ten facts would otherwise be
+    /// ten requests. Note what this is honestly: it counts a fact being in a
+    /// list that was drawn, not a pair of eyes on it. That is enough to be a
+    /// denominator, which is the whole job. Without one, a like is a raw count
+    /// and a fact shown to fifty people beats a better fact shown to five.
+    func noteSeen(_ id: Int) {
+        pendingSeen.insert(id)
+    }
+
+    /// Sends what has been seen. Called when a screen goes away or the app does.
+    func flushSeen() async {
+        guard !pendingSeen.isEmpty else { return }
+        let batch = Array(pendingSeen.prefix(60))
+        pendingSeen.subtract(batch)
+        await record(seen: batch, shared: [])
+    }
+
+    /// The reader opened the share sheet on this fact.
+    ///
+    /// Not a completed send. iOS does not tell an app whether anything was
+    /// actually sent, so the column is named `share_opens` for what is really
+    /// observed. Even so this is the strongest signal the app has: a thumbs up
+    /// costs a tap and making a card costs real effort, and it is the exact
+    /// behaviour the whole distribution plan runs on.
+    func recordShareOpen(_ id: Int) async {
+        await record(seen: [], shared: [id])
+    }
+
+    private func record(seen: [Int], shared: [Int]) async {
+        guard !seen.isEmpty || !shared.isEmpty else { return }
+        var request = URLRequest(url: baseURL.appending(path: "rest/v1/rpc/record_fact_events"))
+        request.httpMethod = "POST"
+        request.setValue(anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["seen": seen, "shared": shared])
+        request.timeoutInterval = 10
+        // Counting is never worth interrupting anything for, so a failure here
+        // is dropped rather than retried or surfaced.
+        _ = try? await session.data(for: request)
+    }
+
     /// A thumbs up, or taking it back. Optimistic: the count moves at once
     /// and the server is told after.
     func toggleLike(_ fact: BirthFact) async {
-        guard let index = facts.firstIndex(of: fact) else { return }
         let liking = !fact.likedByMe
-        facts[index].likedByMe = liking
-        facts[index].likes += liking ? 1 : -1
+        // The same fact can be on screen in two places at once, on the reader's
+        // own day and on the Today tab showing that same date, so both lists
+        // are moved rather than whichever one happened to be tapped.
+        var known = false
+        for index in facts.indices where facts[index].id == fact.id {
+            facts[index].likedByMe = liking
+            facts[index].likes += liking ? 1 : -1
+            known = true
+        }
+        for index in dayFacts.indices where dayFacts[index].id == fact.id {
+            dayFacts[index].likedByMe = liking
+            dayFacts[index].likes += liking ? 1 : -1
+            known = true
+        }
+        guard known else { return }
 
         guard let userID = account.userID, let token = await account.freshAccessToken() else { return }
         var request: URLRequest
