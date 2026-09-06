@@ -160,7 +160,7 @@ as a shelf, not a plan.
 - **Full day plan** with weather and routing is in version 1.0.
 - **Identity content from Wikidata**, not Wikipedia article text, for licensing reasons in `SDS.md` section 8.1. **Credit both anyway.**
 - **No celebrity photographs** in version 1.0. Names, years and descriptions only.
-- **App Store category:** Finance primary, Lifestyle secondary.
+- **App Store category:** Lifestyle primary. Finance was the primary in the rewards era and is wrong now; the secondary is still set to Finance in App Store Connect and should become Entertainment, which is where this audience browses and where Famous Birthdays sits. Reference is the alternative, less crowded and easier to chart in.
 - **The profile is stored in `UserDefaults`, not SwiftData.** It is five scalars, not a cache, and `SDS.md` section 4 reserves SwiftData for the catalog and the day pages. The session token is in the keychain, because it is a bearer credential.
 - **`twin_count` is deliberately callable by the anonymous role.** Supabase's security advisor flags every `security definer` function that anonymous clients can execute, and it is right to. This one is intentional: it is the only way `FR-026` can return a count without exposing anybody's row, the privacy floor from `NFR-033` is applied inside it, and its search path is pinned. Do not "fix" the warning by revoking execute, or the twin count stops working.
 - **Free tier:** all identity content, the birthday morning notification (`FR-073`), one summary notification 45 days out (`FR-072`), and the day plan during the user's first birthday window only (`FR-141b`). **Paid tier:** qualification tracking, the per offer deadline ladder (`FR-071`), the day plan in every later cycle, and the catalog beyond a curated free 15.
@@ -184,6 +184,38 @@ as a shelf, not a plan.
 ### What the app tells the user about their data, decided September 5, 2026
 
 - **The birthday, the birth year and the region are all sent to the Birthed account.** `AccountService.pushProfile` writes all three into `profiles`. Onboarding used to say the year "is never sent to anyone else", which was false. Copy anywhere in the product may say that nothing shared out of the app carries the year, which `ShareCardView` enforces, and that the device's location is never used or sent, which is true. It may not say or imply that these values stay on the phone.
+
+### The fact finder, decided September 6, 2026
+
+- **Facts about a specific day are found by a model that searches, not by a
+  curated list of fact types.** A curated list caps out at whatever the curator
+  thought of. Run on demand as a Supabase Edge Function, cached per date, per
+  date and year, and per region, with likes deciding the order for everybody
+  who shares the exact birthday.
+- **The research and the formatting are two separate calls and must stay
+  separate.** Asked for facts and for a JSON array in one prompt, the model
+  stops searching and answers from memory, with page addresses that look real
+  and are not. The first call researches with search on and writes prose, the
+  second reshapes those notes with no search and is told to copy addresses
+  rather than correct them.
+- **The model is `gemini-3.7-flash` because it is the one that searches.**
+  Given the identical research prompt, 3.7 ran six targeted searches, 3.6 ran
+  one, and 3.8 ran none. Being a generation newer is worth less than reaching
+  for the tool. Grounded search is a paid feature on every model; the free
+  tier returns 429 for all of them.
+- **A run that reports no searches is discarded, not stored.** The list of
+  queries Google reports back is the only evidence the tool was used, because
+  a model that answered from memory will not say so.
+- **A cited page has to answer before its fact is shown.** `verified` is what
+  the read policy exposes and an address that does not resolve does not get
+  it. The quotation is stored on every row so a stricter check that reads the
+  page can be added later without a migration.
+- **The historical events stage is cut and the television show stays.** The
+  `historical_events` table has been empty since slice 1 and the fact finder
+  covers events on the day better, with a source on each. Most watched
+  television show by season is built as its own lookup like the number one
+  song, because it is keyed to a year and a chart rather than to a day, which
+  is the one shape a search for a single date does not reliably return.
 
 ### Search, decided September 5, 2026
 
