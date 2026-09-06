@@ -599,6 +599,11 @@ ${urls.map((url) => `<url><loc>${url}</loc><changefreq>monthly</changefreq></url
 }
 
 export function renderRobots(): string {
-  return `User-agent: *\nAllow: /\n\nSitemap: ${SITE}/sitemap.xml\n`;
+  // /random/ and /today/ are redirects, not pages. A crawler that followed
+  // them would find one of the 366 under a second address and have to work
+  // out that it already had it, and /today/ would answer differently every
+  // night. Neither is worth a crawl budget, and neither is a page anybody
+  // should arrive at from a search result.
+  return `User-agent: *\nAllow: /\nDisallow: /random\nDisallow: /today\n\nSitemap: ${SITE}/sitemap.xml\n`;
 }
 

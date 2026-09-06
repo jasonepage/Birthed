@@ -16,6 +16,8 @@ import { stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { extname, join, normalize, resolve, sep } from "node:path";
 
+import { everyDate, slug } from "./model.js";
+
 
 const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -107,6 +109,65 @@ export function securityFor(requestPath: string): Record<string, string> {
 }
 
 /**
+ * How far behind Coordinated Universal Time the server reads the clock when
+ * somebody asks for today.
+ *
+ * Six hours is North American Central Standard Time. It is a choice and it is
+ * written here rather than buried, because a server cannot read a visitor's
+ * clock and this site has no script anywhere that could tell it. Coordinated
+ * Universal Time on its own is already tomorrow through every American
+ * evening, which would send most of the traffic this site gets to the wrong
+ * one of the 366 pages every night. Six hours back is right for North America
+ * and can be a day out for somebody in Asia in their early morning.
+ *
+ * Nothing is hidden by being wrong: the page that answers puts its own date
+ * in the heading, so a visitor who lands on the wrong day can see it and the
+ * arrows at the foot move one date at a time.
+ */
+const TODAY_BEHIND_UTC_HOURS = 6;
+
+/**
+ * The two paths that answer with a date rather than with a file.
+ *
+ *   /random/   one of the 366, drawn at random
+ *   /today/    the date it is now
+ *
+ * Both are redirects rather than pages, and that is the whole reason they can
+ * exist here. The site sends `default-src 'none'`, so no page on it may run a
+ * script, and a script is the only way a page could pick a date for itself. A
+ * redirect needs none. The server picks, the browser follows, and what it
+ * lands on is one of the pages that was already built.
+ *
+ * The clock and the dice are arguments so a test can hand it both and get an
+ * answer it can check.
+ */
+export function redirectFor(
+  requestPath: string,
+  now: Date = new Date(),
+  random: () => number = Math.random,
+): string | null {
+  const path = requestPath.length > 1 && requestPath.endsWith("/")
+    ? requestPath.slice(0, -1)
+    : requestPath;
+
+  if (path === "/random") {
+    const dates = everyDate();
+    // Clamped, because a random source that ever returns exactly 1 would
+    // index one past the end and the server would answer with undefined.
+    const index = Math.min(dates.length - 1, Math.max(0, Math.floor(random() * dates.length)));
+    const picked = dates[index]!;
+    return `/${slug(picked.month, picked.day)}/`;
+  }
+
+  if (path === "/today") {
+    const shifted = new Date(now.getTime() - TODAY_BEHIND_UTC_HOURS * 60 * 60 * 1000);
+    return `/${slug(shifted.getUTCMonth() + 1, shifted.getUTCDate())}/`;
+  }
+
+  return null;
+}
+
+/**
  * Turns a request path into a file inside ROOT, or null.
  *
  * Everything outside ROOT is null, including anything that climbs out with
@@ -175,6 +236,21 @@ async function handle(
   }
 
   const path = (request.url ?? "/").split("?")[0] ?? "/";
+
+  // Answered before the disk is touched, because neither of these is a file.
+  // Never stored: a cached "today" is wrong by tomorrow morning, and a cached
+  // "random" is the same date for everybody who asks after the first one.
+  const redirect = redirectFor(path);
+  if (redirect !== null) {
+    response.writeHead(302, {
+      Location: redirect,
+      "Cache-Control": "no-store",
+      ...securityFor(path),
+    });
+    response.end();
+    return;
+  }
+
   const full = resolvePath(root, path);
   const file = full === null ? null : await fileFor(full);
 

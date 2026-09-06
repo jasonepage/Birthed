@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { renderDayPage, renderSitemap, escapeHtml, isReady } from "../src/render.js";
+import { renderDayPage, renderRobots, renderSitemap, escapeHtml, isReady } from "../src/render.js";
 import { everyDate, neighbours, slug } from "../src/model.js";
 
 const page = {
@@ -103,6 +103,7 @@ test("an empty date still produces a card rather than a broken one", () => {
 });
 
 import { calendar, isLeapYear, renderAdd, renderHome, renderPrivacy, renderSupport } from "../src/pages.js";
+import { redirectFor } from "../src/serve.js";
 
 test("the front door still links every date, and the two pages people need", () => {
   const html = renderHome();
@@ -504,4 +505,57 @@ test("every song year is its own address on the date page", () => {
   assert.match(html, /<a href="#1990">1990<\/a>/);
   assert.match(html, /<li id="1989">/);
   assert.match(html, /scroll-margin-top/);
+});
+
+// ---------------------------------------------------------------------------
+// The two routes that answer with a date rather than with a file, and the
+// facts the front door shows. Both are new and both are the kind of thing
+// that breaks quietly: a redirect that lands on a page that was never built
+// is a 404 nobody sees until somebody presses the button.
+// ---------------------------------------------------------------------------
+
+test("random lands on a date that exists, every time", () => {
+  // Both ends of the range, because the failure worth catching is an index
+  // one past the end, which answers with undefined and a link to /undefined/.
+  for (const roll of [0, 0.0001, 0.5, 0.999999, 1]) {
+    const to = redirectFor("/random/", new Date(), () => roll);
+    assert.ok(to !== null, `no answer for ${roll}`);
+    assert.match(to!, /^\/[a-z]+-\d{1,2}\/$/, `${roll} gave ${to}`);
+  }
+});
+
+test("random can reach all 366 and never anything else", () => {
+  const seen = new Set<string>();
+  for (let index = 0; index < 366; index++) {
+    const to = redirectFor("/random/", new Date(), () => (index + 0.5) / 366);
+    seen.add(to!);
+  }
+  assert.equal(seen.size, 366);
+});
+
+test("today is read six hours behind, which is the whole point of it", () => {
+  // Nine in the evening in California on September 6. Coordinated Universal
+  // Time is already September 7, and answering with September 7 is the bug
+  // this offset exists to prevent.
+  const evening = new Date("2026-09-07T04:00:00Z");
+  assert.equal(redirectFor("/today/", evening), "/september-6/");
+  // And it does roll over. Nine in the morning Central on the 7th.
+  assert.equal(redirectFor("/today/", new Date("2026-09-07T15:00:00Z")), "/september-7/");
+});
+
+test("a path with no trailing slash is the same route", () => {
+  assert.equal(redirectFor("/today", new Date("2026-03-02T18:00:00Z")), "/march-2/");
+  assert.ok(redirectFor("/random") !== null);
+});
+
+test("nothing else is a redirect", () => {
+  for (const path of ["/", "/september-4/", "/add/", "/privacy/", "/randomly/", "/today-ish/"]) {
+    assert.equal(redirectFor(path), null, `${path} should be a file, not a redirect`);
+  }
+});
+
+test("robots keeps the two redirects out of a crawl", () => {
+  const robots = renderRobots();
+  assert.ok(robots.includes("Disallow: /random"));
+  assert.ok(robots.includes("Disallow: /today"));
 });
