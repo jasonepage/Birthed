@@ -216,6 +216,56 @@ so use September 4, 2002 unless a step below says otherwise.
     with "Make my link", and pressing it should still produce a link with a
     hash in it and no question mark.
 
+## Added later on September 6: the birthday message
+
+Also unbuilt. Three new files, `Birthed/Domain/BirthdayMessage.swift`,
+`Birthed/Features/People/SaySomethingView.swift` and
+`BirthedTests/DomainTests/BirthdayMessageTests.swift`, and edits to
+`NotificationService`, `NotificationPlanner`, `RootView` and `PeopleView`.
+The synchronised folder picks the new files up on its own. The composer
+imports `MessageUI`, which Xcode links by itself.
+
+Two things in here lean on the newer compiler. `NotificationTapHandler` in
+`NotificationService.swift` is declared `nonisolated final class`, which
+needs Swift 6.1 or later; if the build says `nonisolated` cannot be applied
+to a class, send that error and stop. The Messages coordinator in
+`SaySomethingView.swift` conforms with `@preconcurrency`; if the build
+merely warns that the attribute has no effect, ignore it.
+
+27. **`swift test` first.** It should now report 118 tests or so, and every
+    one in `BirthdayMessageTests` passing. If any of the hundred fails, send
+    the whole failure line: it names the case, what the Swift said and what
+    it should have said.
+
+28. **The card on the day.** Add somebody whose birthday is today with a note
+    of "Mum" and a year that makes them 60. The pink card should now have a
+    paper plane on the right. Tap it. A sheet titled with their name should
+    open, kicker TODAY, and the text should read exactly "Happy 60th Mum.
+    Hope it's a good one." or one of the other two family closings. Tap into
+    the text and change a word; nothing should ask you to confirm. Send in
+    Messages should open the Messages composer with the text in the body and
+    the To field empty. Cancel it. The share button should open the share
+    sheet with the same text.
+
+29. **Somebody followed.** Follow a living public figure whose birthday is
+    today, or change the date of somebody followed to today, and tap the
+    card. The line should be "<name> turns <age> today." and the only button
+    should be Share. For somebody who has died the kicker should say
+    REMEMBERING, the text should say when they were born, and nothing on the
+    screen should say happy.
+
+30. **The notification tap.** With reminders on, add a friend whose birthday
+    is today and set the phone's clock forward past eight in the morning
+    tomorrow, or temporarily change `NotificationPlanner.hour` and `minute`
+    to a minute from now, add the person, and wait. When the banner arrives,
+    tap it. The app should open on People with the composer already up for
+    that person. Try it once with the app closed and once with it in the
+    background. Then tap the three day warning for somebody else: it should
+    open People with no sheet.
+
+31. **Long press still edits.** On the pink card, long press. Edit and Remove
+    should be there. Edit should open the editor as before.
+
 ## What I need back
 
 The screenshots, in order, and any error text verbatim. For anything that

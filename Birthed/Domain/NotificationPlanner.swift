@@ -204,3 +204,43 @@ struct NotificationPlanner {
         return moment > reference
     }
 }
+
+// MARK: Reading an identifier back
+
+extension PlannedNotification {
+    /// What a delivered notification was about, read back from its identifier.
+    ///
+    /// The identifier is the only thing that survives the round trip through
+    /// the notification centre unchanged, so it is the only thing the tap
+    /// handler has to go on. The formats are the ones `NotificationPlanner`
+    /// writes: `own.birthday.2027`, `own.countdown.2027`,
+    /// `person.<uuid>.birthday.2027` and `person.<uuid>.soon.2027`.
+    enum Opened: Equatable {
+        case ownBirthday
+        case ownCountdown
+        case personBirthday(personID: UUID)
+        case personSoon(personID: UUID)
+    }
+
+    static func opened(fromIdentifier identifier: String) -> Opened? {
+        let parts = identifier.split(separator: ".").map(String.init)
+        switch parts.first {
+        case "own":
+            guard parts.count == 3 else { return nil }
+            switch parts[1] {
+            case "birthday": return .ownBirthday
+            case "countdown": return .ownCountdown
+            default: return nil
+            }
+        case "person":
+            guard parts.count == 4, let id = UUID(uuidString: parts[1]) else { return nil }
+            switch parts[2] {
+            case "birthday": return .personBirthday(personID: id)
+            case "soon": return .personSoon(personID: id)
+            default: return nil
+            }
+        default:
+            return nil
+        }
+    }
+}

@@ -34,9 +34,17 @@ final class NotificationService {
 
     private enum Key { static let enabled = "birthed.reminders.v1" }
 
+    /// The notification the user most recently tapped, waiting to be acted
+    /// on. `RootView` reads it, opens the right screen, and sets it back to
+    /// nil. Tapping "It is Sarah's birthday" opens the composer for Sarah;
+    /// tapping the three day warning opens the People tab.
+    var opened: PlannedNotification.Opened?
+
     private let centre: UNUserNotificationCenter
     private let planner: NotificationPlanner
     private let defaults: UserDefaults
+    /// Held strongly, because the centre's `delegate` is weak.
+    private var taps: NotificationTapHandler?
 
     init(
         centre: UNUserNotificationCenter = .current(),
@@ -49,6 +57,16 @@ final class NotificationService {
         // On by default only once permission exists. Nothing is scheduled and
         // nothing is asked for until the user turns the switch on.
         self.isEnabled = defaults.object(forKey: Key.enabled) as? Bool ?? true
+
+        // Set here, during launch, because a tap that started the app cold is
+        // delivered as soon as a delegate exists and dropped if none does.
+        let taps = NotificationTapHandler { [weak self] identifier in
+            Task { @MainActor in
+                self?.opened = PlannedNotification.opened(fromIdentifier: identifier)
+            }
+        }
+        self.taps = taps
+        centre.delegate = taps
     }
 
     // MARK: Permission
@@ -180,5 +198,45 @@ final class NotificationService {
     private func born(_ person: Person) -> String {
         guard let year = person.birthday.year else { return "Born today." }
         return "Born today in \(year)."
+    }
+}
+
+/// Hands a tapped notification's identifier back to the main actor.
+///
+/// Its own object rather than the service itself, because the notification
+/// centre calls its delegate from its own queue and everything in this target
+/// is `MainActor` by default. This class is `nonisolated`, so its two methods
+/// can be called from anywhere, and the only thing that crosses back to the
+/// main actor is a `String`. The `UNNotificationResponse` never leaves the
+/// callback, for the same reason the rest of this file avoids `await` on the
+/// centre: it is not `Sendable`.
+nonisolated final class NotificationTapHandler: NSObject, UNUserNotificationCenterDelegate {
+    private let onOpen: @Sendable (String) -> Void
+
+    init(onOpen: @escaping @Sendable (String) -> Void) {
+        self.onOpen = onOpen
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        // Only the default action, which is the tap. Dismissing a banner is
+        // not asking for anything.
+        if response.actionIdentifier == UNNotificationDefaultActionIdentifier {
+            onOpen(response.notification.request.identifier)
+        }
+        completionHandler()
+    }
+
+    /// A birthday that lands while the app is open still shows, because the
+    /// user may be on another tab and would otherwise never see it.
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .list, .sound])
     }
 }

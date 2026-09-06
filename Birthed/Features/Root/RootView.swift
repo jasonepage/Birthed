@@ -30,6 +30,8 @@ struct RootView: View {
     @State private var replayRequested = false
     /// A birthday that arrived from a link, waiting to be confirmed.
     @State private var arriving: ArrivingBirthday?
+    /// Somebody whose birthday is today, with the composer open for them.
+    @State private var saying: Person?
 
     enum Tab: Hashable { case today, mine, people }
 
@@ -72,6 +74,12 @@ struct RootView: View {
                 Task { await refreshReminders() }
             }
         }
+        .sheet(item: $saying) { person in
+            SaySomethingView(person: person)
+        }
+        .onChange(of: notifications.opened) { _, opened in
+            act(on: opened)
+        }
         .sheet(isPresented: $showingSettings, onDismiss: {
             if replayRequested {
                 replayRequested = false
@@ -96,6 +104,9 @@ struct RootView: View {
             }
             await refreshReminders()
             await collectArrivals()
+            // A tap that started the app cold can land before this view was
+            // watching for changes, so whatever is waiting is acted on here.
+            act(on: notifications.opened)
         }
         .onChange(of: scenePhase) { _, phase in
             // Counting what was on screen is held until a screen goes away,
@@ -164,6 +175,27 @@ struct RootView: View {
         // the sheet closed.
         inbox.putAside(id: next.id)
         arriving = ArrivingBirthday(incoming: next.incoming, replyID: next.id)
+    }
+
+    /// What a tapped notification opens. The birthday itself opens the
+    /// composer, because the notification said "say something" and this is
+    /// where that is done. The three day warning opens the People tab, since
+    /// a message three days early is not what anybody meant. The user's own
+    /// notifications open Mine.
+    private func act(on opened: PlannedNotification.Opened?) {
+        guard let opened else { return }
+        notifications.opened = nil
+        switch opened {
+        case .ownBirthday, .ownCountdown:
+            tab = .mine
+        case let .personBirthday(personID):
+            tab = .people
+            if let person = peopleStore.people.first(where: { $0.id == personID }), person.isUsable {
+                saying = person
+            }
+        case .personSoon:
+            tab = .people
+        }
     }
 
     private func refreshReminders() async {

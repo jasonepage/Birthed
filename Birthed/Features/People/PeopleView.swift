@@ -16,6 +16,10 @@ struct PeopleView: View {
     @State private var adding = false
     @State private var addingMany = false
     @State private var following = false
+    /// Whose birthday is being written about. The celebrating card opens
+    /// this rather than the editor, because on the day the thing to do about
+    /// a person is say something, not correct their spelling.
+    @State private var saying: Person?
     /// A couple of public figures to offer when the list is empty, so the
     /// screen that decides whether this tab is worth anything has something on
     /// it besides an instruction.
@@ -73,6 +77,9 @@ struct PeopleView: View {
             }
             .sheet(isPresented: $adding) {
                 PersonEditor(person: nil) { store.add($0); adding = false } onCancel: { adding = false }
+            }
+            .sheet(item: $saying) { person in
+                SaySomethingView(person: person)
             }
             .sheet(item: $editing) { person in
                 PersonEditor(person: person) { store.update($0); editing = nil } onCancel: { editing = nil }
@@ -199,22 +206,31 @@ struct PeopleView: View {
 
     private func celebrating(_ person: Person) -> some View {
         Button {
-            editing = person
+            saying = person
         } label: {
-            VStack(alignment: .leading, spacing: 4) {
-                // The same card, one word apart. A celebration block that says
-                // TODAY over the name of somebody who has died is the loudest
-                // possible version of the mistake.
-                Text(person.isRemembered ? "REMEMBERING" : "TODAY")
-                    .font(.caption2.weight(.heavy))
-                    .kerning(2)
-                    .opacity(0.85)
-                Text(person.trimmedName)
-                    .font(Theme.display(.title, weight: .bold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
-                Text(subtitle(for: person, isToday: true))
-                    .font(.subheadline)
+            HStack(alignment: .center, spacing: 14) {
+                VStack(alignment: .leading, spacing: 4) {
+                    // The same card, one word apart. A celebration block that says
+                    // TODAY over the name of somebody who has died is the loudest
+                    // possible version of the mistake.
+                    Text(person.isRemembered ? "REMEMBERING" : "TODAY")
+                        .font(.caption2.weight(.heavy))
+                        .kerning(2)
+                        .opacity(0.85)
+                    Text(person.trimmedName)
+                        .font(Theme.display(.title, weight: .bold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                    Text(subtitle(for: person, isToday: true))
+                        .font(.subheadline)
+                        .opacity(0.9)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                // Where the tap goes. A message for somebody you know, a line
+                // to share about somebody you follow.
+                Image(systemName: person.isPublicFigure ? "square.and.arrow.up" : "paperplane.fill")
+                    .font(.title3)
                     .opacity(0.9)
             }
             .foregroundStyle(Theme.cream)
@@ -223,6 +239,10 @@ struct PeopleView: View {
             .background(Theme.celebration, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            Button("Edit") { editing = person }
+            Button("Remove", role: .destructive) { store.remove(person) }
+        }
     }
 
     private func row(_ person: Person) -> some View {

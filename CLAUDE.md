@@ -217,6 +217,30 @@ as a shelf, not a plan.
   song, because it is keyed to a year and a chart rather than to a day, which
   is the one shape a search for a single date does not reliably return.
 
+### The birthday message, decided September 6, 2026
+
+- **Tapping a birthday notification opens a composer with a message already
+  in it, and the app never sends it.** The user edits and sends through
+  Messages or the share sheet. No network call, no model at runtime, no
+  recipient stored. The privacy page's claim that the people list stays on
+  the phone depends on this and it is not negotiable.
+- **It is four decisions, not a template with slots.** What to call them,
+  which register the note puts them in, whether the age is safe to say, and
+  one plain closing line. The note is classified and never quoted. The
+  design, the reasons and the hundred messages it was judged on are in
+  `docs/birthday-messages.md`, and the hundred are pinned in
+  `BirthdayMessageTests`. The acceptance bar is five embarrassing messages in
+  a hundred; it scored two, both the same known limit, a two word name whose
+  first word is not the given name. If a change makes the count go up, the
+  fix is the generator, not more templates.
+- **Facts about the date stay out of the message.** They are about the
+  calendar, not the person, and they live on the server.
+- **A public figure gets a line about them, not to them.** "Beyoncé turns 45
+  today." Somebody who has died is stated and wished nothing.
+- **The message uses contractions where the app's own copy does not.** It is
+  the user's text to a friend, and "hope it is a good one" is a sentence
+  nobody types.
+
 ### Search, decided September 5, 2026
 
 - **A date page with fewer than eight people carries `noindex` and stays out of the sitemap.** It is still built and still loads. A new domain that hands a crawler 366 URLs with most of them empty teaches the crawler that the site is thin, and that judgement is made once and is expensive to undo. The threshold is eight rather than `FR-022`'s ten because a few real dates have fewer people with English Wikipedia articles.

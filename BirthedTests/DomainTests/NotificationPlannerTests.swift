@@ -305,4 +305,32 @@ extension NotificationPlannerTests {
         XCTAssertFalse(own.isEmpty, "a hundred followed people cannot cost you your own birthday")
         XCTAssertLessThanOrEqual(plan.count, NotificationPlanner.systemLimit)
     }
+
+    // MARK: Reading an identifier back
+
+    func testEveryIdentifierThePlannerWritesCanBeReadBack() {
+        let friend = person(9, 4, name: "Sarah", id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!)
+        let plan = planner().plan(for: birthday(3, 1), people: [friend], from: instant(2026, 1, 10, zone: losAngeles))
+        XCTAssertFalse(plan.isEmpty)
+        for planned in plan {
+            let opened = PlannedNotification.opened(fromIdentifier: planned.identifier)
+            switch planned.kind {
+            case .ownBirthday:
+                XCTAssertEqual(opened, .ownBirthday, planned.identifier)
+            case .ownCountdown:
+                XCTAssertEqual(opened, .ownCountdown, planned.identifier)
+            case let .personBirthday(personID):
+                XCTAssertEqual(opened, .personBirthday(personID: personID), planned.identifier)
+            case let .personSoon(personID, _):
+                XCTAssertEqual(opened, .personSoon(personID: personID), planned.identifier)
+            }
+        }
+    }
+
+    func testAnUnknownIdentifierReadsAsNothing() {
+        XCTAssertNil(PlannedNotification.opened(fromIdentifier: ""))
+        XCTAssertNil(PlannedNotification.opened(fromIdentifier: "person.not-a-uuid.birthday.2026"))
+        XCTAssertNil(PlannedNotification.opened(fromIdentifier: "own.something.2026"))
+        XCTAssertNil(PlannedNotification.opened(fromIdentifier: "com.apple.something"))
+    }
 }
