@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { renderDayPage, renderIndex, renderSitemap, escapeHtml } from "../src/render.js";
+import { renderDayPage, renderSitemap, escapeHtml } from "../src/render.js";
 import { everyDate, neighbours, slug } from "../src/model.js";
 
 const page = {
@@ -68,16 +68,13 @@ test("an empty date says so rather than rendering a blank list", () => {
   assert.ok(!html.includes("<ol>"));
 });
 
-test("the sitemap lists the index and all 366 dates", () => {
+test("the sitemap lists the front door, support, privacy and all 366 dates", () => {
   const xml = renderSitemap();
-  assert.equal((xml.match(/<loc>/g) ?? []).length, 367);
+  assert.equal((xml.match(/<loc>/g) ?? []).length, 369);
+  assert.ok(xml.includes("https://birthed.app/privacy/"));
   assert.ok(xml.includes("https://birthed.app/february-29/"));
 });
 
-test("the index links every date", () => {
-  const html = renderIndex();
-  assert.equal((html.match(/href="\/[a-z]+-\d+\/"/g) ?? []).length, 366);
-});
 
 import { renderShareCard } from "../src/share.js";
 
@@ -103,4 +100,31 @@ test("an empty date still produces a card rather than a broken one", () => {
   const card = renderShareCard({ month: 3, day: 3, people: [] });
   assert.ok(card.includes("March 3"));
   assert.ok(!card.includes("You share it with"));
+});
+
+import { renderHome, renderPrivacy, renderSupport } from "../src/pages.js";
+
+test("the front door still links every date, and the two pages people need", () => {
+  const html = renderHome();
+  assert.equal((html.match(/href="\/[a-z]+-\d+\/"/g) ?? []).length, 366);
+  assert.ok(html.includes('href="/support/"'));
+  assert.ok(html.includes('href="/privacy/"'));
+});
+
+test("the privacy page does not claim anything stays on the phone that does not", () => {
+  const html = renderPrivacy();
+  // The birthday, year and region go to the account. The people list does not.
+  assert.ok(html.includes("are sent to that account"));
+  assert.ok(html.includes("is not sent to the account service"));
+  assert.ok(!/birthday[^.]*stays on your phone/i.test(html));
+});
+
+test("support and privacy carry a way to reach a person", () => {
+  for (const html of [renderSupport(), renderPrivacy()]) {
+    assert.ok(html.includes("mailto:"));
+  }
+});
+
+test("every page names its favicon", () => {
+  assert.ok(renderHome().includes('rel="icon" href="/favicon.ico"'));
 });

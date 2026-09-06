@@ -40,7 +40,7 @@ export function isReady(page: DayPage): boolean {
   return page.people.some((person) => person.monthlyViews > 0);
 }
 
-const SITE = "https://birthed.app";
+export const SITE = "https://birthed.app";
 const INK = "#0E0C16";
 const ACCENT = "#EF5680";
 
@@ -115,9 +115,29 @@ footer a { color: #9C9490; }
 .months { columns: 3; column-gap: 20px; margin: 26px 0 0; padding: 0; list-style: none; }
 .months a { color: ${ACCENT}; text-decoration: none; font-size: 15px; line-height: 2; }
 @media (max-width: 520px) { .months { columns: 2; } }
+footer .sitelinks { color: #B9B2AD; font-size: 14px; }
+footer .sitelinks a { color: ${ACCENT}; text-decoration: none; }
+.hero { display: flex; gap: 22px; align-items: flex-start; margin: 10px 0 0; }
+.hero img { width: 92px; height: 92px; border-radius: 22px; flex: none; }
+.hero h1 { font-size: clamp(34px, 8vw, 58px); }
+.btn {
+  display: inline-block; margin: 6px 0 0; padding: 12px 20px; border-radius: 999px;
+  background: #FFF7EE; color: #A8265A; font-weight: 700; text-decoration: none; font-size: 15px;
+}
+.soon { display: inline-block; margin: 6px 0 0; padding: 12px 20px; border-radius: 999px; border: 1px solid #3A3342; color: #B9B2AD; font-size: 15px; }
+.features { display: grid; gap: 10px; margin: 34px 0 0; padding: 0; list-style: none; }
+.features li { display: block; }
+.features h3 { margin: 0 0 4px; font-size: 17px; }
+.features p { margin: 0; color: #B9B2AD; font-size: 15px; }
+h2.plain { font-family: Georgia, "Times New Roman", serif; font-weight: 800; font-size: clamp(22px, 5vw, 28px); margin: 40px 0 8px; }
+.prose p, .prose li { color: #D9D2CC; }
+.prose ul { padding-left: 20px; }
+.prose h3 { margin: 26px 0 4px; font-size: 17px; }
+.prose .updated { color: #7C7570; font-size: 13px; }
+@media (max-width: 520px) { .hero { flex-direction: column; gap: 14px; } }
 `;
 
-function head(
+export function head(
   title: string,
   description: string,
   canonical: string,
@@ -132,6 +152,9 @@ function head(
 <title>${escapeHtml(title)}</title>
 <meta name="description" content="${escapeHtml(description)}">
 <link rel="canonical" href="${canonical}">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 ${noindex ? '<meta name="robots" content="noindex">\n' : ""}
 <meta property="og:type" content="website">
 <meta property="og:title" content="${escapeHtml(title)}">
@@ -147,7 +170,8 @@ ${image ? `<meta property="og:image" content="${image}">
 <body><div class="wrap">`;
 }
 
-const FOOT = `<footer>
+export const FOOT = `<footer>
+<p class="sitelinks"><a href="/">Every date</a> · <a href="/support/">Support</a> · <a href="/privacy/">Privacy</a></p>
 <p>Names, years and descriptions come from <a href="https://www.wikidata.org">Wikidata</a>, released under <a href="https://creativecommons.org/publicdomain/zero/1.0/">Creative Commons Zero</a>. Credit to Wikipedia and Wikidata.</p>
 <p>Birthed is not affiliated with Wikipedia, Wikidata or the Wikimedia Foundation.</p>
 </footer>
@@ -252,28 +276,6 @@ ${jsonLd(page, canonical)}
 ${FOOT}`;
 }
 
-export function renderIndex(): string {
-  const canonical = `${SITE}/`;
-  const months = MONTH_BLOCKS();
-  return `${head("Birthed: every day of the year", "Who was born on every day of the year, and what to do with yours.", canonical)}
-<p class="kicker">Birthed</p>
-<h1>Every day of the year</h1>
-<p class="lede">Pick a date and see who shares it.</p>
-${months}
-${FOOT}`;
-}
-
-function MONTH_BLOCKS(): string {
-  const byMonth = new Map<number, number[]>();
-  for (const date of everyDate()) {
-    const list = byMonth.get(date.month) ?? [];
-    list.push(date.day);
-    byMonth.set(date.month, list);
-  }
-  return [...byMonth.entries()].map(([month, days]) => `<h2 style="font-family:Georgia,serif;margin:30px 0 0">${monthName(month)}</h2>
-<ul class="months">${days.map((day) => `<li><a href="/${slug(month, day)}/">${monthName(month)} ${day}</a></li>`).join("")}</ul>`).join("\n");
-}
-
 /**
  * The page Render serves for a path that is not one of the 366. Static hosts
  * answer an unknown path with whatever 404.html holds, and without one they
@@ -301,7 +303,7 @@ ${FOOT}`;
  */
 export function renderSitemap(ready?: Array<{ month: number; day: number }>): string {
   const dates = ready ?? everyDate();
-  const urls = [`${SITE}/`, ...dates.map((d) => `${SITE}/${slug(d.month, d.day)}/`)];
+  const urls = [`${SITE}/`, `${SITE}/support/`, `${SITE}/privacy/`, ...dates.map((d) => `${SITE}/${slug(d.month, d.day)}/`)];
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls.map((url) => `<url><loc>${url}</loc><changefreq>monthly</changefreq></url>`).join("\n")}

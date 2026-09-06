@@ -6,11 +6,12 @@
 //
 // Output lands in web/out, which is what a static host points at.
 
-import { mkdir, writeFile } from "node:fs/promises";
+import { cp, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DayPage, Person, everyDate, slug } from "./model.js";
 import { coverageByDay, fetchChartWeeks, songsForDate } from "./songs.js";
-import { isReady, renderDayPage, renderIndex, renderNotFound, renderRobots, renderSitemap } from "./render.js";
+import { isReady, renderDayPage, renderNotFound, renderRobots, renderSitemap } from "./render.js";
+import { renderHome, renderPrivacy, renderSupport } from "./pages.js";
 
 const OUT = "out";
 const PER_PAGE = 10;
@@ -101,7 +102,13 @@ async function main(): Promise<void> {
     written++;
   });
 
-  await writeFile(join(OUT, "index.html"), renderIndex(), "utf8");
+  await writeFile(join(OUT, "index.html"), renderHome(), "utf8");
+  await mkdir(join(OUT, "support"), { recursive: true });
+  await writeFile(join(OUT, "support", "index.html"), renderSupport(), "utf8");
+  await mkdir(join(OUT, "privacy"), { recursive: true });
+  await writeFile(join(OUT, "privacy", "index.html"), renderPrivacy(), "utf8");
+  // The favicons and touch icons, copied as they are.
+  await cp("static", OUT, { recursive: true });
   await writeFile(join(OUT, "sitemap.xml"), renderSitemap(ready), "utf8");
   await writeFile(join(OUT, "robots.txt"), renderRobots(), "utf8");
   await writeFile(join(OUT, "404.html"), renderNotFound(), "utf8");
