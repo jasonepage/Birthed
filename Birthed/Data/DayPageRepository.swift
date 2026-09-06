@@ -42,6 +42,19 @@ protocol DayPageRepository: Sendable {
     /// asks the question.
     func celebrating(on dates: [CalendarDate], limit: Int) async throws -> [NotableMatch]
 
+    /// The researched facts about a calendar date, the ones that belong to
+    /// everybody who shares it rather than to one birth year or one place.
+    ///
+    /// This reads and it never asks. A search costs real money per date, and
+    /// the caller is the onboarding wheel, which walks across dates as fast as
+    /// a thumb can flick. A reader must not be able to spend a month of
+    /// searches by scrolling through a month.
+    ///
+    /// The likes are not read, because the one caller wants a single line and
+    /// not a list to sort. Every fact comes back with no likes and not liked.
+    /// Anything that needs the real counts uses `FactsService`.
+    func birthFacts(on date: CalendarDate, limit: Int) async throws -> [BirthFact]
+
     /// What happened on a calendar date, from Wikipedia's date article, every
     /// year it lists. Empty until the events import has run for that date.
     func events(on date: CalendarDate, limit: Int) async throws -> [DayFeed.Event]

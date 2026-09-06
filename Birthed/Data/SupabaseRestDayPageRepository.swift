@@ -142,6 +142,54 @@ struct SupabaseRestDayPageRepository: DayPageRepository {
         }
     }
 
+    // MARK: The researched facts about a date
+
+    private struct DayFactRow: Decodable {
+        let id: Int
+        let fact: String
+        let category: String
+        let source_url: String
+        let region_key: String
+    }
+
+    /// The shared date facts only. `birth_year` of zero and an empty
+    /// `region_key` are how the fact finder stores the ones that are about the
+    /// date itself rather than about one person's year or one person's town,
+    /// and they are the only ones a reader who has not finished onboarding
+    /// could possibly be shown.
+    ///
+    /// `verified` is required, the same as every other read of this table. An
+    /// unverified fact has not had its source opened.
+    func birthFacts(on date: CalendarDate, limit: Int) async throws -> [BirthFact] {
+        let rows: [DayFactRow] = try await fetch(
+            from: "birth_facts",
+            query: [
+                URLQueryItem(name: "select", value: "id,fact,category,source_url,region_key"),
+                URLQueryItem(name: "birth_month", value: "eq.\(date.month)"),
+                URLQueryItem(name: "birth_day", value: "eq.\(date.day)"),
+                URLQueryItem(name: "birth_year", value: "eq.0"),
+                // The proven spelling. `FactsService` filters the empty
+                // region this way, and an `eq.` with nothing after it is the
+                // kind of thing that works until a PostgREST upgrade.
+                URLQueryItem(name: "region_key", value: "in.(\"\")"),
+                URLQueryItem(name: "verified", value: "eq.true"),
+                URLQueryItem(name: "order", value: "id.asc"),
+                URLQueryItem(name: "limit", value: String(limit)),
+            ]
+        )
+        return rows.map { row in
+            BirthFact(
+                id: row.id,
+                fact: row.fact,
+                category: row.category,
+                sourceURL: URL(string: row.source_url),
+                regionKey: row.region_key,
+                likes: 0,
+                likedByMe: false
+            )
+        }
+    }
+
     // MARK: Number ones by year
 
     private struct ChartYearRow: Decodable {
