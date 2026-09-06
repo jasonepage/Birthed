@@ -3,7 +3,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
 
-import { resolvePath, start } from "../src/serve.js";
+import { resolvePath, securityFor, start } from "../src/serve.js";
 
 const ROOT = resolve("out");
 
@@ -85,4 +85,32 @@ test("the server answers a page, a directory and a miss", async (t) => {
 
   const posted = await fetch(`${base}/`, { method: "POST" });
   assert.equal(posted.status, 405);
+});
+
+/**
+ * The page that runs a script is allowed to run it, and nothing else is.
+ *
+ * This test exists because the opposite shipped. The policy said
+ * `default-src 'none'` with no `script-src`, which is a browser instruction to
+ * drop the script on `/add` without drawing anything and without saying so,
+ * and the page had been blank in every browser since it was written. A test
+ * that reads the header is the only thing that would have caught it, because
+ * the file on disk was right the whole time.
+ */
+test("only the add page may run its script and reach the project", () => {
+  const day = securityFor("/september-4/")["Content-Security-Policy"] ?? "";
+  assert.ok(!day.includes("script-src"), "a date page must have no script at all");
+  assert.ok(!day.includes("connect-src"), "a date page must reach nothing");
+
+  for (const path of ["/add", "/add/", "/add/index.html"]) {
+    const add = securityFor(path)["Content-Security-Policy"] ?? "";
+    assert.match(add, /script-src 'unsafe-inline'/, `${path} must run its own script`);
+    assert.match(add, /connect-src https:\/\/[a-z0-9]+\.supabase\.co/, `${path} must reach the project`);
+    assert.match(add, /frame-ancestors 'none'/, `${path} keeps the rest of the policy`);
+  }
+
+  // The name of a date page that merely starts with the same letters is not
+  // the add page.
+  const other = securityFor("/adder/")["Content-Security-Policy"] ?? "";
+  assert.ok(!other.includes("script-src"));
 });

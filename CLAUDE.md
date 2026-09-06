@@ -316,6 +316,18 @@ as a shelf, not a plan.
   come back; Settings is then the only place reminders live. Nothing is asked
   of iOS in that case, because we have already been told.
 
+### The site's own security policy, decided September 6, 2026
+
+- **`/add` is the one page that may run a script and reach the project, and it
+  says so per path.** The site sends `default-src 'none'`, which covers scripts
+  and network calls, so from the day `/add` gained a script the browser dropped
+  it and drew an empty page, in every browser, with nothing on screen to say
+  why. `securityFor` in `web/src/serve.ts` widens the policy for that path
+  alone, to `script-src 'unsafe-inline'` and a `connect-src` of the Supabase
+  project, and a test in `web/test/serve.test.ts` asserts no other path gets
+  either. A header that contradicts the page is invisible from the file on
+  disk, which is why the test reads the header rather than the page.
+
 ### Search, decided September 5, 2026
 
 - **A date page with fewer than eight people carries `noindex` and stays out of the sitemap.** It is still built and still loads. A new domain that hands a crawler 366 URLs with most of them empty teaches the crawler that the site is thin, and that judgement is made once and is expensive to undo. The threshold is eight rather than `FR-022`'s ten because a few real dates have fewer people with English Wikipedia articles.

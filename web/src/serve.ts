@@ -48,13 +48,63 @@ function cacheControl(path: string): string {
 const SECURITY: Record<string, string> = {
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "strict-origin-when-cross-origin",
-  // The pages are text, one inline stylesheet and no scripts at all, so the
-  // policy can be this narrow. Widen it the day something needs widening,
-  // not before.
+  // Every page but one is text, one inline stylesheet and nothing else, so
+  // the policy for those stays this narrow. Widen it the day something needs
+  // widening, not before. `/add` is the day, and it gets its own below rather
+  // than loosening this one for the whole site.
   "Content-Security-Policy":
     "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
 };
+
+/// Where the one page that talks to a server is allowed to talk to.
+///
+/// Read from the environment so that moving the project moves this with it,
+/// with the current project as the fallback because a web service that has
+/// forgotten this value should still be able to send a birthday. Neither the
+/// project reference nor its address is a secret; the key that goes with it
+/// is the anonymous one that already ships inside the app.
+function apiOrigin(): string {
+  const raw = process.env.SUPABASE_URL ?? "https://lunqqhjwqrpbujwxwdzk.supabase.co";
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return "https://lunqqhjwqrpbujwxwdzk.supabase.co";
+  }
+}
+
+/**
+ * The headers for one request.
+ *
+ * `/add` is the only page on birthed.app that runs a script, and the policy
+ * above says `default-src 'none'`, which covers scripts and network calls
+ * too. So the page has been silently dead in every browser since it was
+ * written: the browser dropped the script without drawing anything, which
+ * looks exactly like an empty page. The privacy page was updated when that
+ * script arrived and this header was not, which is the whole bug.
+ *
+ * The widening is per path and no wider than the page needs: it may run the
+ * script that is written into it, and it may reach the project that receives
+ * a birthday. Everything else stays refused, and every other page on the site
+ * keeps the policy that has no script in it at all.
+ *
+ * `'unsafe-inline'` rather than a hash of the script, because the hash would
+ * have to be computed from the built file and kept in step with it, and a
+ * stale hash fails the same silent way this bug did. Nothing user-written is
+ * rendered into that page, so there is nothing for an injected script to
+ * arrive in.
+ */
+export function securityFor(requestPath: string): Record<string, string> {
+  const isAdd = requestPath === "/add" || requestPath.startsWith("/add/");
+  if (!isAdd) return SECURITY;
+  return {
+    ...SECURITY,
+    "Content-Security-Policy":
+      "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; " +
+      `script-src 'unsafe-inline'; connect-src ${apiOrigin()}; ` +
+      "base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+  };
+}
 
 /**
  * Turns a request path into a file inside ROOT, or null.
@@ -104,7 +154,7 @@ function send(
   response.writeHead(status, {
     "Content-Type": TYPES[extname(file)] ?? "application/octet-stream",
     "Cache-Control": cacheControl(requestPath),
-    ...SECURITY,
+    ...securityFor(requestPath),
   });
   if (headOnly) {
     response.end();
