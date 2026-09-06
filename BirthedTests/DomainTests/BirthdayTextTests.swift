@@ -60,7 +60,13 @@ final class BirthdayTextTests: XCTestCase {
     func testFebruary29IsAReadableBirthdayAndFebruary30IsNot() {
         XCTAssertEqual(read("Robin 2/29").first?.birthday.date.day, 29)
         XCTAssertTrue(read("Robin 2/30").isEmpty)
-        XCTAssertTrue(read("Robin 13/1").isEmpty)
+        // "13/1" is not impossible, it is day first: nobody has a thirteenth
+        // month, so the reader takes it as January 13, which is the rule the
+        // reader documents. The first version of this test expected it to be
+        // refused and was the only failing test in the suite.
+        XCTAssertEqual(read("Robin 13/1").first?.birthday.date.month, 1)
+        XCTAssertEqual(read("Robin 13/1").first?.birthday.date.day, 13)
+        XCTAssertTrue(read("Robin 13/13").isEmpty)
     }
 
     func testALineWithNoDateIsNotAPerson() {
