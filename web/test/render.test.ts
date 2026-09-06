@@ -103,6 +103,7 @@ test("an empty date still produces a card rather than a broken one", () => {
 });
 
 import { calendar, isLeapYear, renderAdd, renderHome, renderPrivacy, renderSupport } from "../src/pages.js";
+import { asHighlight, pickHighlights, type Fact } from "../src/facts.js";
 import { redirectFor } from "../src/serve.js";
 
 test("the front door still links every date, and the two pages people need", () => {
@@ -559,3 +560,77 @@ test("robots keeps the two redirects out of a crawl", () => {
   assert.ok(robots.includes("Disallow: /random"));
   assert.ok(robots.includes("Disallow: /today"));
 });
+
+const HIGHLIGHT_FACT: Fact = {
+  month: 8,
+  day: 15,
+  fact: "On August 15, 1998, Apple began shipping the original Bondi Blue iMac G3 personal computer.",
+  category: "release",
+  sourceUrl: "https://en.wikipedia.org/wiki/IMac_G3",
+};
+
+test("a fact is taken apart into a year and the rest of the sentence", () => {
+  const highlight = asHighlight(HIGHLIGHT_FACT);
+  assert.ok(highlight);
+  assert.equal(highlight!.year, 1998);
+  // The opening is gone, because the badge beside it already says the date.
+  assert.ok(!highlight!.text.startsWith("On August 15"));
+  assert.ok(highlight!.text.startsWith("Apple began shipping"));
+});
+
+test("a sentence that opens with somebody else's date is refused", () => {
+  // A row filed under August 15 whose sentence is about August 16 is a data
+  // problem, and putting it on the front door under an August 15 badge would
+  // print something false on the most read page on the site.
+  const wrong = { ...HIGHLIGHT_FACT, day: 16 };
+  assert.equal(asHighlight(wrong), null);
+  // And so is one that does not open the expected way at all.
+  assert.equal(asHighlight({ ...HIGHLIGHT_FACT, fact: "Apple shipped the iMac." }), null);
+});
+
+test("the front door takes at most one fact per month", () => {
+  const facts: Fact[] = [];
+  for (let month = 1; month <= 12; month++) {
+    for (let copy = 0; copy < 4; copy++) {
+      facts.push({
+        month,
+        day: copy + 1,
+        fact: `On ${MONTH_WORDS[month - 1]} ${copy + 1}, 19${50 + copy}, something worth reading happened and it was written down in a sentence of a reasonable length.`,
+        category: "event",
+        sourceUrl: "https://en.wikipedia.org/wiki/Test",
+      });
+    }
+  }
+  const picked = pickHighlights(facts, 6, 12345);
+  assert.equal(picked.length, 6);
+  assert.equal(new Set(picked.map((row) => row.month)).size, 6, "a month appeared twice");
+  // Calendar order, so the strip reads as a walk through the year.
+  for (let index = 1; index < picked.length; index++) {
+    assert.ok(picked[index]!.month > picked[index - 1]!.month);
+  }
+});
+
+test("the same seed deals the same hand, and a different one does not", () => {
+  const facts: Fact[] = [];
+  for (let month = 1; month <= 12; month++) {
+    for (let copy = 0; copy < 6; copy++) {
+      facts.push({
+        month,
+        day: copy + 1,
+        fact: `On ${MONTH_WORDS[month - 1]} ${copy + 1}, 19${40 + copy}, number ${copy} of the things that happened that day happened, and here is the rest of the sentence.`,
+        category: "event",
+        sourceUrl: "https://en.wikipedia.org/wiki/Test",
+      });
+    }
+  }
+  const one = pickHighlights(facts, 6, 777).map((row) => row.text).join("|");
+  const same = pickHighlights(facts, 6, 777).map((row) => row.text).join("|");
+  const other = pickHighlights(facts, 6, 778).map((row) => row.text).join("|");
+  assert.equal(one, same, "a build is not reproducible");
+  assert.notEqual(one, other, "the seed does nothing");
+});
+
+const MONTH_WORDS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
