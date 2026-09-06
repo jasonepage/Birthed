@@ -299,6 +299,25 @@ as a shelf, not a plan.
   checked against their pages before TestFlight. Absent beats wrong, and a
   wrong version number is the kind of wrong this audience notices first.
 
+### Two verdicts reversed, September 6, 2026
+
+- **The Today tab stays a tab.** `docs/first-five-minutes.md` had it becoming a
+  screen reached from a person, and that verdict was made about a screen that
+  was ten names. The feed replaced that screen hours later and the verdict was
+  never revisited. An outside review of the built screen called it the
+  strongest surface in the product. The risk the verdict named, not wanting to
+  browse other dates on your own birthday, is already handled by `FR-033`. If
+  people open Today and never add a person, it comes back.
+- **The suggested public figures stay on the empty People tab.** Half the
+  reason for cutting them, that they spend the sixty four notification slots,
+  is already solved in `NotificationPlanner`, which puts people you know ahead
+  of people you follow whatever the dates. An empty People tab with only an
+  instruction on it is where this app dies.
+- **The order of work is settled and is not features.** Prove the reminder loop
+  on a real device, verify what was written from memory, instrument four
+  numbers, finish build order items 1 to 4, then TestFlight. Arrived at twice
+  independently. The famous people search waits behind all of it.
+
 ### The one permission, decided September 6, 2026
 
 - **Notification permission is asked from a row under the first person on the

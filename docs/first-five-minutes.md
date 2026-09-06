@@ -221,12 +221,12 @@ it stays in the code, off the screen. Delete means it goes.
 | Found facts, everything else | **Simplify** | Below the fold. Shown when ready, never waited for. |
 | Likes on facts | **Later** | Meaningless below five thousand impressions, and a control on every row. Sharing a fact stays. |
 | Share card | **Simplify** | One card, the screen they just saw. The picker and variants stay in code. |
-| Today tab | **Later, and not a tab** | On my birthday I do not want to browse other dates. Who else has a date is one tap from a person's row. Browsing dates is what birthed.app is for. Two tabs: Mine and People. |
+| Today tab | **Reversed September 6. Keep it, and keep it a tab** | The verdict below was made about a screen that was ten names, and it was right about that screen. The feed replaced it hours later. See the note under this table. |
 | People tab, soonest first | **Keep** | The loop. |
 | Paste a list | **Keep** | The fastest way in. |
 | Ask for a birthday by link, and the /add page | **Keep, promote** | It becomes the install path. The sender is one tap from added. |
 | Follow a public figure | **Later** | Right feature, wrong moment. It spends notification slots and teaches the wrong lesson. |
-| Suggested public figures on the empty People tab | **Delete** | A list of strangers where the mother should go. |
+| Suggested public figures on the empty People tab | **Reversed September 6. Keep** | Half the original reason is already solved in code. See the note under this table. |
 | The composer with the written message | **Keep** | It closes the loop. Without it the reminder is a chore. |
 | Reminders, the morning of and three days before | **Keep** | The loop firing. |
 | The permission prompt in Settings only | **Simplify, move** | Ask on the first added person, from a row they touched. Decided September 6, 2026. `FR-070` rewritten. |
@@ -239,6 +239,46 @@ it stays in the code, off the screen. Delete means it goes.
 | Twin count (people sharing the exact birthday) | **Simplify** | One line on Mine below the fold. |
 | Web date pages, sitemap, noindex rule | **Keep, out of scope here** | Distribution, not the session. |
 | Reward schema and qualification engine | **Already shelved** | Unchanged. |
+
+## Two verdicts reversed, September 6, 2026
+
+Both rows above are struck through rather than rewritten, because a document
+whose value is that it says no is worth nothing if its noes are quietly edited
+into yeses afterwards.
+
+**The Today tab stays a tab, and item 5 is dropped.** The original verdict was
+made about a screen that was ten names, which is the one thing Famous Birthdays
+already wins at, and about that screen it was correct. The feed replaced that
+screen hours later on the same night, and the verdict was never revisited. It
+is now a feed of 19,734 events indexed by how old the reader was, which is the
+one question no competitor can answer, and an outside review looking at the
+built screen called it the strongest surface in the product.
+
+The risk the original verdict named does not go away and is worth restating:
+on your own birthday you do not want to browse other dates. That is handled,
+and was already handled, by `FR-033`: inside the birthday window the app opens
+on Mine rather than on today's page. The second risk is real and unhandled: a
+third tab that is genuinely good is exactly the kind of thing that quietly
+becomes what the app is about, and this app is about the people you know. The
+answer to that is the measurement in the next section rather than an argument
+here. If people open Today and never add a person, the verdict comes back.
+
+**The suggested public figures stay on the empty People tab.** The original
+reason had two halves. The first, that following people spends the sixty four
+notification slots that should go to somebody's mother, is already solved:
+`NotificationPlanner` puts people you know ahead of people you follow whatever
+the dates, with a test that follows eighty four people across January and
+February and checks that a friend in December still keeps both of her
+reminders. The second half, that a list of strangers teaches the wrong lesson
+about what the app is for, still stands, and it is weaker than the problem it
+was competing with. An empty People tab with nothing on it but an instruction
+is where this app dies, and one tap on a real name is a better first move than
+no move at all.
+
+**What did not change.** Everything else in the table, and items 1 through 4 of
+the build order. The trimming of Mine in item 3 is smaller than it reads: the
+table demotes most of what it lists rather than removing it, and only the
+birthstone and the flower are actually deleted. It is ordering work.
 
 ## What is not being decided here
 
@@ -256,7 +296,9 @@ benefit from the answers.
 2. The reminder row on the first added person. Decided and built.
 3. Mine trimmed to five things above the fold.
 4. The one tap "today" entry from a link.
-5. Today becomes a screen reached from a person rather than a tab.
+5. ~~Today becomes a screen reached from a person rather than a tab.~~ **Dropped
+   September 6.** Today stays a tab. The reasoning is in the note under the
+   table above.
 
 Measure after each: year entered, one person added, permission granted,
 messages sent per reminder. Four numbers. Not twenty.
