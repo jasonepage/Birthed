@@ -80,6 +80,69 @@ final class WorldThenTests: XCTestCase {
         XCTAssertEqual(text(lines, "WIKIPEDIA"), "Wikipedia was 1 year old when you were born.")
     }
 
+    // MARK: The consoles
+
+    func testTheNewestNintendoAndXbox() {
+        let lines = WorldThen.lines(month: 12, day: 25, year: 2011, limit: 40)
+        XCTAssertEqual(text(lines, "NINTENDO"), "The newest Nintendo console was the Wii the day you were born.")
+        XCTAssertEqual(text(lines, "XBOX"), "The newest Xbox was the Xbox 360 the day you were born.")
+    }
+
+    func testTheSwitchArrivesOnTheDayItArrived() {
+        // The day before and the day of, because an off by one in a version
+        // boundary is invisible in every other test.
+        XCTAssertEqual(text(WorldThen.lines(month: 3, day: 2, year: 2017, limit: 40), "NINTENDO"),
+                       "The newest Nintendo console was the Wii U the day you were born.")
+        XCTAssertEqual(text(WorldThen.lines(month: 3, day: 3, year: 2017, limit: 40), "NINTENDO"),
+                       "The newest Nintendo console was the Switch the day you were born.")
+    }
+
+    func testTheNintendoLineUsesTheFullReleaseAndNotTheNewYorkTestMarket() {
+        // The single most likely thing to be silently wrong in this file.
+        // The page's infobox says the Nintendo Entertainment System reached
+        // North America on October 18, 1985, and that was one test market in
+        // New York City. The full release was September 27, 1986, eleven
+        // months later, and this file's rule is the reader's world.
+        //
+        // So somebody born in the gap is older than the console, and if this
+        // test ever flips it means the row went back to the test market date
+        // and the app started telling most of the country it had a console
+        // that had not reached them.
+        let inTheGap = WorldThen.lines(month: 3, day: 1, year: 1986, limit: 40)
+        XCTAssertEqual(text(inTheGap, "NINTENDO"), "You are 6 months older than the Nintendo console.")
+
+        let after = WorldThen.lines(month: 10, day: 1, year: 1986, limit: 40)
+        XCTAssertEqual(text(after, "NINTENDO"),
+                       "The newest Nintendo console was the Nintendo Entertainment System the day you were born.")
+    }
+
+    func testEveryConsoleDateIsTheUnitedStatesOne() {
+        // Each of these is a date where the United States and Japan differ by
+        // months, which is the shape of the eight rows that were wrong before
+        // anybody checked. Asserted as the reader would experience it rather
+        // than as a date, so the failure names the sentence that would be
+        // shown.
+        //
+        // Nintendo 64: Japan June 23, 1996, United States September 29, 1996.
+        XCTAssertEqual(text(WorldThen.lines(month: 8, day: 1, year: 1996, limit: 40), "NINTENDO"),
+                       "The newest Nintendo console was the Super Nintendo the day you were born.")
+        // GameCube: Japan September 14, 2001, United States November 18, 2001.
+        XCTAssertEqual(text(WorldThen.lines(month: 10, day: 1, year: 2001, limit: 40), "NINTENDO"),
+                       "The newest Nintendo console was the Nintendo 64 the day you were born.")
+        // Super Nintendo: Japan November 21, 1990, United States August 23, 1991.
+        XCTAssertEqual(text(WorldThen.lines(month: 3, day: 1, year: 1991, limit: 40), "NINTENDO"),
+                       "The newest Nintendo console was the Nintendo Entertainment System the day you were born.")
+    }
+
+    func testAnXboxBornBeforeThereWasOne() {
+        // The original Xbox is November 15, 2001, three days before the
+        // GameCube, which is a genuinely nice pair of sentences for anybody
+        // born in that week.
+        let lines = WorldThen.lines(month: 11, day: 16, year: 2001, limit: 40)
+        XCTAssertEqual(text(lines, "XBOX"), "The newest Xbox was the original Xbox the day you were born.")
+        XCTAssertEqual(text(lines, "NINTENDO"), "The newest Nintendo console was the Nintendo 64 the day you were born.")
+    }
+
     // MARK: Absent beats wrong
 
     func testABirthAfterTheKnownEndOfATimelineGetsNoVersion() {

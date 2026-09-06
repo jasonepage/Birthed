@@ -354,6 +354,57 @@ struct WorldThen {
             sourceURL: URL(string: "https://en.wikipedia.org/wiki/PlayStation")!
         ),
         Timeline(
+            subject: "the Nintendo console",
+            kicker: "NINTENDO",
+            wording: .newest("Nintendo console"),
+            versions: [
+                // September 27, 1986, not October 18, 1985. Both are real and
+                // both are on the page. The 1985 date is a test market in New
+                // York City alone, followed by Los Angeles in February 1986,
+                // and the page calls September 27, 1986 the full North
+                // American release. This file's rule is the reader's world,
+                // and a shop in one city for eleven months was not most
+                // readers' world. A New Yorker born in early 1986 is the one
+                // person this row is wrong for, and the alternative is being
+                // wrong for everybody outside New York.
+                Version(from: Day(1986, 9, 27), name: "Nintendo Entertainment System"),
+                Version(from: Day(1991, 8, 23), name: "Super Nintendo"),
+                // The page disagrees with itself by three days: the infobox
+                // says September 29 and the body says it was first sold on
+                // September 26 "though having been advertised for the 29th".
+                // The 29th is what was advertised and what almost everybody
+                // therefore experienced, so it is the one here. A reader born
+                // on the 27th or 28th of September 1996 sits inside the
+                // disagreement and there is no answer that is right for them.
+                Version(from: Day(1996, 9, 29), name: "Nintendo 64"),
+                Version(from: Day(2001, 11, 18), name: "GameCube"),
+                Version(from: Day(2006, 11, 19), name: "Wii"),
+                Version(from: Day(2012, 11, 18), name: "Wii U"),
+                // Worldwide on one day, so there is no United States date to
+                // get wrong. The same is true of the Switch 2.
+                Version(from: Day(2017, 3, 3), name: "Switch"),
+                Version(from: Day(2025, 6, 5), name: "Switch 2"),
+            ],
+            knownThrough: Day(2025, 6, 30),
+            sourceURL: URL(string: "https://en.wikipedia.org/wiki/Nintendo_Entertainment_System")!
+        ),
+        Timeline(
+            subject: "the Xbox",
+            kicker: "XBOX",
+            wording: .newest("Xbox"),
+            versions: [
+                Version(from: Day(2001, 11, 15), name: "original Xbox"),
+                Version(from: Day(2005, 11, 22), name: "Xbox 360"),
+                Version(from: Day(2013, 11, 22), name: "Xbox One"),
+                Version(from: Day(2020, 11, 10), name: "Xbox Series X and S"),
+            ],
+            knownThrough: Day(2025, 6, 30),
+            // Every Xbox reached the United States first or close to it, so
+            // this is the one console line with no Japanese date anywhere
+            // near it to be caught by.
+            sourceURL: URL(string: "https://en.wikipedia.org/wiki/Xbox_(console)")!
+        ),
+        Timeline(
             subject: "Pokémon",
             kicker: "POKÉMON",
             wording: .era("Pokémon"),
