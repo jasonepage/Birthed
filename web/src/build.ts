@@ -16,7 +16,7 @@ import { DayPage, Person, everyDate, slug } from "./model.js";
 import { coverageByDay, fetchChartWeeks, songsForDate } from "./songs.js";
 import { factsByDay, factsForDate, fetchFacts } from "./facts.js";
 import { isReady, renderDayPage, renderNotFound, renderRobots, renderSitemap } from "./render.js";
-import { renderHome, renderPrivacy, renderSupport } from "./pages.js";
+import { renderAdd, renderHome, renderPrivacy, renderSupport } from "./pages.js";
 
 const OUT = "out";
 const PER_PAGE = 10;
@@ -122,6 +122,10 @@ async function main(): Promise<void> {
   await writeFile(join(OUT, "support", "index.html"), renderSupport(), "utf8");
   await mkdir(join(OUT, "privacy"), { recursive: true });
   await writeFile(join(OUT, "privacy", "index.html"), renderPrivacy(), "utf8");
+  // The landing page for a shared birthday. Carries noindex: it is a handover
+  // between two people, not something anybody should find in a search result.
+  await mkdir(join(OUT, "add"), { recursive: true });
+  await writeFile(join(OUT, "add", "index.html"), renderAdd(), "utf8");
   // The favicons and touch icons, copied as they are.
   await cp("static", OUT, { recursive: true });
   await writeFile(join(OUT, "sitemap.xml"), renderSitemap(ready), "utf8");

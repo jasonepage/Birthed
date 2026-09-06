@@ -6,9 +6,21 @@ plus the exact text of any error. If something fails to build, stop and send
 the first error rather than the last one, because the first is usually the
 real one and the rest are its echoes.
 
+## Before you build, one thing you have to click
+
+The app now opens birthday links, and registering the `birthed://` scheme is
+the one part that cannot be written into a file here. This project has
+`GENERATE_INFOPLIST_FILE = YES` and no Info.plist, and a URL type is an array
+of dictionaries, which the `INFOPLIST_KEY_` build settings cannot express.
+
+In Xcode: select the Birthed target, the Info tab, expand URL Types, press
+plus, set Identifier to `app.birthed.ios` and URL Schemes to `birthed`. Leave
+everything else alone. It takes a minute and without it items 17 and 18 below
+do nothing at all, which will look like broken code and is not.
+
 ## Before you build
 
-Nothing to add to the project. The Birthed target uses Xcode's synchronised
+Nothing else to add to the project. The Birthed target uses Xcode's synchronised
 folders, so `Birthed/Features/MyDay/FoundFactsSection.swift`, which is new
 tonight, is picked up from the file system on its own.
 
@@ -101,7 +113,40 @@ so use September 4, 2002 unless a step below says otherwise.
     which it did not before, and that the Google Gemini card links to
     ai.google.dev and to the privacy page. Screenshot it.
 
-16. **The old screens still work.** These are the ones tonight's changes could
+16. **Paste a list.** People tab, the plus, then "Paste a list or send a link".
+    Paste this in exactly:
+
+    ```
+    Sam 3/14
+    Priya - March 14
+    Alex: 14 March 2003
+    Jordan 12/25/1999
+    Mia Dec 2
+    1. Casey 7/4
+    Sam 555-1234
+    ```
+
+    It should find six, not seven. The phone number line is not a birthday and
+    the parser is meant to know that. Casey should come through as "Casey" with
+    no "1." on the front. Each row shows the name, the date it read, and the
+    original line underneath. Tap one to leave it out and the count in the top
+    right should drop. Add them and check the People tab has them all with the
+    right dates. Screenshot the found list before you add.
+
+17. **Your own link.** Same screen, scroll down, tap "Share my birthday link"
+    and send it to yourself. Open it on the phone. It should land on
+    birthed.app, show your date, and offer "Add it in Birthed". Tap that and
+    the app should open with a sheet asking what you call them, with the name
+    field empty and the keyboard up. Type a name, tap Add, and it should land
+    in the People tab. Screenshot the web page and the sheet.
+
+18. **A link with a name in it.** On the same web page with nothing after the
+    hash, so just birthed.app/add, fill the form in as somebody else and press
+    "Make my link". Send that link to yourself and open it. This time the sheet
+    should arrive with the name already filled in. This is the flow a friend
+    uses to send you theirs.
+
+19. **The old screens still work.** These are the ones tonight's changes could
     have broken by accident, so a quick look at each is enough:
     - Fresh onboarding, day wheel then year wheel, answering as you turn it.
     - The birthday state. Set the date to today, hold the candle, watch it
@@ -113,5 +158,5 @@ so use September 4, 2002 unless a step below says otherwise.
 
 The screenshots, in order, and any error text verbatim. For anything that
 looks wrong rather than broken, say what you expected instead. Item 2, item 8,
-item 9, item 12 and item 14 are the five that matter most, because nobody has seen any
+item 9, item 12, item 14 and item 16 are the six that matter most, because nobody has seen any
 of those states yet.

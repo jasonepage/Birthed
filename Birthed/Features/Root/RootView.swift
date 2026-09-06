@@ -27,6 +27,8 @@ struct RootView: View {
     /// screen cover while a sheet is still dismissing is dropped on the floor
     /// by the system, so the two are sequenced through onDismiss.
     @State private var replayRequested = false
+    /// A birthday that arrived from a link, waiting to be confirmed.
+    @State private var arriving: ArrivingBirthday?
 
     enum Tab: Hashable { case today, mine, people }
 
@@ -43,6 +45,19 @@ struct RootView: View {
                     }
                     tab = openingTab(for: profile)
                 }
+            }
+        }
+        // On the outer Group rather than inside the tabs, so a link tapped
+        // before onboarding is finished is still caught rather than dropped.
+        .onOpenURL { url in
+            guard let incoming = PersonLink.incoming(from: url) else { return }
+            arriving = ArrivingBirthday(incoming: incoming)
+        }
+        .sheet(item: $arriving) { arrival in
+            IncomingBirthdaySheet(incoming: arrival.incoming) { person in
+                peopleStore.add(person)
+                tab = .people
+                Task { await refreshReminders() }
             }
         }
         .sheet(isPresented: $showingSettings, onDismiss: {

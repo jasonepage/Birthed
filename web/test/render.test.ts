@@ -102,7 +102,7 @@ test("an empty date still produces a card rather than a broken one", () => {
   assert.ok(!card.includes("You share it with"));
 });
 
-import { calendar, isLeapYear, renderHome, renderPrivacy, renderSupport } from "../src/pages.js";
+import { calendar, isLeapYear, renderAdd, renderHome, renderPrivacy, renderSupport } from "../src/pages.js";
 
 test("the front door still links every date, and the two pages people need", () => {
   const html = renderHome();
@@ -266,4 +266,36 @@ test("facts do not rescue a page whose people were never ranked", () => {
     category: "event", sourceUrl: "https://en.wikipedia.org/wiki/June_8",
   }));
   assert.equal(isReady(unranked, plenty), false);
+});
+
+// The page a shared birthday lands on. The tests that matter here are about
+// what it does not do: appear in search, and reach the server.
+
+test("the add page keeps itself out of search results", () => {
+  const html = renderAdd();
+  assert.ok(html.includes('name="robots" content="noindex"'));
+});
+
+test("the add page never puts a birthday in a query", () => {
+  // The whole design is that the data sits after the hash, which browsers do
+  // not send. A link built with a question mark would be sent to the server
+  // on every tap, and the privacy page would stop being true.
+  const html = renderAdd();
+  assert.ok(html.includes('/add/#"'), "the link it builds is a fragment");
+  assert.ok(!/\/add\/\?/.test(html), "nothing builds a query onto /add/");
+});
+
+test("the add page hands off to the app rather than assuming it is there", () => {
+  const html = renderAdd();
+  assert.ok(html.includes("birthed://add?"));
+  assert.ok(html.includes("<noscript>"), "it says why it needs a script");
+});
+
+test("the privacy page no longer claims the site runs no scripts", () => {
+  // It did, and one page now does. A privacy page that is wrong about
+  // something checkable is worse than one that explains itself.
+  const html = renderPrivacy();
+  assert.ok(!html.includes("runs no scripts"));
+  assert.ok(html.includes("after the hash symbol"));
+  assert.ok(html.includes("sets no cookies"));
 });

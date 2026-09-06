@@ -12,6 +12,7 @@ struct PeopleView: View {
 
     @State private var editing: Person?
     @State private var adding = false
+    @State private var addingMany = false
 
     private let agenda = BirthdayAgenda()
     private var now: Date { Date() }
@@ -35,9 +36,25 @@ struct PeopleView: View {
                     .tint(.primary)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { adding = true } label: {
+                    // A menu rather than two buttons. Most people arrive with
+                    // a list somewhere and a few arrive with one name, and the
+                    // list is the one that makes this tab work at all, so it
+                    // is first.
+                    Menu {
+                        Button { addingMany = true } label: {
+                            Label("Paste a list or send a link", systemImage: "square.and.arrow.down.on.square")
+                        }
+                        Button { adding = true } label: {
+                            Label("Type one in", systemImage: "square.and.pencil")
+                        }
+                    } label: {
                         Label("Add someone", systemImage: "plus")
                     }
+                }
+            }
+            .sheet(isPresented: $addingMany) {
+                AddFriendsView { people in
+                    for person in people { store.add(person) }
                 }
             }
             .sheet(isPresented: $adding) {
@@ -67,6 +84,16 @@ struct PeopleView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
+
+            Button { addingMany = true } label: {
+                Text("Paste a list or send a link")
+                    .font(.subheadline.weight(.semibold))
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(Theme.accent, in: Capsule())
+                    .foregroundStyle(Theme.cream)
+            }
+            .padding(.top, 4)
 
             Button {
                 adding = true

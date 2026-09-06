@@ -289,6 +289,51 @@ read out loud. The decision is to wait for Jason's screenshots before moving
 them, because nobody has seen that stack with a facts section underneath it
 and the answer may be obvious once somebody has.
 
+## Getting friends' birthdays in, September 6
+
+The People tab is the only screen that gives somebody a reason to open the app
+in a month that is not their own, and it only works when it has people in it.
+One name at a time is where that dies. Two ways in now, and neither asks for a
+permission or sends anything to a server.
+
+**Paste.** `Domain/BirthdayText.swift` reads names and dates out of whatever
+was pasted: a pinned message, a shared note, a numbered list. Line based,
+because that text is never in a tidy format and never will be. Every candidate
+carries the line it came from and the screen shows it, because a reader can
+only check a reading they can see. 13 tests, including that a phone number is
+not a birthday, which the obvious version of the number rule gets wrong.
+
+**The link.** `Domain/PersonLink.swift` puts a date in the fragment of a
+birthed.app address, which is the part browsers never send, so a birthday
+moves between two phones without birthed.app learning that anybody exists. 14
+tests, one of which only exists because the first version left a space in the
+allowed character set and every two word name would have produced a nil link.
+
+**The link carries no name, and that is not laziness.** The privacy page says
+Birthed never asks your name, and it does not. A link about yourself is a date.
+Whoever adds you writes what they call you, which is what they were going to do
+anyway, because nobody files a friend under their legal name. A name only
+travels when somebody typed it about themselves on the web page, which is them
+volunteering it rather than this app collecting it. Do not add a name field to
+the app to "improve" this.
+
+**The web page at /add** does both halves: it shows an arriving birthday and
+hands off to `birthed://`, or, with nothing after the hash, it is a form that
+builds a link to send back. It carries noindex, because it is a handover
+between two people and not something anybody should find in a search.
+
+**The privacy page lost a sentence it could no longer support.** It said the
+site runs no scripts. One page now does, so it says which page, what the script
+reads, and why that specific design is the reason no birthday reaches the
+server. A privacy page that is wrong about something checkable is worse than
+one that explains itself.
+
+**Jason has one manual step.** The `birthed://` scheme has to be registered in
+Xcode by hand, because this project generates its Info.plist and a URL type is
+an array of dictionaries that `INFOPLIST_KEY_` settings cannot express. It is
+in the test list at the top. Without it the link items do nothing and it looks
+like broken code.
+
 ## Things Jason still has to do or test
 
 - **`docs/test-pass-september-6.md` is the list**, written for him, in order,
