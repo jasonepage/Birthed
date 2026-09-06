@@ -198,27 +198,15 @@ struct DayFeed {
 
     /// Words that keep a row out of the first position.
     ///
-    /// The same list the share cards use on the web. 41 percent of the 19,734
-    /// imported events match it, which is why it is used here to move one row
-    /// rather than to remove eight thousand.
+    /// The list itself now lives in `Screening`, next to the two stricter
+    /// lists the cards and the reveal lines use, because the same refusal was
+    /// written here and again on the website and the two copies had already
+    /// drifted apart. This is the loosest of the three and it is unchanged:
+    /// 41 percent of the 19,734 imported events match it, which is why it is
+    /// used here to move one row rather than to remove eight thousand.
     static func isHeavy(_ text: String) -> Bool {
-        let lowered = text.lowercased()
-        for word in heavyWords where lowered.range(of: "\\b\(word)\\b", options: .regularExpression) != nil {
-            return true
-        }
-        return false
+        Screening.heavy(text)
     }
-
-    private static let heavyWords = [
-        "kill", "killed", "kills", "killing", "massacre", "shooting", "shot",
-        "murder", "murdered", "bomb", "bombing", "bombed", "attack", "attacked",
-        "dies", "died", "death", "deaths", "dead", "crash", "crashed", "crashes",
-        "earthquake", "hurricane", "tsunami", "famine", "executed", "execution",
-        "assassinated", "assassination", "rape", "raped", "slaughter", "genocide",
-        "terrorist", "terrorism", "hostage", "riot", "riots", "invasion",
-        "disaster", "sank", "sinking", "sunk", "explosion", "exploded",
-        "epidemic", "pandemic", "plague", "suicide", "abducted", "torture",
-    ]
 
     /// Moves a heavy row out of the first position, and changes nothing else.
     ///
