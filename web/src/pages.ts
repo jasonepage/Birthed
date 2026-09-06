@@ -194,7 +194,7 @@ export function renderAdd(api: { url: string; key: string }): string {
 <div id="incoming" hidden>
   <h1 id="incoming-date">A birthday</h1>
   <p class="lede" id="incoming-name"></p>
-  <p><a class="btn" id="open-app" href="#">Add it in Birthed</a></p>
+  <p><a class="btn primary" id="open-app" href="#">Add it in Birthed</a></p>
   <p class="lede" style="font-size:14px">If nothing happens, you do not have Birthed yet.</p>
   ${storeButton()}
 </div>
@@ -202,12 +202,36 @@ export function renderAdd(api: { url: string; key: string }): string {
 <div id="compose" hidden>
   <h1 id="compose-title">Send them your birthday</h1>
   <p class="lede" id="compose-lede">Fill this in and you get a link to send back. It never touches our server: everything you type stays in the address bar, and the part it goes in is the part browsers do not send.</p>
-  <p class="lede"><label id="name-label">Your name, if you want<br><input id="name" type="text" maxlength="60" autocomplete="off"></label></p>
-  <p class="lede"><label>Birthday<br><select id="month"></select> <select id="day"></select> <input id="year" type="number" inputmode="numeric" placeholder="Year, optional" min="1900" max="2100"></label></p>
-  <p><a class="btn" id="make" href="#">Make my link</a></p>
-  <p><a class="btn" id="send" href="#" hidden>Send it</a></p>
-  <p class="lede" id="problem" hidden></p>
-  <p class="lede" id="result" hidden><span id="link"></span></p>
+  <div class="form">
+    <div class="field">
+      <!-- The label holds nothing but its own words. The script rewrites it
+           when somebody has been asked for their birthday and the name stops
+           being optional, and it used to do that by reaching for the first
+           child node of a label that also held a line break and the input.
+           One extra element in front of that text and the rewrite would have
+           gone silently nowhere, leaving "if you want" over a field that is
+           now required. -->
+      <label class="label" id="name-label" for="name">Your name, if you want</label>
+      <input class="input" id="name" type="text" maxlength="60" autocomplete="name" placeholder="Sam">
+    </div>
+
+    <div class="field">
+      <!-- A span rather than a label, because three controls cannot share one
+           label. Each of them carries its own name for a screen reader. -->
+      <span class="label">Birthday</span>
+      <div class="dates">
+        <span class="select"><select id="month" aria-label="Month"></select></span>
+        <span class="select"><select id="day" aria-label="Day"></select></span>
+        <input class="input year" id="year" type="number" inputmode="numeric" placeholder="Year" min="1900" max="2100" aria-label="Year, optional">
+      </div>
+      <span class="hint">The year is optional. It is only used to say the age you are turning.</span>
+    </div>
+
+    <a class="btn primary" id="make" href="#">Make my link</a>
+    <a class="btn primary" id="send" href="#" hidden>Send it</a>
+    <p class="problem" id="problem" hidden></p>
+    <p class="result" id="result" hidden><span id="link"></span></p>
+  </div>
 </div>
 
 <div id="sent" hidden>
@@ -323,7 +347,8 @@ export function renderAdd(api: { url: string; key: string }): string {
   document.getElementById("compose-title").textContent = who + " wants your birthday";
   document.getElementById("compose-lede").textContent =
     "Fill this in and press send. It goes to their phone the next time they open Birthed, and it is deleted from our server the moment it arrives. You do not need the app, and nothing else about you is sent.";
-  document.getElementById("name-label").childNodes[0].nodeValue = "Your name";
+  // The label is now a label and nothing else, so this is its whole content.
+  document.getElementById("name-label").textContent = "Your name";
   document.getElementById("make").hidden = true;
   var send = document.getElementById("send");
   send.hidden = false;

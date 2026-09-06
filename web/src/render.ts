@@ -212,6 +212,103 @@ h2.plain { font-family: Georgia, "Times New Roman", serif; font-weight: 800; fon
 .prose h3 { margin: 26px 0 4px; font-size: 17px; }
 .prose .updated { color: #7C7570; font-size: 13px; }
 @media (max-width: 520px) { .hero { flex-direction: column; gap: 14px; } }
+
+/* ---- The form on /add ----------------------------------------------------
+
+   The one page on this site that asks for something rather than telling you
+   something, and it asked with the browser's own controls: a grey text box,
+   two grey dropdowns and a link. On a page this dark that reads as a form
+   somebody forgot to finish, and it is the first thing a person ever sees of
+   Birthed, because a friend sent them the link before they had the app.
+
+   The chevron on a dropdown is drawn with two borders rather than with a
+   background image, and that is not a preference. The security header for
+   this path says img-src 'self', so a data: URI is an image and it is
+   refused. A refused background image leaves no chevron and no error that
+   anybody would think to look for, which is the exact shape of the two bugs
+   this page has already had. Nothing in this block loads anything.
+
+   Every control is 16px or larger. iOS Safari zooms the whole page in when a
+   field smaller than that takes focus, and a page that jumps when you tap it
+   feels broken however good it looks.
+*/
+.form { margin: 30px 0 0; }
+.field { margin: 0 0 24px; }
+.label {
+  display: block; margin: 0 0 9px;
+  font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: #B9B2AD;
+}
+.hint { display: block; margin: 9px 0 0; font-size: 13px; color: #7C7570; }
+.input, .select > select {
+  appearance: none; -webkit-appearance: none; -moz-appearance: none;
+  display: block; width: 100%; margin: 0;
+  font-family: inherit; font-size: 16px; line-height: 1.4; color: #FFF7EE;
+  background: rgba(255, 247, 238, 0.055);
+  border: 1px solid #3A3342; border-radius: 14px; padding: 15px 16px;
+  transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
+}
+.input::placeholder { color: #6E6862; }
+.input:hover, .select > select:hover { border-color: #4C4458; }
+.input:focus, .select > select:focus {
+  outline: none; border-color: ${ACCENT};
+  background: rgba(255, 247, 238, 0.085);
+  /* ACCENT at 22 percent. Written out, because a hex colour cannot be given
+     an alpha by another rule. */
+  box-shadow: 0 0 0 3px rgba(239, 86, 128, 0.22);
+}
+.dates { display: grid; grid-template-columns: 1.7fr 1fr 1.2fr; gap: 10px; }
+/* Measured rather than guessed. At 375 points, which is the narrowest phone
+   Apple still sells, three columns hold the word September with room to
+   spare and the date reads as one thing. Below 360 the month would start to
+   crowd its own chevron, so the year drops to its own row instead of the
+   month being clipped. */
+@media (max-width: 360px) {
+  .dates { grid-template-columns: 1fr 1fr; }
+  .dates .year { grid-column: 1 / -1; }
+}
+/* A select is a replaced element and cannot carry ::after, so the chevron
+   hangs off the wrapper around it. */
+.select { position: relative; display: block; }
+.select > select { padding-right: 40px; cursor: pointer; }
+.select::after {
+  content: ""; position: absolute; right: 17px; top: 50%;
+  width: 8px; height: 8px;
+  border-right: 2px solid #9C9490; border-bottom: 2px solid #9C9490;
+  transform: translateY(-72%) rotate(45deg);
+  pointer-events: none;
+}
+.select:hover::after { border-color: #FFF7EE; }
+/* The open menu is drawn by the operating system and inherits almost nothing
+   from here, so its rows are told their colours. Without this, some browsers
+   open a white list out of a dark control. */
+.select option { background: #17141F; color: #FFF7EE; }
+/* The spinner arrows are for a quantity, and a year is not one. */
+.input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+.input[type="number"]::-webkit-outer-spin-button,
+.input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+/* The one thing to press. The .btn class stays the quiet cream pill the day
+   pages and the store button use; this is the same pill with the brand on it,
+   and it is only ever the single action a screen is asking for. A second class
+   rather than a change to .btn, because the pages that are not asking for
+   anything must not start shouting. */
+.btn.primary {
+  display: block; width: 100%; text-align: center;
+  margin: 30px 0 0; padding: 17px 24px; font-size: 17px;
+  background: linear-gradient(135deg, #FF88A8, ${ACCENT} 55%, #C9315F);
+  color: #FFF7EE;
+  box-shadow: 0 12px 30px rgba(239, 86, 128, 0.26);
+}
+.btn.primary:hover { filter: brightness(1.06); }
+.btn.primary:active { transform: translateY(1px); box-shadow: 0 6px 16px rgba(239, 86, 128, 0.24); }
+/* Only the buttons. A field already answers focus with an accent border and a
+   glow, and adding an outline on top of that drew two rings around one box. */
+.btn:focus-visible { outline: 2px solid ${ACCENT}; outline-offset: 3px; }
+/* What went wrong, and what came out. The muted .lede grey is for prose a
+   reader may skip, and neither of these is skippable. */
+.problem { margin: 16px 0 0; font-size: 15px; color: #FFB3C6; }
+.result { margin: 18px 0 0; font-size: 15px; overflow-wrap: anywhere; }
+.result a { color: ${ACCENT}; }
 `;
 
 export function head(

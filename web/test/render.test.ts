@@ -307,8 +307,15 @@ test("nothing on a date page is written to somebody born that day", () => {
   // A stranger who typed the date into a search box was not born on it, so a
   // fact that says "your birthday" is simply false here. The voice is set in
   // the Edge Function; this is the assertion that notices if it changes back.
+  //
+  // Sliced from the facts list rather than from the first "What happened on",
+  // which is in the meta description up in the head. Starting there put the
+  // whole inlined stylesheet inside the section being read, so this test was
+  // also asserting that no CSS comment anywhere on the site contains the word
+  // "you". It caught one, and the comment was about dropdown chevrons.
   const html = renderDayPage(page, [], facts);
-  const section = html.slice(html.indexOf("What happened on"), html.indexOf("<nav class=\"pager\">"));
+  const section = html.slice(html.indexOf("<ul class=\"facts\">"), html.indexOf("<nav class=\"pager\">"));
+  assert.ok(section.length > 0, "the facts list is on the page to be read");
   assert.ok(!/\byour?\b/i.test(section), "the facts section must not address a reader");
 });
 
@@ -436,6 +443,52 @@ test("the hidden attribute beats the stylesheet", () => {
   // where only one of them does the right thing.
   const html = renderDayPage(page);
   assert.match(html, /\[hidden\]\s*{\s*display:\s*none\s*!important;\s*}/);
+});
+
+test("the form on the add page loads nothing", () => {
+  // The security header for /add says img-src 'self'. The usual way to put a
+  // chevron on a dropdown is a data: URI as a background image, and a data:
+  // URI is an image, so the browser would refuse it, draw no chevron, and say
+  // nothing on the page. That is the same silent shape as the two bugs this
+  // page has already had, so the rule is tested here rather than looked for
+  // in a browser: the whole stylesheet fetches nothing at all.
+  const html = renderAdd(API);
+  const style = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
+  assert.ok(style.length > 0, "the stylesheet is inlined into the page");
+  assert.ok(!style.includes("url("), "nothing in the stylesheet fetches anything");
+  assert.match(style, /\.select::after\s*{[^}]*border-right/, "the chevron is drawn with borders");
+});
+
+test("the add form does not make iOS zoom when a field is tapped", () => {
+  // Safari on iOS zooms the page in when a control smaller than 16px takes
+  // focus, and it does not zoom back out. The form would work and would feel
+  // broken, which is the failure this page can least afford: it is the first
+  // thing somebody sees of Birthed.
+  const html = renderAdd(API);
+  assert.match(html, /\.input,\s*\.select\s*>\s*select\s*{[^}]*font-size:\s*16px/);
+});
+
+test("the label the script rewrites holds nothing but its own words", () => {
+  // When somebody has been asked for their birthday, the name stops being
+  // optional and the script rewrites the label to say so. It used to do that
+  // by reaching into the first child node of a label that also held a line
+  // break and the input, so one extra element in front of that text would
+  // have sent the rewrite nowhere and left "if you want" over a field that is
+  // now required. Nothing on screen would have said so.
+  const html = renderAdd(API);
+  assert.match(
+    html,
+    /<label class="label" id="name-label" for="name">[^<]*<\/label>/,
+    "the label contains text and no elements",
+  );
+  assert.ok(
+    html.includes('document.getElementById("name-label").textContent = "Your name";'),
+    "the rewrite replaces the whole content rather than one node inside it",
+  );
+  assert.ok(
+    !html.includes("childNodes[0].nodeValue"),
+    "nothing reaches into a particular child node of the label",
+  );
 });
 
 test("every song year is its own address on the date page", () => {
