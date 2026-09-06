@@ -124,7 +124,17 @@ ol.covers {
 }
 /* Landing on /september-5/#1990 must not put the tile flush against the top
    edge of the window with the heading scrolled away above it. */
-ol.covers li { scroll-margin-top: 22px; min-width: 0; }
+/* Everything here has to be said, and none of it is decoration. The bare "li"
+   rule near the top of this stylesheet sets display:flex, a background, a
+   radius and padding, for the people and the facts. A tile is none of those
+   things: left as a flex row it lays the cover, the year, the title and the
+   artist side by side inside a 132 pixel column, every word wraps one letter
+   at a time, and the cover collapses to nothing because a flex item with no
+   width gives aspect-ratio nothing to work with. That shipped. */
+ol.covers li {
+  display: block; background: none; border-radius: 0; padding: 0;
+  scroll-margin-top: 22px; min-width: 0;
+}
 ol.covers .art {
   display: block; position: relative; aspect-ratio: 1; border-radius: 12px;
   overflow: hidden; background: #17141F;
