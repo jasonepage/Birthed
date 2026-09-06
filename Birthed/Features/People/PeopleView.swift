@@ -454,20 +454,46 @@ struct PeopleView: View {
             get: { notifications.isEnabled },
             set: { notifications.isEnabled = $0 }
         )) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Remind me the morning of and three days before")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text("For everybody on this list. Nothing else.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            // The same two columns a person row has, so the list keeps one
+            // left rail. Without this the text started where a person's
+            // countdown starts and every name on the screen looked indented
+            // from it by accident.
+            HStack(alignment: .center, spacing: 14) {
+                Image(systemName: "bell.badge")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(Theme.accent)
+                    // The width a countdown badge takes, so the bell sits in
+                    // the column the numbers are in.
+                    .frame(width: 52)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Remind me the morning of and three days before")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("For everybody on this list. Nothing else.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .tint(Theme.accent)
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .background(Theme.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        // Not `Theme.card`. On the same white card as the people around it,
+        // with nothing in the countdown column, this read as a fourth person
+        // wedged into the list rather than as a question about the list. A
+        // wash of the accent and a hairline of it say "this is a control" in
+        // a way that does not need a heading, and it stays under the first
+        // person, which is the part that was decided and is not the problem.
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Theme.accent.opacity(0.10))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(Theme.accent.opacity(0.28), lineWidth: 1)
+                )
+        )
     }
 
     /// The system prompt, on the way out.

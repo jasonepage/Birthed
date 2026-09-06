@@ -235,11 +235,34 @@ struct MyDayView: View {
         .clipped()
     }
 
+    private var candleHeight: CGFloat { isBirthday ? 300 : 230 }
+
+    /// How far the candle hangs below the stage, and so how much of it the
+    /// stage clips off.
+    ///
+    /// Zero, and that is a change. `CandleMark` is drawn with no base, to run
+    /// off the bottom of whatever it is placed in, which is right on the app
+    /// icon and on a share card because both of those have an edge. The stage
+    /// has no edge. It is a region in the middle of a scrolling page with the
+    /// same background above and below it, so a candle bleeding out of it was
+    /// not running off anything: it was a striped cylinder cut through the
+    /// middle with the next section starting underneath the cut.
+    ///
+    /// It cost more than it looks. The flame is 48 percent of the candle's
+    /// height, so dropping 52 of 230 points left about 67 points of body
+    /// under 111 points of flame, which reads as a stub rather than a candle.
+    /// At zero the body is 119 and the whole thing looks like the icon it
+    /// came from.
+    ///
+    /// The birthday candle keeps a small drop, because at 300 points tall it
+    /// has body to spare and sitting it flat on the edge wastes the height.
+    private var candleDrop: CGFloat { isBirthday ? 18 : 0 }
+
     /// The light the candle throws, centred on its flame. In a background it
     /// takes no layout space, so it can be any size without moving the text.
     private var glow: some View {
-        let candleHeight: CGFloat = isBirthday ? 300 : 230
-        let drop: CGFloat = isBirthday ? 34 : 52
+        let candleHeight = self.candleHeight
+        let drop = candleDrop
         let flameHeight = candleHeight * 0.484
         let flameWidth = flameHeight * (100.0 / 95.0)
         // Where the flame's centre sits, measured from the stage's bottom
@@ -260,9 +283,9 @@ struct MyDayView: View {
     }
 
     private var candle: some View {
-        CandleMark(height: isBirthday ? 300 : 230, lit: lit)
+        CandleMark(height: candleHeight, lit: lit)
             .padding(.trailing, 28)
-            .offset(y: isBirthday ? 34 : 52)
+            .offset(y: candleDrop)
             .onLongPressGesture(minimumDuration: 0.5, perform: { blowOut() })
             .accessibilityLabel(lit ? "A lit candle. Hold to blow it out." : "A candle, blown out")
             .animation(.spring(duration: 0.6), value: isBirthday)
