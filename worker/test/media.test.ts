@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bigArtwork, normalise, pickMatch, primaryArtist, sameArtist, type StoreResult } from "../src/media.js";
+import { bigArtwork, normalise, pickMatch, primaryArtist, sameArtist, type StoreResult, realNames } from "../src/media.js";
 
 // The two rows a real search returned on September 6. Both are the same
 // recording on two different albums: Nellyville is Nelly's, Simply Deep is
@@ -173,4 +173,74 @@ test("the cover is asked for at a size worth looking at", () => {
     "https://is1-ssl.mzstatic.com/image/thumb/x/600x600bb.jpg",
   );
   assert.equal(bigArtwork(undefined), null);
+});
+
+// ---------------------------------------------------------------------------
+// The first live album run refused about one in five, and reading the
+// refusals showed the rule was wrong rather than the catalogue thin. These are
+// the real rows from that run.
+
+test("a title that merely contains the word live is not a live recording", () => {
+  // The one that mattered most. Every record with live, cover, demo or
+  // reprise anywhere in its name was refused, because the filter read the
+  // whole name instead of what was inside the brackets.
+  for (const name of ["Dying to Live", "Live in No Shoes Nation", "Live Your Life", "Cover Me"]) {
+    const match = pickMatch(
+      [{ collectionName: name, artistName: "Somebody", releaseDate: "2018-01-01" }],
+      name, "Somebody", 2018, false,
+    );
+    assert.ok(match !== null, `${name} was refused for having a word in its title`);
+  }
+});
+
+test("a performance announced in brackets is still refused", () => {
+  // The guard the change above must not have opened. If any of these ever
+  // start matching, somebody's birthday plays a karaoke backing track.
+  for (const name of ["Dilemma (Live)", "Dilemma (Karaoke Version)", "Dilemma (Instrumental)", "Dilemma [Live at Wembley]"]) {
+    const match = pickMatch(
+      [{ trackName: name, artistName: "Nelly", releaseDate: "2002-01-01" }],
+      "Dilemma", "Nelly", 2002,
+    );
+    assert.equal(match, null, `${name} was accepted as the record that charted`);
+  }
+});
+
+test("an imitation album is still refused however the title reads", () => {
+  const match = pickMatch(
+    [{ trackName: "Fear Inoculum", collectionName: "Lullaby Versions of Tool",
+       artistName: "Twinkle Twinkle Little Rock Star", releaseDate: "2019-08-30" }],
+    "Fear Inoculum", "Tool", 2019,
+  );
+  assert.equal(match, null);
+});
+
+test("a name written with symbols for letters is the same name", () => {
+  assert.equal(sameArtist("Pink", "P!nk"), true);
+  assert.equal(sameArtist("Kesha", "Ke$ha"), true);
+  assert.equal(sameArtist("Pink", "Blackpink"), false, "sharing letters is not sharing a name");
+});
+
+test("a credit that names nobody is not a test a correct row can fail", () => {
+  // Wikipedia files a film record under Soundtrack, sometimes hung off the
+  // real names with a slash. Apple credits the composers. Comparing the word
+  // soundtrack against a list of people can only refuse a correct row.
+  assert.equal(realNames("Soundtrack"), "");
+  assert.equal(realNames("Lady Gaga and Bradley Cooper / Soundtrack"), "Lady Gaga and Bradley Cooper");
+  assert.equal(realNames("Dreamville / Various Artists"), "Dreamville");
+  assert.equal(sameArtist("Soundtrack", "Benj Pasek & Justin Paul"), true);
+  // And it does not become a way in for anybody: the title still has to match.
+  const wrong = pickMatch(
+    [{ collectionName: "Something Else Entirely", artistName: "Anyone", releaseDate: "2018-01-01" }],
+    "The Greatest Showman", "Soundtrack", 2018, false,
+  );
+  assert.equal(wrong, null);
+});
+
+test("packaging on the store's title is not part of the name", () => {
+  assert.equal(normalise("A Star Is Born Soundtrack"), normalise("A Star Is Born"));
+  assert.equal(
+    normalise("The Greatest Showman (Original Motion Picture Soundtrack)"),
+    normalise("The Greatest Showman"),
+  );
+  assert.equal(normalise("Love Yourself 結 'Answer'"), normalise("Love Yourself: Answer"));
 });

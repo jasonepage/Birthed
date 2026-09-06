@@ -36,6 +36,15 @@ const PACKAGING = /\s*-\s*(ep|single)\s*$/i;
 /** Every bracketed group, of either kind. */
 const BRACKETS = /[([][^)\]]*[)\]]/g;
 
+/** Only what a name says inside its brackets. Empty when it has none. */
+function bracketedPartsOf(name: string): string {
+  return (name.match(BRACKETS) ?? []).join(" ");
+}
+
+/** A record whose title ends by saying it is a soundtrack. Apple writes it,
+ *  Wikipedia usually does not, and it is packaging rather than a name. */
+const SOUNDTRACK_SUFFIX = /\s+(original\s+)?(motion\s+picture\s+)?soundtrack\s*$/i;
+
 export function normalise(text: string): string {
   return text
     .normalize("NFD")
@@ -47,10 +56,24 @@ export function normalise(text: string): string {
     // the same recording this chart row is about.
     .replace(BRACKETS, " ")
     .replace(PACKAGING, "")
+    .replace(SOUNDTRACK_SUFFIX, "")
     .toLowerCase()
     .replace(/[\u2018\u2019]/g, "'")
+    // A name written with symbols standing in for letters. P!nk, Ke$ha and
+    // A$AP all reach us one way from Billboard and the other from Apple, and
+    // without this the two spellings share no word at all.
+    .replace(/!/g, "i")
+    .replace(/\$/g, "s")
     .replace(/&/g, " and ")
     .replace(/[^a-z0-9' ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    // Quote marks around a word, which is how Apple writes the English half
+    // of a Korean title: Love Yourself 結 'Answer'. The apostrophe inside
+    // don't is left alone, because only the edges are taken.
+    .split(" ")
+    .map((word) => word.replace(/^'+|'+$/g, ""))
+    .join(" ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -64,6 +87,24 @@ export function normalise(text: string): string {
  */
 export function primaryArtist(credit: string): string {
   return credit.split(/\s+(?:feat\.?|ft\.?|featuring|with)\s+/i)[0] ?? credit;
+}
+
+/**
+ * A credit that names nobody.
+ *
+ * Wikipedia files a film record under "Soundtrack" and a label compilation
+ * under "Various Artists", sometimes on its own and sometimes hung off the
+ * real names with a slash: "Lady Gaga and Bradley Cooper / Soundtrack". Apple
+ * credits the people. Neither is wrong, and comparing the word soundtrack
+ * against a list of composers can only ever refuse a correct row.
+ */
+const NAMES_NOBODY = /^(soundtrack|various\s+artists?|original\s+(broadway\s+|motion\s+picture\s+)?(cast|soundtrack)|cast|original\s+cast)$/i;
+
+/** The credit with the placeholder parts taken off, which may be nothing. */
+export function realNames(credit: string): string {
+  const parts = credit.split("/").map((part) => part.trim()).filter((part) => part.length > 0);
+  const named = parts.filter((part) => !NAMES_NOBODY.test(part));
+  return named.join(" ");
 }
 
 /** Words that carry no identity, so sharing one proves nothing. */
@@ -88,7 +129,13 @@ function meaningfulWords(text: string): string[] {
  * that matters, and "The Hitmakers" is still refused for Nelly's Dilemma.
  */
 export function sameArtist(chartCredit: string, storeCredit: string): boolean {
-  const wanted = meaningfulWords(primaryArtist(chartCredit));
+  // A record credited only to "Soundtrack" has no name to check, so checking
+  // is not a test that can be passed. Everything else about the row still has
+  // to hold: the title must match exactly and the imitation filters still run.
+  const named = realNames(chartCredit);
+  if (named === "") return true;
+
+  const wanted = meaningfulWords(primaryArtist(named));
   const found = meaningfulWords(storeCredit);
   if (wanted.length === 0) return true;
   if (found.length === 0) return false;
@@ -143,9 +190,13 @@ export function pickMatch(
   const survivors = results.filter((row) => {
     const name = wantTrack ? row.trackName : row.collectionName;
     if (!name) return false;
-    // Judged on the raw name, before the brackets are thrown away, because
-    // the thing being refused is written inside them.
-    if (DIFFERENT_PERFORMANCE.test(name)) return false;
+    // Judged on what is inside the brackets and nowhere else, because that is
+    // where a different performance is announced: "Dilemma (Live)". Reading
+    // the whole name instead refused every record whose title happens to
+    // contain one of these words, and it was not a rare accident. It threw
+    // out Dying to Live, Live in No Shoes Nation and Live Your Life, all of
+    // which are the record that charted with the word live in their name.
+    if (DIFFERENT_PERFORMANCE.test(bracketedPartsOf(name))) return false;
     if (row.collectionName && NOT_THE_RECORD.test(row.collectionName)) return false;
     if (normalise(name) !== wantedTitle) return false;
     return sameArtist(credit, row.artistName ?? "");
