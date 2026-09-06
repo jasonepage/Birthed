@@ -546,9 +546,12 @@ test("every song year is its own address on the date page", () => {
   // The long tail query is "number one song on September 5 1990", and the
   // answer is already on this page. The anchor is what makes that row
   // linkable without generating a page for every day and year.
-  assert.match(html, /<li id="1990">/);
+  // The tile carries an animation delay now, so the opening tag no longer
+  // ends at the id. Matched without the closing bracket: what this guards is
+  // that the year is an address, not what else the tag carries.
+  assert.match(html, /<li id="1990"/);
   assert.match(html, /<a href="#1990">1990<\/a>/);
-  assert.match(html, /<li id="1989">/);
+  assert.match(html, /<li id="1989"/);
   assert.match(html, /scroll-margin-top/);
 });
 

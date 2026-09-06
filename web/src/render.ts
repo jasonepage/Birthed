@@ -2,7 +2,7 @@
 // without a network and without a browser.
 
 import { DayPage, Person, monthName, neighbours, slug, everyDate } from "./model.js";
-import { CHART_NAME, SongOfTheYear } from "./songs.js";
+import { CHART_NAME, coverName, SongOfTheYear } from "./songs.js";
 import { Fact, hostOf } from "./facts.js";
 import { buildTimeline, type DayEvent, type TimelineRow } from "./timeline.js";
 
@@ -114,15 +114,55 @@ h2.section {
   font-family: Georgia, "Times New Roman", serif; font-weight: 800;
   font-size: clamp(24px, 5vw, 32px); line-height: 1.15; margin: 46px 0 6px;
 }
-ol.songs li { display: flex; gap: 13px; align-items: baseline; padding: 11px 15px; }
-/* Landing on /september-5/#1990 must not put the row flush against the top
+/* The songs are a wall of covers. Sixty-odd of them on a page, so they are
+   lazily loaded and sized to the grid: 300 pixels covers a retina screen at
+   the width they draw and nothing bigger is worth the weight. */
+ol.covers {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 22px 14px;
+}
+/* Landing on /september-5/#1990 must not put the tile flush against the top
    edge of the window with the heading scrolled away above it. */
-ol.songs li { scroll-margin-top: 22px; }
-ol.songs .year a { color: inherit; text-decoration: none; }
-ol.songs .year a:hover { text-decoration: underline; }
-ol.songs li:target { background: #211A2E; box-shadow: inset 0 0 0 1px ${ACCENT}; }
-ol.songs .title { font-weight: 600; margin: 0; }
-ol.songs .by { color: #9C9490; font-size: 15px; margin: 2px 0 0; }
+ol.covers li { scroll-margin-top: 22px; min-width: 0; }
+ol.covers .art {
+  display: block; position: relative; aspect-ratio: 1; border-radius: 12px;
+  overflow: hidden; background: #17141F;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+a.art:hover { transform: translateY(-3px); box-shadow: 0 12px 26px rgba(0,0,0,0.55); }
+ol.covers .art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* A recording with no cover. Made rather than missing. */
+ol.covers .none {
+  display: flex; align-items: center; justify-content: center; height: 100%;
+  padding: 10px; text-align: center; text-wrap: balance;
+  font-family: Georgia, "Times New Roman", serif; font-weight: 800;
+  font-size: 15px; line-height: 1.2; color: #FFF7EE;
+  background: linear-gradient(140deg, #3A1B45, #1B0B24);
+}
+ol.covers .y { margin: 9px 0 0; font-size: 13px; color: #9C9490; }
+ol.covers .y a { color: inherit; text-decoration: none; }
+ol.covers .y a:hover { color: ${ACCENT}; }
+ol.covers .t {
+  margin: 2px 0 0; font-weight: 600; font-size: 15px; line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+ol.covers .a { margin: 1px 0 0; color: #9C9490; font-size: 13px; overflow-wrap: anywhere; }
+ol.covers li:target .art { box-shadow: 0 0 0 2px ${ACCENT}, 0 6px 18px rgba(0,0,0,0.45); }
+ol.covers li:target .y a { color: ${ACCENT}; }
+/* Motion, in CSS and nowhere else. The site sends default-src 'none', so no
+   page here may run a script at all, and a page that tried would be silently
+   dropped by the browser exactly as /add was for weeks. Style is allowed, so
+   the motion lives in style. */
+@media (prefers-reduced-motion: no-preference) {
+  ol.covers li { animation: rise 460ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards; }
+  ol.covers li[style] { animation-delay: calc(var(--i) * 45ms); }
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: none; }
+}
 p.credit { color: #6E6862; font-size: 13px; margin: 14px 0 0; }
 /* What happened. Not the rounded rectangles the people and the songs use: a
    sentence is the content here, so it is set to be read rather than scanned,
@@ -691,28 +731,60 @@ function jsonLd(page: DayPage, canonical: string): string {
 function songSection(songs: SongOfTheYear[], name: string): string {
   if (songs.length === 0) return "";
 
-  // Every year is its own address. "number one song on September 5 1990" is a
-  // real thing people type, the answer is already in this list, and an anchor
-  // makes that row linkable and quotable without generating a page for every
-  // day and year, which would be about 24,500 pages holding four lines each.
-  // The year itself is the link, so it can be copied out of the address bar.
-  const rows = songs.map((song) => `<li id="${song.year}">
-<span class="year"><a href="#${song.year}">${song.year}</a></span>
-<span class="who">
-<p class="title">${escapeHtml(song.song)}</p>
-<p class="by">${escapeHtml(song.artist)}</p>
-</span>
-</li>`).join("\n");
+  // A wall of covers rather than a list of rows.
+  //
+  // This is the change that stops the page reading as a scaffold, and it is
+  // not a styling change. Until now every section on it was the same stack of
+  // rounded rectangles holding a bold line and a grey line, which is what
+  // every generated page looks like, and a stranger recognised it in four
+  // seconds. Sixty-odd album covers are the one thing on this page that
+  // nobody could have produced without the work behind them.
+  //
+  // Every year is still its own address. "number one song on September 5
+  // 1990" is a real thing people type, the answer is already here, and an
+  // anchor makes that row linkable without generating a page for every day
+  // and year, which would be about 24,500 pages holding four lines each. The
+  // year is the link, so it can be copied out of the address bar.
+  const rows = songs.map((song, index) => {
+    const art = song.hasArtwork
+      ? `<img src="/covers/${coverName(song.song, song.artist)}.jpg" alt=""
+   width="300" height="300" loading="lazy" decoding="async">`
+      // A recording with no cover gets a made one rather than a grey box or a
+      // broken image. Apple's catalogue thins out in the early years and some
+      // recordings are restricted by country, so this is a normal state and it
+      // should look deliberate.
+      : `<span class="none">${escapeHtml(song.song)}</span>`;
+
+    // Linked to Apple Music where there is a link. That is not decoration and
+    // not an affiliate move: the preview and the cover are published to
+    // promote the store, so the link out is the other half of the arrangement.
+    const tile = song.storeUrl
+      ? `<a class="art" href="${escapeHtml(song.storeUrl)}" rel="nofollow noopener">${art}</a>`
+      : `<span class="art">${art}</span>`;
+
+    // Only the first dozen are given a delay. The rest are below the fold on
+    // every screen, so staggering them would animate things nobody is looking
+    // at and hold up the ones they are.
+    const delay = index < 12 ? ` style="--i:${index}"` : "";
+
+    return `<li id="${song.year}"${delay}>
+${tile}
+<p class="y"><a href="#${song.year}">${song.year}</a></p>
+<p class="t">${escapeHtml(song.song)}</p>
+<p class="a">${escapeHtml(song.artist)}</p>
+</li>`;
+  }).join("\n");
 
   const oldest = songs[songs.length - 1]?.year ?? "";
   const newest = songs[0]?.year ?? "";
+  const covered = songs.filter((song) => song.hasArtwork).length;
 
   return `<h2 class="section">The number one song on ${escapeHtml(name)}</h2>
 <p class="lede">Every year from ${oldest} to ${newest}, from the chart week that ${escapeHtml(name)} fell in.</p>
-<ol class="songs">
+<ol class="covers">
 ${rows}
 </ol>
-<p class="credit">Chart positions are from the ${escapeHtml(CHART_NAME)}, compiled by Wikipedia and released under Creative Commons Attribution ShareAlike. Birthed is not affiliated with Billboard or Wikipedia.</p>`;
+<p class="credit">Chart positions are from the ${escapeHtml(CHART_NAME)}, compiled by Wikipedia and released under Creative Commons Attribution ShareAlike. ${covered > 0 ? "Cover art and the links to Apple Music come from the iTunes Search API. " : ""}Birthed is not affiliated with Billboard, Wikipedia or Apple.</p>`;
 }
 
 /**
