@@ -65,7 +65,8 @@ function monthCalendar(year: number, month: number): string {
   // quietly dropped and leaving one of the 366 unreachable from here.
   const leapDay = month === 2 && !leap ? dayCell(2, 29, "leap") : "";
   const header = WEEKDAY_INITIALS.map((initials) => `<span>${initials}</span>`).join("");
-  return `<section class="cal">
+  // The id is what the "born in" strip at the top of the page jumps to.
+  return `<section class="cal" id="${monthAnchor(month)}">
 <h3>${monthName(month)}</h3>
 <div class="dow" aria-hidden="true">${header}</div>
 <div class="days">${blanks}${days}${leapDay}</div>
@@ -81,6 +82,28 @@ export function calendar(year: number): string {
   return `<div class="months">
 ${months.join("\n")}
 </div>${note}`;
+}
+
+/** "september", the fragment a month's calendar sits under. */
+export function monthAnchor(month: number): string {
+  return monthName(month).toLowerCase();
+}
+
+/**
+ * Twelve links beside the store button, one per month, each jumping to that
+ * month's calendar further down the page.
+ *
+ * The page cannot know when a visitor was born, and a picker that asked
+ * would need a script, which the privacy page says only one page runs. So the
+ * visitor tells it with one tap, and the answer is a fragment, which the
+ * browser resolves without a request and without the month ever leaving it.
+ */
+function bornInStrip(): string {
+  const links = Array.from({ length: 12 }, (_, index) => {
+    const month = index + 1;
+    return `<a href="#${monthAnchor(month)}">${monthName(month).slice(0, 3)}</a>`;
+  }).join("");
+  return `<p class="bornin"><span>Born in</span>${links}</p>`;
 }
 
 function storeButton(): string {
@@ -103,6 +126,7 @@ export function renderHome(year: number = new Date().getUTCFullYear()): string {
     <h1>The day you were born, and everything that was true about it.</h1>
     <p class="lede">Who shares it. What happened on it. What was number one that week. How many days you have been here. And whose birthdays you keep forgetting.</p>
     ${storeButton()}
+    ${bornInStrip()}
   </div>
 </div>
 

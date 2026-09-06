@@ -171,6 +171,15 @@ footer .sitelinks a { color: ${ACCENT}; text-decoration: none; }
   display: inline-block; margin: 6px 0 0; padding: 12px 20px; border-radius: 999px;
   background: #FFF7EE; color: #A8265A; font-weight: 700; text-decoration: none; font-size: 15px;
 }
+.bornin { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 18px 0 0; }
+.bornin span { color: #7C7570; font-size: 13px; margin-right: 4px; }
+.bornin a {
+  display: inline-block; padding: 6px 11px; border-radius: 999px; font-size: 13px; font-weight: 600;
+  color: #D9D2CC; text-decoration: none; box-shadow: inset 0 0 0 1px #3A3342;
+}
+.bornin a:hover, .bornin a:focus { background: ${ACCENT}; color: #FFF7EE; box-shadow: none; }
+.cal { scroll-margin-top: 24px; }
+html { scroll-behavior: smooth; }
 .soon { display: inline-block; margin: 6px 0 0; padding: 12px 20px; border-radius: 999px; border: 1px solid #3A3342; color: #B9B2AD; font-size: 15px; }
 .features { display: grid; gap: 10px; margin: 34px 0 0; padding: 0; list-style: none; }
 .features li { display: block; }

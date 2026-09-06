@@ -111,6 +111,18 @@ test("the front door still links every date, and the two pages people need", () 
   assert.ok(html.includes('href="/privacy/"'));
 });
 
+test("the born in strip jumps to a month that exists on the page", () => {
+  const html = renderHome(2026);
+  const jumps = html.match(/href="#([a-z]+)"/g) ?? [];
+  assert.equal(jumps.length, 12);
+  for (const jump of jumps) {
+    const anchor = jump.slice('href="#'.length, -1);
+    assert.ok(html.includes(`id="${anchor}"`), `no calendar for #${anchor}`);
+  }
+  // The strip must not have added a script to a page that promises none.
+  assert.ok(!html.includes("<script"));
+});
+
 test("the privacy page does not claim anything stays on the phone that does not", () => {
   const html = renderPrivacy();
   // The birthday, year and region go to the account. The people list does not.
