@@ -92,7 +92,7 @@ export function renderHome(year: number = new Date().getUTCFullYear()): string {
   const canonical = `${SITE}/`;
   return `${head(
     "Birthed: the day you were born",
-    "Who shares your birthday, what was number one the week you were born, how many days you have been here, and whose birthdays you keep forgetting.",
+    "Who shares your birthday, what happened on it, what was number one the week you were born, how many days you have been here, and whose birthdays you keep forgetting.",
     canonical,
   )}
 <p class="kicker">Birthed</p>
@@ -100,7 +100,7 @@ export function renderHome(year: number = new Date().getUTCFullYear()): string {
   <img src="/icon-192.png" alt="" width="92" height="92">
   <div>
     <h1>The day you were born, and everything that was true about it.</h1>
-    <p class="lede">Who shares it. What was number one that week. How many days you have been here. And whose birthdays you keep forgetting.</p>
+    <p class="lede">Who shares it. What happened on it. What was number one that week. How many days you have been here. And whose birthdays you keep forgetting.</p>
     ${storeButton()}
   </div>
 </div>
@@ -109,13 +109,14 @@ export function renderHome(year: number = new Date().getUTCFullYear()): string {
   <li><h3>The week you were born</h3><p>The number one song, album and film the week you arrived, with the chart date next to each so you can check it.</p></li>
   <li><h3>Your day, counted</h3><p>The day of the week you were born, how many days that has been, and the day you turn ten thousand.</p></li>
   <li><h3>Who shares it</h3><p>The people most looked up who were born on your date, from Wikidata.</p></li>
+  <li><h3>What happened on it</h3><p>Specific things that happened on your date across history, found by a model that searches, each one showing the page it came from so you can check it yourself.</p></li>
   <li><h3>Other people's days</h3><p>Add the people you care about. Birthed tells you three days before and on the day, so you are never the one who forgot.</p></li>
 </ul>
 
 <p class="lede" style="margin-top:34px">No sign up. No name. Nothing Birthed makes carries your name, and nothing shared out of it carries your birth year. <a href="/privacy/">How your data is handled</a>.</p>
 
 <h2 class="plain">Every day of the year</h2>
-<p class="lede" style="margin-bottom:0">Pick a date and see who shares it. The weeks are laid out the way they fall in ${year}.</p>
+<p class="lede" style="margin-bottom:0">Pick a date and see who shares it and what happened on it. The weeks are laid out the way they fall in ${year}.</p>
 ${calendar(year)}
 ${FOOT}`;
 }
@@ -178,6 +179,10 @@ export function renderPrivacy(): string {
 <p>When you first open Birthed it silently creates an anonymous account with our account service, so that your profile can be counted and restored. The birthday, the birth year, the region and the February 29 preference are sent to that account. Nothing else is. The account is identified by a random token stored in your phone's keychain, not by anything about you.</p>
 <p>The account service is <a href="https://supabase.com">Supabase</a>, which hosts the database on servers in the United States. The website you are reading is served by <a href="https://render.com">Render</a>.</p>
 
+<h3>Finding things about your day</h3>
+<p>The Mine tab shows specific things that happened on the day you were born, and those are found by a model that searches the web, Google's Gemini service. To ask it, the Birthed server sends the month, the day, the birth year and the region you typed, and nothing else. Your account and the token that identifies it stay behind, so what Google is asked is a date and a place, not a person.</p>
+<p>The answers are stored under the date rather than under you, so the next person born on the same day is shown what was already found instead of causing a new search. If you tap the thumbs up on one of those facts, that is recorded against your anonymous account, which is how it is counted once and how you can take it back.</p>
+
 <h3>What stays on your phone</h3>
 <ul>
   <li><strong>The people you add</strong> in the People tab, with their birthdays and any note you write. This list is kept on your phone and is not sent to the account service.</li>
@@ -207,6 +212,7 @@ export function renderPrivacy(): string {
 
 <h3>Where the content comes from</h3>
 <p>Names, years and descriptions of notable people come from Wikidata under Creative Commons Zero. Chart weeks come from Wikipedia's year lists under Creative Commons Attribution ShareAlike, and every one carries the page it came from. Birthed is not affiliated with Wikipedia, Wikidata, the Wikimedia Foundation, Billboard, or Penske Media.</p>
+<p>The things found about your day are found by Google's Gemini service searching the web, and each one shows the page it came from so that you can open it and check. Birthed is not affiliated with Google.</p>
 
 <h3>Changes</h3>
 <p>If this page changes, the date at the top changes with it. Since Birthed collects so little, changes should be rare and small.</p>

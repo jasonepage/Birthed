@@ -171,3 +171,65 @@ test("the century rule is not forgotten", () => {
   assert.equal(isLeapYear(2100), false);
   assert.equal(isLeapYear(2000), true);
 });
+
+// The found facts on a date page. These are the section the whole date page
+// argument now rests on, so the tests are about what would actually be wrong
+// on a public page rather than about the markup.
+
+const facts = [
+  {
+    month: 9,
+    day: 4,
+    fact: "On September 4, 1957, Ford unveiled the Edsel.",
+    category: "release",
+    sourceUrl: "https://en.wikipedia.org/wiki/Edsel",
+  },
+  {
+    month: 9,
+    day: 4,
+    fact: "On September 4, 1998, Google was founded <script>alert(1)</script>.",
+    category: "event",
+    sourceUrl: "https://www.example.org/a?b=1&c=2",
+  },
+];
+
+test("a date page carries its found facts and the page each came from", () => {
+  const html = renderDayPage(page, [], facts);
+  assert.ok(html.includes("What happened on September 4"));
+  assert.ok(html.includes("On September 4, 1957, Ford unveiled the Edsel."));
+  assert.ok(html.includes("en.wikipedia.org"));
+  assert.ok(html.includes("2 things, each with the page it came from."));
+});
+
+test("the source host is shown without the www, which nobody reads", () => {
+  const html = renderDayPage(page, [], facts);
+  assert.ok(html.includes(">example.org<"));
+  assert.ok(!html.includes(">www.example.org<"));
+});
+
+test("a fact from the model cannot inject markup", () => {
+  const html = renderDayPage(page, [], facts);
+  assert.ok(!html.includes("<script>alert(1)</script>"));
+  assert.ok(html.includes("&lt;script&gt;alert(1)&lt;/script&gt;"));
+  assert.ok(html.includes("b=1&amp;c=2"), "the ampersand in a source address is escaped too");
+});
+
+test("a date with no facts yet has no heading standing over nothing", () => {
+  const html = renderDayPage(page, [], []);
+  assert.ok(!html.includes("What happened on September 4"));
+  assert.ok(!html.includes('class="facts"'));
+});
+
+test("the description leads with the facts, because the names are what everyone else has", () => {
+  const html = renderDayPage(page, [], facts);
+  assert.ok(html.includes("What happened on September 4, in 2 sourced facts."));
+});
+
+test("nothing on a date page is written to somebody born that day", () => {
+  // A stranger who typed the date into a search box was not born on it, so a
+  // fact that says "your birthday" is simply false here. The voice is set in
+  // the Edge Function; this is the assertion that notices if it changes back.
+  const html = renderDayPage(page, [], facts);
+  const section = html.slice(html.indexOf("What happened on"), html.indexOf("<nav class=\"pager\">"));
+  assert.ok(!/\byour?\b/i.test(section), "the facts section must not address a reader");
+});

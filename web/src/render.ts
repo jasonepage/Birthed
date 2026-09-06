@@ -3,6 +3,7 @@
 
 import { DayPage, Person, monthName, neighbours, slug, everyDate } from "./model.js";
 import { CHART_NAME, SongOfTheYear } from "./songs.js";
+import { Fact, hostOf } from "./facts.js";
 
 /**
  * How many people a date page needs before it is worth putting in front of a
@@ -101,6 +102,19 @@ ol.songs li { display: flex; gap: 13px; align-items: baseline; padding: 11px 15p
 ol.songs .title { font-weight: 600; margin: 0; }
 ol.songs .by { color: #9C9490; font-size: 15px; margin: 2px 0 0; }
 p.credit { color: #6E6862; font-size: 13px; margin: 14px 0 0; }
+/* Found facts. Not the rounded rectangles the people and the songs use: a
+   sentence is the content here, so it is set to be read rather than scanned,
+   and a hairline is enough to separate one from the next. */
+ul.facts { list-style: none; margin: 0; padding: 0; }
+ul.facts li { display: block; background: none; border-radius: 0; padding: 16px 0; border-top: 1px solid #2A2434; }
+ul.facts li:first-child { border-top: none; padding-top: 6px; }
+ul.facts .what {
+  font-family: Georgia, "Times New Roman", serif; font-size: 19px; line-height: 1.42;
+  color: #FFF7EE; margin: 0;
+}
+ul.facts .src { margin: 7px 0 0; font-size: 13px; }
+ul.facts .src a { color: #7C7570; text-decoration: none; }
+ul.facts .src a:hover { color: ${ACCENT}; text-decoration: underline; }
 nav.pager { display: flex; justify-content: space-between; gap: 12px; margin: 34px 0 0; font-size: 15px; }
 nav.pager a { color: ${ACCENT}; text-decoration: none; }
 .cta {
@@ -255,7 +269,32 @@ ${rows}
 <p class="credit">Chart positions are from the ${escapeHtml(CHART_NAME)}, compiled by Wikipedia and released under Creative Commons Attribution ShareAlike. Birthed is not affiliated with Billboard or Wikipedia.</p>`;
 }
 
-export function renderDayPage(page: DayPage, songs: SongOfTheYear[] = []): string {
+/**
+ * What happened on this date, with the page each one came from.
+ *
+ * Put above the people rather than below them. The names are what somebody
+ * searched for, but they are also the part every competitor already has, and
+ * a reader who scrolls past ten names to reach the only unusual thing on the
+ * page mostly does not scroll. Nothing here is written in the second person,
+ * because a stranger who typed this date into a search box was not born on it.
+ */
+function factsSection(facts: Fact[], name: string): string {
+  if (facts.length === 0) return "";
+
+  const rows = facts.map((fact) => `<li>
+<p class="what">${escapeHtml(fact.fact)}</p>
+<p class="src"><a href="${escapeHtml(fact.sourceUrl)}" rel="nofollow noopener">${escapeHtml(hostOf(fact.sourceUrl))}</a></p>
+</li>`).join("\n");
+
+  return `<h2 class="section">What happened on ${escapeHtml(name)}</h2>
+<p class="lede">${facts.length} things, each with the page it came from.</p>
+<ul class="facts">
+${rows}
+</ul>
+<p class="credit">Found by Google's Gemini searching the web, and kept only when the page it cited answered. Birthed is not affiliated with Google.</p>`;
+}
+
+export function renderDayPage(page: DayPage, songs: SongOfTheYear[] = [], facts: Fact[] = []): string {
   const name = `${monthName(page.month)} ${page.day}`;
   const canonical = `${SITE}/${slug(page.month, page.day)}/`;
   const count = page.people.length;
@@ -265,9 +304,13 @@ export function renderDayPage(page: DayPage, songs: SongOfTheYear[] = []): strin
   const songLine = songs.length > 0
     ? ` And the number one song on ${name} in every year since ${songs[songs.length - 1]?.year}.`
     : "";
+  // The description is what a search result shows, so the facts go in front
+  // of the names when there are any: the names are what every other site in
+  // this category already says.
+  const factLine = facts.length > 0 ? ` What happened on ${name}, in ${facts.length} sourced facts.` : "";
   const description = count > 0
-    ? `Who was born on ${name}. ${page.people.slice(0, 3).map((p) => p.name).join(", ")} and ${Math.max(0, count - 3)} more.${songLine}`
-    : `Who was born on ${name}.${songLine}`;
+    ? `Who was born on ${name}. ${page.people.slice(0, 3).map((p) => p.name).join(", ")} and ${Math.max(0, count - 3)} more.${factLine}${songLine}`
+    : `Who was born on ${name}.${factLine}${songLine}`;
 
   const { previous, next } = neighbours(page.month, page.day);
 
@@ -287,6 +330,7 @@ ${person.deathYear ? `<p class="died">died ${person.deathYear}</p>` : ""}
 <h1>${name}</h1>
 <p class="lede">${headline}</p>
 ${count > 0 ? `<ol>\n${list}\n</ol>` : `<p class="lede">Nobody imported for this date yet.</p>`}
+${factsSection(facts, name)}
 ${songSection(songs, name)}
 <nav class="pager">
 <a href="/${slug(previous.month, previous.day)}/">&larr; ${monthName(previous.month)} ${previous.day}</a>

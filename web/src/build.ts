@@ -10,6 +10,7 @@ import { cp, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DayPage, Person, everyDate, slug } from "./model.js";
 import { coverageByDay, fetchChartWeeks, songsForDate } from "./songs.js";
+import { factsByDay, factsForDate, fetchFacts } from "./facts.js";
 import { isReady, renderDayPage, renderNotFound, renderRobots, renderSitemap } from "./render.js";
 import { renderHome, renderPrivacy, renderSupport } from "./pages.js";
 
@@ -91,6 +92,15 @@ async function main(): Promise<void> {
     console.log("run the worker's import:songs first");
   }
 
+  // Every calendar date fact at once, for the same reason as the charts: a
+  // few thousand rows answer all 366 pages, and 366 lookups would not.
+  const facts = await fetchFacts(url, key);
+  const factsFor = factsByDay(facts);
+  console.log(`${facts.length} found facts loaded, covering ${factsFor.size} dates`);
+  if (factsFor.size < 366) {
+    console.log(`${366 - factsFor.size} dates have no facts yet, and their pages simply will not have that section`);
+  }
+
   await inBatches(dates, CONCURRENCY, async (date) => {
     const page = await fetchDay(date.month, date.day, url, key);
     if (page.people.length === 0) empty++;
@@ -98,7 +108,8 @@ async function main(): Promise<void> {
     const directory = join(OUT, slug(date.month, date.day));
     await mkdir(directory, { recursive: true });
     const songs = songsForDate(covered, date.month, date.day, FIRST_CHART_YEAR, thisYear);
-    await writeFile(join(directory, "index.html"), renderDayPage(page, songs), "utf8");
+    const found = factsForDate(factsFor, date.month, date.day);
+    await writeFile(join(directory, "index.html"), renderDayPage(page, songs, found), "utf8");
     written++;
   });
 
