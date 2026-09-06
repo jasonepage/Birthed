@@ -27,6 +27,16 @@ final class FactsService {
     /// and the two lists are never the same thing.
     private(set) var dayFacts: [BirthFact] = []
 
+    /// Which date `dayFacts` belongs to.
+    ///
+    /// Two jobs, both of which were bugs without it. A failed request can tell
+    /// "still the same date, so keep showing what we already had" from "new
+    /// date, and we have nothing for it yet". And a slow answer for September 5
+    /// that lands after the reader has already pressed on to September 6 can be
+    /// recognised as stale and dropped, instead of putting one date's facts
+    /// under another date's heading.
+    private var dayFactsDate: CalendarDate?
+
     private let baseURL: URL
     private let anonKey: String
     private let session: URLSession
@@ -135,7 +145,22 @@ final class FactsService {
     /// been searched simply have no section here; they are filled by the
     /// backfill, or by the first reader whose own birthday that is.
     func readDay(month: Int, day: Int) async {
-        dayFacts = await fetch(month: month, day: day, year: 0, regionKey: "") ?? []
+        guard let date = CalendarDate(month: month, day: day) else { return }
+
+        // Moving to a different date clears immediately, because the facts on
+        // screen belong to the date the reader just left.
+        if dayFactsDate != date {
+            dayFacts = []
+            dayFactsDate = date
+        }
+
+        // A nil answer is the request failing, which is not the same as a date
+        // with nothing on it, so nothing is thrown away over a dropped
+        // connection. This is the distinction `fetch` exists to make and the
+        // first version of this line ignored it.
+        guard let found = await fetch(month: month, day: day, year: 0, regionKey: "") else { return }
+        guard dayFactsDate == date else { return }
+        dayFacts = found
     }
 
     /// One read, whatever is asking. Nil means the request itself failed,
