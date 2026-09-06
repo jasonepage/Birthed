@@ -241,6 +241,23 @@ as a shelf, not a plan.
   the user's text to a friend, and "hope it is a good one" is a sentence
   nobody types.
 
+### The Today tab, decided September 6, 2026
+
+- **Today is a time machine for today's date, indexed by the reader's age,
+  not a list of names.** The year wheel from onboarding, running over the
+  years of the reader's life; for each year the number one song and film
+  that week, the events on this date that year, and who was born. Every item
+  is measured against the reader: "You were 7." The specification is
+  `docs/today-in-your-years.md`.
+- **No model runs for this tab.** Songs and films are `chart_weeks`, people
+  are `notable_people`, and events are Wikipedia's own date articles, imported
+  once by the worker into the `historical_events` table that was cut for
+  being empty. The shared date facts appear at the year they carry and
+  nothing on this tab may start a search.
+- **The order is arithmetic.** The wheel opens on the year the reader was
+  most likely to remember, by an age band, because likes cannot steer
+  anything at this size and the research document says so.
+
 ### Search, decided September 5, 2026
 
 - **A date page with fewer than eight people carries `noindex` and stays out of the sitemap.** It is still built and still loads. A new domain that hands a crawler 366 URLs with most of them empty teaches the crawler that the site is thin, and that judgement is made once and is expensive to undo. The threshold is eight rather than `FR-022`'s ten because a few real dates have fewer people with English Wikipedia articles.
