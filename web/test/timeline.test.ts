@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildTimeline, saysTheSameThing, splitDatePrefix } from "../src/timeline.js";
+import { cardHighlight } from "../src/share.js";
 
 /**
  * The twelve pairs on September 4 where a researched fact and a Wikipedia
@@ -171,4 +172,54 @@ test("a Wikipedia row carries no per row source, and a fact does", () => {
   const rows = buildTimeline(facts, events, "September", 4);
   assert.equal(rows.find((row) => row.year === 1882)?.sourceUrl, null);
   assert.equal(rows.find((row) => row.year === 1998)?.sourceUrl, "https://example.com/a");
+});
+
+/**
+ * What goes on a birthday card.
+ *
+ * These tests exist because of a number rather than a worry. 41 percent of the
+ * 19,734 imported Wikipedia events match the refusal list, all 366 dates have
+ * at least one that does, and picking the most recent event per date would put
+ * a killing, a bombing or a crash on 134 of the 366 cards. September 4's most
+ * recent event is a school shooting.
+ */
+test("nothing grim reaches a birthday card", () => {
+  const grim = [
+    { month: 9, day: 4, category: "event", sourceUrl: "https://e.com/a",
+      fact: "On September 4, 2024, a gunman kills four people at a high school in Georgia." },
+    { month: 9, day: 4, category: "event", sourceUrl: "https://e.com/b",
+      fact: "On September 4, 1995, three servicemen abduct and rape a schoolchild in Okinawa." },
+    { month: 9, day: 4, category: "event", sourceUrl: "https://e.com/c",
+      fact: "On September 4, 1963, Swissair Flight 306 crashes, killing all 80 on board." },
+  ];
+  assert.equal(cardHighlight(grim, 9, 4), null, "a card with none of these is the right card");
+});
+
+test("the card takes the shortest clean fact, and the same one every build", () => {
+  const facts = [
+    { month: 9, day: 4, category: "event", sourceUrl: "https://e.com/a",
+      fact: "On September 4, 1882, Thomas Edison opened Pearl Street Station in New York City, establishing the first commercial power plant in the United States." },
+    { month: 9, day: 4, category: "event", sourceUrl: "https://e.com/b",
+      fact: "On September 4, 1998, Larry Page and Sergey Brin formally incorporated Google as a company." },
+    { month: 9, day: 4, category: "event", sourceUrl: "https://e.com/c",
+      fact: "On September 4, 1963, Swissair Flight 306 crashes, killing all 80 on board." },
+  ];
+  const chosen = cardHighlight(facts, 9, 4);
+  assert.equal(chosen?.year, 1998);
+  assert.equal(chosen?.text, "Larry Page and Sergey Brin formally incorporated Google as a company.");
+  // The Edison line is clean but too long for one line on a card, and the
+  // Swissair line is refused whatever its length.
+  assert.deepEqual(cardHighlight(facts, 9, 4), cardHighlight([...facts].reverse(), 9, 4));
+});
+
+test("a date with no facts gets a card with no line, not a worse line", () => {
+  assert.equal(cardHighlight([], 9, 4), null);
+});
+
+test("a fact that does not name this page's date is not put on the card", () => {
+  const facts = [
+    { month: 9, day: 4, category: "event", sourceUrl: "https://e.com/a",
+      fact: "Something true with no year anywhere in it." },
+  ];
+  assert.equal(cardHighlight(facts, 9, 4), null, "the card prints a year beside the line");
 });

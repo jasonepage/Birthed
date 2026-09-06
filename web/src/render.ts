@@ -115,6 +115,12 @@ h2.section {
   font-size: clamp(24px, 5vw, 32px); line-height: 1.15; margin: 46px 0 6px;
 }
 ol.songs li { display: flex; gap: 13px; align-items: baseline; padding: 11px 15px; }
+/* Landing on /september-5/#1990 must not put the row flush against the top
+   edge of the window with the heading scrolled away above it. */
+ol.songs li { scroll-margin-top: 22px; }
+ol.songs .year a { color: inherit; text-decoration: none; }
+ol.songs .year a:hover { text-decoration: underline; }
+ol.songs li:target { background: #211A2E; box-shadow: inset 0 0 0 1px ${ACCENT}; }
 ol.songs .title { font-weight: 600; margin: 0; }
 ol.songs .by { color: #9C9490; font-size: 15px; margin: 2px 0 0; }
 p.credit { color: #6E6862; font-size: 13px; margin: 14px 0 0; }
@@ -288,8 +294,13 @@ function jsonLd(page: DayPage, canonical: string): string {
 function songSection(songs: SongOfTheYear[], name: string): string {
   if (songs.length === 0) return "";
 
-  const rows = songs.map((song) => `<li>
-<span class="year">${song.year}</span>
+  // Every year is its own address. "number one song on September 5 1990" is a
+  // real thing people type, the answer is already in this list, and an anchor
+  // makes that row linkable and quotable without generating a page for every
+  // day and year, which would be about 24,500 pages holding four lines each.
+  // The year itself is the link, so it can be copied out of the address bar.
+  const rows = songs.map((song) => `<li id="${song.year}">
+<span class="year"><a href="#${song.year}">${song.year}</a></span>
 <span class="who">
 <p class="title">${escapeHtml(song.song)}</p>
 <p class="by">${escapeHtml(song.artist)}</p>

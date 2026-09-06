@@ -437,3 +437,18 @@ test("the hidden attribute beats the stylesheet", () => {
   const html = renderDayPage(page);
   assert.match(html, /\[hidden\]\s*{\s*display:\s*none\s*!important;\s*}/);
 });
+
+test("every song year is its own address on the date page", () => {
+  const songs = [
+    { year: 1990, song: "Vision of Love", artist: "Mariah Carey", chartDate: "1990-09-08" },
+    { year: 1989, song: "Cold Hearted", artist: "Paula Abdul", chartDate: "1989-09-09" },
+  ];
+  const html = renderDayPage(page, songs);
+  // The long tail query is "number one song on September 5 1990", and the
+  // answer is already on this page. The anchor is what makes that row
+  // linkable without generating a page for every day and year.
+  assert.match(html, /<li id="1990">/);
+  assert.match(html, /<a href="#1990">1990<\/a>/);
+  assert.match(html, /<li id="1989">/);
+  assert.match(html, /scroll-margin-top/);
+});

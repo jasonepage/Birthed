@@ -250,6 +250,34 @@ the same article every time, so it is credited at the foot the way the chart
 weeks are. The researched facts keep a link each, because their sources are all
 different and the link is the point.
 
+## 10. The share cards say what happened, September 6, 2026
+
+The card for a date used to be the date and three names. It now leads with one
+thing that happened, and takes two names instead of three, because a third name
+is one more of the thing every competitor already has and the line about the
+date is the half none of them can print.
+
+**It comes from the researched facts, never from the Wikipedia events, and that
+is the whole design.** 41 percent of the 19,734 imported events match a list of
+words like killed, bombing, massacre and crash. Every one of the 366 dates has
+at least one that does. If the card took the most recent event for its date,
+then 134 of the 366 cards would carry a killing, a bombing or a crash, and
+September 4's would be a school shooting. The fact finder is already steered
+toward things somebody would screenshot, so it is the curated set; an
+encyclopedia's date article is not, and never claimed to be.
+
+A word filter runs over the facts as a second guard, the shortest passing line
+wins so the card has one readable line and the same one every build, and a date
+with nothing that passes gets no line at all. 277 of the 366 dates carry one.
+The rest keep the card they have today, which already works.
+
+**What the filter does not do.** The three dates I spot checked that came back
+with no line, November 22, December 7 and December 25, have no researched facts
+at all: they are among the 85 dates the backfill never reached, so their cards
+are unchanged for a reason that has nothing to do with the filter. Whether the
+filter would have caught November 22 and December 7 on its own is untested,
+because there is nothing there yet to test it against.
+
 ## 8. Honest limits
 
 - This is a recombination, not an invention. Timehop did "this day in your

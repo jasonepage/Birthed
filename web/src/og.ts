@@ -10,8 +10,9 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { chromium } from "playwright";
+import { factsByDay, factsForDate, fetchFacts } from "./facts.js";
 import { everyDate, slug, type DayPage, type Person } from "./model.js";
-import { renderShareCard } from "./share.js";
+import { cardHighlight, renderShareCard } from "./share.js";
 
 const OUT = join("out", "og");
 const WIDTH = 1200;
@@ -62,13 +63,21 @@ async function main(): Promise<void> {
   const { url, key } = config();
   await mkdir(OUT, { recursive: true });
 
+  // Read whole, once, the way the site build does. A card is one line of text
+  // out of a few thousand rows, and 366 lookups for that would be silly.
+  const facts = factsByDay(await fetchFacts(url, key));
+  console.log(`facts loaded for ${facts.size} dates`);
+
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: WIDTH, height: HEIGHT } });
 
   let written = 0;
+  let carrying = 0;
   for (const date of everyDate()) {
     const day = await fetchDay(date.month, date.day, url, key);
-    await page.setContent(renderShareCard(day), { waitUntil: "load" });
+    const highlight = cardHighlight(factsForDate(facts, date.month, date.day), date.month, date.day);
+    if (highlight) carrying++;
+    await page.setContent(renderShareCard(day, highlight), { waitUntil: "load" });
     const shot = await page.screenshot({ type: "png", clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } });
     await writeFile(join(OUT, `${slug(date.month, date.day)}.png`), shot);
     written++;
@@ -77,6 +86,7 @@ async function main(): Promise<void> {
 
   await browser.close();
   console.log(`wrote ${written} share images into ${OUT}`);
+  console.log(`${carrying} of them say what happened, ${written - carrying} are names only`);
 }
 
 main().catch((error: unknown) => {

@@ -8,8 +8,73 @@
 // Rendered as HTML at 1200 by 630, which is what every platform crops to, and
 // screenshotted at build time so the shipped artefact is a plain PNG.
 
+import type { Fact } from "./facts.js";
 import { DayPage, monthName } from "./model.js";
 import { escapeHtml } from "./render.js";
+import { splitDatePrefix } from "./timeline.js";
+
+/** One thing that happened, for the card. */
+export interface Highlight {
+  year: number;
+  text: string;
+}
+
+/**
+ * Words that keep a line off a birthday card.
+ *
+ * This exists because of what the data actually looks like rather than out of
+ * caution. 41 percent of the 19,734 Wikipedia events match this list, every
+ * one of the 366 dates has at least one that does, and if the card took the
+ * most recent event for its date then 134 of the 366 cards would carry a
+ * killing, a bombing or a crash. September 4's most recent is a school
+ * shooting. That is not a thing to put next to a lit candle and somebody's
+ * birthday, and it is the kind of mistake that gets screenshotted for exactly
+ * the wrong reason.
+ *
+ * The list is deliberately broad and deliberately stupid. It does not
+ * understand anything; it only refuses. A false refusal costs one card its
+ * extra line, and the card is complete without it.
+ */
+const NOT_ON_A_BIRTHDAY_CARD =
+  /\b(kill|killed|kills|killing|massacre|shooting|shoots|shot|murder|murdered|bomb|bombing|bombed|attack|attacked|dies|died|death|deaths|dead|crash|crashed|crashes|earthquake|hurricane|tsunami|famine|war|battle|siege|executed|execution|assassinat\w*|rape|raped|slaughter|genocide|terror\w*|hostage|riot|riots|invasion|invades|invaded|disaster|sank|sinking|sunk|explosion|exploded|epidemic|pandemic|plague|suicide|abduct\w*|torture\w*)\b/i;
+
+/** Long enough to say something, short enough to read at a glance. */
+const LONGEST_LINE = 110;
+
+/**
+ * The one thing that happened, chosen for a card.
+ *
+ * Drawn from the researched facts rather than from Wikipedia's events, and
+ * that is the important part. The fact finder is already steered away from
+ * encyclopedia shaped content and toward things somebody would screenshot, so
+ * it is the curated set; Wikipedia's date articles lean the other way, toward
+ * wars, disasters and elections, because that is what an encyclopedia is for.
+ *
+ * The shortest passing fact wins. Not because short means good, but because
+ * the card has one line of room and the alternative is choosing at random. It
+ * is stable across rebuilds for the same reason, so the image for a date does
+ * not change every deploy for no reason.
+ *
+ * Returns null rather than reaching for something worse. 85 of the 366 dates
+ * have no researched facts at all, and their cards stay exactly as they are
+ * today, which is a card that already works.
+ */
+export function cardHighlight(facts: Fact[], month: number, day: number): Highlight | null {
+  const month_name = monthName(month);
+  const usable: Highlight[] = [];
+
+  for (const fact of facts) {
+    if (NOT_ON_A_BIRTHDAY_CARD.test(fact.fact)) continue;
+    const { year, text } = splitDatePrefix(fact.fact, month_name, day);
+    if (year === null) continue;
+    if (text.length > LONGEST_LINE) continue;
+    usable.push({ year, text });
+  }
+
+  if (usable.length === 0) return null;
+  usable.sort((a, b) => a.text.length - b.text.length || a.year - b.year);
+  return usable[0] ?? null;
+}
 
 const INK = "#0E0C16";
 const ACCENT = "#EF5680";
@@ -45,9 +110,12 @@ const CANDLE = `<svg width="262" height="458" viewBox="380 120 264 800" xmlns="h
   </g>
 </svg>`;
 
-export function renderShareCard(page: DayPage): string {
+export function renderShareCard(page: DayPage, highlight: Highlight | null = null): string {
   const name = `${monthName(page.month)} ${page.day}`;
-  const names = page.people.slice(0, 3);
+  // Two names rather than three when there is something else to say. A third
+  // name is one more of the thing every competitor already has; the line about
+  // what happened is the thing none of them can put on a card.
+  const names = page.people.slice(0, highlight ? 2 : 3);
 
   const rows = names.map((person) => `<li>
   <span class="year">${person.birthYear ?? ""}</span>
@@ -81,6 +149,20 @@ export function renderShareCard(page: DayPage): string {
     font-size: 96px; line-height: 0.98; letter-spacing: -0.02em; margin-bottom: 26px;
   }
   .with { font-size: 22px; color: #A79FA9; margin-bottom: 14px; }
+  /* What happened. Set above the names because it is the half of this card
+     that nobody else can print. */
+  .happened {
+    display: flex; align-items: baseline; gap: 16px; margin-bottom: 26px;
+    padding-bottom: 24px; border-bottom: 1px solid #2A2434;
+  }
+  .happened .when {
+    color: ${ACCENT}; font-variant-numeric: tabular-nums; font-weight: 700;
+    font-size: 26px; flex: 0 0 auto;
+  }
+  .happened .what {
+    font-family: Georgia, "Times New Roman", serif; font-size: 27px;
+    line-height: 1.28; color: ${CREAM}; min-width: 0;
+  }
   ul { list-style: none; padding: 0; display: grid; gap: 10px; }
   li { display: flex; align-items: baseline; gap: 18px; }
   .year {
@@ -101,6 +183,7 @@ export function renderShareCard(page: DayPage): string {
   <div class="body">
     <p class="kicker">Born on</p>
     <h1>${name}</h1>
+    ${highlight ? `<div class="happened"><span class="when">${highlight.year}</span><span class="what">${escapeHtml(highlight.text)}</span></div>` : ""}
     ${names.length > 0 ? `<p class="with">You share it with</p><ul>${rows}</ul>` : ""}
   </div>
   <div class="mark">${CANDLE}</div>
