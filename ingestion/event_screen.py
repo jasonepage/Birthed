@@ -351,16 +351,50 @@ def run(month: int | None, day: int | None, limit: int | None,
     return summary
 
 
+def _count(client: Any, narrow: Any = None) -> int:
+    """How many rows match, asked as a count rather than by fetching them.
+
+    The first version of the report fetched the rows and counted them in
+    Python with a limit of 100,000. PostgREST caps a response at 1,000 rows
+    whatever the limit says, so it counted 1,000, called that the total, and
+    reported 968 hidden of 1,000, which read as 97 percent. The real figure at
+    that moment was 42. Nothing was wrong with the data. The report was
+    measuring its own page size.
+
+    A count never sends the rows, so there is no page to be capped.
+    """
+    query = client.table(TABLE).select("id", count="exact").limit(1)
+    if narrow is not None:
+        query = narrow(query)
+    return query.execute().count or 0
+
+
 def report(month: int | None, day: int | None) -> None:
     """What is in the table right now. Calls no model and costs nothing."""
     config = load_config(needs_write=True)
     client = connect(config)
-    rows = client.table(TABLE).select("id,suppressed,suppressed_at").limit(100_000).execute().data or []
-    total = len(rows)
-    hidden = sum(1 for r in rows if r.get("suppressed"))
-    screened = sum(1 for r in rows if r.get("suppressed_at"))
-    log.info("historical_events: %d rows, %d screened, %d hidden, %d never screened",
-             total, screened, hidden, total - screened)
+
+    def on_date(query: Any) -> Any:
+        if month is not None:
+            query = query.eq("event_month", month)
+        if day is not None:
+            query = query.eq("event_day", day)
+        return query
+
+    total = _count(client, on_date)
+    screened = _count(client, lambda q: on_date(q).not_.is_("suppressed_at", "null"))
+    hidden = _count(client, lambda q: on_date(q).eq("suppressed", True))
+    visible = total - hidden
+
+    where = f" for {month:02d}-{day:02d}" if month is not None and day is not None else ""
+    log.info("historical_events%s", where)
+    log.info("  %6d rows", total)
+    log.info("  %6d screened, %d not screened yet", screened, total - screened)
+    log.info("  %6d hidden, %d visible to readers", hidden, visible)
+    if screened:
+        log.info("  %5.1f%% of what has been screened is hidden", 100 * hidden / screened)
+    if total - screened:
+        log.info("  Run the same command with --apply to finish the rest.")
 
 
 def parse_date(value: str | None) -> tuple[int | None, int | None]:
