@@ -69,7 +69,7 @@ final class DayFeedTests: XCTestCase {
     func testKindsTakeTurnsInsideARank() {
         let feed = DayFeed.build(
             facts: [],
-            events: (2007...2012).map { event($0, "Event in \($0) that is long enough.") },
+            events: (2007...2012).map { (year: Int) in event(year, "Event in \(year) that is long enough.") },
             people: [person("Q1", "A", born: 2008), person("Q2", "B", born: 2009)],
             songs: (2007...2012).map { song($0, "Song \($0)") },
             films: (2007...2012).map { film($0, "Film \($0)") },
