@@ -310,7 +310,7 @@ class Verdict:
         return "ACCEPT" if self.accepted else "REJECT"
 
 
-def _call_anthropic(config: Config, user_text: str) -> str:
+def _call_anthropic(config: Config, user_text: str, cache_system: bool = False) -> str:
     """One message to the Anthropic interface, with retries. Returns the text.
 
     Retries only on a rate limit or a server error, which are the two failures
@@ -323,7 +323,14 @@ def _call_anthropic(config: Config, user_text: str) -> str:
         # Zero, so that the same event gets the same verdict every run. A
         # content check that changes its mind is not a check.
         "temperature": 0,
-        "system": VIBE_CHECK_SYSTEM_PROMPT,
+        # The system prompt is identical on every call. Marking it cacheable
+        # means it is billed at a fraction after the first call, which matters
+        # when the caller is screening twenty thousand rows rather than ten.
+        "system": (
+            [{"type": "text", "text": VIBE_CHECK_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}]
+            if cache_system
+            else VIBE_CHECK_SYSTEM_PROMPT
+        ),
         "messages": [{"role": "user", "content": user_text}],
     }
     headers = {
