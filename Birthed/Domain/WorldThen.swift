@@ -202,7 +202,27 @@ struct WorldThen {
     // MARK: The timelines
 
     /// Read as: this version was current from this day until the next one.
-    /// Check each date against the article linked on the timeline.
+    ///
+    /// **Every date here is a United States release date.** That is the whole
+    /// of the rule and it was not being followed. These rows were written from
+    /// memory and eight of them held the Japanese launch: the first three
+    /// PlayStations, and every Pokemon generation before X and Y. Each one was
+    /// a real date, which is why nothing caught them, and each one was the
+    /// wrong real date. The app told an American born in June 2000 that the
+    /// newest PlayStation was the PlayStation 2, four months before it existed
+    /// where they were, and told anyone born between 1996 and 1998 that
+    /// Pokemon was already out.
+    ///
+    /// The sentence this data writes is about the reader's world, not about
+    /// the object. "Pokemon was on Generation 1 the day you were born" is a
+    /// claim about what a child could have been holding, so the date has to be
+    /// the day it arrived where they were. When a launch was worldwide and
+    /// simultaneous, which it was from Pokemon X and Y onward, there is no
+    /// choice to make.
+    ///
+    /// All 101 dates in this file were checked against fetched pages on
+    /// September 6, 2026, each against a page that states the day. Fortnite,
+    /// Minecraft and the iPhone were correct in full.
     static let timelines: [Timeline] = [
         Timeline(
             subject: "Fortnite",
@@ -324,9 +344,9 @@ struct WorldThen {
             kicker: "PLAYSTATION",
             wording: .newest("PlayStation"),
             versions: [
-                Version(from: Day(1994, 12, 3), name: "original PlayStation"),
-                Version(from: Day(2000, 3, 4), name: "PlayStation 2"),
-                Version(from: Day(2006, 11, 11), name: "PlayStation 3"),
+                Version(from: Day(1995, 9, 9), name: "original PlayStation"),
+                Version(from: Day(2000, 10, 26), name: "PlayStation 2"),
+                Version(from: Day(2006, 11, 17), name: "PlayStation 3"),
                 Version(from: Day(2013, 11, 15), name: "PlayStation 4"),
                 Version(from: Day(2020, 11, 12), name: "PlayStation 5"),
             ],
@@ -338,11 +358,11 @@ struct WorldThen {
             kicker: "POKÉMON",
             wording: .era("Pokémon"),
             versions: [
-                Version(from: Day(1996, 2, 27), name: "Generation 1, Red and Green"),
-                Version(from: Day(1999, 11, 21), name: "Generation 2, Gold and Silver"),
-                Version(from: Day(2002, 11, 21), name: "Generation 3, Ruby and Sapphire"),
-                Version(from: Day(2006, 9, 28), name: "Generation 4, Diamond and Pearl"),
-                Version(from: Day(2010, 9, 18), name: "Generation 5, Black and White"),
+                Version(from: Day(1998, 9, 28), name: "Generation 1, Red and Blue"),
+                Version(from: Day(2000, 10, 15), name: "Generation 2, Gold and Silver"),
+                Version(from: Day(2003, 3, 19), name: "Generation 3, Ruby and Sapphire"),
+                Version(from: Day(2007, 4, 22), name: "Generation 4, Diamond and Pearl"),
+                Version(from: Day(2011, 3, 6), name: "Generation 5, Black and White"),
                 Version(from: Day(2013, 10, 12), name: "Generation 6, X and Y"),
                 Version(from: Day(2016, 11, 18), name: "Generation 7, Sun and Moon"),
                 Version(from: Day(2019, 11, 15), name: "Generation 8, Sword and Shield"),
@@ -365,7 +385,7 @@ struct WorldThen {
                 sourceURL: URL(string: "https://en.wikipedia.org/wiki/Discord")!),
         Arrival(subject: "Roblox", kicker: "ROBLOX", arrived: Day(2006, 9, 1),
                 sourceURL: URL(string: "https://en.wikipedia.org/wiki/Roblox")!),
-        Arrival(subject: "Spotify", kicker: "SPOTIFY", arrived: Day(2008, 10, 7),
+        Arrival(subject: "Spotify", kicker: "SPOTIFY", arrived: Day(2011, 7, 14),
                 sourceURL: URL(string: "https://en.wikipedia.org/wiki/Spotify")!),
         Arrival(subject: "Google", kicker: "GOOGLE", arrived: Day(1998, 9, 4),
                 sourceURL: URL(string: "https://en.wikipedia.org/wiki/Google")!),
