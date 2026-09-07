@@ -1,6 +1,6 @@
 # Handoff, September 7, 2026, small hours
 
-For the next session, which Nathan wants to run as coder and creative director
+For the next session, which Jason wants to run as coder and creative director
 at once. Read this, then `CLAUDE.md`. This section wins where it disagrees
 with anything under it, because it is newer.
 
@@ -97,9 +97,9 @@ get permission denied.
    highest value small change left.
 2. **Films.** Dry run, read the misses, then the real run.
 3. **Albums.** 703 titles, unattended, about half an hour.
-4. **An about page with Nathan's name on it.** Somebody called the site AI slop
+4. **An about page with Jason's name on it.** Somebody called the site AI slop
    after a minute. The site currently answers "is a person behind this" with
-   no. This is the cheapest fix for that and the words must be Nathan's.
+   no. This is the cheapest fix for that and the words must be Jason's.
 5. **Move the Gemini credit off the date page** to a sources page. Keep it
    exactly as honest, put it a minute later.
 6. **The two schema columns:** a nullable `wikidata_qid` on every table that
@@ -109,7 +109,7 @@ get permission denied.
 
 ## The bigger idea, and the honest version of it
 
-Nathan's thesis is that everything has an origin date, so this becomes a
+Jason's thesis is that everything has an origin date, so this becomes a
 temporal database of everything. The thesis is right and the schema half agrees
 already. Two corrections worth carrying:
 
