@@ -32,3 +32,8 @@ web/out/
 .venv/
 __pycache__/
 *.pyc
+
+# The Supabase CLI keeps its own scratch here: which CLI version it last
+# saw, and which project this checkout is linked to. Both are local machine
+# state rather than anything about the project.
+supabase/.temp/
