@@ -146,17 +146,35 @@ ol.covers .art img { width: 100%; height: 100%; object-fit: cover; display: bloc
 /* A recording with no cover. Made rather than missing. */
 ol.covers .none {
   display: flex; align-items: center; justify-content: center; height: 100%;
-  padding: 10px; text-align: center; text-wrap: balance;
+  padding: 10px; text-align: center;
+  background: linear-gradient(140deg, #3A1B45, #1B0B24);
+}
+/* Held to five lines inside the square.
+   Billboard's title for the 1981 number one is the medley's whole track
+   listing: "Medley: Intro 'Venus'/Sugar, Sugar/No Reply/I'll Be Back/..." and
+   so on for a hundred and thirty characters. Printed whole it overflowed the
+   tile and was cut off mid word, which looks like a bug rather than like a
+   long name. The clamp cuts it with an ellipsis instead, which reads as a
+   decision. */
+ol.covers .none span {
+  display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical;
+  overflow: hidden; text-wrap: balance;
   font-family: Georgia, "Times New Roman", serif; font-weight: 800;
   font-size: 15px; line-height: 1.2; color: #FFF7EE;
-  background: linear-gradient(140deg, #3A1B45, #1B0B24);
 }
 ol.covers .y { margin: 9px 0 0; font-size: 13px; color: #9C9490; }
 ol.covers .y a { color: inherit; text-decoration: none; }
 ol.covers .y a:hover { color: ${ACCENT}; }
+/* Three lines, then an ellipsis, for the same reason and a worse symptom: a
+   grid row is as tall as its tallest cell, so one medley title set the height
+   of the three records beside it and left a hole most of a screen deep. The
+   whole title is still in the markup, on the element's own tooltip, so
+   nothing is lost to anybody who wants it. */
 ol.covers .t {
   margin: 2px 0 0; font-weight: 600; font-size: 15px; line-height: 1.25;
   overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 ol.covers .a { margin: 1px 0 0; color: #9C9490; font-size: 13px; overflow-wrap: anywhere; }
 ol.covers li:target .art { box-shadow: 0 0 0 2px ${ACCENT}, 0 6px 18px rgba(0,0,0,0.45); }
@@ -985,7 +1003,7 @@ function songSection(songs: SongOfTheYear[], name: string): string {
       // broken image. Apple's catalogue thins out in the early years and some
       // recordings are restricted by country, so this is a normal state and it
       // should look deliberate.
-      : `<span class="none">${escapeHtml(song.song)}</span>`;
+      : `<span class="none"><span>${escapeHtml(song.song)}</span></span>`;
 
     // Linked to Apple Music where there is a link. That is not decoration and
     // not an affiliate move: the preview and the cover are published to
@@ -1002,7 +1020,7 @@ function songSection(songs: SongOfTheYear[], name: string): string {
     return `<li id="${song.year}"${delay}>
 ${tile}
 <p class="y"><a href="#${song.year}">${song.year}</a></p>
-<p class="t">${escapeHtml(song.song)}</p>
+<p class="t" title="${escapeHtml(song.song)}">${escapeHtml(song.song)}</p>
 <p class="a">${escapeHtml(song.artist)}</p>
 </li>`;
   }).join("\n");
