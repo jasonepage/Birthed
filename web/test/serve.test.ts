@@ -140,4 +140,12 @@ test("only the add page may run its script and reach the project", () => {
   // the add page.
   const other = securityFor("/adder/")["Content-Security-Policy"] ?? "";
   assert.ok(!other.includes("script-src"));
+
+  // The curation panel is the second and last page that runs anything.
+  for (const path of ["/admin", "/admin/", "/admin/index.html"]) {
+    const admin = securityFor(path)["Content-Security-Policy"] ?? "";
+    assert.match(admin, /script-src 'unsafe-inline'/, `${path} must run its own script`);
+    assert.match(admin, /connect-src https:\/\/[a-z0-9]+\.supabase\.co/);
+  }
+  assert.ok(!(securityFor("/administrator/")["Content-Security-Policy"] ?? "").includes("script-src"));
 });

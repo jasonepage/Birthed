@@ -104,8 +104,19 @@ function apiOrigin(): string {
  * rendered into that page, so there is nothing for an injected script to
  * arrive in.
  */
+/**
+ * The paths that run a script, and there are two.
+ *
+ * /add hands a birthday between two phones. /admin is the curation panel.
+ * Everything else on this site runs nothing at all, and the widening is per
+ * path so that stays true rather than becoming a thing somebody remembers.
+ */
+const SCRIPTED = ["/add", "/admin"];
+
 export function securityFor(requestPath: string): Record<string, string> {
-  const isAdd = requestPath === "/add" || requestPath.startsWith("/add/");
+  const isAdd = SCRIPTED.some(
+    (path) => requestPath === path || requestPath.startsWith(`${path}/`),
+  );
   if (!isAdd) return SECURITY;
   return {
     ...SECURITY,

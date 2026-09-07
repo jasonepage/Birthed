@@ -19,6 +19,7 @@ import { isReady, renderDayPage, renderNotFound, renderRobots, renderSitemap } f
 import { eventsByDay, eventsForDate, fetchEvents } from "./timeline.js";
 import { culturalByDate, culturalForDate, fetchCulturalEvents } from "./culture.js";
 import { renderAdd, renderHome, renderPrivacy, renderSupport } from "./pages.js";
+import { renderAdmin } from "./admin.js";
 
 const OUT = "out";
 const PER_PAGE = 10;
@@ -187,6 +188,11 @@ async function main(): Promise<void> {
   // it can reach goes through a function that decides what is allowed.
   await mkdir(join(OUT, "add"), { recursive: true });
   await writeFile(join(OUT, "add", "index.html"), renderAdd({ url, key }), "utf8");
+  // The curation panel. Carries the same publishable key as /add and the app,
+  // and is noindex. What anybody may actually do there is decided by a row
+  // level security policy against their own token, not by this page.
+  await mkdir(join(OUT, "admin"), { recursive: true });
+  await writeFile(join(OUT, "admin", "index.html"), renderAdmin({ url, key }), "utf8");
   // The favicons and touch icons, copied as they are.
   await cp("static", OUT, { recursive: true });
   await writeFile(join(OUT, "sitemap.xml"), renderSitemap(ready), "utf8");
