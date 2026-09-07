@@ -54,6 +54,20 @@ export function isReady(page: DayPage, facts: Fact[] = []): boolean {
 export const SITE = "https://birthed.app";
 const INK = "#0E0C16";
 const ACCENT = "#EF5680";
+/**
+ * The quietest text on the site is allowed to be.
+ *
+ * Measured, not chosen. ${QUIET} was the old value and it sits at 3.53 to one
+ * against the ink, which fails the 4.5 that normal sized body text has to
+ * clear, and ${QUIET} at 4.28 failed it too. Both were used for things a
+ * reader genuinely needs: the source credit under a section, the host under a
+ * fact, the "died 2020" line, the labels under the counts.
+ *
+ * 4.65 clears it with a little room and stays well under the 6.51 of the
+ * secondary grey and the 9.27 of a lede, so the four steps of the hierarchy
+ * are still four steps. Quiet was always the intent; unreadable was not.
+ */
+const QUIET = "#827B75";
 
 export function escapeHtml(value: string): string {
   return value
@@ -109,7 +123,7 @@ li {
 .name a { text-decoration: none; }
 .name a:hover { text-decoration: underline; }
 .what { color: #9C9490; font-size: 15px; margin: 2px 0 0; }
-.died { color: #6E6862; font-size: 13px; margin: 3px 0 0; }
+.died { color: ${QUIET}; font-size: 13px; margin: 3px 0 0; }
 h2.section {
   font-family: Georgia, "Times New Roman", serif; font-weight: 800;
   font-size: clamp(24px, 5vw, 32px); line-height: 1.15; margin: 46px 0 6px;
@@ -191,7 +205,7 @@ ol.covers li:target .y a { color: ${ACCENT}; }
   from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: none; }
 }
-p.credit { color: #6E6862; font-size: 13px; margin: 14px 0 0; }
+p.credit { color: ${QUIET}; font-size: 13px; margin: 14px 0 0; }
 /* What happened. Not the rounded rectangles the people and the songs use: a
    sentence is the content here, so it is set to be read rather than scanned,
    and a hairline is enough to separate one from the next.
@@ -211,7 +225,7 @@ ul.facts .what {
   color: #FFF7EE; margin: 0;
 }
 ul.facts .src { margin: 7px 0 0; font-size: 13px; }
-ul.facts .src a { color: #7C7570; text-decoration: none; }
+ul.facts .src a { color: ${QUIET}; text-decoration: none; }
 ul.facts .src a:hover { color: ${ACCENT}; text-decoration: underline; }
 nav.pager { display: flex; justify-content: space-between; gap: 12px; margin: 34px 0 0; font-size: 15px; }
 nav.pager a { color: ${ACCENT}; text-decoration: none; }
@@ -222,7 +236,7 @@ nav.pager a { color: ${ACCENT}; text-decoration: none; }
 }
 .cta h2 { font-family: Georgia, serif; margin: 0 0 6px; font-size: 22px; }
 .cta p { margin: 0; opacity: 0.92; font-size: 15px; }
-footer { margin: 40px 0 0; color: #7C7570; font-size: 13px; }
+footer { margin: 40px 0 0; color: ${QUIET}; font-size: 13px; }
 footer a { color: #9C9490; }
 /* The year as twelve calendars. Seven columns, so a row is a week and the page
    reads the way a wall calendar does instead of as a column of 366 lines. */
@@ -234,14 +248,14 @@ footer a { color: #9C9490; }
 .cal .dow { margin: 0 0 5px; padding: 0 0 6px; border-bottom: 1px solid #2A2434; }
 .cal .dow span {
   font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-align: center;
-  color: #6E6862; text-transform: uppercase;
+  color: ${QUIET}; text-transform: uppercase;
 }
 .cal .days a, .cal .days .pad {
   display: flex; align-items: center; justify-content: center;
   aspect-ratio: 1 / 1; border-radius: 8px;
   font-size: 13px; font-variant-numeric: tabular-nums;
 }
-p.calnote { color: #6E6862; font-size: 13px; margin: 22px 0 0; }
+p.calnote { color: ${QUIET}; font-size: 13px; margin: 22px 0 0; }
 footer .sitelinks { color: #B9B2AD; font-size: 14px; }
 footer .sitelinks a { color: ${ACCENT}; text-decoration: none; }
 .btn {
@@ -255,7 +269,7 @@ h2.plain { font-family: Georgia, "Times New Roman", serif; font-weight: 800; fon
 .prose p, .prose li { color: #D9D2CC; }
 .prose ul { padding-left: 20px; }
 .prose h3 { margin: 26px 0 4px; font-size: 17px; }
-.prose .updated { color: #7C7570; font-size: 13px; }
+.prose .updated { color: ${QUIET}; font-size: 13px; }
 
 /* ---- The form on /add ----------------------------------------------------
 
@@ -283,7 +297,7 @@ h2.plain { font-family: Georgia, "Times New Roman", serif; font-weight: 800; fon
   font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
   color: #B9B2AD;
 }
-.hint { display: block; margin: 9px 0 0; font-size: 13px; color: #7C7570; }
+.hint { display: block; margin: 9px 0 0; font-size: 13px; color: ${QUIET}; }
 .input, .select > select {
   appearance: none; -webkit-appearance: none; -moz-appearance: none;
   display: block; width: 100%; margin: 0;
@@ -292,7 +306,7 @@ h2.plain { font-family: Georgia, "Times New Roman", serif; font-weight: 800; fon
   border: 1px solid #3A3342; border-radius: 14px; padding: 15px 16px;
   transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
 }
-.input::placeholder { color: #6E6862; }
+.input::placeholder { color: ${QUIET}; }
 .input:hover, .select > select:hover { border-color: #4C4458; }
 .input:focus, .select > select:focus {
   outline: none; border-color: ${ACCENT};
@@ -471,7 +485,7 @@ body.home {
   box-shadow: inset 0 0 0 1px rgba(239, 86, 128, 0.60);
   transform: translateY(-2px);
 }
-.fine { color: #7C7570; font-size: 13px; margin: 14px 0 0; max-width: 46ch; }
+.fine { color: ${QUIET}; font-size: 13px; margin: 14px 0 0; max-width: 46ch; }
 
 /* Pick your month. A band rather than a line of small links, because this is
    the one thing on the page a visitor who knows what they want is looking for,
@@ -558,7 +572,7 @@ body.home {
   color: ${ACCENT};
 }
 .hlyear {
-  font-size: 13px; font-weight: 700; color: #7C7570; font-variant-numeric: tabular-nums;
+  font-size: 13px; font-weight: 700; color: ${QUIET}; font-variant-numeric: tabular-nums;
 }
 .hltext {
   display: block; margin: 9px 0 0;
@@ -566,7 +580,7 @@ body.home {
   color: #FFF7EE;
 }
 .hlsrc { margin: 11px 0 0; font-size: 12px; }
-.hlsrc a { color: #6E6862; text-decoration: none; }
+.hlsrc a { color: ${QUIET}; text-decoration: none; }
 .hlsrc a:hover { color: ${ACCENT}; text-decoration: underline; }
 .proof .credit { margin-top: 18px; }
 
@@ -631,7 +645,7 @@ body.home {
 /* February 29 in a year that does not have one. It still has a page, so it
    still has a square, marked rather than quietly dropped. */
 .cal .days a.leap {
-  background: none; color: #7C7570;
+  background: none; color: ${QUIET};
   box-shadow: inset 0 0 0 1px rgba(239, 86, 128, 0.30);
 }
 .cal .days a.leap:hover, .cal .days a.leap:focus-visible {
@@ -740,7 +754,7 @@ body.home {
 }
 .counts span {
   display: block; margin-top: 5px; font-size: 10px; letter-spacing: 0.1em;
-  text-transform: uppercase; color: #6E6862;
+  text-transform: uppercase; color: ${QUIET};
 }
 
 .hrow { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
@@ -780,7 +794,7 @@ ul.feed .tag::before { content: ""; width: 6px; height: 6px; border-radius: 2px;
 .k-local { color: #3FBFA3; }
 .k-older { color: #C4AEFF; }
 ul.feed .yr {
-  font-family: Georgia, serif; font-size: 15px; font-weight: 700; color: #7C7570;
+  font-family: Georgia, serif; font-size: 15px; font-weight: 700; color: ${QUIET};
   font-variant-numeric: tabular-nums;
 }
 ul.feed .said {
@@ -788,7 +802,7 @@ ul.feed .said {
   margin: 10px 0 0; text-wrap: pretty;
 }
 ul.feed .src { margin: 11px 0 0; font-size: 12px; }
-ul.feed .src a { color: #6E6862; text-decoration: none; }
+ul.feed .src a { color: ${QUIET}; text-decoration: none; }
 ul.feed .src a:hover { color: ${ACCENT}; text-decoration: underline; }
 /* The oldest thing on the date, given the room to be the thing you read. */
 ul.feed li.lead { padding: 22px 20px 20px; }
@@ -824,7 +838,7 @@ details.more .y {
 }
 details.more .x { font-family: Georgia, serif; font-size: 16px; line-height: 1.4; margin: 0; color: #E9E1DB; }
 details.more .src { margin: 6px 0 0; font-size: 12px; }
-details.more .src a { color: #6E6862; text-decoration: none; }
+details.more .src a { color: ${QUIET}; text-decoration: none; }
 
 /* The people, as a row you push. Ten boxes stacked down a page is ten
    scrolls; ten cards in a row is one gesture. */
@@ -856,9 +870,9 @@ details.more .src a { color: #6E6862; text-decoration: none; }
 .who:nth-child(4n+3) .face { background-image: linear-gradient(140deg, #9FE8D6, #3FBFA3); }
 .who:nth-child(4n+4) .face { background-image: linear-gradient(140deg, #FFD79B, #F0A63C); }
 .who .n { font-weight: 700; font-size: 14px; margin: 11px 0 0; line-height: 1.25; }
-.who .w { color: #7C7570; font-size: 12px; margin: 4px 0 0; line-height: 1.3; }
+.who .w { color: ${QUIET}; font-size: 12px; margin: 4px 0 0; line-height: 1.3; }
 .who .b { color: ${ACCENT}; font-size: 11px; font-weight: 700; margin: 8px 0 0; font-variant-numeric: tabular-nums; }
-.who .d { color: #6E6862; font-size: 11px; margin: 2px 0 0; }
+.who .d { color: ${QUIET}; font-size: 11px; margin: 2px 0 0; }
 
 /* The two dates either side, as somewhere to go rather than two arrows. */
 nav.pager.cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -874,7 +888,7 @@ nav.pager.cards a:hover {
 }
 nav.pager.cards .dir {
   font-size: 10px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase;
-  color: #6E6862; margin: 0;
+  color: ${QUIET}; margin: 0;
 }
 nav.pager.cards .when {
   font-family: Georgia, serif; font-size: 19px; font-weight: 700; margin: 6px 0 0; color: ${ACCENT};
