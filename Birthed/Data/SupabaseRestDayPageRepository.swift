@@ -197,6 +197,11 @@ struct SupabaseRestDayPageRepository: DayPageRepository {
         let chart_date: String
         let song: String
         let artist: String
+        /// Added to the chart_on_date function itself, because the Today feed
+        /// reads its weeks through that rather than through a select, so the
+        /// two new columns on the table were invisible to it.
+        let artwork_url: String?
+        let store_url: String?
     }
 
     /// One call to the `chart_on_date` function rather than one request per
@@ -215,7 +220,14 @@ struct SupabaseRestDayPageRepository: DayPageRepository {
             ]
         )
         return rows.compactMap { row in
-            ChartWeek(isoDate: row.chart_date, song: row.song, artist: row.artist, chart: chart.rawValue)
+            ChartWeek(
+                isoDate: row.chart_date,
+                song: row.song,
+                artist: row.artist,
+                chart: chart.rawValue,
+                artworkURL: row.artwork_url.flatMap(URL.init(string:)),
+                storeURL: row.store_url.flatMap(URL.init(string:))
+            )
         }
     }
 
