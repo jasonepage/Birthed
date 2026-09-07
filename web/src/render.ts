@@ -3,6 +3,7 @@
 
 import { DayPage, Person, monthName, neighbours, slug, everyDate } from "./model.js";
 import { CHART_NAME, coverName, SongOfTheYear } from "./songs.js";
+import { calendar } from "./calendar.js";
 import { Fact, hostOf } from "./facts.js";
 import { buildTimeline, pickHighlights, theRest, type DayEvent, type TimelineRow } from "./timeline.js";
 
@@ -832,12 +833,14 @@ body.home {
   color: #FFF7EE; background: rgba(239, 86, 128, 0.16);
   box-shadow: inset 0 0 0 1px rgba(239, 86, 128, 0.55);
 }
+/* Was a filled pink pill with a glow under it, which is the single loudest
+   thing a page can put in its top right corner and the one every generated
+   landing page has. This page is a reference now, so the app is a word. */
 .daybar .get {
-  display: inline-flex; align-items: center; padding: 8px 14px; border-radius: 999px;
-  font-size: 13px; font-weight: 700; text-decoration: none; color: #FFF7EE;
-  background-image: linear-gradient(135deg, #FF9BB6, ${ACCENT} 52%, #C0335F);
-  box-shadow: 0 10px 26px rgba(239, 86, 128, 0.26);
+  font-size: 13px; text-decoration: none; color: #9C9490;
+  border-bottom: 1px solid transparent; padding-bottom: 1px;
 }
+.daybar .get:hover { color: #FFF7EE; border-bottom-color: #6E6680; }
 @media (max-width: 400px) { .barnav .here { min-width: 44px; font-size: 12px; } }
 
 /* What the page holds, as one object rather than three sentences. */
@@ -1516,6 +1519,13 @@ export function renderDayPage(
   const picked = pickHighlights(timeline);
   const rest = theRest(timeline, picked);
   const hue = dayHue(page.month);
+  // The index of all 366 sits at the foot of every date page, which is what
+  // lets "/" be today's page instead of a separate front door. A reader who
+  // arrives on /april-26/ from a search result can reach any other date from
+  // where they landed, and a reader who types birthed.app gets the same page
+  // with today's date in it. There is no longer a page whose only job is to
+  // point at the pages.
+  const indexYear = new Date().getUTCFullYear();
   const shortName = `${monthName(page.month).slice(0, 3)} ${page.day}`;
 
   return `${head(`Born on ${name}`, description, canonical, image, !isReady(page, facts), "", sequence)}
@@ -1527,7 +1537,7 @@ export function renderDayPage(
 <span class="here">${shortName}</span>
 <a class="arrow" href="/${slug(next.month, next.day)}/" title="${monthName(next.month)} ${next.day}" aria-label="${monthName(next.month)} ${next.day}">&rsaquo;</a>
 </span>
-<a class="get" href="/">Get Birthed</a>
+<a class="get" href="/about/">About</a>
 </div>
 <p class="kicker">Born on</p>
 <h1>${name}</h1>
@@ -1549,9 +1559,10 @@ ${peopleRail(page, name)}
 <p class="when">${monthName(next.month)} ${next.day}</p>
 </a>
 </nav>
-<section class="cta">
-<h2>Is ${name} yours?</h2>
-<p>Birthed is an app about the day you were born. Who shares it, what happened on it, and what to do with it.</p>
+<section class="everyday">
+<h2 class="section">Every day of the year</h2>
+<p class="lede">Pick a date and see who shares it and what happened on it. The weeks are laid out the way they fall in ${indexYear}.</p>
+${calendar(indexYear)}
 </section>
 </div>
 ${jsonLd(page, canonical)}

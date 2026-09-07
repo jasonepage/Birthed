@@ -148,7 +148,18 @@ async function main(): Promise<void> {
   if (highlights.length < HOME_HIGHLIGHTS) {
     console.log(`only ${highlights.length} facts on the front door, out of ${HOME_HIGHLIGHTS}`);
   }
-  await writeFile(join(OUT, "index.html"), renderHome(thisYear, highlights), "utf8");
+  await mkdir(join(OUT, "about"), { recursive: true });
+  await writeFile(join(OUT, "about", "index.html"), renderHome(thisYear, highlights), "utf8");
+  // index.html is a copy of today's date page rather than a page of its own.
+  //
+  // serve.ts answers "/" by reading the file for whatever date it is when the
+  // request arrives, so this copy is only what a plain static host would fall
+  // back to. It is written from the same renderer, so there is one template
+  // and not two, and the canonical inside it names the dated address, which
+  // is the one that should be indexed.
+  const now = new Date();
+  const todaySlug = slug(now.getUTCMonth() + 1, now.getUTCDate());
+  await cp(join(OUT, todaySlug, "index.html"), join(OUT, "index.html"));
   await mkdir(join(OUT, "support"), { recursive: true });
   await writeFile(join(OUT, "support", "index.html"), renderSupport(), "utf8");
   await mkdir(join(OUT, "privacy"), { recursive: true });

@@ -141,6 +141,27 @@ const TODAY_BEHIND_UTC_HOURS = 6;
  * The clock and the dice are arguments so a test can hand it both and get an
  * answer it can check.
  */
+/**
+ * The date "/" answers with.
+ *
+ * The root is not a page any more. It is whatever date it is, served from the
+ * file that was already built for that date, so there is one template for all
+ * 367 addresses and no front door to keep in step with them. The canonical
+ * inside that file names the dated address, so a search engine indexes
+ * /september-7/ and reads "/" as the same thing rather than as a rival.
+ *
+ * Read at request time rather than at build time, because the pages are baked
+ * into a deploy and a baked "/" is the wrong day by the next morning. That is
+ * the whole reason this lives here and not in build.ts.
+ *
+ * Shifted by the same hours as /today for the same reason, which is written
+ * up above the constant.
+ */
+export function todaySlug(now: Date = new Date()): string {
+  const shifted = new Date(now.getTime() - TODAY_BEHIND_UTC_HOURS * 60 * 60 * 1000);
+  return slug(shifted.getUTCMonth() + 1, shifted.getUTCDate());
+}
+
 export function redirectFor(
   requestPath: string,
   now: Date = new Date(),
@@ -249,6 +270,17 @@ async function handle(
     });
     response.end();
     return;
+  }
+
+  // The root, answered with today's date page. Falls through to the ordinary
+  // file lookup when that date has not been built, which leaves index.html as
+  // the answer rather than a 404.
+  if (path === "/" || path === "/index.html") {
+    const today = await fileFor(join(root, todaySlug()));
+    if (today !== null) {
+      send(response, 200, today, "/", method === "HEAD");
+      return;
+    }
   }
 
   const full = resolvePath(root, path);

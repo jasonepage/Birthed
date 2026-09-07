@@ -188,9 +188,12 @@ export function renderHome(
   year: number = new Date().getUTCFullYear(),
   highlights: Highlight[] = [],
 ): string {
-  const canonical = `${SITE}/`;
+  // /about/ rather than /. The root now serves whatever date it is, and two
+  // addresses claiming the same words is how a site asks a search engine to
+  // pick a winner on its behalf.
+  const canonical = `${SITE}/about/`;
   return `${head(
-    "Birthed: the day you were born",
+    "About Birthed",
     "Who shares your birthday, what happened on it, what was number one the week you were born, how many days you have been here, and whose birthdays you keep forgetting.",
     canonical,
     // The card. Every date page has had one since it was built and the home
