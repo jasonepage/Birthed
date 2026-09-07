@@ -33,6 +33,16 @@ interface Title {
 
 interface ChartSpec {
   name: string;
+  /**
+   * Apple's media type, and it is not optional however much it looks it.
+   *
+   * The search endpoint defaults media to music, and an entity that does not
+   * belong to the media type is not an error, it is zero results. So the first
+   * films run asked for movies inside music and came back with nothing at all
+   * for forty titles in a row, which reads exactly like a catalogue that does
+   * not carry them.
+   */
+  media: string;
   entity: string;
   wantTrack: boolean;
   attribute: string;
@@ -46,12 +56,15 @@ interface ChartSpec {
 }
 
 const CHARTS: Record<string, ChartSpec> = {
-  songs: { name: "Billboard Hot 100", entity: "song", wantTrack: true, attribute: "songTerm" },
-  albums: { name: "Billboard 200", entity: "album", wantTrack: false, attribute: "albumTerm" },
+  songs: { name: "Billboard Hot 100", media: "music", entity: "song", wantTrack: true, attribute: "songTerm" },
+  albums: { name: "Billboard 200", media: "music", entity: "album", wantTrack: false, attribute: "albumTerm" },
   // A film is a track in Apple's catalogue, not a collection: the title is in
   // trackName and the poster is the track's artwork. previewUrl on one of
   // these is a trailer, which is why nothing plays it.
-  films: { name: "US box office", entity: "movie", wantTrack: true, attribute: "movieTerm", maxYearsAway: 2 },
+  films: {
+    name: "US box office", media: "movie", entity: "movie",
+    wantTrack: true, attribute: "movieTerm", maxYearsAway: 2,
+  },
 };
 
 function sleep(ms: number): Promise<void> {
@@ -116,10 +129,13 @@ async function unmatchedTitles(chartName: string, url: string, key: string): Pro
  * is the only thing being ranked, and the artist check then does the work of
  * telling the real one from everybody else who named a record Music.
  */
-async function search(title: Title, entity: string, attribute?: string): Promise<StoreResult[]> {
+async function search(title: Title, spec: ChartSpec, attribute?: string): Promise<StoreResult[]> {
   const query = new URLSearchParams({
-    term: attribute ? title.song : `${title.song} ${title.artist}`,
-    entity,
+    // A blank artist is every box office row, and joining a title to nothing
+    // leaves a trailing space that helps no relevance engine.
+    term: attribute ? title.song : `${title.song} ${title.artist}`.trim(),
+    media: spec.media,
+    entity: spec.entity,
     country: "US",
     // 12 was too few. Raising it costs the same single request and it is the
     // cheapest half of the retrieval problem above.
@@ -133,7 +149,7 @@ async function search(title: Title, entity: string, attribute?: string): Promise
   // a run that ignored it would fill the table with empty refusals.
   if (response.status === 403 || response.status === 429) {
     await sleep(30_000);
-    return search(title, entity, attribute);
+    return search(title, spec, attribute);
   }
   if (!response.ok) return [];
   const body = (await response.json()) as { results?: StoreResult[] };
@@ -158,13 +174,14 @@ async function search(title: Title, entity: string, attribute?: string): Promise
  * credit names somebody. Asking for an artist called Soundtrack is a wasted
  * request.
  */
-async function searchByArtist(title: Title, entity: string): Promise<StoreResult[]> {
+async function searchByArtist(title: Title, spec: ChartSpec): Promise<StoreResult[]> {
   const named = realNames(primaryArtist(title.artist));
   if (named === "") return [];
 
   const query = new URLSearchParams({
     term: named,
-    entity,
+    media: spec.media,
+    entity: spec.entity,
     country: "US",
     attribute: "artistTerm",
     limit: "200",
@@ -174,7 +191,7 @@ async function searchByArtist(title: Title, entity: string): Promise<StoreResult
   });
   if (response.status === 403 || response.status === 429) {
     await sleep(30_000);
-    return searchByArtist(title, entity);
+    return searchByArtist(title, spec);
   }
   if (!response.ok) return [];
   const body = (await response.json()) as { results?: StoreResult[] };
@@ -238,7 +255,7 @@ async function main(): Promise<void> {
     console.log(`\n${spec.name}: ${titles.length} titles to look up.\n`);
 
     for (const title of titles) {
-      let results = await search(title, spec.entity);
+      let results = await search(title, spec);
       let match = pickMatch(results, title.song, title.artist, title.year, spec.wantTrack, spec.maxYearsAway);
 
       // Only the misses pay for the second request, which is about a quarter
@@ -246,7 +263,7 @@ async function main(): Promise<void> {
       // doubling.
       if (!match) {
         await sleep(GAP_MS);
-        const second = await search(title, spec.entity, spec.attribute);
+        const second = await search(title, spec, spec.attribute);
         const retry = pickMatch(second, title.song, title.artist, title.year, spec.wantTrack, spec.maxYearsAway);
         if (retry) {
           match = retry;
@@ -257,7 +274,7 @@ async function main(): Promise<void> {
       // Still nothing, so ask for the artist rather than the title.
       if (!match) {
         await sleep(GAP_MS);
-        const third = await searchByArtist(title, spec.entity);
+        const third = await searchByArtist(title, spec);
         const retry = pickMatch(third, title.song, title.artist, title.year, spec.wantTrack, spec.maxYearsAway);
         if (retry) {
           match = retry;
