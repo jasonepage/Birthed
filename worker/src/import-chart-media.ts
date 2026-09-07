@@ -19,7 +19,7 @@
 // with matched_at set is never looked up again, whether it matched or not.
 
 import { loadConfig, loadDotEnv } from "./config.js";
-import { pickMatch, type Match, type StoreResult } from "./media.js";
+import { pickMatch, primaryArtist, realNames, type Match, type StoreResult } from "./media.js";
 
 /** Apple allows about twenty a minute. This is a shade under. */
 const GAP_MS = 3_200;
@@ -123,6 +123,47 @@ async function search(title: Title, entity: string, attribute?: string): Promise
 }
 
 /**
+ * The third and last look, and it asks the opposite question.
+ *
+ * Passes one and two both search for the title and get back everything in the
+ * catalogue named that. When the title is a common word and the artist is
+ * not, that is the wrong way round. Searching for Drones returns meditation
+ * recordings and a channel called Moon Muse, and Muse's own album is nowhere
+ * in the first twenty five. Searching for Muse returns Muse, and Drones is
+ * sitting in the results.
+ *
+ * Two hundred is the most Apple will return. An artist with a long catalogue
+ * and a lot of compilations can still push the wanted record past it, which
+ * is a real limit and not a bug to chase.
+ *
+ * Only titles that have already failed twice pay for this, and only when the
+ * credit names somebody. Asking for an artist called Soundtrack is a wasted
+ * request.
+ */
+async function searchByArtist(title: Title, entity: string): Promise<StoreResult[]> {
+  const named = realNames(primaryArtist(title.artist));
+  if (named === "") return [];
+
+  const query = new URLSearchParams({
+    term: named,
+    entity,
+    country: "US",
+    attribute: "artistTerm",
+    limit: "200",
+  });
+  const response = await fetch(`https://itunes.apple.com/search?${query}`, {
+    headers: { "User-Agent": "Birthed/0.1 (https://birthed.app)" },
+  });
+  if (response.status === 403 || response.status === 429) {
+    await sleep(30_000);
+    return searchByArtist(title, entity);
+  }
+  if (!response.ok) return [];
+  const body = (await response.json()) as { results?: StoreResult[] };
+  return body.results ?? [];
+}
+
+/**
  * The answer, written to every week that shares this title.
  *
  * matched_at is set whether or not anything was found, which is what stops a
@@ -192,6 +233,23 @@ async function main(): Promise<void> {
         if (retry) {
           match = retry;
           results = second;
+        }
+      }
+
+      // Still nothing, so ask for the artist rather than the title.
+      if (!match) {
+        await sleep(GAP_MS);
+        const third = await searchByArtist(title, spec.entity);
+        const retry = pickMatch(third, title.song, title.artist, title.year, spec.wantTrack);
+        if (retry) {
+          match = retry;
+          results = third;
+        } else if (third.length > 0 && results.length === 0) {
+          // Nothing to show from the first search but the artist has a
+          // catalogue, which is worth seeing in the refusal line: it says the
+          // artist was found and the record was not, rather than nothing at
+          // all was found.
+          results = third;
         }
       }
 
