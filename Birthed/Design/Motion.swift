@@ -6,35 +6,68 @@ import SwiftUI
 /// Eased, so it lands rather than stops. With Reduce Motion on it shows the
 /// final value at once. The digits are monospaced so the width does not
 /// jitter while they roll.
+///
+/// The rule this is built on, after it got this wrong in public: **the number
+/// on screen is the value, and the animation is a temporary exception to
+/// that.** Not the other way round.
+///
+/// The first version had it backwards. It drew `value` scaled by how much
+/// wall clock time had passed, on a timeline it paused itself by watching a
+/// condition from inside its own frame closure. That makes the digits a frame
+/// of an animation rather than a fact, and a frame is only correct if the
+/// animation is still running. A `TimelineView(.animation)` stops when its
+/// view is off screen, when the app is not active, and during a launch or a
+/// tab change, and any of those landed the count wherever it happened to be.
+/// Reopening the app showed 1,211 days lived instead of 8,768, which is that
+/// curve about sixty seven milliseconds in, and it stayed there because
+/// nothing was ever going to come back and finish it.
+///
+/// So now there is no paused state and no condition to miss. `start` is the
+/// whole state: non nil means an animation is in flight, nil means show the
+/// true number. A single task owns the clock, and every way that task can end,
+/// finishing, the value changing, the view going away, cancellation, runs the
+/// same line and puts the true number on screen. There is no path that leaves
+/// a partial one there.
 struct CountingNumber: View {
     let value: Int
     var duration: Double = 1.4
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var start = Date.now
-    @State private var finished = false
+    /// When this animation began, or nil when the true value is what shows.
+    @State private var start: Date?
 
     var body: some View {
-        TimelineView(.animation(paused: finished)) { context in
-            let elapsed = context.date.timeIntervalSince(start)
-            let progress = reduceMotion ? 1.0 : min(1.0, max(0.0, elapsed / duration))
-            let eased = 1 - pow(1 - progress, 3)
-            let shown = Int((Double(value) * eased).rounded())
-
-            Text(shown.formatted())
-                .monospacedDigit()
-                .onChange(of: progress >= 1) { _, done in
-                    if done { finished = true }
+        Group {
+            if let start, !reduceMotion {
+                TimelineView(.animation) { context in
+                    let elapsed = context.date.timeIntervalSince(start)
+                    let progress = min(1.0, max(0.0, elapsed / duration))
+                    let eased = 1 - pow(1 - progress, 3)
+                    Text(Int((Double(value) * eased).rounded()).formatted())
+                        .monospacedDigit()
                 }
+            } else {
+                Text(value.formatted())
+                    .monospacedDigit()
+            }
         }
-        .onAppear {
+        // Keyed on the value, so a new number counts to itself rather than
+        // carrying on from the last one's clock. Cancelled when the view goes
+        // away, and `try?` swallows that cancellation on purpose: the line
+        // after it is the one that guarantees the true number is what is left
+        // on screen, so it has to run on the way out too.
+        .task(id: value) {
+            guard !reduceMotion else {
+                start = nil
+                return
+            }
             start = .now
-            finished = false
+            try? await Task.sleep(for: .seconds(duration))
+            start = nil
         }
-        .onChange(of: value) { _, _ in
-            start = .now
-            finished = false
-        }
+        // The number is a fact and a stuck animation must not hide it, so the
+        // reader is always told the real one whatever is on screen.
+        .accessibilityLabel(value.formatted())
     }
 }
 
