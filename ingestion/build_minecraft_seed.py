@@ -1,0 +1,141 @@
+"""Builds a seed file of Minecraft releases from Mojang's own version manifest.
+
+    python build_minecraft_seed.py                 # writes seed_minecraft.json
+    python build_minecraft_seed.py --patches       # every patch too, not just 1.x
+
+Why a script and not a hand written list. Three sources were checked for these
+dates and two of them disagreed: the Minecraft Wiki timeline says 1.2 was
+released on 2012-02-23 and Wikipedia's development article says 2012-03-01,
+and Wikipedia's table also files Beta 1.8 from 2011 under release 1.8 from
+2014. A wrong date on a date page is the one kind of wrong this audience
+notices first, and hand typing thirty of them from sources that contradict
+each other is the way to get several.
+
+The manifest is what the game launcher itself reads to decide what to
+download. It is machine written, it has a timestamp on every build Mojang has
+ever shipped, and it does not have an opinion. It also keeps working: a
+version released next year appears here without anybody editing a file.
+
+The output goes through the existing ingestion agent, which vibe checks each
+row before it is written, so this script does no writing of its own.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import urllib.request
+from pathlib import Path
+
+MANIFEST = "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json"
+
+#: Official update names, hand checked one at a time against minecraft.wiki.
+#:
+#: Deliberately incomplete. A version with no name here still produces a good
+#: row, it just does not get the nickname, and that is a much better failure
+#: than a nickname attached to the wrong version. Add to it only after reading
+#: the wiki page for that version.
+NAMES = {
+    "1.18": "Caves & Cliffs",
+    "1.19": "The Wild Update",
+    "1.20": "Trails & Tales",
+    "26.2": "Chaos Cubed",
+}
+
+#: 1.16 or 26.2, and not 1.16.5. A patch is a real thing that happened, but
+#: roughly a hundred and fifty of them across 366 days would make Minecraft
+#: the loudest voice on the site, which it has not earned.
+MAJOR = re.compile(r"^\d+\.\d+$")
+
+
+def fetch_manifest(url: str = MANIFEST) -> dict:
+    request = urllib.request.Request(url, headers={"User-Agent": "Birthed/0.1 (https://birthed.app)"})
+    with urllib.request.urlopen(request, timeout=30) as response:
+        return json.load(response)
+
+
+def wiki_url(version: str) -> str:
+    """The page that confirms this version's date, which is what a reader
+    following the link is checking."""
+    return f"https://minecraft.wiki/w/Java_Edition_{version}"
+
+
+def rows(manifest: dict, patches: bool = False) -> list[dict]:
+    versions = manifest.get("versions", [])
+    out: list[dict] = []
+
+    for entry in versions:
+        if entry.get("type") != "release":
+            continue
+        version = str(entry.get("id", ""))
+        if not patches and not MAJOR.match(version):
+            continue
+        released = str(entry.get("releaseTime", ""))[:10]
+        if len(released) != 10:
+            continue
+
+        name = NAMES.get(version)
+        title = f"Minecraft {version} is released" if not name else f"Minecraft {version}, {name}, is released"
+        context = (
+            f"Mojang released Minecraft Java Edition {version}"
+            + (f", the update it called {name}." if name else ".")
+        )
+        out.append({
+            "event_date": released,
+            "category": "gaming",
+            "event_title": title,
+            "context_string": context,
+            "source_url": wiki_url(version),
+        })
+
+    # The oldest thing in the manifest, whatever Mojang has called it. It is
+    # the first build of Minecraft that still exists, and it is a better row
+    # than any patch: the game began on somebody's birthday.
+    oldest = min(
+        (v for v in versions if str(v.get("releaseTime", ""))[:10]),
+        key=lambda v: str(v["releaseTime"]),
+        default=None,
+    )
+    if oldest is not None:
+        out.append({
+            "event_date": str(oldest["releaseTime"])[:10],
+            "category": "gaming",
+            "event_title": "The first surviving build of Minecraft",
+            "context_string": (
+                f"The oldest build of Minecraft that Mojang still publishes, {oldest['id']}, "
+                "is stamped with this day. The game was a few days old and had no name yet."
+            ),
+            "source_url": "https://minecraft.wiki/w/Java_Edition_version_history",
+        })
+
+    out.sort(key=lambda row: row["event_date"])
+    return out
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--patches", action="store_true", help="include 1.16.5 and friends")
+    parser.add_argument("--out", default="seed_minecraft.json")
+    args = parser.parse_args()
+
+    manifest = fetch_manifest()
+    events = rows(manifest, patches=args.patches)
+    payload = {
+        "note": (
+            "Generated by build_minecraft_seed.py from Mojang's version manifest. "
+            "Every date here came from the manifest and none was typed by hand. "
+            "Rerun the script rather than editing this file."
+        ),
+        "events": events,
+    }
+    Path(args.out).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+    days = {row["event_date"][5:] for row in events}
+    print(f"{len(events)} releases, landing on {len(days)} different days of the year.")
+    print(f"Oldest {events[0]['event_date']}, newest {events[-1]['event_date']}.")
+    print(f"Written to {args.out}. Nothing has been sent anywhere yet.")
+
+
+if __name__ == "__main__":
+    main()
