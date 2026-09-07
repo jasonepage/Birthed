@@ -468,22 +468,22 @@ struct MyDayView: View {
     /// How far the candle hangs below the panel, and so how much of it the
     /// panel clips off.
     ///
-    /// It is back above zero, and that is the redesign rather than a revert.
-    /// `CandleMark` is drawn with no base so it can run off the bottom of
-    /// whatever it is placed in, which is right on the app icon and on a
-    /// share card because both of those have an edge. The stage had no edge:
-    /// it was a region in the middle of a scrolling page with the same
-    /// background above and below it, so a candle bleeding out of it was not
-    /// running off anything. Setting the drop to zero was the right fix for
-    /// that stage and it left a striped cylinder with a hard flat bottom
-    /// floating on cream, which is the thing this file was reopened to solve.
+    /// Zero, and this time not as a revert.
     ///
-    /// The stage is a panel now, so there is a real edge again, and the
-    /// candle stands on it. The drop is small on purpose: the flame is 48
-    /// percent of the height, so a large drop leaves a stub under a fire.
-    /// Eighteen of 230 leaves 105 points of body under 111 of flame, which
-    /// is the proportion the icon has.
-    private var candleDrop: CGFloat { isBirthday ? 26 : 18 }
+    /// The history is worth keeping because it is the argument. `CandleMark`
+    /// was drawn with no base, so it had to run off the bottom of something
+    /// or show a hard flat cut where the wax ended. On the icon and on a share
+    /// card that is right, because both have an edge. The stage did not, so a
+    /// zero drop left a striped cylinder with a flat bottom floating on cream.
+    /// The panel gave the edge back and the drop came back with it, and that
+    /// worked, but it was still the panel hiding the problem rather than the
+    /// candle not having one.
+    ///
+    /// The candle has a holder now. It ends in a dish and casts a shadow onto
+    /// what it is standing on, so there is nothing left to hide and no reason
+    /// to push it through the floor. Everything the drop was worth is now
+    /// being done by the thing it was working around.
+    private var candleDrop: CGFloat { 0 }
 
     /// The light the candle throws, centred on its flame.
     ///
@@ -546,7 +546,7 @@ struct MyDayView: View {
     /// rounded corner does not take a bite out of the candle's bottom corner
     /// on its way past.
     private var candle: some View {
-        CandleMark(height: candleHeight, lit: lit)
+        CandleMark(height: candleHeight, lit: lit, holder: true, on: stagePalette)
             .padding(.trailing, 42)
             .offset(y: candleDrop)
             .onLongPressGesture(minimumDuration: 0.5, perform: { blowOut() })

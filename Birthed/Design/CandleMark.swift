@@ -74,6 +74,27 @@ struct CandleMark: View {
     var height: CGFloat = 200
     var lit: Bool = true
     var animated: Bool = true
+    /// A dish for the candle to stand in, and a contact shadow under it.
+    ///
+    /// Off by default, and that is the point. The candle is the app icon, and
+    /// the icon has no holder: it runs its body off the bottom edge of a
+    /// bounded square, where being cut off reads as deliberate. Everywhere the
+    /// mark is small or standing in for the app, it should stay the mark. The
+    /// holder is for the one place the candle is large and standing on a
+    /// surface a reader can see the bottom of, where running off the edge
+    /// reads as clipped rather than as chosen.
+    var holder: Bool = false
+    /// The ground this is standing on, which decides the colour of every edge
+    /// drawn below.
+    ///
+    /// Not the system appearance. The panel this candle usually stands on is
+    /// the same purple in light and dark on purpose, so an edge that followed
+    /// the appearance would turn black while the thing behind it stayed dark,
+    /// and be invisible half the time. The candle appears on the wax panel, on
+    /// the system card in People and Add Friends, and on ink and cream in the
+    /// share cards, and it has to hold on all of them. `palette.type` is cream
+    /// on a dark ground and ink on a light one, which is the whole rule.
+    var on: StagePalette = .wax
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -83,9 +104,27 @@ struct CandleMark: View {
     private var flameWidth: CGFloat { flameHeight * (100.0 / 95.0) }
     /// 250 wide against a flame 665 tall.
     private var bodyWidth: CGFloat { flameHeight * 0.376 }
-    private var bodyHeight: CGFloat { height * 0.534 }
+    private var bodyHeight: CGFloat { max(0, height * 0.534 - holderRise) }
     /// The 26 points the flame sits over the candle, against a flame 665 tall.
     private var overlap: CGFloat { flameHeight * 0.039 }
+
+    // The holder's proportions are chosen rather than measured, because there
+    // is no holder in the icon to measure one off. They are written against
+    // the body's width so the dish stays in proportion at every size the mark
+    // is drawn at, which in this app runs from 34 points to 620.
+    private var dishWidth: CGFloat { bodyWidth * 2.6 }
+    private var dishHeight: CGFloat { bodyWidth * 0.62 }
+    private var collarWidth: CGFloat { bodyWidth * 1.52 }
+    private var collarHeight: CGFloat { bodyWidth * 0.34 }
+    /// How far the dish reaches below where the body alone would have ended.
+    /// Taken off the body so the whole mark still occupies exactly `height`
+    /// and no caller has to know whether it has a holder.
+    private var holderRise: CGFloat { holder ? dishHeight * 0.62 : 0 }
+
+    /// A hairline that never disappears at 34 points and never thickens into
+    /// a border at 620.
+    private var edgeWidth: CGFloat { max(0.75, height * 0.004) }
+    private var edge: Color { on.type.opacity(0.34) }
 
     private var moves: Bool { animated && !reduceMotion }
 
@@ -98,9 +137,77 @@ struct CandleMark: View {
                 // base of the fire and the candle looks unlit.
                 .zIndex(1)
 
-            stripedBody
+            if holder {
+                seatedBody
+            } else {
+                stripedBody
+            }
         }
         .animation(.easeInOut(duration: 0.35), value: lit)
+    }
+
+    /// The candle standing in its dish.
+    ///
+    /// Four things in order from the back: the shadow it casts on whatever it
+    /// is standing on, the body, the dish, and the collar that covers the join
+    /// where one meets the other. The collar is the only reason this reads as
+    /// a candle in a holder rather than a candle in front of a saucer.
+    private var seatedBody: some View {
+        ZStack(alignment: .bottom) {
+            Ellipse()
+                .fill(Color.black.opacity(0.32))
+                .frame(width: dishWidth * 0.94, height: dishHeight * 0.46)
+                .blur(radius: dishHeight * 0.24)
+                .offset(y: dishHeight * 0.14)
+                .allowsHitTesting(false)
+
+            stripedBody
+                .padding(.bottom, dishHeight * 0.42)
+
+            dish
+
+            collar
+                .padding(.bottom, dishHeight * 0.34)
+        }
+        .frame(width: dishWidth)
+    }
+
+    /// The saucer. Two ellipses and a warm edge.
+    ///
+    /// The top of it is lit, because there is a flame directly above it and
+    /// the one thing that would give this away as assembled rather than drawn
+    /// is a holder that ignores its own candle. The light goes out with the
+    /// flame.
+    private var dish: some View {
+        ZStack {
+            Ellipse()
+                .fill(LinearGradient(
+                    colors: [on.type.opacity(0.30), on.type.opacity(0.13), on.type.opacity(0.24)],
+                    startPoint: .leading, endPoint: .trailing
+                ))
+                .overlay(
+                    Ellipse().stroke(edge, lineWidth: edgeWidth)
+                )
+
+            Ellipse()
+                .fill(Theme.ember.opacity(lit ? 0.26 : 0))
+                .frame(width: dishWidth * 0.72, height: dishHeight * 0.34)
+                .blur(radius: dishHeight * 0.3)
+                .offset(y: -dishHeight * 0.16)
+                .allowsHitTesting(false)
+        }
+        .frame(width: dishWidth, height: dishHeight)
+    }
+
+    /// The raised ring the candle sits in, drawn over the body's base.
+    private var collar: some View {
+        Ellipse()
+            .fill(LinearGradient(
+                colors: [on.type.opacity(0.36), on.type.opacity(0.18)],
+                startPoint: .top, endPoint: .bottom
+            ))
+            .overlay(Ellipse().stroke(edge, lineWidth: edgeWidth))
+            .frame(width: collarWidth, height: collarHeight)
     }
 
     @ViewBuilder
@@ -188,6 +295,18 @@ struct CandleMark: View {
         .transition(.opacity)
     }
 
+    /// The body's outline, kept as one value because it is both the mask and
+    /// the edge and those two must not drift apart.
+    private var bodyShape: UnevenRoundedRectangle {
+        UnevenRoundedRectangle(
+            topLeadingRadius: bodyWidth * 0.1867,
+            bottomLeadingRadius: 0,
+            bottomTrailingRadius: 0,
+            topTrailingRadius: bodyWidth * 0.1867,
+            style: .continuous
+        )
+    }
+
     private var stripedBody: some View {
         Rectangle()
             .fill(LinearGradient(
@@ -196,13 +315,13 @@ struct CandleMark: View {
             ))
             .overlay(stripes)
             .frame(width: bodyWidth, height: bodyHeight)
-            .clipShape(UnevenRoundedRectangle(
-                topLeadingRadius: bodyWidth * 0.1867,
-                bottomLeadingRadius: 0,
-                bottomTrailingRadius: 0,
-                topTrailingRadius: bodyWidth * 0.1867,
-                style: .continuous
-            ))
+            .clipShape(bodyShape)
+            // The wax is the same colour as the panel it usually stands on, so
+            // without this the body has no edges and the mark reads as three
+            // cream stripes floating under a flame. On a light ground the same
+            // line is ink instead, which is the whole reason it is taken from
+            // the palette rather than from the appearance.
+            .overlay(bodyShape.stroke(edge, lineWidth: edgeWidth))
     }
 
     /// Eleven stripes 54 wide, 126 apart, turned 36 degrees, on a body 150
@@ -226,10 +345,49 @@ struct CandleMark: View {
     }
 }
 
-#Preview("Lit") {
-    ZStack { Theme.ink.ignoresSafeArea(); CandleMark(height: 300) }
+#Preview("On the panel, held") {
+    ZStack {
+        StagePalette.wax.ground.ignoresSafeArea()
+        CandleMark(height: 300, holder: true, on: .wax)
+    }
 }
 
-#Preview("Out") {
-    ZStack { Theme.cream.ignoresSafeArea(); CandleMark(height: 300, lit: false) }
+#Preview("On the panel, as the icon draws it") {
+    ZStack {
+        StagePalette.wax.ground.ignoresSafeArea()
+        CandleMark(height: 300, on: .wax)
+    }
+}
+
+#Preview("On a light card") {
+    ZStack {
+        StagePalette.cream.ground.ignoresSafeArea()
+        CandleMark(height: 300, holder: true, on: .cream)
+    }
+}
+
+#Preview("On ink") {
+    ZStack {
+        StagePalette.ink.ground.ignoresSafeArea()
+        CandleMark(height: 300, holder: true, on: .ink)
+    }
+}
+
+#Preview("Blown out, held") {
+    ZStack {
+        StagePalette.wax.ground.ignoresSafeArea()
+        CandleMark(height: 300, lit: false, holder: true, on: .wax)
+    }
+}
+
+#Preview("Small, the sizes People uses") {
+    ZStack {
+        StagePalette.cream.ground.ignoresSafeArea()
+        HStack(alignment: .bottom, spacing: 24) {
+            CandleMark(height: 34, on: .cream)
+            CandleMark(height: 54, on: .cream)
+            CandleMark(height: 96, holder: true, on: .cream)
+            CandleMark(height: 120, holder: true, on: .cream)
+        }
+    }
 }
