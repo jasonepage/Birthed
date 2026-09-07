@@ -151,7 +151,7 @@ const CANDLE = `<svg width="262" height="458" viewBox="380 120 264 800" xmlns="h
     <rect x="300" y="758" width="500" height="54" fill="#FFF3E2" opacity="0.94"/>
     <rect x="300" y="884" width="500" height="54" fill="#FFF3E2" opacity="0.94"/>
   </g></g>
-  <g transform="translate(400.19 148) scale(4.4632)">
+  <g transform="translate(288.84 148) scale(4.4632)">
     <path d="M 50 3 C 53 20, 63 28, 68 40 C 73 51, 73 58, 73 65 C 73 81, 63 95, 50 95 C 37 95, 27 81, 27 65 C 27 55, 33 47, 39 39 C 41 43, 43 46, 46 48 C 46 34, 46 17, 50 3 Z" fill="url(#flame)"/>
     <path d="M 50 40 C 52 52, 60 58, 60 68 C 60 80, 55 87, 49 87 C 43 87, 38 80, 38 69 C 38 59, 47 52, 50 40 Z" fill="url(#hot)"/>
   </g>
