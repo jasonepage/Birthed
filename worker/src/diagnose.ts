@@ -18,6 +18,13 @@
 //      different string from the one Wikidata stores, so an exact match fails
 //      on a person who is right there. The search now stops at the first
 //      non-ASCII character, so "Beyoncé" is looked up as "beyonc".
+//   3. It looked for an English label. Asked about Beyoncé it answered that
+//      Wikidata does not have her on September 4, and printed her September 4
+//      birth date three lines below that, and the contradiction was in the
+//      output rather than in the reader. Her name is filed under mul, the code
+//      for a name spelled the same in every language, so the English label
+//      does not exist and the search matched nothing. The very thing being
+//      diagnosed was breaking the diagnosis. Both languages are searched now.
 
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -82,7 +89,7 @@ ${values}
   ?person wdt:P569 ?dob .
   ?person wikibase:sitelinks ?sitelinks .
   ?person rdfs:label ?name .
-  FILTER(LANG(?name) = "en")
+  FILTER(LANG(?name) IN ("en", "mul"))
   FILTER(CONTAINS(LCASE(?name), "${term}"))
 ${accumulated.join("\n")}
 }
