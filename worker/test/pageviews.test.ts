@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   titleFromArticleUrl,
-  averageMonthlyViews,
+  typicalMonthlyViews,
   viewsByRequestedTitle,
   followMappings,
 } from "../src/pageviews.js";
@@ -23,16 +23,52 @@ test("a broken percent escape does not throw", () => {
 });
 
 test("daily counts become a monthly figure", () => {
-  assert.equal(averageMonthlyViews({ "2026-09-01": 10, "2026-09-02": 20 }), 450);
+  assert.equal(typicalMonthlyViews({ "2026-09-01": 10, "2026-09-02": 20 }), 450);
 });
 
 test("a day the interface reports as null counts as zero, not as missing", () => {
-  assert.equal(averageMonthlyViews({ "2026-09-01": 30, "2026-09-02": null }), 450);
+  assert.equal(typicalMonthlyViews({ "2026-09-01": 30, "2026-09-02": null }), 450);
 });
 
 test("no data at all is zero rather than a crash", () => {
-  assert.equal(averageMonthlyViews(undefined), 0);
-  assert.equal(averageMonthlyViews({}), 0);
+  assert.equal(typicalMonthlyViews(undefined), 0);
+  assert.equal(typicalMonthlyViews({}), 0);
+});
+
+/** Sixty days of one number, which is what somebody read steadily looks like. */
+function steady(days: number, perDay: number): Record<string, number> {
+  const daily: Record<string, number> = {};
+  for (let index = 0; index < days; index += 1) {
+    daily[`2026-07-${String(index + 1).padStart(3, "0")}`] = perDay;
+  }
+  return daily;
+}
+
+test("a death spike does not become a month of reading", () => {
+  // The real shape: fifty ordinary days at a thousand, then ten days of a
+  // million because the person died. The average calls that 2,525,000 a month
+  // and puts them top of their date for two months. The middle reading calls
+  // it what they were read before it happened.
+  const daily = steady(50, 1_000);
+  for (let index = 0; index < 10; index += 1) {
+    daily[`2026-09-${String(index + 1).padStart(2, "0")}`] = 1_000_000;
+  }
+  assert.equal(typicalMonthlyViews(daily), 30_000);
+});
+
+test("somebody read steadily is not damped by the change", () => {
+  assert.equal(typicalMonthlyViews(steady(60, 20_000)), 600_000);
+});
+
+test("a real rise is still a rise, because it is most of the window", () => {
+  // The one this cannot tell apart from the one above, and it is the right
+  // way round to fail: forty of sixty days raised is a person people started
+  // reading, not a spike.
+  const daily = steady(20, 1_000);
+  for (let index = 0; index < 40; index += 1) {
+    daily[`2026-08-${String(index + 1).padStart(3, "0")}`] = 50_000;
+  }
+  assert.equal(typicalMonthlyViews(daily), 1_500_000);
 });
 
 test("an accented name is searched by the part before the accent", () => {

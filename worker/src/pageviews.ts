@@ -14,7 +14,9 @@
 // The trade is history: 60 days rather than 365. For this product that is
 // arguably the better window anyway, because it reflects who people are
 // looking up now rather than who they looked up two years ago. It is spikier,
-// though, so somebody who died last month will rank high for a while.
+// though, so somebody who died last month will rank high for a while. That
+// last sentence sat here as a known cost and was measured on September 7. It
+// was not a cost, it was the ranking. See typicalMonthlyViews.
 
 const ENDPOINT = "https://en.wikipedia.org/w/api.php";
 const BATCH = 50;
@@ -83,13 +85,50 @@ export function titleFromArticleUrl(articleUrl: string): string | null {
   }
 }
 
-/** Average views per month, from however many days the interface returned. */
-export function averageMonthlyViews(daily: Record<string, number | null> | undefined): number {
+/**
+ * A month of reading, taken from the middle of the daily readings rather than
+ * from their average.
+ *
+ * This was the average, and the average is what a death does to a ranking.
+ * Measured on September 7 across the 200 most read people in the table: the
+ * fourteen who died in 2025 or later average 1,112,260 a month, and the living
+ * average 446,268. Two and a half times. It is not that those fourteen are
+ * more famous. It is that dying is the most common reason to look a person up,
+ * and the window here is sixty days, so a death inside it lands on the row and
+ * stays there for two months.
+ *
+ * A product about birthdays ranked on a signal that spikes when somebody dies
+ * is backwards. September 4 opened with a British actor on 389,748 readings
+ * while the page said nothing about the most famous person born that day.
+ *
+ * The middle reading fixes it with the numbers already in hand: no extra
+ * request, no window to lengthen, no constant to tune. A death is a handful of
+ * enormous days against fifty ordinary ones, and the middle of a sorted list
+ * does not move when the top of it explodes. Somebody read steadily every day
+ * is untouched. The two are told apart by the shape of the readings rather
+ * than by their size, which is why this needs no threshold.
+ *
+ * What it cannot do: somebody who died forty five days ago has more raised
+ * days than ordinary ones inside a sixty day window, so the middle reading is
+ * raised too. That is a far smaller error than the average makes and it fades
+ * on its own. Fixing that case as well means a year of history, which costs
+ * one request per person instead of four per date.
+ *
+ * An even number of readings takes the mean of the two in the middle, so a two
+ * day answer behaves exactly as it did before.
+ */
+export function typicalMonthlyViews(daily: Record<string, number | null> | undefined): number {
   if (!daily) return 0;
-  const values = Object.values(daily).map((value) => value ?? 0);
+  const values = Object.values(daily)
+    .map((value) => value ?? 0)
+    .sort((first, second) => first - second);
   if (values.length === 0) return 0;
-  const total = values.reduce((sum, value) => sum + value, 0);
-  return Math.round((total / values.length) * 30);
+  const half = values.length / 2;
+  const median =
+    values.length % 2 === 1
+      ? values[Math.floor(half)] ?? 0
+      : ((values[half - 1] ?? 0) + (values[half] ?? 0)) / 2;
+  return Math.round(median * 30);
 }
 
 function sleep(ms: number): Promise<void> {
@@ -185,7 +224,7 @@ export function viewsByRequestedTitle(
       // a page nobody reads. Skipping it leaves it for a later round instead
       // of writing a zero over it.
       if (!page.title || page.pageviews === undefined) continue;
-      byAnsweredTitle.set(page.title, averageMonthlyViews(page.pageviews));
+      byAnsweredTitle.set(page.title, typicalMonthlyViews(page.pageviews));
     }
     for (const [from, to] of mappings(payload)) alias.set(from, to);
   }
