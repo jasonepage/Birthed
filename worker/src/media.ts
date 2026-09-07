@@ -184,6 +184,22 @@ export function pickMatch(
   credit: string,
   chartYear: number,
   wantTrack = true,
+  /**
+   * How far from the chart year a release may be dated and still be the thing
+   * that charted. Undefined means no window, which is right for music.
+   *
+   * Films need one and music does not, and the difference is what stands
+   * behind the title. A song carries an artist, so "Titanic" by one act is not
+   * "Titanic" by another. Every one of the 4,210 box office rows has a blank
+   * artist, because the source lists films by name alone, so the artist check
+   * cannot refuse anything and the title is the only thing left. Titles repeat
+   * across decades: remakes, re-releases, documentaries about the original.
+   *
+   * A film charts within weeks of coming out, so its release is dated the
+   * chart year or the one before it. Two years is that with room for Apple
+   * dating a digital release later than a theatrical one.
+   */
+  maxYearsAway?: number,
 ): Match | null {
   const wantedTitle = normalise(title);
 
@@ -202,12 +218,22 @@ export function pickMatch(
     return sameArtist(credit, row.artistName ?? "");
   });
 
-  if (survivors.length === 0) return null;
+  const inWindow = maxYearsAway === undefined
+    ? survivors
+    : survivors.filter((row) => {
+        // No release date at all is not evidence of the wrong film, so it is
+        // kept and simply sorts last below.
+        if (!row.releaseDate) return true;
+        const year = new Date(row.releaseDate).getUTCFullYear();
+        return Number.isFinite(year) && Math.abs(year - chartYear) <= maxYearsAway;
+      });
+
+  if (inWindow.length === 0) return null;
 
   // The original rather than a reissue, a remaster's parent album or a
   // greatest hits. The first draft refused whenever two survived, which threw
   // away the Dilemma case where both were correct.
-  const best = survivors.slice().sort((a, b) => {
+  const best = inWindow.slice().sort((a, b) => {
     const ya = a.releaseDate ? new Date(a.releaseDate).getUTCFullYear() : 9999;
     const yb = b.releaseDate ? new Date(b.releaseDate).getUTCFullYear() : 9999;
     return Math.abs(ya - chartYear) - Math.abs(yb - chartYear);

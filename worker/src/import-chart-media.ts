@@ -31,9 +31,27 @@ interface Title {
   year: number;
 }
 
-const CHARTS: Record<string, { name: string; entity: string; wantTrack: boolean; attribute: string }> = {
+interface ChartSpec {
+  name: string;
+  entity: string;
+  wantTrack: boolean;
+  attribute: string;
+  /**
+   * How far from the chart year a release may be dated. Only films need one,
+   * for the reason written over `maxYearsAway` in media.ts: their rows carry
+   * no artist, so the title is the only thing standing between a 1997 blockbuster
+   * and a documentary about it made twenty years later.
+   */
+  maxYearsAway?: number;
+}
+
+const CHARTS: Record<string, ChartSpec> = {
   songs: { name: "Billboard Hot 100", entity: "song", wantTrack: true, attribute: "songTerm" },
   albums: { name: "Billboard 200", entity: "album", wantTrack: false, attribute: "albumTerm" },
+  // A film is a track in Apple's catalogue, not a collection: the title is in
+  // trackName and the poster is the track's artwork. previewUrl on one of
+  // these is a trailer, which is why nothing plays it.
+  films: { name: "US box office", entity: "movie", wantTrack: true, attribute: "movieTerm", maxYearsAway: 2 },
 };
 
 function sleep(ms: number): Promise<void> {
@@ -221,7 +239,7 @@ async function main(): Promise<void> {
 
     for (const title of titles) {
       let results = await search(title, spec.entity);
-      let match = pickMatch(results, title.song, title.artist, title.year, spec.wantTrack);
+      let match = pickMatch(results, title.song, title.artist, title.year, spec.wantTrack, spec.maxYearsAway);
 
       // Only the misses pay for the second request, which is about a quarter
       // of them, so the whole backfill grows by roughly a quarter rather than
@@ -229,7 +247,7 @@ async function main(): Promise<void> {
       if (!match) {
         await sleep(GAP_MS);
         const second = await search(title, spec.entity, spec.attribute);
-        const retry = pickMatch(second, title.song, title.artist, title.year, spec.wantTrack);
+        const retry = pickMatch(second, title.song, title.artist, title.year, spec.wantTrack, spec.maxYearsAway);
         if (retry) {
           match = retry;
           results = second;
@@ -240,7 +258,7 @@ async function main(): Promise<void> {
       if (!match) {
         await sleep(GAP_MS);
         const third = await searchByArtist(title, spec.entity);
-        const retry = pickMatch(third, title.song, title.artist, title.year, spec.wantTrack);
+        const retry = pickMatch(third, title.song, title.artist, title.year, spec.wantTrack, spec.maxYearsAway);
         if (retry) {
           match = retry;
           results = third;
