@@ -26,6 +26,8 @@ struct MyDayView: View {
     let onOpenSettings: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
+    /// For the sleeve, which opens the record on Apple Music.
+    @Environment(\.openURL) private var openURL
     /// Named for what it is rather than for what it holds, because `facts`
     /// on this screen is already the arithmetic one.
     @Environment(FactsService.self) private var factsService
@@ -556,6 +558,32 @@ struct MyDayView: View {
 
     // MARK: What is in the panel
 
+    /// A record sleeve, at the size the title beside it is tall.
+    ///
+    /// Loaded from Apple rather than shipped, and nothing is drawn in the
+    /// square until it arrives. A grey placeholder that never resolves reads
+    /// as broken, and a card with no sleeve is a state this screen already
+    /// has for every year Apple does not carry.
+    private func cover(_ url: URL, store: URL?) -> some View {
+        AsyncImage(url: url) { phase in
+            if case let .success(image) = phase {
+                image.resizable().aspectRatio(contentMode: .fill)
+            } else {
+                stagePalette.type.opacity(0.06)
+            }
+        }
+        .frame(width: 84, height: 84)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(stagePalette.type.opacity(0.14), lineWidth: 0.75)
+        )
+        .shadow(color: .black.opacity(0.34), radius: 10, y: 5)
+        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .onTapGesture { if let store { openURL(store) } }
+        .accessibilityHidden(true)
+    }
+
     /// The one pink kicker left above the fold.
     ///
     /// There were six on one screen, which is not a kicker, it is a texture,
@@ -601,17 +629,30 @@ struct MyDayView: View {
             kicker(song != nil ? "NUMBER ONE THE WEEK YOU WERE BORN" : "THE YEAR YOU WERE BORN")
 
             if let song {
-                Text(song.song)
-                    .font(.system(size: 30, weight: .black, design: .serif))
-                    .foregroundStyle(stagePalette.type)
-                    .lineLimit(3)
-                    .minimumScaleFactor(0.6)
-                    .fixedSize(horizontal: false, vertical: true)
+                // The cover beside the title rather than above it. This card
+                // is the top of the screen and the title is the loudest thing
+                // on it; a full width sleeve over the top would make the
+                // record the subject and the reader's day the caption.
+                HStack(alignment: .top, spacing: 14) {
+                    if let art = song.artworkURL {
+                        cover(art, store: song.storeURL)
+                    }
 
-                Text(song.artist)
-                    .font(.system(size: 17, weight: .regular))
-                    .foregroundStyle(stagePalette.type.opacity(0.6))
-                    .lineLimit(2)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(song.song)
+                            .font(.system(size: song.artworkURL == nil ? 30 : 25,
+                                          weight: .black, design: .serif))
+                            .foregroundStyle(stagePalette.type)
+                            .lineLimit(3)
+                            .minimumScaleFactor(0.6)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Text(song.artist)
+                            .font(.system(size: 17, weight: .regular))
+                            .foregroundStyle(stagePalette.type.opacity(0.6))
+                            .lineLimit(2)
+                    }
+                }
 
                 // The issue date is here because it is what makes the claim
                 // checkable rather than something Birthed asserts.

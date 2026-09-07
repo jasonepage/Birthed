@@ -22,12 +22,36 @@ struct ChartWeek: Equatable, Hashable {
     /// caller having to learn about it.
     let chart: String
 
-    init(date: CalendarDate, year: Int, song: String, artist: String, chart: String = "Billboard Hot 100") {
+    /// The cover, on Apple's image server, or nil when nothing was matched.
+    ///
+    /// Pointed at rather than copied, which is the opposite of what the
+    /// website does. The site copies every cover onto birthed.app because it
+    /// sends img-src 'self' and its privacy page names the two companies that
+    /// see a reader. An app has no such header and is already talking to
+    /// Apple to exist, so shipping thirty megabytes of covers inside the
+    /// binary would cost the reader a longer download to avoid a request they
+    /// are already making.
+    let artworkURL: URL?
+    /// The record on Apple Music, when one was matched. The link out is the
+    /// other half of the arrangement the art is published under.
+    let storeURL: URL?
+
+    init(
+        date: CalendarDate,
+        year: Int,
+        song: String,
+        artist: String,
+        chart: String = "Billboard Hot 100",
+        artworkURL: URL? = nil,
+        storeURL: URL? = nil
+    ) {
         self.date = date
         self.year = year
         self.song = song
         self.artist = artist
         self.chart = chart
+        self.artworkURL = artworkURL
+        self.storeURL = storeURL
     }
 }
 
@@ -94,7 +118,14 @@ extension ChartWeek {
     /// the reader's locale and calendar, and this string is neither. In a
     /// Buddhist or Japanese calendar locale a formatter can return a different
     /// year for the same eight digits.
-    init?(isoDate: String, song: String, artist: String, chart: String = "Billboard Hot 100") {
+    init?(
+        isoDate: String,
+        song: String,
+        artist: String,
+        chart: String = "Billboard Hot 100",
+        artworkURL: URL? = nil,
+        storeURL: URL? = nil
+    ) {
         let parts = isoDate.split(separator: "-", omittingEmptySubsequences: false)
         guard parts.count == 3,
               let year = Int(parts[0]), parts[0].count == 4,
@@ -103,7 +134,8 @@ extension ChartWeek {
               let date = CalendarDate(month: month, day: day),
               Self.instant(year: year, month: month, day: day) != nil
         else { return nil }
-        self.init(date: date, year: year, song: song, artist: artist, chart: chart)
+        self.init(date: date, year: year, song: song, artist: artist, chart: chart,
+                  artworkURL: artworkURL, storeURL: storeURL)
     }
 
     var isoDate: String {

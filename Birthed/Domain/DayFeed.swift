@@ -41,6 +41,11 @@ struct DayFeed {
         let sourceURL: URL?
         /// The `BirthFact` this came from, for likes and shares.
         let fact: BirthFact?
+        /// The cover, for a chart row that has one. A var with a default so
+        /// the four other kinds of row keep constructing exactly as they did.
+        var artworkURL: URL? = nil
+        /// Where the record lives on Apple Music, when it was matched.
+        var storeURL: URL? = nil
     }
 
     /// A row of `historical_events`.
@@ -192,7 +197,9 @@ struct DayFeed {
             text: week.song,
             detail: week.artist.isEmpty ? String(week.year) : "\(week.artist), \(week.year)",
             sourceURL: nil,
-            fact: nil
+            fact: nil,
+            artworkURL: week.artworkURL,
+            storeURL: week.storeURL
         )
     }
 

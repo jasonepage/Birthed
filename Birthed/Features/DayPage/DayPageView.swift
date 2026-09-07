@@ -428,6 +428,44 @@ private struct FeedRow: View {
     let onOpen: (URL) -> Void
 
     var body: some View {
+        // The cover sits beside the row rather than above it. A chart row is
+        // three short lines, and a square the height of three short lines is
+        // the one place it fits without pushing everything else down a screen.
+        HStack(alignment: .top, spacing: 13) {
+            if let art = item.artworkURL {
+                cover(art)
+            }
+            rowText
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// The cover, at the size three lines of text are tall.
+    ///
+    /// Pointed at Apple's image server rather than bundled. Nothing is drawn
+    /// into the square until it arrives: a grey box that never fills in is
+    /// worse than a row that simply has no picture, and this feed already has
+    /// rows with no picture, so an empty square is a state it knows how to be.
+    private func cover(_ url: URL) -> some View {
+        AsyncImage(url: url) { phase in
+            if case let .success(image) = phase {
+                image.resizable().aspectRatio(contentMode: .fill)
+            } else {
+                palette.type.opacity(0.06)
+            }
+        }
+        .frame(width: 64, height: 64)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(palette.type.opacity(0.12), lineWidth: 0.75)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .onTapGesture { if let store = item.storeURL { onOpen(store) } }
+        .accessibilityHidden(true)
+    }
+
+    private var rowText: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center, spacing: 8) {
                 Text(item.kicker)
@@ -469,7 +507,11 @@ private struct FeedRow: View {
             }
 
             Text(item.text)
-                .font(.system(size: isLead ? 27 : 19, weight: isLead ? .bold : .semibold, design: .serif))
+                // A lead row with a cover beside it has about a third less
+                // width to play with, so the largest size would set two words
+                // per line. It steps down when it is sharing the row.
+                .font(.system(size: isLead && item.artworkURL == nil ? 27 : 19,
+                              weight: isLead ? .bold : .semibold, design: .serif))
                 .lineSpacing(isLead ? 2 : 0)
                 .foregroundStyle(palette.type)
                 .fixedSize(horizontal: false, vertical: true)
