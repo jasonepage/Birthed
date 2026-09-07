@@ -37,3 +37,7 @@ __pycache__/
 # saw, and which project this checkout is linked to. Both are local machine
 # state rather than anything about the project.
 supabase/.temp/
+
+# Written by web/test/serve.test.ts, which builds a small site in the repo
+# root to serve it. It is rebuilt on every run and is never an input.
+web/test-site/
