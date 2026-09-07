@@ -152,25 +152,22 @@ ol.covers li {
 /* Jump to a decade.
    Sixty eight covers is seventeen rows on a phone, and almost nobody wants to
    read seventeen rows: they want the year they were born, or the years they
-   were at school. Every year is already an anchor, so this is seven links to
-   anchors that exist, and it does the thing a moving belt is usually proposed
-   to do without asking a reader to chase a target that is sliding away. */
-.decades {
-  display: flex; flex-wrap: wrap; gap: 7px; margin: 16px 0 0; padding: 0;
-  list-style: none;
+   were at school. Every year is already an anchor, so this is eight links to
+   anchors that exist.
+
+   One quiet line, in the shape the footer's own links already use. The first
+   version drew eight filled pills, which wrapped onto a second row and gave a
+   block of navigation the same weight as the records underneath it. This is
+   navigation. It should be findable and then get out of the way. */
+p.decades {
+  margin: 12px 0 0; font-size: 13px; color: ${QUIET};
+  overflow-wrap: anywhere;
 }
-.decades a {
-  display: inline-block; padding: 7px 12px; border-radius: 999px;
-  font-size: 13px; font-weight: 700; text-decoration: none; color: #D9D2CC;
-  background: rgba(255, 247, 238, 0.05);
-  box-shadow: inset 0 0 0 1px rgba(255, 247, 238, 0.10);
+p.decades a {
+  color: ${ACCENT}; text-decoration: none; font-weight: 600;
   font-variant-numeric: tabular-nums;
-  transition: color 140ms ease, background 140ms ease, box-shadow 140ms ease;
 }
-.decades a:hover, .decades a:focus-visible {
-  color: #23090F; background-image: linear-gradient(135deg, #FFB0C6, ${ACCENT});
-  box-shadow: 0 8px 18px rgba(239, 86, 128, 0.30);
-}
+p.decades a:hover, p.decades a:focus-visible { text-decoration: underline; }
 ol.covers .art {
   display: block; position: relative; aspect-ratio: 1; border-radius: 12px;
   overflow: hidden; background: #17141F;
@@ -1076,10 +1073,12 @@ ${tile}
   }
   const jumps = [...firstOfDecade.entries()]
     .sort((a, b) => b[0] - a[0])
-    .map(([decade, year]) => `<li><a href="#${year}">${decade}s</a></li>`)
-    .join("");
-  // Two decades is not a bar worth drawing.
-  const decades = firstOfDecade.size >= 3 ? `<ul class="decades">${jumps}</ul>` : "";
+    .map(([decade, year]) => `<a href="#${year}">${decade}s</a>`)
+    .join(" · ");
+  // Two decades is not a line worth writing.
+  const decades = firstOfDecade.size >= 3
+    ? `<p class="decades">Jump to ${jumps}</p>`
+    : "";
 
   return `<h2 class="section">The number one song on ${escapeHtml(name)}</h2>
 <p class="lede">Every year from ${oldest} to ${newest}, from the chart week that ${escapeHtml(name)} fell in.</p>
