@@ -78,6 +78,14 @@ export function buildQuery(month: number, day: number, options: QueryOptions): s
   // because optional multi-valued properties multiply rows and a person with
   // four Instagram accounts should not arrive four times.
   //
+  // The label service is asked for "en,mul" and not for "en". mul is
+  // Wikidata's code for a name spelled the same way in every language, and a
+  // name filed only there is invisible to a request for English: the service
+  // answers with the identifier instead, which used to mean the row was
+  // thrown away. Nothing in this string may carry a // comment. SPARQL
+  // comments start with #, so a // line is sent to the query service as part
+  // of the query and every date comes back 400.
+  //
   // No ORDER BY. There used to be one on sitelinks, and it made the query
   // service sort four thousand rows on a busy date for nothing:
   // selectCandidates sorts what it needs itself, and nothing between here and
@@ -102,9 +110,6 @@ ${values}
     { ?person wdt:P2003 ?social } UNION
     { ?person wdt:P2397 ?social }
   } AS ?hasSocial)
-  // "en,mul" and not "en". mul is Wikidata's language code for a name written
-  // the same way everywhere, and a name filed only there is invisible to a
-  // request for English: the service answers with the identifier instead.
   SERVICE wikibase:label { bd:serviceParam wikibase:language "en,mul". }
 }`;
 }

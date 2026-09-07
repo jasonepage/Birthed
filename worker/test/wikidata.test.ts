@@ -73,3 +73,15 @@ test("an address that is not an article gives nothing to fall back to", () => {
 test("a broken percent escape falls back rather than throwing", () => {
   assert.equal(nameFromArticle("https://en.wikipedia.org/wiki/100%_Pure"), "100% Pure");
 });
+
+test("no line of the query is a JavaScript comment", () => {
+  // Every date came back 400 because three // lines explaining the label
+  // service were written inside the template literal instead of above it.
+  // SPARQL comments start with #, so those lines were sent as part of the
+  // query. The address in the article clause contains // legitimately, which
+  // is why this looks at how a line starts rather than at the whole string.
+  const offending = buildQuery(9, 4, OPTIONS)
+    .split("\n")
+    .filter((line) => line.trim().startsWith("//"));
+  assert.deepEqual(offending, []);
+});
