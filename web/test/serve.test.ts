@@ -3,7 +3,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
 
-import { resolvePath, securityFor, start } from "../src/serve.js";
+import { resolvePath, securityFor, start, todaySlug, todayStylesheet } from "../src/serve.js";
 
 const ROOT = resolve("out");
 
@@ -97,6 +97,33 @@ test("the server answers a page, a directory and a miss", async (t) => {
  * that reads the header is the only thing that would have caught it, because
  * the file on disk was right the whole time.
  */
+// The calendar's today ring, which is a stylesheet rather than a script
+// because this site refuses scripts and today is not knowable at build time.
+test("today.css names the date it is asked for, and turns over", () => {
+  const seventh = todayStylesheet(new Date("2026-09-07T18:00:00Z"));
+  assert.match(seventh, /a\[href="\/september-7\/"\]/);
+  assert.match(seventh, /outline: ?2px solid #/);
+
+  const eighth = todayStylesheet(new Date("2026-09-08T18:00:00Z"));
+  assert.match(eighth, /a\[href="\/september-8\/"\]/);
+});
+
+test("today.css is shifted off UTC the same way /today is", () => {
+  // Early morning UTC is still the previous evening in North America, which is
+  // where the traffic is. The redirect already makes that choice; the ring has
+  // to make the same one or the two disagree on the same screen.
+  const early = new Date("2026-09-08T03:00:00Z");
+  assert.equal(todaySlug(early), "september-7");
+  assert.match(todayStylesheet(early), /a\[href="\/september-7\/"\]/);
+});
+
+test("a stylesheet from this origin is allowed and a script still is not", () => {
+  const day = securityFor("/september-4/")["Content-Security-Policy"] ?? "";
+  assert.match(day, /style-src 'unsafe-inline' 'self'/, "today.css has to load");
+  assert.ok(!day.includes("script-src"), "widening style-src must not widen script-src");
+  assert.match(day, /default-src 'none'/);
+});
+
 test("only the add page may run its script and reach the project", () => {
   const day = securityFor("/september-4/")["Content-Security-Policy"] ?? "";
   assert.ok(!day.includes("script-src"), "a date page must have no script at all");

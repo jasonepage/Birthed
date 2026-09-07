@@ -55,6 +55,13 @@ export function isReady(page: DayPage, facts: Fact[] = []): boolean {
 export const SITE = "https://birthed.app";
 const INK = "#0E0C16";
 const ACCENT = "#EF5680";
+/* Today, in the calendar. A second hue rather than a second shade of the
+   accent, because the accent already means "here" everywhere else on the page
+   and two pinks a square apart is not a distinction anybody makes at a
+   glance. Blue is far enough from it to read instantly on the plum ground and
+   is used for nothing else. Exported because serve.ts writes the rule that
+   uses it and the two must not drift. */
+export const TODAY = "#6FA5DE";
 /**
  * The quietest text on the site is allowed to be.
  *
@@ -756,6 +763,32 @@ body.home {
 .cal .days a.leap:hover, .cal .days a.leap:focus-visible {
   color: #23090F; box-shadow: 0 10px 20px rgba(239, 86, 128, 0.38);
 }
+/* The square you are standing on, and the square today is.
+   Named thispage rather than here, because .here is already the date label in
+   the day bar and two unrelated things under one name is how a later edit to
+   one of them quietly moves the other.
+   Filled for this page and outlined for today, rather than two rings in two
+   colours, so that the day they land on the same square both still read: a
+   filled pink cell inside a blue ring. Two rings would have become one ring
+   of an ambiguous colour.
+   Today's rule is not here. It is in /today.css, generated per request,
+   because these pages are baked into a deploy and a today written at build
+   time is wrong by the next morning. */
+.cal .days a.thispage {
+  background-image: linear-gradient(140deg, #FFB0C6, ${ACCENT});
+  background-color: ${ACCENT}; color: #23090F; font-weight: 700;
+  box-shadow: 0 8px 18px rgba(239, 86, 128, 0.34);
+}
+p.calkey {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin: 20px 0 0; font-size: 12px; color: #A79E98;
+}
+p.calkey .sw {
+  width: 12px; height: 12px; border-radius: 4px; display: inline-block;
+}
+p.calkey .sw + .sw { margin-left: 14px; }
+p.calkey .sw.thispage { background: ${ACCENT}; }
+p.calkey .sw.today { background: none; box-shadow: inset 0 0 0 2px ${TODAY}; }
 @media (max-width: 900px) { .months { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .railtrack li.hlcard { width: 74vw; } }
 @media (max-width: 600px) {
@@ -1041,6 +1074,7 @@ export function head(
 <link rel="icon" href="/favicon.ico" sizes="48x48">
 <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="stylesheet" href="/today.css">
 ${noindex ? '<meta name="robots" content="noindex">\n' : ""}
 <meta property="og:type" content="website">
 <meta property="og:title" content="${escapeHtml(title)}">
@@ -1567,7 +1601,7 @@ ${peopleRail(page, name)}
 <section class="everyday">
 <h2 class="section">Every day of the year</h2>
 <p class="lede">Pick a date and see who shares it and what happened on it. The weeks are laid out the way they fall in ${indexYear}.</p>
-${calendar(indexYear)}
+${calendar(indexYear, { month: page.month, day: page.day })}
 </section>
 </div>
 ${jsonLd(page, canonical)}

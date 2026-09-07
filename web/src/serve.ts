@@ -17,6 +17,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { extname, join, normalize, resolve, sep } from "node:path";
 
 import { everyDate, slug } from "./model.js";
+import { TODAY } from "./render.js";
 
 
 const TYPES: Record<string, string> = {
@@ -41,6 +42,9 @@ const TYPES: Record<string, string> = {
  * than fingerprinted, so they get an hour rather than forever.
  */
 function cacheControl(path: string): string {
+  // Never stored. It names one of 366 dates and it is wrong from midnight,
+  // and it is about a hundred and fifty bytes, so there is nothing to save.
+  if (path === "/today.css") return "no-store";
   if (path.startsWith("/og/")) return "public, max-age=3600";
   if (extname(path) === "") return "public, max-age=0, must-revalidate";
   if (path.endsWith(".html")) return "public, max-age=0, must-revalidate";
@@ -54,8 +58,12 @@ const SECURITY: Record<string, string> = {
   // the policy for those stays this narrow. Widen it the day something needs
   // widening, not before. `/add` is the day, and it gets its own below rather
   // than loosening this one for the whole site.
+  // style-src gains 'self' and nothing else does. /today.css is a stylesheet
+  // this server generates and serves from this origin, and it is the whole
+  // reason for the widening: it is how the calendar can ring today without a
+  // script, which this policy still refuses everywhere except /add.
   "Content-Security-Policy":
-    "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    "default-src 'none'; img-src 'self'; style-src 'unsafe-inline' 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
 };
 
@@ -102,7 +110,7 @@ export function securityFor(requestPath: string): Record<string, string> {
   return {
     ...SECURITY,
     "Content-Security-Policy":
-      "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; " +
+      "default-src 'none'; img-src 'self'; style-src 'unsafe-inline' 'self'; " +
       `script-src 'unsafe-inline'; connect-src ${apiOrigin()}; ` +
       "base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   };
@@ -157,6 +165,31 @@ const TODAY_BEHIND_UTC_HOURS = 6;
  * Shifted by the same hours as /today for the same reason, which is written
  * up above the constant.
  */
+/**
+ * The one stylesheet this server writes rather than reads.
+ *
+ * The calendar at the foot of every page marks two squares: the date whose
+ * page you are on, which the renderer knows and fills in at build time, and
+ * today, which it cannot. These pages are rendered into a deploy and served
+ * unchanged until the next one, so a today ring written at build time would
+ * still be pointing at the day of the deploy a week later, on all 366 pages,
+ * with nothing on screen to say so. That is the same trap that made "/" a
+ * date read at request time rather than a baked page.
+ *
+ * A script would answer it and this site does not run scripts. A stylesheet
+ * does, because the ring is a presentation of a fact the server already knows,
+ * and one selector naming one of 366 addresses is the whole of it.
+ *
+ * Not cached, and it carries no personal anything: the date is the server's,
+ * not the reader's.
+ */
+export function todayStylesheet(now: Date = new Date()): string {
+  // The exact string the calendar cell's href carries, so the selector is an
+  // equality test rather than a guess at the shape of the address.
+  return `.cal .days a[href="/${todaySlug(now)}/"]{outline:2px solid ${TODAY};` +
+    `outline-offset:2px;color:#BFD8F5}\n`;
+}
+
 export function todaySlug(now: Date = new Date()): string {
   const shifted = new Date(now.getTime() - TODAY_BEHIND_UTC_HOURS * 60 * 60 * 1000);
   return slug(shifted.getUTCMonth() + 1, shifted.getUTCDate());
@@ -269,6 +302,16 @@ async function handle(
       ...securityFor(path),
     });
     response.end();
+    return;
+  }
+
+  if (path === "/today.css") {
+    response.writeHead(200, {
+      "Content-Type": "text/css; charset=utf-8",
+      "Cache-Control": cacheControl(path),
+      ...securityFor(path),
+    });
+    response.end(method === "HEAD" ? undefined : todayStylesheet());
     return;
   }
 

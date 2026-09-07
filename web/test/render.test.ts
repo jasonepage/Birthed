@@ -229,6 +229,29 @@ test("all 366 are linked once, in a leap year and out of one", () => {
   }
 });
 
+// Two squares in the calendar are marked and they are marked in two different
+// places, for a reason that is easy to undo by accident. The date whose page
+// this is can be written at build time. Today cannot, because these pages are
+// baked into a deploy and served unchanged until the next one, so a today
+// written here would still point at the day of the deploy a week later.
+test("the calendar marks the page's own date, once", () => {
+  const marked = calendar(2026, { month: 9, day: 8 });
+  assert.equal((marked.match(/class="thispage"/g) ?? []).length, 1);
+  assert.match(marked, /<a class="thispage" href="\/september-8\/"/);
+});
+
+test("a calendar with no date of its own marks nothing", () => {
+  // The about page draws the same twelve months and is not a date.
+  assert.ok(!calendar(2026).includes("thispage"));
+});
+
+test("February 29 can be the marked square in a year that has no 29th", () => {
+  // The leap day keeps a square in every year, so it has to be markable in
+  // every year too, or its own page is the one page that cannot say so.
+  const marked = calendar(2027, { month: 2, day: 29 });
+  assert.match(marked, /class="[^"]*thispage[^"]*" href="\/february-29\/"/);
+});
+
 test("the century rule is not forgotten", () => {
   assert.equal(isLeapYear(2028), true);
   assert.equal(isLeapYear(2027), false);
