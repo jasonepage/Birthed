@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { dateLiterals, buildQuery } from "../src/wikidata.js";
+import { dateLiterals, buildQuery, nameFromArticle } from "../src/wikidata.js";
 
 const OPTIONS = { yearFrom: 1600, yearTo: 2015, minSitelinks: 10, userAgent: "test" };
 
@@ -42,4 +42,34 @@ test("the query binds one exact date per year in the range", () => {
   const query = buildQuery(9, 4, OPTIONS);
   const bound = query.match(/\^\^xsd:dateTime/g) ?? [];
   assert.equal(bound.length, 2015 - 1600 + 1);
+});
+
+test("the label service is asked for mul as well as English", () => {
+  // Wikidata files a name spelled the same in every language under mul and
+  // stops repeating it per language. Asking only for English gets the
+  // identifier back, and the identifier used to mean the row was thrown away.
+  // Measured on September 4: 20 of 2,904 people came back as their own
+  // identifier under "en", and the widest covered of them by a factor of three
+  // was Beyonce. Under "en,mul" it is none of them.
+  const query = buildQuery(9, 4, OPTIONS);
+  assert.ok(query.includes('wikibase:language "en,mul"'));
+});
+
+test("a name comes out of an article address when there is no label", () => {
+  assert.equal(nameFromArticle("https://en.wikipedia.org/wiki/Beyonc%C3%A9"), "Beyoncé");
+  assert.equal(nameFromArticle("https://en.wikipedia.org/wiki/Anton_Bruckner"), "Anton Bruckner");
+});
+
+test("a disambiguated title keeps its bracket rather than being dropped", () => {
+  // Worse than the label and much better than the person not existing.
+  assert.equal(nameFromArticle("https://en.wikipedia.org/wiki/Drake_(musician)"), "Drake (musician)");
+});
+
+test("an address that is not an article gives nothing to fall back to", () => {
+  assert.equal(nameFromArticle("https://example.com/nope"), "");
+  assert.equal(nameFromArticle("https://en.wikipedia.org/wiki/"), "");
+});
+
+test("a broken percent escape falls back rather than throwing", () => {
+  assert.equal(nameFromArticle("https://en.wikipedia.org/wiki/100%_Pure"), "100% Pure");
 });

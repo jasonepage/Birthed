@@ -14,6 +14,12 @@
 //    only to the year as January 1 of that year, and the truthy property hands
 //    that back with no precision attached. Without the precision filter,
 //    January 1 fills with people whose birth date nobody recorded. FR-131.
+//
+// 3. The label service is asked for "en,mul" and not for "en". Wikidata now
+//    files a name that is spelled the same in every language under the
+//    language code mul rather than repeating it per language, and asking only
+//    for English gets the identifier back instead of the name. See the label
+//    handling in fetchPeopleBornOn, which is where that cost us Beyonce.
 
 const ENDPOINT = "https://query.wikidata.org/sparql";
 
@@ -96,8 +102,37 @@ ${values}
     { ?person wdt:P2003 ?social } UNION
     { ?person wdt:P2397 ?social }
   } AS ?hasSocial)
-  SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
+  // "en,mul" and not "en". mul is Wikidata's language code for a name written
+  // the same way everywhere, and a name filed only there is invisible to a
+  // request for English: the service answers with the identifier instead.
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "en,mul". }
 }`;
+}
+
+/**
+ * A readable name out of an English Wikipedia address.
+ *
+ * Only ever used when the label service had nothing, so it is a floor and not
+ * a source. It takes the last part of the address, turns the underscores back
+ * into spaces and undoes the percent escaping, which is what separates
+ * "Beyonc%C3%A9" from "Beyonce".
+ *
+ * A disambiguated title keeps its bracket, so this can produce "Drake
+ * (musician)". That is worse than the label and much better than the row not
+ * existing, and it only appears when Wikidata has no name for somebody in any
+ * language we asked for.
+ */
+export function nameFromArticle(articleUrl: string): string {
+  const marker = "/wiki/";
+  const at = articleUrl.indexOf(marker);
+  if (at < 0) return "";
+  const segment = articleUrl.slice(at + marker.length);
+  if (segment === "") return "";
+  try {
+    return decodeURIComponent(segment).replace(/_/g, " ").trim();
+  } catch {
+    return segment.replace(/_/g, " ").trim();
+  }
 }
 
 interface SparqlBinding {
@@ -161,6 +196,7 @@ export async function fetchPeopleBornOn(
   const payload = (await response.json()) as SparqlResponse;
   const currentYear = new Date().getUTCFullYear();
   const people = new Map<string, WikidataPerson>();
+  let fellBackToArticleTitle = 0;
 
   for (const binding of payload.results.bindings) {
     const uri = binding.person?.value;
@@ -168,10 +204,33 @@ export async function fetchPeopleBornOn(
     const qid = uri.slice(uri.lastIndexOf("/") + 1);
     if (people.has(qid)) continue;
 
-    const name = binding.personLabel?.value ?? "";
-    // The label service falls back to the identifier when no English label
-    // exists. A day page is not improved by a row that reads Q12345.
-    if (name === "" || name === qid) continue;
+    const articleUrl = binding.article?.value;
+    if (!articleUrl) continue;
+
+    // The label service answers with the identifier when it has no name in any
+    // language it was asked for, and this line used to throw those rows away.
+    //
+    // That guard was written for people with no English name at all, which is
+    // a real thing and a fair thing to drop. What it actually dropped was the
+    // most famous person on the date. Wikidata has been moving names that are
+    // spelled the same in every language to the language code mul, one item at
+    // a time, and a request for English does not fall back to it. Beyonce,
+    // Rihanna, Zendaya, Drake, Messi, Bieber, Doja Cat, Olivia Rodrigo, Bad
+    // Bunny and Ye were all filed that way and were in none of the 366 pages.
+    // Taylor Swift, who still carries both an English label and a mul one, was
+    // fine. Nothing in the data looked wrong, because a row that never arrives
+    // leaves nothing behind.
+    //
+    // The language chain above is the fix. This is the floor under it, because
+    // the same thing will happen again the next time Wikidata moves a label
+    // and we would rather have a slightly wrong name than no person. The
+    // English article title is the fallback: the query requires an English
+    // article, so it is always there, and it is a real name rather than an
+    // identifier.
+    const label = binding.personLabel?.value ?? "";
+    const name = label === "" || label === qid ? nameFromArticle(articleUrl) : label;
+    if (name === "") continue;
+    if (name !== label) fellBackToArticleTitle += 1;
 
     const birthYear = yearFromLiteral(binding.dob?.value);
     const deathYear = yearFromLiteral(binding.dod?.value);
@@ -182,9 +241,6 @@ export async function fetchPeopleBornOn(
     // of death dates for people born in the 1800s.
     const isLiving =
       deathYear === null && birthYear !== null && currentYear - birthYear <= 110;
-
-    const articleUrl = binding.article?.value;
-    if (!articleUrl) continue;
 
     people.set(qid, {
       qid,
@@ -198,6 +254,16 @@ export async function fetchPeopleBornOn(
       articleUrl,
       hasSocial: binding.hasSocial?.value === "true",
     });
+  }
+
+  if (fellBackToArticleTitle > 0) {
+    // Worth saying out loud rather than counting silently. A handful is the
+    // ordinary state of Wikidata. A sudden jump means another batch of labels
+    // has moved and the language chain above needs another code in it.
+    console.warn(
+      `  ${fellBackToArticleTitle} of ${people.size} had no name in English or mul, ` +
+        `so their English article title was used instead`,
+    );
   }
 
   return [...people.values()];
