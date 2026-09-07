@@ -106,3 +106,44 @@ extension StagePalette {
     /// it there is one set of colours to keep right instead of two.
     static let wax = StagePalette(ground: Theme.wax, type: Theme.cream, glow: Theme.ember)
 }
+
+
+// MARK: - The colour of a kicker
+
+extension Theme {
+    /// The nine kinds of thing a day can hold, in the colours the website
+    /// gives them.
+    ///
+    /// Every row used to carry the same pink heading, which made a screen of
+    /// them read as one undifferentiated list. The category is already on
+    /// every researched fact and was only being printed as a word.
+    ///
+    /// The values are mid-tones rather than the website's exact ones. The site
+    /// is dark only; this screen is not, and the site's pale lilac on a cream
+    /// ground is unreadable. These four hold on both grounds.
+    static let amber = Color(red: 0.784, green: 0.541, blue: 0.165)  // C88A2A
+    static let teal  = Color(red: 0.180, green: 0.620, blue: 0.525)  // 2E9E86
+    static let sky   = Color(red: 0.298, green: 0.498, blue: 0.878)  // 4C7FE0
+    static let lilac = Color(red: 0.545, green: 0.420, blue: 0.839)  // 8B6BD6
+
+    static func kicker(kind: DayFeed.Kind, category: String?) -> Color {
+        switch kind {
+        case .person:
+            return accent
+        case .song, .film:
+            return accentSoft
+        case .fact, .event:
+            switch (category ?? "").lowercased() {
+            case "release", "local":
+                return teal
+            case "sport", "record", "weather":
+                return sky
+            case "science", "older_than":
+                return lilac
+            default:
+                // "event", "price", and anything a future importer invents.
+                return amber
+            }
+        }
+    }
+}

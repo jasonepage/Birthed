@@ -18,6 +18,9 @@ struct DayPageView: View {
     @State private var showingAttributions = false
     @State private var shareImage: Image?
     @State private var sharingFact: BirthFact?
+    /// A day can carry a hundred and fifty rows. It opens with the first
+    /// dozen and the reader asks for the rest.
+    @State private var showingAll = false
 
     let onOpenSettings: () -> Void
 
@@ -108,11 +111,62 @@ struct DayPageView: View {
             Text(subtitle)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+
+            if !feed.isEmpty { counts }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20)
         .padding(.top, 4)
         .padding(.bottom, 18)
+    }
+
+    /// What the day holds, before any of it. The same three counts the
+    /// website prints under its heading, and the same job: a reader can see
+    /// the size of the day without scrolling it.
+    private var counts: some View {
+        let items = feed
+        let cells = [
+            CountCell(label: "things", number: items.filter { $0.kind == .fact || $0.kind == .event }.count),
+            CountCell(label: "charts", number: items.filter { $0.kind == .song || $0.kind == .film }.count),
+            CountCell(label: "people", number: items.filter { $0.kind == .person }.count),
+        ].filter { $0.number > 0 }
+
+        return HStack(spacing: 0) {
+            ForEach(cells) { cell in
+                VStack(spacing: 5) {
+                    Text(String(cell.number))
+                        .font(.system(.title3, design: .serif, weight: .heavy))
+                        .monospacedDigit()
+                        .foregroundStyle(palette.type)
+                    Text(cell.label.uppercased())
+                        .font(.system(size: 10, weight: .semibold))
+                        .kerning(1.0)
+                        .foregroundStyle(palette.type.opacity(0.45))
+                }
+                .frame(maxWidth: .infinity)
+                .overlay(alignment: .leading) {
+                    if cell.id != cells.first?.id {
+                        Rectangle()
+                            .fill(palette.type.opacity(0.12))
+                            .frame(width: 1)
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 14)
+        .overlay(alignment: .top) { rule }
+        .overlay(alignment: .bottom) { rule }
+        .padding(.top, 8)
+    }
+
+    private var rule: some View {
+        Rectangle().fill(palette.type.opacity(0.12)).frame(height: 1)
+    }
+
+    private struct CountCell: Identifiable {
+        let label: String
+        let number: Int
+        var id: String { label }
     }
 
     private var stepper: some View {
@@ -161,6 +215,9 @@ struct DayPageView: View {
     @ViewBuilder
     private var content: some View {
         let items = feed
+        // Bound outside the switch, the way `items` already is, because a
+        // result builder is not the place to work anything out.
+        let shown = showingAll ? items : Array(items.prefix(Self.firstLook))
         switch model.state {
         case .loading where items.isEmpty:
             ProgressView()
@@ -187,7 +244,13 @@ struct DayPageView: View {
         default:
             // Straight into the lazy stack, so a feed of a hundred and fifty
             // rows builds the ones on screen and not the ones below it.
-            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+            //
+            // And it no longer offers all hundred and fifty. Printing
+            // everything is what made the website read as generated, and this
+            // screen was doing the same thing. Nothing is dropped: the rest is
+            // one tap away and the tap is the only thing standing in front of
+            // it.
+            ForEach(Array(shown.enumerated()), id: \.element.id) { index, item in
                 VStack(alignment: .leading, spacing: 0) {
                     if index > 0 { hairline }
                     FeedRow(item: item, palette: palette, isLead: index == 0,
@@ -201,7 +264,39 @@ struct DayPageView: View {
                 .padding(.horizontal, 22)
                 .onAppear { if let fact = item.fact { factsService.noteSeen(fact.id) } }
             }
+
+            if !showingAll, items.count > Self.firstLook {
+                moreButton(hidden: items.count - Self.firstLook)
+            }
         }
+    }
+
+    /// How much of a day is shown before the reader asks for the rest.
+    private static let firstLook = 12
+
+    private func moreButton(hidden: Int) -> some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.25)) { showingAll = true }
+        } label: {
+            HStack(spacing: 10) {
+                Text("Everything else on this day")
+                    .font(.subheadline.weight(.semibold))
+                Spacer(minLength: 8)
+                Text("\(hidden) more")
+                    .font(.subheadline)
+                    .foregroundStyle(palette.type.opacity(0.5))
+                Image(systemName: "plus")
+                    .font(.footnote.weight(.bold))
+                    .foregroundStyle(Theme.accent)
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 15)
+            .background(palette.type.opacity(0.05), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(palette.type)
+        .padding(.horizontal, 22)
+        .padding(.top, 24)
     }
 
     private var hairline: some View {
@@ -258,6 +353,9 @@ struct DayPageView: View {
     // MARK: Actions
 
     private func reload() async {
+        // A new date is a new day's worth of rows, so it opens at its own
+        // first dozen rather than inheriting the last date's expansion.
+        showingAll = false
         // Two awaits in a row rather than two child tasks. Both callees live
         // on the main actor, so running them as children would carry nothing
         // Sendable and buy no time.
@@ -308,7 +406,7 @@ private struct FeedRow: View {
                 Text(item.kicker)
                     .font(.system(size: 10, weight: .heavy))
                     .kerning(1.6)
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(Theme.kicker(kind: item.kind, category: item.fact?.category))
 
                 if let age = item.ageLabel {
                     Text(age.uppercased())
