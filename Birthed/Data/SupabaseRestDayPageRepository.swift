@@ -202,6 +202,7 @@ struct SupabaseRestDayPageRepository: DayPageRepository {
         /// two new columns on the table were invisible to it.
         let artwork_url: String?
         let store_url: String?
+        let preview_url: String?
     }
 
     /// One call to the `chart_on_date` function rather than one request per
@@ -226,7 +227,8 @@ struct SupabaseRestDayPageRepository: DayPageRepository {
                 artist: row.artist,
                 chart: chart.rawValue,
                 artworkURL: row.artwork_url.flatMap(URL.init(string:)),
-                storeURL: row.store_url.flatMap(URL.init(string:))
+                storeURL: row.store_url.flatMap(URL.init(string:)),
+                previewURL: row.preview_url.flatMap(URL.init(string:))
             )
         }
     }
@@ -349,6 +351,7 @@ struct SupabaseRestDayPageRepository: DayPageRepository {
         /// without them is normal and still a perfectly good chart week.
         let artwork_url: String?
         let store_url: String?
+        let preview_url: String?
     }
 
     /// The chart week covering the week somebody was born, or nil.
@@ -365,7 +368,7 @@ struct SupabaseRestDayPageRepository: DayPageRepository {
         let rows: [ChartRow] = try await fetch(
             from: "chart_weeks",
             query: [
-                URLQueryItem(name: "select", value: "chart_date,song,artist,artwork_url,store_url"),
+                URLQueryItem(name: "select", value: "chart_date,song,artist,artwork_url,store_url,preview_url"),
                 URLQueryItem(name: "chart_name", value: "eq.\(chart.rawValue)"),
                 URLQueryItem(name: "chart_date", value: "gte.\(onOrAfter)"),
                 URLQueryItem(name: "order", value: "chart_date.asc"),
@@ -380,7 +383,8 @@ struct SupabaseRestDayPageRepository: DayPageRepository {
                   artist: row.artist,
                   chart: chart.rawValue,
                   artworkURL: row.artwork_url.flatMap(URL.init(string:)),
-                  storeURL: row.store_url.flatMap(URL.init(string:))
+                  storeURL: row.store_url.flatMap(URL.init(string:)),
+                  previewURL: row.preview_url.flatMap(URL.init(string:))
               ),
               week.covers(birthYear: birthYear, birthDate: birthDate)
         else { return nil }

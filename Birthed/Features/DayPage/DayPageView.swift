@@ -21,6 +21,9 @@ struct DayPageView: View {
     /// A day can carry a hundred and fifty rows. It opens with the first
     /// dozen and the reader asks for the rest.
     @State private var showingAll = false
+    /// One player for the whole feed, so a second tap means "this instead"
+    /// rather than "both at once".
+    @State private var preview = PreviewPlayer()
 
     let onOpenSettings: () -> Void
 
@@ -105,7 +108,12 @@ struct DayPageView: View {
                 )
             }
             .task { await reload() }
-            .onDisappear { Task { await factsService.flushSeen() } }
+            .onDisappear {
+                // A sample must not keep playing into whatever the reader
+                // opened next.
+                preview.stop()
+                Task { await factsService.flushSeen() }
+            }
         }
         .tint(Theme.accent)
     }
@@ -283,7 +291,9 @@ struct DayPageView: View {
                                 sharingFact = fact
                                 Task { await factsService.recordShareOpen(fact.id) }
                             },
-                            onOpen: { url in openURL(url) })
+                            onOpen: { url in openURL(url) },
+                            playing: item.previewURL != nil && item.previewURL == preview.nowPlaying,
+                            onPlay: { url in preview.toggle(url) })
                 }
                 .padding(.horizontal, 22)
                 .onAppear { if let fact = item.fact { factsService.noteSeen(fact.id) } }
@@ -390,6 +400,7 @@ struct DayPageView: View {
 
     private func move(_ days: Int) async {
         shareImage = nil
+        preview.stop()
         // The arrows do not go through `reload`, so this has to be said in
         // both places or a date walked to opens already expanded.
         showingAll = false
@@ -426,6 +437,8 @@ private struct FeedRow: View {
     let onLike: (BirthFact) -> Void
     let onShare: (BirthFact) -> Void
     let onOpen: (URL) -> Void
+    var playing: Bool = false
+    var onPlay: (URL) -> Void = { _ in }
 
     var body: some View {
         // The cover sits beside the row rather than above it. A chart row is
@@ -460,9 +473,35 @@ private struct FeedRow: View {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(palette.type.opacity(0.12), lineWidth: 0.75)
         )
+        // The sample when there is one, the store page when there is not.
+        // Four in five matched titles have a sample, so tapping a cover
+        // usually plays and occasionally opens Apple Music, and the mark on
+        // the sleeve says which before it is touched.
+        .overlay {
+            if item.previewURL != nil {
+                ZStack {
+                    Circle()
+                        .fill(.black.opacity(0.42))
+                        .frame(width: 26, height: 26)
+                    Image(systemName: playing ? "pause.fill" : "play.fill")
+                        .font(.system(size: 11, weight: .black))
+                        .foregroundStyle(.white)
+                        .offset(x: playing ? 0 : 1)
+                }
+            }
+        }
         .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .onTapGesture { if let store = item.storeURL { onOpen(store) } }
-        .accessibilityHidden(true)
+        .onTapGesture {
+            if let sample = item.previewURL {
+                onPlay(sample)
+            } else if let store = item.storeURL {
+                onOpen(store)
+            }
+        }
+        .accessibilityLabel(item.previewURL != nil
+                            ? (playing ? "Stop the sample" : "Play a sample of \(item.text)")
+                            : "Open \(item.text) on Apple Music")
+        .accessibilityAddTraits(.isButton)
     }
 
     private var rowText: some View {

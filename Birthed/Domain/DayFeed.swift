@@ -46,6 +46,8 @@ struct DayFeed {
         var artworkURL: URL? = nil
         /// Where the record lives on Apple Music, when it was matched.
         var storeURL: URL? = nil
+        /// Apple's thirty second sample, when there is one.
+        var previewURL: URL? = nil
     }
 
     /// A row of `historical_events`.
@@ -199,7 +201,8 @@ struct DayFeed {
             sourceURL: nil,
             fact: nil,
             artworkURL: week.artworkURL,
-            storeURL: week.storeURL
+            storeURL: week.storeURL,
+            previewURL: week.previewURL
         )
     }
 

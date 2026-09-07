@@ -35,6 +35,10 @@ struct ChartWeek: Equatable, Hashable {
     /// The record on Apple Music, when one was matched. The link out is the
     /// other half of the arrangement the art is published under.
     let storeURL: URL?
+    /// Apple's thirty second sample, when there is one. About four in five
+    /// matched titles have one; the rest are records Apple carries but does
+    /// not sample.
+    let previewURL: URL?
 
     init(
         date: CalendarDate,
@@ -43,7 +47,8 @@ struct ChartWeek: Equatable, Hashable {
         artist: String,
         chart: String = "Billboard Hot 100",
         artworkURL: URL? = nil,
-        storeURL: URL? = nil
+        storeURL: URL? = nil,
+        previewURL: URL? = nil
     ) {
         self.date = date
         self.year = year
@@ -52,6 +57,7 @@ struct ChartWeek: Equatable, Hashable {
         self.chart = chart
         self.artworkURL = artworkURL
         self.storeURL = storeURL
+        self.previewURL = previewURL
     }
 }
 
@@ -124,7 +130,8 @@ extension ChartWeek {
         artist: String,
         chart: String = "Billboard Hot 100",
         artworkURL: URL? = nil,
-        storeURL: URL? = nil
+        storeURL: URL? = nil,
+        previewURL: URL? = nil
     ) {
         let parts = isoDate.split(separator: "-", omittingEmptySubsequences: false)
         guard parts.count == 3,
@@ -135,7 +142,7 @@ extension ChartWeek {
               Self.instant(year: year, month: month, day: day) != nil
         else { return nil }
         self.init(date: date, year: year, song: song, artist: artist, chart: chart,
-                  artworkURL: artworkURL, storeURL: storeURL)
+                  artworkURL: artworkURL, storeURL: storeURL, previewURL: previewURL)
     }
 
     var isoDate: String {

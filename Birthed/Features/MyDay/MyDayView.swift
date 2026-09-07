@@ -26,8 +26,10 @@ struct MyDayView: View {
     let onOpenSettings: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
-    /// For the sleeve, which opens the record on Apple Music.
+    /// For the sleeve, when there is no sample and it opens Apple Music.
     @Environment(\.openURL) private var openURL
+    /// The thirty second sample, when there is one.
+    @State private var preview = PreviewPlayer()
     /// Named for what it is rather than for what it holds, because `facts`
     /// on this screen is already the arithmetic one.
     @Environment(FactsService.self) private var factsService
@@ -564,7 +566,7 @@ struct MyDayView: View {
     /// square until it arrives. A grey placeholder that never resolves reads
     /// as broken, and a card with no sleeve is a state this screen already
     /// has for every year Apple does not carry.
-    private func cover(_ url: URL, store: URL?) -> some View {
+    private func cover(_ url: URL, store: URL?, sample: URL?) -> some View {
         AsyncImage(url: url) { phase in
             if case let .success(image) = phase {
                 image.resizable().aspectRatio(contentMode: .fill)
@@ -579,9 +581,32 @@ struct MyDayView: View {
                 .stroke(stagePalette.type.opacity(0.14), lineWidth: 0.75)
         )
         .shadow(color: .black.opacity(0.34), radius: 10, y: 5)
+        // The sample when there is one, the store page when there is not.
+        .overlay {
+            if sample != nil {
+                ZStack {
+                    Circle()
+                        .fill(.black.opacity(0.42))
+                        .frame(width: 32, height: 32)
+                    Image(systemName: preview.nowPlaying == sample ? "pause.fill" : "play.fill")
+                        .font(.system(size: 13, weight: .black))
+                        .foregroundStyle(.white)
+                        .offset(x: preview.nowPlaying == sample ? 0 : 1.5)
+                }
+            }
+        }
         .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .onTapGesture { if let store { openURL(store) } }
-        .accessibilityHidden(true)
+        .onTapGesture {
+            if let sample {
+                preview.toggle(sample)
+            } else if let store {
+                openURL(store)
+            }
+        }
+        .accessibilityLabel(sample != nil
+                            ? (preview.nowPlaying == sample ? "Stop the sample" : "Play a sample")
+                            : "Open on Apple Music")
+        .accessibilityAddTraits(.isButton)
     }
 
     /// The one pink kicker left above the fold.
@@ -635,7 +660,7 @@ struct MyDayView: View {
                 // record the subject and the reader's day the caption.
                 HStack(alignment: .top, spacing: 14) {
                     if let art = song.artworkURL {
-                        cover(art, store: song.storeURL)
+                        cover(art, store: song.storeURL, sample: song.previewURL)
                     }
 
                     VStack(alignment: .leading, spacing: 6) {
@@ -786,7 +811,12 @@ struct MyDayView: View {
                 Task { await factsService.recordShareOpen(fact.id) }
             }
         )
-        .onDisappear { Task { await factsService.flushSeen() } }
+        .onDisappear {
+            // A sample must not keep playing into whatever the reader opened
+            // next.
+            preview.stop()
+            Task { await factsService.flushSeen() }
+        }
     }
 
     /// What happened on this date, set the way the day pages set it: the year
