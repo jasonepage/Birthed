@@ -356,6 +356,10 @@ footer a { color: #9C9490; }
   aspect-ratio: 1 / 1; border-radius: 8px;
   font-size: 13px; font-variant-numeric: tabular-nums;
 }
+/* A floor under the tap target. aspect-ratio keeps them square but says
+   nothing about how small square is allowed to get, and three columns of
+   seven on a narrow tablet lands under the size a thumb can hit. */
+@media (pointer: coarse) { .cal .days a, .cal .days .pad { min-height: 40px; } }
 p.calnote { color: ${QUIET}; font-size: 13px; margin: 22px 0 0; }
 footer .sitelinks { color: #B9B2AD; font-size: 14px; }
 footer .sitelinks a { color: ${ACCENT}; text-decoration: none; }
@@ -856,9 +860,10 @@ body.home {
   font-variant-numeric: tabular-nums;
 }
 .counts span {
-  display: block; margin-top: 5px; font-size: 10px; letter-spacing: 0.1em;
-  text-transform: uppercase; color: ${QUIET};
+  display: block; margin-top: 6px; font-size: 11px; letter-spacing: 0.13em;
+  text-transform: uppercase; color: #A79E98;
 }
+.counts b { color: #FFF7EE; }
 
 .hrow { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .hrow h2.section { margin-bottom: 0; }
