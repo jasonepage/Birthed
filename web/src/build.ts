@@ -17,6 +17,7 @@ import { coverageByDay, fetchChartWeeks, songsForDate, withDownloadedCovers } fr
 import { buildSeed, factsByDay, factsForDate, fetchFacts, pickHighlights } from "./facts.js";
 import { isReady, renderDayPage, renderNotFound, renderRobots, renderSitemap } from "./render.js";
 import { eventsByDay, eventsForDate, fetchEvents } from "./timeline.js";
+import { culturalByDate, culturalForDate, fetchCulturalEvents } from "./culture.js";
 import { renderAdd, renderHome, renderPrivacy, renderSupport } from "./pages.js";
 
 const OUT = "out";
@@ -127,16 +128,30 @@ async function main(): Promise<void> {
   const eventsFor = eventsByDay(events);
   console.log(`${events.length} Wikipedia events loaded, covering ${eventsFor.size} dates`);
 
+  // The curated rows. Read whole like the others, and there are far fewer of
+  // them: this table is written by hand, one date at a time, and is meant to
+  // stay that way. An empty table is a normal state and not a failure, so it
+  // says so plainly rather than warning about it: on a date with none of these
+  // the page is exactly the page it was before.
+  const culture = await fetchCulturalEvents(url, key);
+  const cultureFor = culturalByDate(culture);
+  console.log(
+    culture.length === 0
+      ? "no curated cultural rows yet, so no page has one"
+      : `${culture.length} curated cultural rows loaded, covering ${cultureFor.size} dates`,
+  );
+
   await inBatches(dates, CONCURRENCY, async (date) => {
     const page = await fetchDay(date.month, date.day, url, key);
     if (page.people.length === 0) empty++;
     const songs = songsForDate(covered, date.month, date.day, FIRST_CHART_YEAR, thisYear);
     const found = factsForDate(factsFor, date.month, date.day);
     const happened = eventsForDate(eventsFor, date.month, date.day);
+    const curated = culturalForDate(cultureFor, date.month, date.day);
     if (isReady(page, found)) ready.push(date);
     const directory = join(OUT, slug(date.month, date.day));
     await mkdir(directory, { recursive: true });
-    await writeFile(join(directory, "index.html"), renderDayPage(page, songs, found, happened), "utf8");
+    await writeFile(join(directory, "index.html"), renderDayPage(page, songs, found, happened, curated), "utf8");
     written++;
   });
 

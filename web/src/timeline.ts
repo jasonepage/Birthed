@@ -12,6 +12,8 @@
 import type { Fact } from "./facts.js";
 
 /** One line of Wikipedia's Events section for a date. */
+import { type CulturalEvent, textOf } from "./culture.js";
+
 export interface DayEvent {
   month: number;
   day: number;
@@ -27,6 +29,14 @@ export interface TimelineRow {
   text: string;
   /** Null for a Wikipedia event, which is credited once at the foot instead. */
   sourceUrl: string | null;
+  /**
+   * Whether a person wrote this row and checked it, rather than a model
+   * finding it or Wikipedia holding it. Carried on the row because the credit
+   * at the foot of the section names who found what, and a curated row that
+   * counted as a researched one would tell readers a person's sentence was
+   * found by a model.
+   */
+  curated?: boolean;
   /**
    * What kind of thing this is: event, release, sport, science, record and so
    * on. Only a researched fact has one, because only the researcher was asked
@@ -166,30 +176,67 @@ export function buildTimeline(
   events: DayEvent[],
   monthName: string,
   day: number,
+  // Trailing and defaulted, so the four argument calls that existed before
+  // curated rows did keep working and keep meaning the same thing.
+  culture: CulturalEvent[] = [],
 ): TimelineRow[] {
-  const fromFacts: TimelineRow[] = facts.map((fact) => {
-    const { year, text } = splitDatePrefix(fact.fact, monthName, day);
-    return { year, text, sourceUrl: fact.sourceUrl, category: fact.category };
-  });
+  // Curated rows go in first and win every collision, which is the only
+  // ordering decision in here that matters.
+  //
+  // Google being founded is in Wikipedia's September 4 article, and it is also
+  // the kind of thing somebody wrote a curated row for. Both would otherwise
+  // print, one after the other, saying the same thing in two voices. The
+  // curated one wins because somebody chose it, wrote it and checked its
+  // source, and the Wikipedia line is the one that reads like an encyclopedia,
+  // which is the whole complaint this table exists to answer.
+  const fromCulture: TimelineRow[] = culture.map((event) => ({
+    year: event.year,
+    text: textOf(event),
+    sourceUrl: event.sourceUrl,
+    category: event.category,
+    curated: true,
+  }));
 
-  // Only facts that landed on a year can collide with an event, since the
-  // comparison is only ever made within a year.
-  const factsByYear = new Map<number, string[]>();
-  for (const row of fromFacts) {
-    if (row.year === null) continue;
-    const list = factsByYear.get(row.year);
-    if (list) list.push(row.text);
-    else factsByYear.set(row.year, [row.text]);
+  const claimedByYear = new Map<number, string[]>();
+  const claim = (year: number | null, text: string): void => {
+    if (year === null) return;
+    const list = claimedByYear.get(year);
+    if (list) list.push(text);
+    else claimedByYear.set(year, [text]);
+  };
+  const alreadySaid = (year: number, text: string): boolean =>
+    (claimedByYear.get(year) ?? []).some((said) => saysTheSameThing(said, text));
+
+  // Both the sentence and the title, and the title is the one that does the
+  // work. A curated row prints its context, which is written on purpose not to
+  // sound like an encyclopedia, so it almost never resembles the Wikipedia line
+  // about the same event. The title does: "Google is founded" against "Google
+  // is founded." Claiming only the printed text left the duplicate in, which is
+  // what the first render of a curated page showed.
+  for (let i = 0; i < fromCulture.length; i++) {
+    const row = fromCulture[i];
+    const source = culture[i];
+    if (row === undefined || source === undefined) continue;
+    claim(row.year, row.text);
+    if (source.title !== row.text) claim(row.year, source.title);
+  }
+
+  const fromFacts: TimelineRow[] = [];
+  for (const fact of facts) {
+    const { year, text } = splitDatePrefix(fact.fact, monthName, day);
+    if (year !== null && alreadySaid(year, text)) continue;
+    fromFacts.push({ year, text, sourceUrl: fact.sourceUrl, category: fact.category });
+    claim(year, text);
   }
 
   const fromEvents: TimelineRow[] = [];
   for (const event of events) {
-    const sameYear = factsByYear.get(event.year) ?? [];
-    if (sameYear.some((text) => saysTheSameThing(text, event.description))) continue;
+    if (alreadySaid(event.year, event.description)) continue;
     fromEvents.push({ year: event.year, text: event.description, sourceUrl: null, category: null });
+    claim(event.year, event.description);
   }
 
-  const rows = [...fromFacts, ...fromEvents];
+  const rows = [...fromCulture, ...fromFacts, ...fromEvents];
   rows.sort((a, b) => {
     if (a.year === null) return b.year === null ? 0 : 1;
     if (b.year === null) return -1;

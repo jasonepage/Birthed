@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildTimeline, pickHighlights, saysTheSameThing, splitDatePrefix, theRest } from "../src/timeline.js";
+import { culturalByDate, culturalForDate, splitDate, textOf, type CulturalEvent } from "../src/culture.js";
 import { cardHighlight, renderShareCard } from "../src/share.js";
 
 /**
@@ -375,4 +376,83 @@ test("the oldest thing on the date leads, even when Wikipedia is the one who fou
   assert.equal(new Set(picked).size, 6);
   // And it is still on the page exactly once, not in both lists.
   assert.ok(!theRest(rows, picked).some((r) => r.year === 476));
+});
+
+// ---------------------------------------------------------------------------
+// The curated rows.
+
+const curated = (over: Partial<CulturalEvent> = {}): CulturalEvent => ({
+  month: 9, day: 4, year: 1998,
+  title: "Google is founded",
+  context: "Two Stanford students filed the paperwork. The search box had one button on it.",
+  sourceUrl: "https://en.wikipedia.org/wiki/Google",
+  category: "tech",
+  ...over,
+});
+
+test("a curated row carries its own category into the timeline", () => {
+  const rows = buildTimeline([], [], "September", 4, [curated()]);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0]?.category, "tech");
+  assert.equal(rows[0]?.year, 1998);
+  assert.match(rows[0]?.text ?? "", /Stanford/);
+});
+
+// The whole reason this table exists is that Wikipedia's sentence reads like
+// Wikipedia. Printing both is worse than printing either.
+test("a curated row beats the Wikipedia line that says the same thing", () => {
+  const rows = buildTimeline(
+    [],
+    [{ month: 9, day: 4, year: 1998, description: "Google is founded.", sourceUrl: "https://en.wikipedia.org/wiki/September_4" }],
+    "September", 4,
+    [curated({ context: null })],
+  );
+  assert.equal(rows.length, 1, "the same thing must not print twice");
+  assert.equal(rows[0]?.category, "tech", "and the curated one is the survivor");
+});
+
+// Found by rendering a page rather than by reasoning about it: the printed
+// text is the context, which is written not to sound like Wikipedia, so it is
+// the title that has to be matched against the encyclopedia line.
+test("the title suppresses the duplicate even when the printed sentence does not", () => {
+  const rows = buildTimeline(
+    [],
+    [{ month: 9, day: 4, year: 1998, description: "Google is founded.", sourceUrl: "w" }],
+    "September", 4,
+    [curated()],
+  );
+  assert.equal(rows.length, 1, "the context reads nothing like the Wikipedia line, and it still has to win");
+  assert.match(rows[0]?.text ?? "", /Stanford/);
+});
+
+test("a curated row leaves an unrelated event alone", () => {
+  const rows = buildTimeline(
+    [],
+    [{ month: 9, day: 4, year: 1998, description: "A hurricane made landfall in Florida.", sourceUrl: "x" }],
+    "September", 4,
+    [curated()],
+  );
+  assert.equal(rows.length, 2);
+});
+
+test("the sentence somebody wrote wins over the title, and the title is the floor", () => {
+  assert.match(textOf(curated()), /Stanford/);
+  assert.equal(textOf(curated({ context: null })), "Google is founded");
+  assert.equal(textOf(curated({ context: "   " })), "Google is founded");
+});
+
+// January 1 is already where a birth date nobody recorded ends up. A date this
+// cannot read must not quietly join them.
+test("an unreadable date is dropped rather than defaulted", () => {
+  assert.equal(splitDate("2011-11-18")?.day, 18);
+  assert.equal(splitDate("not a date"), null);
+  assert.equal(splitDate("2011-13-01"), null);
+  assert.equal(splitDate("2011-11-00"), null);
+});
+
+test("rows are found by month and day, whatever year they are in", () => {
+  const byDate = culturalByDate([curated(), curated({ year: 2004, title: "Firefox 1.0", month: 11, day: 9 })]);
+  assert.equal(culturalForDate(byDate, 9, 4).length, 1);
+  assert.equal(culturalForDate(byDate, 11, 9).length, 1);
+  assert.equal(culturalForDate(byDate, 2, 30).length, 0);
 });

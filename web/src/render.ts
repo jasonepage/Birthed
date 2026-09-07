@@ -4,6 +4,7 @@
 import { DayPage, Person, monthName, neighbours, slug, everyDate } from "./model.js";
 import { CHART_NAME, coverName, SongOfTheYear } from "./songs.js";
 import { calendar } from "./calendar.js";
+import { type CulturalEvent } from "./culture.js";
 import { Fact, hostOf } from "./facts.js";
 import { buildTimeline, pickHighlights, theRest, type DayEvent, type TimelineRow } from "./timeline.js";
 
@@ -935,6 +936,13 @@ ul.feed .tag::before { content: ""; width: 6px; height: 6px; border-radius: 2px;
 .k-weather { color: #6FA8FF; }
 .k-local { color: #3FBFA3; }
 .k-older { color: #C4AEFF; }
+.k-tech { color: #3FBFA3; }
+.k-music { color: #C4AEFF; }
+.k-cinema { color: #F0A63C; }
+/* Two hues that nothing else on the page uses, for the two categories that
+   are the reason the curated table exists. */
+.k-gaming { color: #9BE07A; }
+.k-meme { color: #F58BC8; }
 ul.feed .yr {
   font-family: Georgia, serif; font-size: 15px; font-weight: 700; color: ${QUIET};
   font-variant-numeric: tabular-nums;
@@ -1426,6 +1434,15 @@ const KINDS: Record<string, { label: string; klass: string }> = {
   weather: { label: "Weather", klass: "k-weather" },
   local: { label: "Local", klass: "k-local" },
   older_than: { label: "Older than", klass: "k-older" },
+  // The curated rows. These are the five the cultural_event_category type
+  // allows, and they get two colours of their own rather than borrowing from
+  // the nine above, because the point of the table is that a reader can see at
+  // a glance that this row is not another line out of an encyclopedia.
+  tech: { label: "Tech", klass: "k-tech" },
+  gaming: { label: "Gaming", klass: "k-gaming" },
+  meme: { label: "Internet", klass: "k-meme" },
+  music: { label: "Music", klass: "k-music" },
+  cinema: { label: "Film", klass: "k-cinema" },
 };
 
 function kindOf(category: string | null): { label: string; klass: string } {
@@ -1448,6 +1465,7 @@ function feedSection(
   name: string,
   searched: number,
   fromWikipedia: number,
+  curated = 0,
 ): string {
   if (picked.length === 0) return "";
 
@@ -1485,6 +1503,9 @@ ${others}
   const credits = [
     searched > 0
       ? `<p class="credit">The ${searched} with a source link under them were found by Google's Gemini searching the web, and kept only when the page each one cites answered. Birthed is not affiliated with Google.</p>`
+      : "",
+    curated > 0
+      ? `<p class="credit">${curated === 1 ? "One of them was" : `${curated} of them were`} written and checked by hand, against the page ${curated === 1 ? "it links" : "each one links"}.</p>`
       : "",
     fromWikipedia > 0
       ? `<p class="credit">The other ${fromWikipedia} are from the ${escapeHtml(name)} article on Wikipedia, quoted as written and released under Creative Commons Attribution ShareAlike. Birthed is not affiliated with Wikipedia or the Wikimedia Foundation.</p>`
@@ -1532,6 +1553,7 @@ export function renderDayPage(
   songs: SongOfTheYear[] = [],
   facts: Fact[] = [],
   events: DayEvent[] = [],
+  culture: CulturalEvent[] = [],
 ): string {
   const name = `${monthName(page.month)} ${page.day}`;
   const canonical = `${SITE}/${slug(page.month, page.day)}/`;
@@ -1576,8 +1598,13 @@ export function renderDayPage(
   // this category already says.
   // Built here rather than inside the section, because the description a
   // search result shows has to count the same rows the page ends up with.
-  const timeline = buildTimeline(facts, events, monthName(page.month), page.day);
-  const searched = timeline.filter((row) => row.sourceUrl !== null).length;
+  const timeline = buildTimeline(facts, events, monthName(page.month), page.day, culture);
+  // Three sources, counted apart, because the credit at the foot names who
+  // found what and a curated row is not a searched one. Counting a person's
+  // checked sentence as something a model turned up is the kind of wrong that
+  // is invisible to us and obvious to the person who wrote it.
+  const curatedCount = timeline.filter((row) => row.curated === true).length;
+  const searched = timeline.filter((row) => row.curated !== true && row.sourceUrl !== null).length;
   const factLine = timeline.length > 0
     ? ` What happened on ${name}, in ${timeline.length} sourced things.`
     : "";
@@ -1629,7 +1656,7 @@ export function renderDayPage(
 <div><b>${songs.length}</b><span>number ones</span></div>
 <div><b>${count}</b><span>people</span></div>
 </div>
-${feedSection(picked, rest, timeline.length, name, searched, timeline.length - searched)}
+${feedSection(picked, rest, timeline.length, name, searched, timeline.length - searched - curatedCount, curatedCount)}
 ${songSection(songs, name)}
 ${peopleRail(page, name)}
 <nav class="pager cards">
