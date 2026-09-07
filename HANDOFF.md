@@ -1,3 +1,174 @@
+# Handoff, September 7, 2026, small hours
+
+For the next session, which Nathan wants to run as coder and creative director
+at once. Read this, then `CLAUDE.md`. This section wins where it disagrees
+with anything under it, because it is newer.
+
+## Start here
+
+Working tree clean, nothing unpushed, `main`. Web 126 of 126, worker 106 of
+106. Thirty-odd commits since the last handoff.
+
+**The one thing to understand before touching anything:** the whole product
+rests on one sentence, and it is not a slogan. *Absent beats wrong.* Every
+good decision today was that sentence applied:
+
+- The song matcher refuses a karaoke recording even when it is the only result.
+- A fact survives only when the page it cites actually answers.
+- The site build refuses to point at a cover it has not downloaded.
+- Films refuse a match more than two years from the chart year, because every
+  box office row has a blank artist and the title alone is not enough.
+- Stars on 45 is still unmatched, on purpose, and should stay that way.
+
+When you are unsure, show nothing. A missing cover is a design state that
+already looks deliberate. A wrong one is a lie with a picture on it.
+
+## What is true right now
+
+**Songs are finished.** 1,189 titles, none unlooked, 3,440 of 3,532 chart weeks
+carry both a cover and a thirty second preview. 1,157 covers self-hosted in
+`web/static/covers`, 38 MB, committed.
+
+**Albums are two thirds done.** 1,262 titles, 703 never looked at. Run
+`node dist/src/import-chart-media.js --chart albums` from `worker` to finish.
+
+**Films have never run.** 2,015 titles, nothing matched. The importer learned
+about them today but the dry run has not been done:
+`node dist/src/import-chart-media.js --chart films --dry --limit 40`.
+Read the misses, not the matches. This chart is riskier than music for the
+reason in the bullet above.
+
+**Facts:** 3,083 verified across 281 dates. 85 dates still have none. That is
+about 950 grounded searches, roughly twelve dollars, and it is better spent
+deliberately than billed to whichever reader opens those dates.
+
+## The money, because it is the one thing that can run away
+
+The fact search costs real money and nothing else here does. One backfill on
+September 6 was 3,182 grounded Google searches, 2,762 facts, about forty
+dollars. Grounding is billed per request that uses the tool. Tokens are noise
+next to it.
+
+`REFRESH_AFTER_MS` was seven days and is now ninety, and that change matters
+more than it looks: the bill scales with **how many people open the app**, not
+with how much content exists. At seven days, a hundred readers on a hundred
+birthdays was fourteen dollars a week forever. `RESEARCH_ATTEMPTS` went three
+to two for the same reason.
+
+If you touch `supabase/functions/find-facts/index.ts`, it deploys separately:
+`supabase functions deploy find-facts`. It does not ship with the app or the
+site, and forgetting that means the old version keeps spending.
+
+## Rules that bit today, each one twice
+
+**A date page runs no script.** `default-src 'none'`, and `serve.test.ts` line
+102 asserts it. Every interaction on those pages is `<details>`, scroll snap,
+`:target`, or a CSS keyframe. This is why the conveyor belt idea for the song
+grid was refused: "tap a plate to see that year" is a script. The home page
+already has the belt, CSS only, and that is the right split. The home page
+makes you curious; a date page answers a question you arrived with.
+
+**`img-src 'self'`.** Covers are copied onto birthed.app rather than hotlinked,
+and the privacy page names the only two companies a reader meets. The iOS app
+does the opposite on purpose: it streams from Apple, because it has no such
+header and is already talking to Apple to exist. Do not "fix" either into the
+other.
+
+**A cascade collision is invisible and a browser reports nothing.** The cover
+grid shipped broken because a bare `li` rule set `display: flex` and
+`ol.covers li` never overrode it. Tests read HTML and passed. **Render a page
+and look at it.** That is now the standard for any visual change, and it found
+three bugs today that no test could.
+
+**Two things can be one thing wearing different clothes.** The Mine tab reads a
+chart week with a select; the Today feed reads it through the `chart_on_date`
+function. Widening the select did nothing for the feed. A function returns
+what it was declared to return no matter what the table gains. There are two
+migrations from today doing exactly that, and both restore the grants
+explicitly, because dropping a function throws them away and every phone would
+get permission denied.
+
+## What is unfinished, in the order I would do it
+
+1. **The share card picks the wrong fact.** September 4 leads with the airship
+   while the page leads with Rome ending the Western Roman Empire. The page got
+   "the oldest thing leads, whoever found it" today; `share.ts` has its own
+   picker and never did. The card is what lands in a group chat. This is the
+   highest value small change left.
+2. **Films.** Dry run, read the misses, then the real run.
+3. **Albums.** 703 titles, unattended, about half an hour.
+4. **An about page with Nathan's name on it.** Somebody called the site AI slop
+   after a minute. The site currently answers "is a person behind this" with
+   no. This is the cheapest fix for that and the words must be Nathan's.
+5. **Move the Gemini credit off the date page** to a sources page. Keep it
+   exactly as honest, put it a minute later.
+6. **The two schema columns:** a nullable `wikidata_qid` on every table that
+   could have one, and a precision beside every date. Only `notable_people` has
+   either. Four tables store dates four different ways. Nearly free now,
+   painful across millions of rows later.
+
+## The bigger idea, and the honest version of it
+
+Nathan's thesis is that everything has an origin date, so this becomes a
+temporal database of everything. The thesis is right and the schema half agrees
+already. Two corrections worth carrying:
+
+That database exists and it is Wikidata. Nobody out-collects it. The value is
+the layer: choosing, checking, presenting.
+
+And the asset is the refusal, not the data. Facts cannot be owned. A
+reputation for not lying about them can.
+
+**The rule that keeps this honest as it grows:** a new domain earns its place
+only if it makes a *birthday page* better. Minecraft releases passed. Internet
+culture passes, and `docs/internet-culture.md` is the brief for it, including
+the one rule that makes it possible: a row is never a meme, it is a thing that
+happened at a timestamp which later became one. Every building on Earth does
+not pass.
+
+## Being creative director here
+
+The site was called AI generated slop by a stranger in under a minute. That was
+fair at the time and the reasons were: it printed everything it had, every row
+looked identical, the words were visibly Wikipedia's, and there was no human
+anywhere on it. Three of those are fixed. The fourth is item 4 above.
+
+What worked today, and what to keep doing:
+
+**Choose.** Forty three events became six with the rest one tap away. Nothing
+was thrown away and a test asserts every row is still in the HTML.
+
+**Make the thing that could not be faked.** 1,157 real album covers is the
+single strongest signal on the site, because a generator cannot produce them.
+
+**Kill the tells.** The lede that read "Everything that was true about
+September 4: what happened, the number one song, and who shares it" is gone. A
+summary sentence with a colon and a list of three is the most recognisable
+rhythm in machine writing.
+
+**Use the house pattern before inventing one.** The decade jump was eight
+filled pills, which was a button farm. It is now one quiet line of middot
+separated links, which is what the footer has always done.
+
+**Measure instead of agreeing.** Somebody said the grey under the headings was
+too dark. It measures 9.27 to one and is one of the most readable things on the
+page. But measuring found two other greys at 3.53 and 4.28, below the 4.5
+floor, carrying the source credits and the "died 2020" line. Right instinct,
+wrong element, real bug.
+
+## Jason builds, you do not
+
+There is no compiler in this session. Swift goes to Jason, he builds in Xcode
+and sends errors and screenshots back. Two builds failed today on things a
+compiler catches in a second: `AVPlayerItem.didPlayToEndTime` is really
+`didPlayToEndTimeNotification`, and a `@MainActor` class cannot reach a
+non-Sendable observer token from `deinit`. Say "not compiled" in the commit
+message and mean it.
+
+The Xcode project uses synchronized folder groups, so a new `.swift` file in an
+existing folder is picked up with no project edit.
+
+
 # Handoff, September 6, 2026, afternoon
 
 For the next session, which Nathan is opening to redesign the web frontend.
