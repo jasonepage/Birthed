@@ -2,10 +2,10 @@
   "note": "Ten iconic technology and gaming launches, used to prove the pipeline end to end. Every date here was written from memory and must be checked against the page in source_url before this data is trusted in the app. CLAUDE.md says absent beats wrong, and a wrong launch date is the kind of wrong this audience notices first.",
   "events": [
     {
-      "event_date": "1977-04-16",
+      "event_date": "1977-06-10",
       "category": "tech",
-      "event_title": "The Apple II is introduced",
-      "context_string": "Apple showed the Apple II at the West Coast Computer Faire in San Francisco. It came in a plastic case, plugged into a normal television, and drew color, which is most of the reason home computers stopped looking like kits.",
+      "event_title": "The Apple II goes on sale",
+      "context_string": "The first Apple II went on sale. It came in a plastic case, plugged into a normal television, and drew colour, which is most of the reason home computers stopped looking like kits.",
       "source_url": "https://en.wikipedia.org/wiki/Apple_II"
     },
     {
