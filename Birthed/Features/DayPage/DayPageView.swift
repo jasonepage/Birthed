@@ -292,7 +292,8 @@ struct DayPageView: View {
                                 Task { await factsService.recordShareOpen(fact.id) }
                             },
                             onOpen: { url in openURL(url) },
-                            playing: item.previewURL != nil && item.previewURL == preview.nowPlaying,
+                            playing: item.kind != .film && item.previewURL != nil
+                                     && item.previewURL == preview.nowPlaying,
                             onPlay: { url in preview.toggle(url) })
                 }
                 .padding(.horizontal, 22)
@@ -453,6 +454,17 @@ private struct FeedRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// A sleeve is square and a poster is not.
+    ///
+    /// Two by three is what a film poster has been since before anybody
+    /// reading this was born, and cropping one into a square takes the title
+    /// treatment off the bottom of it, which is most of what a poster is for.
+    /// Both shapes are the same height, so a row of songs and a row of films
+    /// still line up down the page.
+    private var artSize: CGSize {
+        item.kind == .film ? CGSize(width: 44, height: 66) : CGSize(width: 64, height: 64)
+    }
+
     /// The cover, at the size three lines of text are tall.
     ///
     /// Pointed at Apple's image server rather than bundled. Nothing is drawn
@@ -467,7 +479,7 @@ private struct FeedRow: View {
                 palette.type.opacity(0.06)
             }
         }
-        .frame(width: 64, height: 64)
+        .frame(width: artSize.width, height: artSize.height)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -478,7 +490,11 @@ private struct FeedRow: View {
         // usually plays and occasionally opens Apple Music, and the mark on
         // the sleeve says which before it is touched.
         .overlay {
-            if item.previewURL != nil {
+            // Films are excluded on purpose. Apple's preview for a film is a
+            // trailer, which is a minute of a different thing, not thirty
+            // seconds of the thing itself, and a play mark on a poster would
+            // promise the wrong medium.
+            if item.previewURL != nil, item.kind != .film {
                 ZStack {
                     Circle()
                         .fill(.black.opacity(0.42))
@@ -492,15 +508,15 @@ private struct FeedRow: View {
         }
         .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .onTapGesture {
-            if let sample = item.previewURL {
+            if let sample = item.previewURL, item.kind != .film {
                 onPlay(sample)
             } else if let store = item.storeURL {
                 onOpen(store)
             }
         }
-        .accessibilityLabel(item.previewURL != nil
+        .accessibilityLabel(item.previewURL != nil && item.kind != .film
                             ? (playing ? "Stop the sample" : "Play a sample of \(item.text)")
-                            : "Open \(item.text) on Apple Music")
+                            : "Open \(item.text) on Apple")
         .accessibilityAddTraits(.isButton)
     }
 
