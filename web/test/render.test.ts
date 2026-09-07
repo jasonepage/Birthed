@@ -234,6 +234,25 @@ test("all 366 are linked once, in a leap year and out of one", () => {
 // this is can be written at build time. Today cannot, because these pages are
 // baked into a deploy and served unchanged until the next one, so a today
 // written here would still point at the day of the deploy a week later.
+// The footer claims there is nothing to fill in, and on one page that is
+// false. /add has a form, runs a script and posts a birthday to the project,
+// which is why it carries its own widened policy header. A claim that is true
+// on 370 pages and false on one is worse than no claim, because the one is the
+// page somebody screenshots.
+test("every page says nothing is collected, except the page that collects", () => {
+  const claim = "nothing to fill in";
+  const collecting = renderAdd({ url: "https://example.supabase.co", key: "anon" });
+  assert.ok(!collecting.includes(claim), "/add takes a birthday and must not claim otherwise");
+
+  for (const [name, html] of [
+    ["about", renderHome(2026, [])],
+    ["support", renderSupport()],
+    ["privacy", renderPrivacy()],
+  ] as const) {
+    assert.ok(html.includes(claim), `${name} should carry the line`);
+  }
+});
+
 test("the calendar marks the page's own date, once", () => {
   const marked = calendar(2026, { month: 9, day: 8 });
   assert.equal((marked.match(/class="thispage"/g) ?? []).length, 1);

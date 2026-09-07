@@ -12,7 +12,7 @@
 
 import { DAYS_IN_MONTH, monthName, slug } from "./model.js";
 import { hostOf, type Highlight } from "./facts.js";
-import { FOOT, SITE, escapeHtml, head } from "./render.js";
+import { FOOT, FOOT_ADD, SITE, escapeHtml, head } from "./render.js";
 
 /** Where a person can reach us. One place, so it changes in one place. */
 export const SUPPORT_EMAIL = "support@birthed.app";
@@ -512,7 +512,7 @@ export function renderAdd(api: { url: string; key: string }): string {
   });
 })();
 </script>
-${FOOT}`;
+${FOOT_ADD}`;
 }
 
 export function renderSupport(): string {

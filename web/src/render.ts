@@ -345,6 +345,7 @@ nav.pager a { color: ${ACCENT}; text-decoration: none; }
 .cta h2 { font-family: Georgia, serif; margin: 0 0 6px; font-size: 22px; }
 .cta p { margin: 0; opacity: 0.92; font-size: 15px; }
 footer { margin: 40px 0 0; color: ${QUIET}; font-size: 13px; }
+footer .nothing { color: #A79E98; }
 footer a { color: #9C9490; }
 /* The year as twelve calendars. Seven columns, so a row is a week and the page
    reads the way a wall calendar does instead of as a column of 366 lines. */
@@ -1090,10 +1091,53 @@ ${extraHead}<style>${STYLE}</style>
 <body${bodyClass ? ` class="${bodyClass}"` : ""}><div class="wrap${bodyClass ? ` ${bodyClass}` : ""}">`;
 }
 
+const CREDIT = `<p>Names, years and descriptions come from <a href="https://www.wikidata.org">Wikidata</a>, released under <a href="https://creativecommons.org/publicdomain/zero/1.0/">Creative Commons Zero</a>. Credit to Wikipedia and Wikidata.</p>
+<p>Birthed is not affiliated with Wikipedia, Wikidata or the Wikimedia Foundation.</p>`;
+
+const SITELINKS = `<p class="sitelinks"><a href="/">Every date</a> · <a href="/support/">Support</a> · <a href="/privacy/">Privacy</a></p>`;
+
+/**
+ * The footer, and the one sentence on it that is not a credit.
+ *
+ * A page that collects nothing looks exactly like a page that collects
+ * something, because what is missing is the part nobody can see. The site was
+ * posted to Reddit on September 6 and the top comment, at 28 points, was that
+ * it exists to harvest birthdays and sell them to advertisers, above copy on
+ * the front door that already promised the opposite. More promising was never
+ * going to answer that.
+ *
+ * So the line is short, it is on every page rather than on a policy nobody
+ * opens, and every clause in it is something a reader can check in the
+ * network tab in five seconds rather than something they have to believe.
+ * That is why it does not say "we respect your privacy" and does not say
+ * "your data is safe with us", which are claims about intentions and are what
+ * a site that did collect would also say.
+ *
+ * It stops short of "runs no scripts", though that is nearly true, because
+ * every date page carries one script element holding the structured data a
+ * search engine reads. Nothing executes it and the policy header would refuse
+ * it if anything tried. Writing the stronger sentence would hand the one
+ * reader who opens the source a reason to disbelieve the rest of it, and the
+ * whole point of the line is that it survives being checked.
+ */
 export const FOOT = `<footer>
-<p class="sitelinks"><a href="/">Every date</a> · <a href="/support/">Support</a> · <a href="/privacy/">Privacy</a></p>
-<p>Names, years and descriptions come from <a href="https://www.wikidata.org">Wikidata</a>, released under <a href="https://creativecommons.org/publicdomain/zero/1.0/">Creative Commons Zero</a>. Credit to Wikipedia and Wikidata.</p>
-<p>Birthed is not affiliated with Wikipedia, Wikidata or the Wikimedia Foundation.</p>
+${SITELINKS}
+<p class="nothing">No account, no sign up and nothing to fill in. This page sets no cookies and loads nothing from any other company.</p>
+${CREDIT}
+</footer>`;
+
+/**
+ * The footer for /add, which is the one page the sentence above is false on.
+ *
+ * /add exists to hand a birthday from somebody who has the app to somebody who
+ * does not. It has a form, it runs a script, and it posts to the project. It
+ * is the only page on the site with its own widened policy header for exactly
+ * that reason, and it is the only page that must not carry a line saying there
+ * is nothing to fill in.
+ */
+export const FOOT_ADD = `<footer>
+${SITELINKS}
+${CREDIT}
 </footer>
 </div></body></html>`;
 
