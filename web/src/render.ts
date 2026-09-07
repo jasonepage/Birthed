@@ -225,6 +225,87 @@ ol.covers li:target .y a { color: ${ACCENT}; }
   to   { opacity: 1; transform: none; }
 }
 p.credit { color: ${QUIET}; font-size: 13px; margin: 14px 0 0; }
+/* The year dial, and the reason it is built out of radio buttons.
+   This site sends default-src 'none', so no page on it may run a script, and
+   that is not an obstacle worth routing around: it is the strongest thing the
+   privacy page claims and the /add incident is what loosening it costs. So the
+   years are 60-odd radio inputs and the panel below them is chosen with
+   :checked and a sibling selector. Clicking a tick picks a year, and the arrow
+   keys walk the years, which is behaviour a radio group already has and no
+   script of ours could do better.
+   The per-year rules are generated in songSection, because which years exist
+   depends on the date. February 29 has seventeen of them. */
+.dial { margin: 0 0 30px; position: relative; }
+.dial input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.dial input:focus-visible ~ .ticks { box-shadow: 0 0 0 2px rgba(239, 86, 128, 0.55); border-radius: 3px; }
+.dial .ticks { display: flex; align-items: flex-end; height: 30px; border-bottom: 1px solid #3A3348; }
+.dial .ticks label {
+  flex: 1 1 0; height: 9px; cursor: pointer; border-left: 1px solid #3A3348;
+}
+.dial .ticks label.dec { height: 19px; border-left-color: #6E6680; }
+.dial .ticks label:hover { background: rgba(239, 86, 128, 0.22); }
+.dial .scale {
+  display: flex; justify-content: space-between; margin: 6px 0 0;
+  font-size: 11px; color: ${QUIET}; font-variant-numeric: tabular-nums;
+}
+.dial .now { margin: 20px 0 0; min-height: 118px; }
+.dial .pick { display: none; gap: 24px; align-items: baseline; flex-wrap: wrap; }
+.dial .body { min-width: 240px; flex: 1; }
+.dial .diallabel {
+  margin: 0 0 12px; font-size: 11px; letter-spacing: 0.13em; text-transform: uppercase;
+  color: #A79E98;
+}
+.dial .yr {
+  font-family: Georgia, "Times New Roman", serif; font-size: 46px; line-height: 1;
+  color: ${ACCENT}; font-variant-numeric: tabular-nums;
+}
+.dial .said {
+  font-family: Georgia, "Times New Roman", serif; font-size: 22px; line-height: 1.25;
+  margin: 0; color: #FFF7EE;
+}
+.dial .by { margin: 4px 0 0; color: #9C9490; font-size: 15px; }
+.dial .when { margin: 9px 0 0; color: ${QUIET}; font-size: 12px; }
+.dial .turns { margin: 3px 0 0; color: #9C9490; font-size: 13px; }
+@media (max-width: 520px) { .dial .yr { font-size: 34px; } .dial .said { font-size: 19px; } }
+/* The rest of the wall, shut.
+   Sixty-odd covers is a long scroll to get past on the way to the people, and
+   the dial above answers the question most of them were being scrolled for.
+   A details element does this with no script, and it is still one anchor per
+   year underneath, so /september-7/#1996 keeps working whether it is open or
+   shut: a browser opens the details to reach a target inside it. */
+details.more { margin: 20px 0 0; }
+details.more > summary {
+  cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 9px;
+  font-size: 14px; color: ${ACCENT}; padding: 11px 0;
+}
+details.more > summary::-webkit-details-marker { display: none; }
+details.more > summary::after { content: "+"; font-size: 16px; }
+details.more[open] > summary::after { content: "\\2212"; }
+details.more > summary:hover { color: #FFF7EE; }
+details.more ol.covers { margin-top: 16px; }
+details.more > summary .n, .shelfhead .n {
+  color: ${QUIET}; font-size: 12px; font-weight: 400; letter-spacing: 0.04em;
+}
+.shelf { scroll-margin-top: 68px; }
+.shelfhead {
+  margin: 22px 0 14px; font-size: 14px; font-weight: 700; color: #FFF7EE;
+  display: flex; align-items: baseline; gap: 9px;
+}
+/* The tick strip scrolls rather than shrinking.
+   Sixty-seven years across a phone is a two pixel target each, which is not a
+   control. Given a floor per tick the strip is wider than the screen and can
+   be swiped, and every year stays reachable by thumb. On a desktop the whole
+   run fits and the floor never applies. */
+.dial .ticks { overflow-x: auto; scrollbar-width: none; }
+.dial .ticks::-webkit-scrollbar { display: none; }
+.dial .ticks label { flex: 1 0 auto; min-width: 10px; }
+@media (pointer: coarse) { .dial .ticks { height: 44px; } .dial .ticks label { min-width: 20px; height: 16px; } .dial .ticks label.dec { height: 30px; } }
+/* The year is on the label for anything reading the page out loud. It is not
+   drawn, because sixty-seven printed years is the wall this replaced. */
+.sr {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap;
+}
 /* What happened. Not the rounded rectangles the people and the songs use: a
    sentence is the content here, so it is set to be read rather than scanned,
    and a hairline is enough to separate one from the next.
@@ -1028,7 +1109,9 @@ function songSection(songs: SongOfTheYear[], name: string): string {
   // anchor makes that row linkable without generating a page for every day
   // and year, which would be about 24,500 pages holding four lines each. The
   // year is the link, so it can be copied out of the address bar.
-  const rows = songs.map((song, index) => {
+  // One cover. Unchanged from the wall this replaces, because the tile was
+  // never the problem: sixty-odd of them in one column was.
+  const tile = (song: SongOfTheYear, index: number): string => {
     const art = song.hasArtwork
       ? `<img src="/covers/${coverName(song.song, song.artist)}.jpg" alt=""
    width="300" height="300" loading="lazy" decoding="async">`
@@ -1041,22 +1124,19 @@ function songSection(songs: SongOfTheYear[], name: string): string {
     // Linked to Apple Music where there is a link. That is not decoration and
     // not an affiliate move: the preview and the cover are published to
     // promote the store, so the link out is the other half of the arrangement.
-    const tile = song.storeUrl
+    const wrapped = song.storeUrl
       ? `<a class="art" href="${escapeHtml(song.storeUrl)}" rel="nofollow noopener">${art}</a>`
       : `<span class="art">${art}</span>`;
 
-    // Only the first dozen are given a delay. The rest are below the fold on
-    // every screen, so staggering them would animate things nobody is looking
-    // at and hold up the ones they are.
     const delay = index < 12 ? ` style="--i:${index}"` : "";
 
     return `<li id="${song.year}"${delay}>
-${tile}
+${wrapped}
 <p class="y"><a href="#${song.year}">${song.year}</a></p>
 <p class="t" title="${escapeHtml(song.song)}">${escapeHtml(song.song)}</p>
 <p class="a">${escapeHtml(song.artist)}</p>
 </li>`;
-  }).join("\n");
+  };
 
   const oldest = songs[songs.length - 1]?.year ?? "";
   const newest = songs[0]?.year ?? "";
@@ -1073,21 +1153,110 @@ ${tile}
   }
   const jumps = [...firstOfDecade.entries()]
     .sort((a, b) => b[0] - a[0])
-    .map(([decade, year]) => `<a href="#${year}">${decade}s</a>`)
+    .map(([decade]) => `<a href="#d${decade}">${decade}s</a>`)
     .join(" · ");
   // Two decades is not a line worth writing.
   const decades = firstOfDecade.size >= 3
     ? `<p class="decades">Jump to ${jumps}</p>`
     : "";
 
+  // The dial, and why it is radio buttons.
+  //
+  // The wall answered "what was number one in my year" by making somebody
+  // scroll past sixty-six years they did not ask about to reach the one they
+  // did. The dial answers it in one press, and the covers stop being the only
+  // way in, which is what lets them fold up below.
+  //
+  // No script, because this site sends default-src 'none' and that promise is
+  // worth more than a drag gesture. A radio group already does the two things
+  // that matter: a click picks a year, and the arrow keys walk them. The rules
+  // that show the matching panel are generated here rather than living in
+  // STYLE, because which years exist depends on the date and February 29 has
+  // seventeen of them.
+  const buildYear = new Date().getUTCFullYear();
+  const selected = songs[0]?.year;
+  const radios = songs
+    .map((song) => `<input type="radio" name="dialyear" id="dy${song.year}"${song.year === selected ? " checked" : ""}>`)
+    .join("");
+  // Oldest to newest left to right, which is the direction a year runs.
+  const ordered = [...songs].sort((a, b) => a.year - b.year);
+  const ticks = ordered
+    .map((song) => `<label for="dy${song.year}"${song.year % 10 === 0 ? ' class="dec"' : ""} title="${song.year}"><span class="sr">${song.year}</span></label>`)
+    .join("");
+  const picks = songs.map((song) => {
+    const [y, m, d] = song.chartDate.split("-");
+    const issued = m && d && y ? `${monthName(Number(m))} ${Number(d)}, ${y}` : song.chartDate;
+    return `<div class="pick p${song.year}">
+<p class="yr">${song.year}</p>
+<div class="body">
+<p class="said">${escapeHtml(song.song)}</p>
+<p class="by">${escapeHtml(song.artist)}</p>
+<p class="when">${escapeHtml(CHART_NAME)}, issue dated ${issued}</p>
+<p class="turns">Somebody born on ${escapeHtml(name)}, ${song.year} turns ${buildYear - song.year} in ${buildYear}.</p>
+</div>
+</div>`;
+  }).join("\n");
+  const dialRules = songs
+    .map((song) => `#dy${song.year}:checked~.now .p${song.year}{display:flex}#dy${song.year}:checked~.ticks label[for=dy${song.year}]{background:${ACCENT};border-left-color:${ACCENT}}`)
+    .join("");
+
+  const dial = `<style>${dialRules}</style>
+<div class="dial">
+<p class="diallabel">Pick a year</p>
+${radios}
+<div class="ticks">${ticks}</div>
+<div class="now">
+${picks}
+</div>
+</div>`;
+
+  // The covers, folded by decade, newest open.
+  //
+  // A wall of sixty-odd is a long scroll to get past on the way to the people,
+  // and somebody looking for the nineties had to travel through the twenties
+  // to reach them. A details element per decade is one press to the decade you
+  // want and no press at all for the years you do not, and it needs no script.
+  // Every year keeps its own anchor inside, and a browser opens a details to
+  // reach a target within it, so /september-7/#1996 still lands on 1996.
+  const byDecade = new Map<number, SongOfTheYear[]>();
+  for (const song of songs) {
+    const decade = Math.floor(song.year / 10) * 10;
+    const bucket = byDecade.get(decade);
+    if (bucket) bucket.push(song);
+    else byDecade.set(decade, [song]);
+  }
+  let index = 0;
+  const shelves = [...byDecade.entries()]
+    .sort((a, b) => b[0] - a[0])
+    .map(([decade, group], position) => {
+      const items = group.map((song) => tile(song, index++)).join("\n");
+      const years = group.length === 1 ? "1 year" : `${group.length} years`;
+      // The newest decade is open, so the section is never a row of shut
+      // drawers with nothing to look at.
+      return position === 0
+        ? `<section class="shelf" id="d${decade}">
+<h3 class="shelfhead">${decade}s <span class="n">${years}</span></h3>
+<ol class="covers">
+${items}
+</ol>
+</section>`
+        : `<details class="more shelf" id="d${decade}">
+<summary>${decade}s <span class="n">${years}</span></summary>
+<ol class="covers">
+${items}
+</ol>
+</details>`;
+    })
+    .join("\n");
+
   return `<h2 class="section">The number one song on ${escapeHtml(name)}</h2>
 <p class="lede">Every year from ${oldest} to ${newest}, from the chart week that ${escapeHtml(name)} fell in.</p>
+${dial}
 ${decades}
-<ol class="covers">
-${rows}
-</ol>
+${shelves}
 <p class="credit">Chart positions are from the ${escapeHtml(CHART_NAME)}, compiled by Wikipedia and released under Creative Commons Attribution ShareAlike. ${covered > 0 ? "Cover art and the links to Apple Music come from the iTunes Search API. " : ""}Birthed is not affiliated with Billboard, Wikipedia or Apple.</p>`;
 }
+
 
 /**
  * What happened on this date, with the page each one came from.
