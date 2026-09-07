@@ -47,6 +47,30 @@ struct DayPageView: View {
                 .padding(.bottom, 32)
             }
             .background(Theme.canvas)
+            // Swiping sideways walks to another date, which is what the two
+            // arrows do and what a finger reaches for first.
+            //
+            // A gesture on the scroll view rather than a paging TabView. A
+            // real pager keeps three days alive at once, and FactsService
+            // holds exactly one day of facts for the whole app, so the two
+            // pages either side of this one would draw today's facts under
+            // yesterday's date until they settled. That is a data change, not
+            // a view change, and it is not worth making for a swipe.
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 24)
+                    .onEnded { drag in
+                        // Only a clearly sideways flick. This list scrolls up
+                        // and down and pulls to refresh, and a gesture that
+                        // fired on a diagonal would steal both.
+                        let sideways = abs(drag.translation.width)
+                        let upright = abs(drag.translation.height)
+                        guard sideways > 60, sideways > upright * 1.6 else { return }
+                        Task { await move(drag.translation.width < 0 ? 1 : -1) }
+                    }
+            )
+            // The date changed under a finger that did not press anything, so
+            // the phone says so.
+            .sensoryFeedback(.selection, trigger: model.date)
             .refreshable { await reload() }
             .navigationTitle("Birthed")
             .navigationBarTitleDisplayMode(.inline)
@@ -366,6 +390,9 @@ struct DayPageView: View {
 
     private func move(_ days: Int) async {
         shareImage = nil
+        // The arrows do not go through `reload`, so this has to be said in
+        // both places or a date walked to opens already expanded.
+        showingAll = false
         await model.move(byDays: days, readerBirthYear: readerBirthYear)
         await factsService.readDay(month: model.date.month, day: model.date.day)
         shareImage = renderShareCard()
