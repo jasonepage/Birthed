@@ -387,6 +387,7 @@ const curated = (over: Partial<CulturalEvent> = {}): CulturalEvent => ({
   context: "Two Stanford students filed the paperwork. The search box had one button on it.",
   sourceUrl: "https://en.wikipedia.org/wiki/Google",
   category: "tech",
+  origin: "curated",
   ...over,
 });
 
@@ -455,4 +456,16 @@ test("rows are found by month and day, whatever year they are in", () => {
   assert.equal(culturalForDate(byDate, 9, 4).length, 1);
   assert.equal(culturalForDate(byDate, 11, 9).length, 1);
   assert.equal(culturalForDate(byDate, 2, 30).length, 0);
+});
+
+// The credit at the foot of the section says some rows were written and
+// checked by hand. Several thousand imported rows must not be inside that
+// sentence, so the two kinds are told apart on the row itself.
+test("an imported row is not counted as a hand written one", () => {
+  const imported = buildTimeline([], [], "September", 4, [curated({ origin: "imported", context: null })]);
+  assert.equal(imported[0]?.curated, false);
+  assert.equal(imported[0]?.text, "Google is founded", "an imported row prints its title");
+
+  const byHand = buildTimeline([], [], "September", 4, [curated()]);
+  assert.equal(byHand[0]?.curated, true);
 });

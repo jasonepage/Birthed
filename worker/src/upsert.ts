@@ -233,3 +233,56 @@ export async function pruneHistoricalEvents(
 
   return removed;
 }
+
+export interface CulturalEventRow {
+  event_date: string;
+  category: string;
+  event_title: string;
+  /** Null on an imported row. The title is the whole of it. */
+  context_string: string | null;
+  source_url: string;
+  origin: string;
+}
+
+/**
+ * Writes imported cultural rows.
+ *
+ * The conflict target is the table's own unique key, the date and the title
+ * together, so running the import again updates in place rather than doubling
+ * every row. That key is also why an imported row can never quietly overwrite
+ * a hand written one about a different thing on the same day: only an
+ * identical title collides, and an identical title is the same row.
+ */
+export async function upsertCulturalEvents(
+  rows: CulturalEventRow[],
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  batchSize = 500,
+): Promise<number> {
+  let written = 0;
+
+  for (let start = 0; start < rows.length; start += batchSize) {
+    const batch = rows.slice(start, start + batchSize);
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/cultural_events?on_conflict=event_date,event_title`,
+      {
+        method: "POST",
+        headers: {
+          apikey: serviceRoleKey,
+          Authorization: `Bearer ${serviceRoleKey}`,
+          "Content-Type": "application/json",
+          Prefer: "resolution=merge-duplicates,return=minimal",
+        },
+        body: JSON.stringify(batch),
+      },
+    );
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`Cultural upsert failed with ${response.status}. ${body.slice(0, 400)}`);
+    }
+    written += batch.length;
+  }
+
+  return written;
+}

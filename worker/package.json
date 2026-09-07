@@ -17,7 +17,9 @@
     "import:songs": "npm run build && node dist/src/import-hot100.js",
     "import:albums": "npm run build && node dist/src/import-charts.js --chart albums",
     "import:films": "npm run build && node dist/src/import-charts.js --chart films",
-    "import:events": "npm run build && node dist/src/import-events.js"
+    "import:events": "npm run build && node dist/src/import-events.js",
+    "import:culture": "npm run build && node dist/src/import-culture.js",
+    "import:culture:all": "npm run build && node dist/src/import-culture-all.js"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

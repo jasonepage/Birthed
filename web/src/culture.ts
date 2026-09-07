@@ -24,6 +24,13 @@ export interface CulturalEvent {
   sourceUrl: string;
   /** tech, gaming, meme, music or cinema. Drives the coloured chip. */
   category: string;
+  /**
+   * "curated" when a person wrote and checked the row, "imported" when it came
+   * out of a structured source. The credit at the foot of the section names
+   * who found what, and ten hand written rows cannot share a sentence with
+   * several thousand imported ones.
+   */
+  origin: string;
 }
 
 /**
@@ -53,7 +60,7 @@ export async function fetchCulturalEvents(url: string, key: string): Promise<Cul
 
   for (let offset = 0; ; offset += pageSize) {
     const query = new URLSearchParams({
-      select: "event_date,category,event_title,context_string,source_url",
+      select: "event_date,category,event_title,context_string,source_url,origin",
       order: "event_date.asc,id.asc",
       limit: String(pageSize),
       offset: String(offset),
@@ -70,6 +77,7 @@ export async function fetchCulturalEvents(url: string, key: string): Promise<Cul
       event_title: string;
       context_string: string | null;
       source_url: string;
+      origin: string | null;
     }[];
 
     for (const row of rows) {
@@ -84,6 +92,10 @@ export async function fetchCulturalEvents(url: string, key: string): Promise<Cul
         context: row.context_string,
         sourceUrl: row.source_url,
         category: row.category,
+        // Defaulted rather than trusted: the column arrived after the first
+        // ten rows did, and a row written before it existed is a hand written
+        // one.
+        origin: row.origin ?? "curated",
       });
     }
 

@@ -194,7 +194,10 @@ export function buildTimeline(
     text: textOf(event),
     sourceUrl: event.sourceUrl,
     category: event.category,
-    curated: true,
+    // Only a row somebody actually wrote counts as curated. An imported one
+    // has a source and a category and no author, and saying otherwise in the
+    // credit would be a claim about a person that is not true.
+    curated: event.origin !== "imported",
   }));
 
   const claimedByYear = new Map<number, string[]>();
