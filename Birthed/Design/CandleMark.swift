@@ -114,8 +114,6 @@ struct CandleMark: View {
     // is drawn at, which in this app runs from 34 points to 620.
     private var dishWidth: CGFloat { bodyWidth * 2.6 }
     private var dishHeight: CGFloat { bodyWidth * 0.62 }
-    private var collarWidth: CGFloat { bodyWidth * 1.52 }
-    private var collarHeight: CGFloat { bodyWidth * 0.34 }
     /// How far the dish reaches below where the body alone would have ended.
     /// Taken off the body so the whole mark still occupies exactly `height`
     /// and no caller has to know whether it has a holder.
@@ -148,66 +146,71 @@ struct CandleMark: View {
 
     /// The candle standing in its dish.
     ///
-    /// Four things in order from the back: the shadow it casts on whatever it
-    /// is standing on, the body, the dish, and the collar that covers the join
-    /// where one meets the other. The collar is the only reason this reads as
-    /// a candle in a holder rather than a candle in front of a saucer.
+    /// The dish is one ellipse drawn twice: the half above its widest point
+    /// behind the candle, and the half below it in front. That is the whole
+    /// trick, and the first version did not do it. Laying the whole ellipse in
+    /// front of the body, with a second ring on top to hide the join, gave two
+    /// hard edged circles around a cylinder, which reads as ripples in water
+    /// with something dropped in them rather than as a candle in a holder.
+    /// Split, the near rim passes in front of the wax and the far rim passes
+    /// behind it, and that alone is what makes it a bowl instead of a ring.
+    ///
+    /// Both halves are the same ellipse at the same size with no offset, so
+    /// they meet exactly at the widest point, where an ellipse's edge runs
+    /// vertically and the seam has nothing to show.
+    ///
+    /// The body's base sits a little below that line rather than on it, so
+    /// the near rim overlaps the bottom of the wax. A candle resting exactly
+    /// on the centre line is standing on the dish; one sunk slightly past it
+    /// is standing in it.
     private var seatedBody: some View {
         ZStack(alignment: .bottom) {
             Ellipse()
-                .fill(Color.black.opacity(0.32))
-                .frame(width: dishWidth * 0.94, height: dishHeight * 0.46)
-                .blur(radius: dishHeight * 0.24)
-                .offset(y: dishHeight * 0.14)
+                .fill(Color.black.opacity(0.30))
+                .frame(width: dishWidth * 0.92, height: dishHeight * 0.44)
+                .blur(radius: dishHeight * 0.26)
+                .offset(y: dishHeight * 0.12)
                 .allowsHitTesting(false)
 
+            dishFace
+                .mask(alignment: .top) { Rectangle().frame(height: dishHeight / 2) }
+
             stripedBody
-                .padding(.bottom, dishHeight * 0.42)
+                .padding(.bottom, dishHeight * 0.28)
 
-            dish
-
-            collar
-                .padding(.bottom, dishHeight * 0.34)
+            dishFace
+                .mask(alignment: .bottom) { Rectangle().frame(height: dishHeight / 2) }
         }
         .frame(width: dishWidth)
     }
 
-    /// The saucer. Two ellipses and a warm edge.
+    /// The saucer, drawn whole. `seatedBody` shows one half of it at a time.
     ///
-    /// The top of it is lit, because there is a flame directly above it and
+    /// The edge is quieter than the candle's own, because at this size a rim
+    /// drawn at the same weight as the wax stops being the lip of a bowl and
+    /// becomes a circle somebody drew around the candle.
+    ///
+    /// The inside of it is lit, because there is a flame directly above it and
     /// the one thing that would give this away as assembled rather than drawn
     /// is a holder that ignores its own candle. The light goes out with the
     /// flame.
-    private var dish: some View {
+    private var dishFace: some View {
         ZStack {
             Ellipse()
                 .fill(LinearGradient(
-                    colors: [on.type.opacity(0.30), on.type.opacity(0.13), on.type.opacity(0.24)],
+                    colors: [on.type.opacity(0.26), on.type.opacity(0.11), on.type.opacity(0.20)],
                     startPoint: .leading, endPoint: .trailing
                 ))
-                .overlay(
-                    Ellipse().stroke(edge, lineWidth: edgeWidth)
-                )
+                .overlay(Ellipse().stroke(on.type.opacity(0.24), lineWidth: edgeWidth))
 
             Ellipse()
-                .fill(Theme.ember.opacity(lit ? 0.26 : 0))
-                .frame(width: dishWidth * 0.72, height: dishHeight * 0.34)
-                .blur(radius: dishHeight * 0.3)
-                .offset(y: -dishHeight * 0.16)
+                .fill(Theme.ember.opacity(lit ? 0.24 : 0))
+                .frame(width: dishWidth * 0.66, height: dishHeight * 0.40)
+                .blur(radius: dishHeight * 0.32)
+                .offset(y: -dishHeight * 0.10)
                 .allowsHitTesting(false)
         }
         .frame(width: dishWidth, height: dishHeight)
-    }
-
-    /// The raised ring the candle sits in, drawn over the body's base.
-    private var collar: some View {
-        Ellipse()
-            .fill(LinearGradient(
-                colors: [on.type.opacity(0.36), on.type.opacity(0.18)],
-                startPoint: .top, endPoint: .bottom
-            ))
-            .overlay(Ellipse().stroke(edge, lineWidth: edgeWidth))
-            .frame(width: collarWidth, height: collarHeight)
     }
 
     @ViewBuilder
