@@ -10,10 +10,10 @@
 //
 // Output lands in web/out, which is what a static host points at.
 
-import { cp, mkdir, writeFile } from "node:fs/promises";
+import { cp, mkdir, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DayPage, Person, everyDate, slug } from "./model.js";
-import { coverageByDay, fetchChartWeeks, songsForDate } from "./songs.js";
+import { coverageByDay, fetchChartWeeks, songsForDate, withDownloadedCovers } from "./songs.js";
 import { buildSeed, factsByDay, factsForDate, fetchFacts, pickHighlights } from "./facts.js";
 import { isReady, renderDayPage, renderNotFound, renderRobots, renderSitemap } from "./render.js";
 import { eventsByDay, eventsForDate, fetchEvents } from "./timeline.js";
@@ -91,7 +91,19 @@ async function main(): Promise<void> {
 
   // The whole chart table once, rather than 366 lookups. It is a few thousand
   // rows, and every date page needs a slice of it.
-  const weeks = await fetchChartWeeks(url, key);
+  const found = await fetchChartWeeks(url, key);
+  // What the table says, checked against what is on disk. A page must not
+  // point at a cover we have not got.
+  const files = await readdir(join("static", "covers")).catch(() => [] as string[]);
+  const weeks = withDownloadedCovers(found, files);
+  const claimed = found.filter((week) => week.hasArtwork === true).length;
+  const drawn = weeks.filter((week) => week.hasArtwork === true).length;
+  if (claimed > drawn) {
+    console.log(
+      `${claimed - drawn} chart weeks have a cover in the database that is not in static/covers, ` +
+      `so those tiles fall back to the made one. Run npm run covers, then build again.`,
+    );
+  }
   const covered = coverageByDay(weeks);
   const thisYear = new Date().getUTCFullYear();
   console.log(`${weeks.length} chart weeks loaded`);

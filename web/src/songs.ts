@@ -169,3 +169,31 @@ export async function fetchChartWeeks(url: string, key: string): Promise<ChartWe
 
   return weeks;
 }
+
+
+/**
+ * Turns off `hasArtwork` for any week whose cover is not actually downloaded.
+ *
+ * The database says a cover exists; `static/covers` says whether we have it.
+ * Those two answers are not the same and the page must believe the second one,
+ * because the page is what points a browser at a file.
+ *
+ * They come apart constantly and not only by mistake. The importer runs for
+ * hours and keeps matching while it goes, so `npm run covers` downloads what
+ * was matched at the moment it ran and `npm run site` reads the table again a
+ * few minutes later, by which time there are more. That is not a race worth
+ * closing, it is just how a long import works, and the first real run of it
+ * put thirteen broken images across the 366 pages.
+ *
+ * A week that fails this check is not dropped. It falls back to the made tile,
+ * which is a state the page already draws on purpose for records Apple does
+ * not carry, and which looks deliberate rather than broken.
+ */
+export function withDownloadedCovers(weeks: ChartWeek[], files: Iterable<string>): ChartWeek[] {
+  const have = new Set(files);
+  return weeks.map((week) => {
+    if (week.hasArtwork !== true) return week;
+    if (have.has(`${coverName(week.song, week.artist)}.jpg`)) return week;
+    return { ...week, hasArtwork: false };
+  });
+}

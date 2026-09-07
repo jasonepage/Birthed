@@ -2,7 +2,7 @@ import { strict as assert } from "node:assert";
 import { test } from "node:test";
 
 import { READY_PEOPLE, isReady, renderDayPage, renderSitemap } from "../src/render.js";
-import { ChartWeek, coverageByDay, dateExists, songsForDate } from "../src/songs.js";
+import { ChartWeek, coverageByDay, dateExists, songsForDate, coverName, withDownloadedCovers } from "../src/songs.js";
 
 /** Four consecutive Saturdays, the way the table actually holds them. */
 const WEEKS: ChartWeek[] = [
@@ -125,4 +125,37 @@ test("ten people who were never ranked is not a ready page", () => {
   const ranked = [...unranked];
   ranked[0] = { ...ranked[0]!, monthlyViews: 1 };
   assert.equal(isReady({ month: 1, day: 1, people: ranked }), true);
+});
+
+// ---------------------------------------------------------------------------
+// The database says a cover exists. static/covers says whether we have it.
+// The page has to believe the second one, because the page is what points a
+// browser at a file. The first real run put thirteen broken images across the
+// 366 pages by believing the first one.
+
+test("a cover that is not downloaded falls back rather than breaking", () => {
+  const weeks = [
+    { chartDate: "2024-09-07", song: "A Bar Song (Tipsy)", artist: "Shaboozey", hasArtwork: true },
+    { chartDate: "2022-09-03", song: "As It Was", artist: "Harry Styles", hasArtwork: true },
+  ];
+  const onDisk = [`${coverName("A Bar Song (Tipsy)", "Shaboozey")}.jpg`];
+
+  const checked = withDownloadedCovers(weeks, onDisk);
+  assert.equal(checked[0]?.hasArtwork, true, "the one we downloaded still draws");
+  assert.equal(checked[1]?.hasArtwork, false, "the one we did not must not be pointed at");
+  // And nothing else about the row is touched, because the song is still the
+  // number one whether or not we have a picture of it.
+  assert.equal(checked[1]?.song, "As It Was");
+});
+
+test("a week that never had a cover is left exactly as it was", () => {
+  const weeks = [{ chartDate: "1960-09-05", song: "The Twist", artist: "Chubby Checker" }];
+  assert.deepEqual(withDownloadedCovers(weeks, []), weeks);
+});
+
+test("an empty covers folder turns every tile into the made one", () => {
+  const weeks = [
+    { chartDate: "2024-09-07", song: "A Bar Song (Tipsy)", artist: "Shaboozey", hasArtwork: true },
+  ];
+  assert.equal(withDownloadedCovers(weeks, [])[0]?.hasArtwork, false);
 });
