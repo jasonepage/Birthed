@@ -243,3 +243,83 @@ carry the feature, and the stack is the bonus.
 - Nothing in the feature reaches the network, and a test asserts it.
 - The list is computed for a reader who is 19 and for one who is 60, and both
   are read out loud before anybody writes a view.
+
+---
+
+## 12. The test was run, and it reversed section 4. September 7, 2026
+
+Section 10 said the cheapest test was to compute real milestones for real
+birthdays and read the sentences. It cost twenty minutes and it took the
+feature apart. Five birth dates, ages 19 to 60, two year horizon.
+
+**The stacking arithmetic in section 4 is wrong, and the error is mine.**
+Every one of the five had exactly one same-week stack in their entire life,
+and in all five it was the same one: the 9,999th day next to the 10,000th day.
+Those are one day apart by construction. Section 3 counted repeated digits and
+round numbers as independent kinds and they are not independent at all, they
+are both "numbers that look nice in base ten" and they cluster hard. Remove
+that artifact and the real same-week stack rate is not 9.7%, it is about zero.
+
+Stacking was the reason this feature was interesting. It does not work.
+
+**One reader in five has nothing.** The 35 year old had no milestone of any
+kind in the next two years. Not a thin list, an empty one. A running calendar
+that is blank for two years is not a calendar, and the fix cannot be a wider
+pool, because section 3 is the record of what widening the pool does to
+rarity.
+
+**The golden birthday is always in the past.** It fires at the age that matches
+the day of the month, so between 1 and 31. Everybody over 31 has already had
+theirs, and the 19 year old in the test had hers at 14. It never appeared in a
+single upcoming list. It is a fact about somebody's past, which the Mine tab
+can print, and it is not a milestone.
+
+**The surviving lines are thin.** In full:
+
+```
+in 137 days   your 9,999th day alive
+in 179 days   your 22,222th day alive
+in  80 days   your 45th birthday, on a Thursday again
+```
+
+The third has something in it. The first two are trivia with a comma.
+
+### What this changes
+
+The number is not the milestone. The comparison is.
+
+The one line worth reading was not a big round number, it was a fact about the
+calendar repeating itself. What generalises from that is not "find rarer
+numbers", it is that a reader has a feeling about a Thursday in 1981 and has no
+feeling whatsoever about 22,222.
+
+So the running calendar is built on **durations**, not on day counts:
+
+> Today you have been alive longer than the Soviet Union existed.
+
+This fixes the density problem that killed the numeric version. A life holds
+about thirty rare numbers and that is fixed by arithmetic. Durations are not
+scarce: two hundred of them spread between a few months and ninety years means
+a reader crosses two or three every year, at any age, forever. The cadence is
+roughly flat across a life instead of clustering in childhood, which is exactly
+backwards from how the numeric pool behaved.
+
+`WorldThen` is the right home and is half built for it. It holds 104 dated
+versions and 9 arrivals, and all of them answer "what was true when you were
+born", which is a fact that never changes and therefore never arrives. A
+duration table is the missing half and it is the half that ticks.
+
+The numeric milestones stay, demoted. They cost nothing, they are already
+arithmetic, and 10,000 days is genuinely worth one line on the day. They are
+not the feature and they cannot carry a notification schedule on their own.
+
+### What is now unbuilt and unwritten
+
+The duration table does not exist. Nothing in this document specifies what
+belongs in it, how a duration earns a place, or how to keep it from becoming
+the same arbitrary comparison section 6 already rejected. "You have been alive
+longer than the Beatles were a band" works. "You have been alive longer than
+the gap between two events nobody connects" is the 25,000 days problem wearing
+a new coat, and the line between them is not written down yet.
+
+That is the next document, and it should be written before any Swift.
