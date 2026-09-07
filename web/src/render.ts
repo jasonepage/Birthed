@@ -885,6 +885,10 @@ export function head(
   image?: string,
   noindex = false,
   bodyClass = "",
+  // Anything one kind of page needs in its head and the others do not. A
+  // seventh positional argument is not lovely, but the alternative was for
+  // every page to carry a field that only date pages ever fill.
+  extraHead = "",
 ): string {
   return `<!doctype html>
 <html lang="en">
@@ -907,7 +911,7 @@ ${image ? `<meta property="og:image" content="${image}">
 <meta property="og:image:height" content="630">
 <meta name="twitter:image" content="${image}">` : ""}
 <meta name="twitter:card" content="summary_large_image">
-<style>${STYLE}</style>
+${extraHead}<style>${STYLE}</style>
 </head>
 <body${bodyClass ? ` class="${bodyClass}"` : ""}><div class="wrap${bodyClass ? ` ${bodyClass}` : ""}">`;
 }
@@ -1233,7 +1237,12 @@ export function renderDayPage(
   // is the timeline section's own heading, and a test asserts that heading is
   // absent on a date with nothing in it. A lede that quoted it would have made
   // that test pass or fail for the wrong reason forever after.
-  const headline = `Everything that was true about ${name}: what happened, the number one song, and who shares it.`;
+  // The sentence that used to sit under the heading is gone. A reader looking
+  // at the date in sixty point type does not need to be told the page is
+  // about that date, the counts below it already say what it holds, and a
+  // summary with a colon and a list of three is the most recognisable rhythm
+  // in machine writing. The meta description below is its own sentence and is
+  // what a search result needs.
   const songLine = songs.length > 0
     ? ` And the number one song on ${name} in every year since ${songs[songs.length - 1]?.year}.`
     : "";
@@ -1258,12 +1267,19 @@ export function renderDayPage(
 
   const image = `${SITE}/og/${slug(page.month, page.day)}.png`;
 
+  // The two dates either side, named in the head as well as linked in the
+  // page. This is how a search engine learns that the 366 are one ordered run
+  // rather than 366 unrelated pages that happen to look alike.
+  const sequence = `<link rel="prev" href="${SITE}/${slug(previous.month, previous.day)}/">
+<link rel="next" href="${SITE}/${slug(next.month, next.day)}/">
+`;
+
   const picked = pickHighlights(timeline);
   const rest = theRest(timeline, picked);
   const hue = dayHue(page.month);
   const shortName = `${monthName(page.month).slice(0, 3)} ${page.day}`;
 
-  return `${head(`Born on ${name}`, description, canonical, image, !isReady(page, facts))}
+  return `${head(`Born on ${name}`, description, canonical, image, !isReady(page, facts), "", sequence)}
 <div class="day" style="--day:${hue.day};--day-soft:${hue.soft}">
 <div class="daybar">
 <a class="mark" href="/">Birthed</a>
@@ -1276,7 +1292,6 @@ export function renderDayPage(
 </div>
 <p class="kicker">Born on</p>
 <h1>${name}</h1>
-<p class="lede">${headline}</p>
 <div class="counts">
 <div><b>${timeline.length}</b><span>things</span></div>
 <div><b>${songs.length}</b><span>number ones</span></div>

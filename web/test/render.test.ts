@@ -16,8 +16,14 @@ test("the page names the date in the title and the heading", () => {
   const html = renderDayPage(page);
   assert.ok(html.includes("<title>Born on September 4</title>"));
   assert.ok(html.includes("<h1>September 4</h1>"));
-  assert.ok(html.includes("Everything that was true about September 4: what happened, the number one song, and who shares it."));
   assert.ok(!html.includes("2 notable people"), "the row count is not the number of people who share a date");
+  // The summary sentence that used to sit under the heading is deliberately
+  // not there. It told a reader what the heading already told them, in the
+  // one rhythm that reads as machine written.
+  assert.ok(!html.includes("Everything that was true about September 4:"));
+  // The search result still gets a sentence of its own. This fixture has no
+  // facts and no songs, so it is the plain one.
+  assert.match(html, /<meta name="description" content="Who was born on September 4\.">/);
 });
 
 test("the page does not lead with the list of names", () => {
@@ -733,4 +739,18 @@ test("a month has its own colour and the brand pink is not it", () => {
   const march = renderDayPage({ month: 3, day: 12, people: [] });
   const hueOf = (html: string) => /--day:hsl\((\d+)/.exec(html)?.[1];
   assert.notEqual(hueOf(september), hueOf(march), "every page would wear the same second colour");
+});
+
+
+test("the 366 date pages say in their heads that they are one ordered run", () => {
+  const html = renderDayPage(page);
+  assert.match(html, /<link rel="prev" href="https:\/\/birthed\.app\/september-3\/">/);
+  assert.match(html, /<link rel="next" href="https:\/\/birthed\.app\/september-5\/">/);
+});
+
+test("the year wraps at both ends rather than running off it", () => {
+  const newYear = renderDayPage({ month: 1, day: 1, people: [] });
+  assert.match(newYear, /<link rel="prev" href="https:\/\/birthed\.app\/december-31\/">/);
+  const lastDay = renderDayPage({ month: 12, day: 31, people: [] });
+  assert.match(lastDay, /<link rel="next" href="https:\/\/birthed\.app\/january-1\/">/);
 });
