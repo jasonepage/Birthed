@@ -149,6 +149,28 @@ ol.covers li {
   display: block; background: none; border-radius: 0; padding: 0;
   scroll-margin-top: 22px; min-width: 0;
 }
+/* Jump to a decade.
+   Sixty eight covers is seventeen rows on a phone, and almost nobody wants to
+   read seventeen rows: they want the year they were born, or the years they
+   were at school. Every year is already an anchor, so this is seven links to
+   anchors that exist, and it does the thing a moving belt is usually proposed
+   to do without asking a reader to chase a target that is sliding away. */
+.decades {
+  display: flex; flex-wrap: wrap; gap: 7px; margin: 16px 0 0; padding: 0;
+  list-style: none;
+}
+.decades a {
+  display: inline-block; padding: 7px 12px; border-radius: 999px;
+  font-size: 13px; font-weight: 700; text-decoration: none; color: #D9D2CC;
+  background: rgba(255, 247, 238, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(255, 247, 238, 0.10);
+  font-variant-numeric: tabular-nums;
+  transition: color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+}
+.decades a:hover, .decades a:focus-visible {
+  color: #23090F; background-image: linear-gradient(135deg, #FFB0C6, ${ACCENT});
+  box-shadow: 0 8px 18px rgba(239, 86, 128, 0.30);
+}
 ol.covers .art {
   display: block; position: relative; aspect-ratio: 1; border-radius: 12px;
   overflow: hidden; background: #17141F;
@@ -1043,8 +1065,25 @@ ${tile}
   const newest = songs[0]?.year ?? "";
   const covered = songs.filter((song) => song.hasArtwork).length;
 
+  // One link per decade this date actually has a chart for, pointing at the
+  // earliest year in it. February 29 has seventeen years and no 1960s at all,
+  // so the list is built from the songs rather than from a range.
+  const firstOfDecade = new Map<number, number>();
+  for (const song of songs) {
+    const decade = Math.floor(song.year / 10) * 10;
+    const current = firstOfDecade.get(decade);
+    if (current === undefined || song.year < current) firstOfDecade.set(decade, song.year);
+  }
+  const jumps = [...firstOfDecade.entries()]
+    .sort((a, b) => b[0] - a[0])
+    .map(([decade, year]) => `<li><a href="#${year}">${decade}s</a></li>`)
+    .join("");
+  // Two decades is not a bar worth drawing.
+  const decades = firstOfDecade.size >= 3 ? `<ul class="decades">${jumps}</ul>` : "";
+
   return `<h2 class="section">The number one song on ${escapeHtml(name)}</h2>
 <p class="lede">Every year from ${oldest} to ${newest}, from the chart week that ${escapeHtml(name)} fell in.</p>
+${decades}
 <ol class="covers">
 ${rows}
 </ol>

@@ -754,3 +754,26 @@ test("the year wraps at both ends rather than running off it", () => {
   const lastDay = renderDayPage({ month: 12, day: 31, people: [] });
   assert.match(lastDay, /<link rel="next" href="https:\/\/birthed\.app\/january-1\/">/);
 });
+
+test("a decade jump exists for every decade the date actually charted in", () => {
+  const songs = [1959, 1962, 1971, 1988, 1994, 2003, 2011, 2024].map((year) => ({
+    year, chartDate: `${year}-09-06`, song: `song ${year}`, artist: "somebody",
+  }));
+  const html = renderDayPage(page, songs);
+  for (const decade of [1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020]) {
+    assert.ok(html.includes(`${decade}s</a>`), `no jump for the ${decade}s`);
+  }
+  // Each one points at the earliest year it has, and that year is a real
+  // anchor further down the page rather than a guess at one.
+  assert.ok(html.includes('href="#1959"'));
+  assert.ok(html.includes('href="#1962"'), "the 1960s jump goes to 1962, the only one it has");
+  assert.match(html, /<li id="1962"/);
+});
+
+test("a date with only a couple of decades gets no bar at all", () => {
+  // February 29 is the case this exists for: seventeen chart years spread thin.
+  const songs = [2020, 2024].map((year) => ({
+    year, chartDate: `${year}-02-29`, song: `song ${year}`, artist: "somebody",
+  }));
+  assert.ok(!renderDayPage(page, songs).includes('class="decades"'));
+});
