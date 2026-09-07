@@ -66,7 +66,7 @@ final class PreviewPlayer {
         // to a play arrow when it does. Without this the row would sit showing
         // a pause mark over silence.
         endObserver = NotificationCenter.default.addObserver(
-            forName: AVPlayerItem.didPlayToEndTime,
+            forName: AVPlayerItem.didPlayToEndTimeNotification,
             object: item,
             queue: .main
         ) { [weak self] _ in

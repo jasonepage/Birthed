@@ -62,12 +62,23 @@ const RETRY_AFTER_MS = 2 * 60 * 1000;
  * list rather than repeating it. A date nobody opens is never searched
  * twice, which is what keeps this from being a standing bill.
  *
- * Seven days rather than thirty: a reader who opens the app every day sees
- * new rows weekly and the pool under the shuffle keeps growing. At about
- * thirteen searches a look, a date opened every week costs about seventy
- * cents a month, and the reserve below keeps first looks ahead of it.
+ * Ninety days, and it used to be seven. The seven day version was argued for
+ * on the grounds that a date opened every week costs about seventy cents a
+ * month, which is true and is the wrong unit. The bill does not scale with how
+ * much content exists, it scales with how many people open the app, and a
+ * hundred readers on a hundred different birthdays is fourteen dollars a week
+ * forever whether or not the new rows are any good.
+ *
+ * The first backfill settled what that buys. 283 dates, 3,182 searches, 2,762
+ * facts kept, about forty dollars. A date already holding eight to fourteen
+ * things does not need a fifteenth badly enough to pay for it every week, and
+ * the marginal fact is worth much less than the first fourteen were.
+ *
+ * Ninety days still means a date gets looked at again, and a reader who has
+ * been coming back for a season sees something new. It is the same behaviour
+ * an order of magnitude cheaper.
  */
-const REFRESH_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
+const REFRESH_AFTER_MS = 90 * 24 * 60 * 60 * 1000;
 /**
  * Another look never takes the last of the month's searches. First looks at
  * dates nobody has searched come first; this many are held back for them.
@@ -80,11 +91,15 @@ const LINK_CHECK_MS = 8000;
  *
  * Whether the model reaches for the tool is a decision it makes, not a
  * setting, and on a date it believes it already knows it sometimes writes
- * from memory instead. Asking again, and saying so, gets it most of the
- * time. A call that ran no searches is not billed for any, so the retry is
- * cheap in the only way that matters.
+ * from memory instead. Asking again, and saying so, gets it most of the time.
+ *
+ * Two rather than three. A call that ran no searches is not billed for
+ * grounding, which is what the third attempt was justified on, but it is
+ * still billed for tokens and this function asks for up to 24,000 of them.
+ * The second attempt recovers most of what the first one missed; the third
+ * has the worst odds of the three and pays full price for them.
  */
-const RESEARCH_ATTEMPTS = 3;
+const RESEARCH_ATTEMPTS = 2;
 /**
  * How many times facts have to have been seen before what readers do with
  * them is allowed to steer the search.
