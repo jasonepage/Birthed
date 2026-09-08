@@ -1523,16 +1523,23 @@ test("the link preview says what the site does, not what is on a page", () => {
   assert.match(html, /<meta name="description" content="Every date on the calendar opens for three days a year\./);
 });
 
-test("running out of answers is its own sentence, and says why the limit exists", () => {
-  // Six reasons, six sentences. Being out of answers is a fact about the
-  // reader; sealed is a fact about the date. The whole history of this feature
-  // is one of those borrowing the other's explanation.
+test("waiting and finishing are different sentences, and neither is a lecture", () => {
+  // Seven reasons, seven sentences. Being between answers is a fact about the
+  // clock; being out of rows is a fact about the date; sealed is a fact about
+  // the year. The whole history of this feature is one of those borrowing
+  // another's explanation.
   const html = renderDayPage(page);
+  assert.ok(html.includes('id="cooling"'), "a wait has its own sentence");
+  assert.ok(html.includes("A minute or two between answers"));
   assert.ok(html.includes('id="spent"'));
-  assert.ok(html.includes("That is your ten for this date"));
-  // The limit has to justify itself where it bites, or it reads as the site
-  // being broken rather than as the site having a rule.
-  assert.ok(html.includes("nobody chose anything on"));
+
+  // The old sentence spent three clauses explaining why a limit of ten was
+  // good for you, which is what made it read as an excuse. r/place never
+  // explained its cooldown to anybody. A rule that has to argue for itself at
+  // the moment it bites is a rule the reader has already decided about.
+  assert.equal(html.includes("nobody chose anything on"), false);
+  assert.equal(html.includes("That is your ten"), false);
+  assert.equal(html.includes("Ten answers per date"), false, "the card promise matches the mechanic");
 });
 
 test("only a sealed date gets a front page lead", () => {

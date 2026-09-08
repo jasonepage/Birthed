@@ -592,9 +592,9 @@ export function readAnswer(body: string): Answer | null {
  * missing environment variable is how that fault survived from the day the
  * feature shipped.
  */
-type Recorded = "kept" | "already" | "spent" | "sealed" | "closed" | "bad_token" | "unreachable";
+type Recorded = "kept" | "already" | "cooling" | "spent" | "sealed" | "closed" | "bad_token" | "unreachable";
 
-const REASONS = new Set(["kept", "already", "spent", "sealed", "closed", "bad_token"]);
+const REASONS = new Set(["kept", "already", "cooling", "spent", "sealed", "closed", "bad_token"]);
 
 async function record(answer: Answer, token: string): Promise<Recorded> {
   const key = process.env.SUPABASE_ANON_KEY;
@@ -866,6 +866,10 @@ async function handle(
         // evenings pretending to be a sealed date. A page of a hundred and
         // fifty rows says nothing about which ones you have already done.
         ? `${where}?kept=${encodeURIComponent(`${answer.kind}:${answer.id}`)}#already`
+        // A wait, not a wall. The reader is not out of anything and the row is
+        // still there, so this lands back on the row rather than at the top.
+        : kept === "cooling"
+          ? `${where}#cooling`
         : kept === "spent"
           // Out of answers on this date, which is a fact about the reader and
           // not about the date. It is the sixth reason and it gets the sixth
