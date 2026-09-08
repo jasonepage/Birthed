@@ -186,18 +186,36 @@ h3.dh { font-family: Georgia, serif; font-size: 24px; margin: 26px 0 0; }
     var email = el("email").value.trim();
     if (!email) { note("signin-note", "An address, first.", "bad"); return; }
     note("signin-note", "Sending.");
-    fetch(API + "/auth/v1/otp", {
+    // create_user is true, and the gate is somewhere else.
+    //
+    // It was false, back when being a curator meant having a row keyed on an
+    // account id, so an account had to exist before anybody could be one. That
+    // is not how this works any more: admin_emails decides, and it decides
+    // after the sign in rather than before it. Somebody who is not on that
+    // list signs in perfectly well and is told they cannot curate, which costs
+    // nothing and saves inviting every curator by hand from a dashboard.
+    //
+    // The answer below does not say whether the address is on the list, which
+    // is the one thing worth not saying out loud on a page anybody can open.
+    fetch(API + "/auth/v1/otp?redirect_to=" + encodeURIComponent(location.origin + "/admin/"), {
       method: "POST",
       headers: { apikey: KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email, create_user: false }),
+      body: JSON.stringify({ email: email, create_user: true }),
     }).then(function (r) {
-      // create_user is false on purpose: this form must never be a way to make
-      // an account. An address that is not already a user gets the same answer
-      // as one that is, which is also the answer that does not confirm to a
-      // stranger whether an address is a curator.
-      note("signin-note", r.ok
-        ? "If that address can curate, a link is on its way."
-        : "Could not send that. Try again in a minute.", r.ok ? "good" : "bad");
+      if (r.ok) {
+        note("signin-note", "Check that inbox. The link lands back here.", "good");
+        return;
+      }
+      // A wrong answer that sounds temporary is worse than one that sounds
+      // final, because the reader spends the next ten minutes retrying. 429 is
+      // the only one of these that a minute actually fixes.
+      if (r.status === 429) {
+        note("signin-note", "Too many requests just now. A minute, then try again.", "bad");
+        return;
+      }
+      r.text().then(function (body) {
+        note("signin-note", "The server refused that: " + body.slice(0, 160), "bad");
+      });
     }).catch(function () { note("signin-note", "Could not reach the server.", "bad"); });
   });
 
