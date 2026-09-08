@@ -1003,9 +1003,19 @@ test("the site asks for a birth year once, and says what it does with it", () =>
   // One submit per year rather than a select and a Save. A select needs a
   // second tap, and this site runs no script so an increment button would be a
   // round trip per year.
-  assert.ok(html.includes('name="y" value="1994"'));
+  // Decade, then year. Two taps, nothing to scroll, and no script: ten hidden
+  // radios hold the state and the checked one reveals its own row of years.
+  assert.ok(html.includes('name="y" value="1994"'), "every year is its own submit");
   assert.equal(html.includes("<select"), false, "the default select is gone");
-  assert.ok(html.includes("yearstrip"));
+  assert.equal(html.includes("yearstrip"), false, "and so is the sideways scroller");
+  assert.ok(html.includes('<label for="dec1990">1990s</label>'));
+  assert.ok(html.includes('id="dec1990"'));
+  // The reveal is CSS on a sibling, which is what keeps this scriptless.
+  assert.match(html, /#dec1990:checked ~ \.yearyears \.yg1990 \{ display: flex; \}/);
+  // Every decade from the 1930s to this one, so nobody is missing.
+  for (const decade of [1930, 1950, 1970, 2000, 2020]) {
+    assert.ok(html.includes(`<label for="dec${decade}">${decade}s</label>`), `${decade}s missing`);
+  }
   assert.ok(html.includes("never shown to anybody"));
   // Once on the page, not once per row. A picker repeated 150 times is what
   // the cookie exists to avoid.
