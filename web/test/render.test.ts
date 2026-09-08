@@ -35,7 +35,7 @@ test("the page does not lead with the list of names", () => {
   // Wikidata calls Bashar al-Assad a politician, so the ordering must not be
   // the first thing on the page even when the screen is working.
   const html = renderDayPage(page, [], [
-    { month: 9, day: 4, fact: "Something sourced happened.", category: "event",
+    { id: "t", month: 9, day: 4, fact: "Something sourced happened.", category: "event",
       sourceUrl: "https://example.org/september-4" },
   ]);
   const people = html.indexOf("People born on September 4");
@@ -284,14 +284,14 @@ test("the century rule is not forgotten", () => {
 
 const facts = [
   {
-    month: 9,
+    id: "t", month: 9,
     day: 4,
     fact: "On September 4, 1957, Ford unveiled the Edsel.",
     category: "release",
     sourceUrl: "https://en.wikipedia.org/wiki/Edsel",
   },
   {
-    month: 9,
+    id: "t", month: 9,
     day: 4,
     fact: "On September 4, 1998, Google was founded <script>alert(1)</script>.",
     category: "event",
@@ -313,7 +313,7 @@ test("a date page carries its found facts and the page each came from", () => {
 
 test("Wikipedia's own events join the researched ones, oldest first", () => {
   const events = [
-    { month: 9, day: 4, year: 1888, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
+    { id: "t", month: 9, day: 4, year: 1888, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
       description: "George Eastman registers the trademark Kodak." },
   ];
   const html = renderDayPage(page, [], facts, events);
@@ -338,7 +338,7 @@ test("Wikipedia's own events join the researched ones, oldest first", () => {
 
 test("the same event from both sources is printed once", () => {
   const events = [
-    { month: 9, day: 4, year: 1957, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
+    { id: "t", month: 9, day: 4, year: 1957, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
       description: "Ford unveils the Edsel to the public." },
   ];
   const html = renderDayPage(page, [], facts, events);
@@ -351,7 +351,7 @@ test("the same event from both sources is printed once", () => {
 
 test("a page with no researched facts still has a section when Wikipedia does", () => {
   const events = [
-    { month: 9, day: 4, year: 1888, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
+    { id: "t", month: 9, day: 4, year: 1888, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
       description: "George Eastman registers the trademark Kodak." },
   ];
   const html = renderDayPage(page, [], [], events);
@@ -426,7 +426,7 @@ test("a date with nobody on it is ready when it has facts instead", () => {
   // sitemap forever, on a head count it cannot meet, is the rule misfiring.
   const nobody = { month: 1, day: 1, people: [] };
   const twelve = Array.from({ length: 12 }, (_, index) => ({
-    month: 1, day: 1, fact: `On January 1, thing number ${index} happened.`,
+    id: "t", month: 1, day: 1, fact: `On January 1, thing number ${index} happened.`,
     category: "event", sourceUrl: "https://en.wikipedia.org/wiki/January_1",
   }));
   assert.equal(isReady(nobody, twelve), true);
@@ -447,7 +447,7 @@ test("facts do not rescue a page whose people were never ranked", () => {
     })),
   };
   const plenty = Array.from({ length: 12 }, (_, index) => ({
-    month: 6, day: 8, fact: `On June 8, thing number ${index} happened.`,
+    id: "t", month: 6, day: 8, fact: `On June 8, thing number ${index} happened.`,
     category: "event", sourceUrl: "https://en.wikipedia.org/wiki/June_8",
   }));
   assert.equal(isReady(unranked, plenty), false);
@@ -663,7 +663,7 @@ test("robots keeps the two redirects out of a crawl", () => {
 });
 
 const HIGHLIGHT_FACT: Fact = {
-  month: 8,
+  id: "t", month: 8,
   day: 15,
   fact: "On August 15, 1998, Apple began shipping the original Bondi Blue iMac G3 personal computer.",
   category: "release",
@@ -694,6 +694,7 @@ test("the front door takes at most one fact per month", () => {
   for (let month = 1; month <= 12; month++) {
     for (let copy = 0; copy < 4; copy++) {
       facts.push({
+        id: `t${month}-${copy}`,
         month,
         day: copy + 1,
         fact: `On ${MONTH_WORDS[month - 1]} ${copy + 1}, 19${50 + copy}, something worth reading happened and it was written down in a sentence of a reasonable length.`,
@@ -716,6 +717,7 @@ test("the same seed deals the same hand, and a different one does not", () => {
   for (let month = 1; month <= 12; month++) {
     for (let copy = 0; copy < 6; copy++) {
       facts.push({
+        id: `t${month}-${copy}`,
         month,
         day: copy + 1,
         fact: `On ${MONTH_WORDS[month - 1]} ${copy + 1}, 19${40 + copy}, number ${copy} of the things that happened that day happened, and here is the rest of the sentence.`,
@@ -758,6 +760,7 @@ test("the drawer holds everything the feed did not, and the page still carries i
   // thirty seven would be a page that stopped answering thirty seven queries.
   // Closed is a display state; absent is a different page.
   const many = Array.from({ length: 20 }, (unused, index) => ({
+    id: `t${index}`,
     month: 9,
     day: 4,
     year: 1500 + index * 25,
@@ -894,7 +897,7 @@ test("a row from before the column existed is not annotated either", () => {
 
 test("the event sentence is actually rendered, not just its card", () => {
   const events = [
-    { month: 9, day: 4, year: 1888, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
+    { id: "t", month: 9, day: 4, year: 1888, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
       description: "George Eastman registers the trademark Kodak." },
   ];
   const html = renderDayPage(page, [], facts, events);
@@ -906,7 +909,7 @@ test("the event sentence is actually rendered, not just its card", () => {
 
 test("no class that carries a sentence is hidden by default", () => {
   const html = renderDayPage(page, [], facts, [
-    { month: 9, day: 4, year: 1888, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
+    { id: "t", month: 9, day: 4, year: 1888, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
       description: "George Eastman registers the trademark Kodak." },
   ], [cultural({})]);
   const style = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
@@ -920,4 +923,34 @@ test("no class that carries a sentence is hidden by default", () => {
     assert.equal(hidden.test(style), false,
       `.${name} carries text on this page and something hides it`);
   }
+});
+
+test("every kind of row can be answered, not just the curated ones", () => {
+  const events = [
+    { id: "e1", month: 9, day: 4, year: 1888, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
+      description: "George Eastman registers the trademark Kodak." },
+  ];
+  const html = renderDayPage(page, [], facts, events, [cultural({})]);
+  for (const kind of ["historical_event", "birth_fact", "cultural_event"]) {
+    assert.ok(html.includes(`value="${kind}"`), `${kind} rows must be answerable`);
+  }
+});
+
+test("a row is answered by its identifier, never by its position", () => {
+  // The merged list mixes three sources, so an index is not an identity: the
+  // same row sits somewhere else the day a new fact lands, and every answer
+  // anybody gave would silently move to a different sentence.
+  const events = [
+    { id: "e99", month: 9, day: 4, year: 1888, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
+      description: "George Eastman registers the trademark Kodak." },
+  ];
+  const html = renderDayPage(page, [], [], events);
+  assert.ok(html.includes('name="i" value="e99"'));
+  assert.ok(html.includes('id="r-historical_event-e99"'), "and the redirect has somewhere to land");
+});
+
+test("the form posts the page's own date, not one parsed back out of the heading", () => {
+  const html = renderDayPage(page, [], facts);
+  assert.ok(html.includes('name="m" value="9"'));
+  assert.ok(html.includes('name="d" value="4"'));
 });

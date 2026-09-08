@@ -11,6 +11,8 @@
 // the Piedra Movediza fell over" with the page it came from underneath.
 
 export interface Fact {
+  /** The row's own identifier, so a reader can point at this exact line. */
+  id: string;
   month: number;
   day: number;
   fact: string;
@@ -57,7 +59,7 @@ export async function fetchFacts(url: string, key: string): Promise<Fact[]> {
 
   for (let offset = 0; ; offset += pageSize) {
     const query = new URLSearchParams({
-      select: "birth_month,birth_day,fact,category,source_url",
+      select: "id,birth_month,birth_day,fact,category,source_url",
       birth_year: "eq.0",
       region_key: "eq.",
       verified: "eq.true",
@@ -72,6 +74,7 @@ export async function fetchFacts(url: string, key: string): Promise<Fact[]> {
       throw new Error(`facts failed with ${response.status}`);
     }
     const rows = (await response.json()) as {
+      id: number;
       birth_month: number;
       birth_day: number;
       fact: string;
@@ -80,6 +83,7 @@ export async function fetchFacts(url: string, key: string): Promise<Fact[]> {
     }[];
     for (const row of rows) {
       facts.push({
+        id: String(row.id),
         month: row.birth_month,
         day: row.birth_day,
         fact: row.fact,

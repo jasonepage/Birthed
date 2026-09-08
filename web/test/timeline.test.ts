@@ -128,17 +128,17 @@ test("a sentence that is not about this page's date is left exactly alone", () =
 
 test("the merged list drops the duplicates and keeps everything else", () => {
   const facts = [
-    { month: 9, day: 4, category: "event", sourceUrl: "https://example.com/google",
+    { id: "t", month: 9, day: 4, category: "event", sourceUrl: "https://example.com/google",
       fact: "On September 4, 1998, Larry Page and Sergey Brin formally incorporated Google as a company." },
-    { month: 9, day: 4, category: "event", sourceUrl: "https://example.com/edsel",
+    { id: "t", month: 9, day: 4, category: "event", sourceUrl: "https://example.com/edsel",
       fact: "On September 4, 1957, the Ford Motor Company introduced the Edsel to the public." },
   ];
   const events = [
-    { month: 9, day: 4, year: 1998, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
+    { id: "t", month: 9, day: 4, year: 1998, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
       description: "Google is founded by Larry Page and Sergey Brin, two PhD students at Stanford University." },
-    { month: 9, day: 4, year: 1957, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
+    { id: "t", month: 9, day: 4, year: 1957, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
       description: "Little Rock Crisis: The governor of Arkansas calls out the National Guard." },
-    { month: 9, day: 4, year: 1882, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
+    { id: "t", month: 9, day: 4, year: 1882, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
       description: "The Pearl Street Station in New York City becomes the first power plant." },
   ];
 
@@ -156,9 +156,9 @@ test("the merged list drops the duplicates and keeps everything else", () => {
 
 test("a fact with no year sorts last rather than first", () => {
   const facts = [
-    { month: 9, day: 4, category: "event", sourceUrl: "https://example.com/a",
+    { id: "t", month: 9, day: 4, category: "event", sourceUrl: "https://example.com/a",
       fact: "Something true about this date with no year in it." },
-    { month: 9, day: 4, category: "event", sourceUrl: "https://example.com/b",
+    { id: "t", month: 9, day: 4, category: "event", sourceUrl: "https://example.com/b",
       fact: "On September 4, 1998, Google was incorporated." },
   ];
   const rows = buildTimeline(facts, [], "September", 4);
@@ -166,9 +166,9 @@ test("a fact with no year sorts last rather than first", () => {
 });
 
 test("a Wikipedia row carries no per row source, and a fact does", () => {
-  const facts = [{ month: 9, day: 4, category: "event", sourceUrl: "https://example.com/a",
+  const facts = [{ id: "t", month: 9, day: 4, category: "event", sourceUrl: "https://example.com/a",
     fact: "On September 4, 1998, Google was incorporated." }];
-  const events = [{ month: 9, day: 4, year: 1882, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
+  const events = [{ id: "t", month: 9, day: 4, year: 1882, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
     description: "The Pearl Street Station in New York City becomes the first power plant." }];
   const rows = buildTimeline(facts, events, "September", 4);
   assert.equal(rows.find((row) => row.year === 1882)?.sourceUrl, null);
@@ -186,11 +186,11 @@ test("a Wikipedia row carries no per row source, and a fact does", () => {
  */
 test("nothing grim reaches a birthday card", () => {
   const grim = [
-    { month: 9, day: 4, category: "event", sourceUrl: "https://e.com/a",
+    { id: "t", month: 9, day: 4, category: "event", sourceUrl: "https://e.com/a",
       fact: "On September 4, 2024, a gunman kills four people at a high school in Georgia." },
-    { month: 9, day: 4, category: "event", sourceUrl: "https://e.com/b",
+    { id: "t", month: 9, day: 4, category: "event", sourceUrl: "https://e.com/b",
       fact: "On September 4, 1995, three servicemen abduct and rape a schoolchild in Okinawa." },
-    { month: 9, day: 4, category: "event", sourceUrl: "https://e.com/c",
+    { id: "t", month: 9, day: 4, category: "event", sourceUrl: "https://e.com/c",
       fact: "On September 4, 1963, Swissair Flight 306 crashes, killing all 80 on board." },
   ];
   assert.equal(cardHighlight(grim, [], 9, 4), null, "a card with none of these is the right card");
@@ -198,11 +198,11 @@ test("nothing grim reaches a birthday card", () => {
 
 test("the card takes the shortest clean fact, and the same one every build", () => {
   const facts = [
-    { month: 9, day: 4, category: "event", sourceUrl: "https://e.com/a",
+    { id: "t", month: 9, day: 4, category: "event", sourceUrl: "https://e.com/a",
       fact: "On September 4, 1882, Thomas Edison opened Pearl Street Station in New York City, establishing the first commercial power plant in the United States." },
-    { month: 9, day: 4, category: "event", sourceUrl: "https://e.com/b",
+    { id: "t", month: 9, day: 4, category: "event", sourceUrl: "https://e.com/b",
       fact: "On September 4, 1998, Larry Page and Sergey Brin formally incorporated Google as a company." },
-    { month: 9, day: 4, category: "event", sourceUrl: "https://e.com/c",
+    { id: "t", month: 9, day: 4, category: "event", sourceUrl: "https://e.com/c",
       fact: "On September 4, 1963, Swissair Flight 306 crashes, killing all 80 on board." },
   ];
   const chosen = cardHighlight(facts, [], 9, 4);
@@ -219,7 +219,7 @@ test("a date with no facts gets a card with no line, not a worse line", () => {
 
 test("a fact that does not name this page's date is not put on the card", () => {
   const facts = [
-    { month: 9, day: 4, category: "event", sourceUrl: "https://e.com/a",
+    { id: "t", month: 9, day: 4, category: "event", sourceUrl: "https://e.com/a",
       fact: "Something true with no year anywhere in it." },
   ];
   assert.equal(cardHighlight(facts, [], 9, 4), null, "the card prints a year beside the line");
@@ -256,11 +256,11 @@ test("with no researched fact, a screened Wikipedia line beats the names", () =>
   // names are ordered by attention. November 12 led with Charles Manson and
   // November 24 with Ted Bundy. This is what replaces them, at no cost.
   const events = [
-    { month: 11, day: 12, year: 1927, sourceUrl: "https://en.wikipedia.org/wiki/November_12",
+    { id: "t", month: 11, day: 12, year: 1927, sourceUrl: "https://en.wikipedia.org/wiki/November_12",
       description: "Leon Trotsky is expelled from the Soviet Communist Party, leaving Joseph Stalin in undisputed control." },
-    { month: 11, day: 12, year: 1970, sourceUrl: "https://en.wikipedia.org/wiki/November_12",
+    { id: "t", month: 11, day: 12, year: 1970, sourceUrl: "https://en.wikipedia.org/wiki/November_12",
       description: "The Bhola cyclone kills an estimated 500,000 people." },
-    { month: 11, day: 12, year: 2020, sourceUrl: "https://en.wikipedia.org/wiki/November_12",
+    { id: "t", month: 11, day: 12, year: 2020, sourceUrl: "https://en.wikipedia.org/wiki/November_12",
       description: "The PlayStation 5 is released." },
   ];
   const chosen = cardHighlight([], events, 11, 12);
@@ -272,18 +272,18 @@ test("the encyclopedia's habits are screened harder than the researched facts", 
   // An event's sentence describes the thing being refused, which is why
   // screening works on events and cannot work on people.
   const events = [
-    { month: 7, day: 14, year: 1789, sourceUrl: "https://e.com",
+    { id: "t", month: 7, day: 14, year: 1789, sourceUrl: "https://e.com",
       description: "Citizens storm the Bastille, and troops are deposed in the rebellion." },
-    { month: 7, day: 14, year: 1867, sourceUrl: "https://e.com",
+    { id: "t", month: 7, day: 14, year: 1867, sourceUrl: "https://e.com",
       description: "Alfred Nobel demonstrates dynamite for the first time." },
   ];
   assert.equal(cardHighlight([], events, 7, 14)?.year, 1867);
 });
 
 test("a researched fact still beats a Wikipedia line when there is one", () => {
-  const facts = [{ month: 11, day: 12, category: "event", sourceUrl: "https://e.com/a",
+  const facts = [{ id: "t", month: 11, day: 12, category: "event", sourceUrl: "https://e.com/a",
     fact: "On November 12, 1990, the World Wide Web proposal was published." }];
-  const events = [{ month: 11, day: 12, year: 2020, sourceUrl: "https://e.com",
+  const events = [{ id: "t", month: 11, day: 12, year: 2020, sourceUrl: "https://e.com",
     description: "The PlayStation 5 is released." }];
   assert.equal(cardHighlight(facts, events, 11, 12)?.year, 1990);
 });
@@ -300,6 +300,8 @@ test("a date with neither still falls through to nothing, not to something worse
 
 function row(year: number, researched = true) {
   return {
+    kind: "historical_event" as const,
+    id: `t${year}`,
     year,
     text: `something in ${year}`,
     sourceUrl: researched ? `https://example.org/${year}` : null,
@@ -405,7 +407,7 @@ test("a curated row carries its own category into the timeline", () => {
 test("a curated row beats the Wikipedia line that says the same thing", () => {
   const rows = buildTimeline(
     [],
-    [{ month: 9, day: 4, year: 1998, description: "Google is founded.", sourceUrl: "https://en.wikipedia.org/wiki/September_4" }],
+    [{ id: "t", month: 9, day: 4, year: 1998, description: "Google is founded.", sourceUrl: "https://en.wikipedia.org/wiki/September_4" }],
     "September", 4,
     [curated({ context: null })],
   );
@@ -419,7 +421,7 @@ test("a curated row beats the Wikipedia line that says the same thing", () => {
 test("the title suppresses the duplicate even when the printed sentence does not", () => {
   const rows = buildTimeline(
     [],
-    [{ month: 9, day: 4, year: 1998, description: "Google is founded.", sourceUrl: "w" }],
+    [{ id: "t", month: 9, day: 4, year: 1998, description: "Google is founded.", sourceUrl: "w" }],
     "September", 4,
     [curated()],
   );
@@ -430,7 +432,7 @@ test("the title suppresses the duplicate even when the printed sentence does not
 test("a curated row leaves an unrelated event alone", () => {
   const rows = buildTimeline(
     [],
-    [{ month: 9, day: 4, year: 1998, description: "A hurricane made landfall in Florida.", sourceUrl: "x" }],
+    [{ id: "t", month: 9, day: 4, year: 1998, description: "A hurricane made landfall in Florida.", sourceUrl: "x" }],
     "September", 4,
     [curated()],
   );

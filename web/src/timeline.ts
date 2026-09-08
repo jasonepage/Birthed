@@ -15,6 +15,8 @@ import type { Fact } from "./facts.js";
 import { type CulturalEvent, textOf } from "./culture.js";
 
 export interface DayEvent {
+  /** The row's own identifier, so a reader can point at this exact line. */
+  id: string;
   month: number;
   day: number;
   year: number;
@@ -24,6 +26,16 @@ export interface DayEvent {
 
 /** A row of the merged list. */
 export interface TimelineRow {
+  /**
+   * Which table this came out of, and its identifier there.
+   *
+   * Carried so a reader can answer for one line. The merged list mixes three
+   * sources, so a position in the list is not an identity: the same row is at a
+   * different index the day a new fact lands, and every answer anybody had
+   * given would silently move to a different sentence.
+   */
+  kind: "historical_event" | "birth_fact" | "cultural_event";
+  id: string;
   /** Null only when a fact does not name a year, which is rare and allowed. */
   year: number | null;
   text: string;
@@ -201,6 +213,8 @@ export function buildTimeline(
   // source, and the Wikipedia line is the one that reads like an encyclopedia,
   // which is the whole complaint this table exists to answer.
   const fromCulture: TimelineRow[] = culture.map((event) => ({
+    kind: "cultural_event" as const,
+    id: event.id,
     year: event.year,
     text: textOf(event),
     sourceUrl: event.sourceUrl,
@@ -240,14 +254,14 @@ export function buildTimeline(
   for (const fact of facts) {
     const { year, text } = splitDatePrefix(fact.fact, monthName, day);
     if (year !== null && alreadySaid(year, text)) continue;
-    fromFacts.push({ year, text, sourceUrl: fact.sourceUrl, category: fact.category });
+    fromFacts.push({ kind: "birth_fact", id: fact.id, year, text, sourceUrl: fact.sourceUrl, category: fact.category });
     claim(year, text);
   }
 
   const fromEvents: TimelineRow[] = [];
   for (const event of events) {
     if (alreadySaid(event.year, event.description)) continue;
-    fromEvents.push({ year: event.year, text: event.description, sourceUrl: null, category: null });
+    fromEvents.push({ kind: "historical_event", id: event.id, year: event.year, text: event.description, sourceUrl: null, category: null });
     claim(event.year, event.description);
   }
 
@@ -275,7 +289,7 @@ export async function fetchEvents(url: string, key: string): Promise<DayEvent[]>
 
   for (let offset = 0; ; offset += pageSize) {
     const query = new URLSearchParams({
-      select: "event_month,event_day,event_year,description,source_url",
+      select: "id,event_month,event_day,event_year,description,source_url",
       order: "event_month.asc,event_day.asc,event_year.asc,id.asc",
       limit: String(pageSize),
       offset: String(offset),
@@ -287,6 +301,7 @@ export async function fetchEvents(url: string, key: string): Promise<DayEvent[]>
       throw new Error(`events failed with ${response.status}`);
     }
     const rows = (await response.json()) as {
+      id: number;
       event_month: number;
       event_day: number;
       event_year: number;
@@ -295,6 +310,7 @@ export async function fetchEvents(url: string, key: string): Promise<DayEvent[]>
     }[];
     for (const row of rows) {
       events.push({
+        id: String(row.id),
         month: row.event_month,
         day: row.event_day,
         year: row.event_year,

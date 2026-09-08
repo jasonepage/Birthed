@@ -1632,6 +1632,11 @@ function feedSection(
   searched: number,
   fromWikipedia: number,
   curated = 0,
+  // Carried in rather than parsed back out of the name, because the form posts
+  // numbers and a page that reparses its own heading is one typo from posting
+  // an answer against the wrong date.
+  month = 0,
+  day = 0,
 ): string {
   if (picked.length === 0) return "";
 
@@ -1640,20 +1645,22 @@ function feedSection(
     // Only the first few are staggered. The rest are below the fold on every
     // screen, so animating them would move things nobody is looking at.
     const delay = index < 6 ? ` style="--i:${index}"` : "";
-    return `<li class="${index === 0 ? "lead" : ""}"${delay}>
+    return `<li class="${index === 0 ? "lead" : ""}" id="r-${row.kind}-${escapeHtml(row.id)}"${delay}>
 <span class="head"><span class="tag ${kind.klass}">${kind.label}</span><span class="yr">${row.year === null ? "" : row.year}</span></span>
 <p class="said">${escapeHtml(row.text)}</p>
 ${whenOf(row.dateKind) ? `<p class="datenote">${whenOf(row.dateKind)}</p>` : ""}
 ${row.sourceUrl ? `<p class="src"><a href="${escapeHtml(row.sourceUrl)}" rel="nofollow noopener">${escapeHtml(hostOf(row.sourceUrl))}</a></p>` : ""}
+${rememberForm(row.kind, row.id, month, day)}
 </li>`;
   }).join("\n");
 
-  const others = rest.map((row) => `<li>
+  const others = rest.map((row) => `<li id="r-${row.kind}-${escapeHtml(row.id)}">
 <span class="y">${row.year === null ? "&nbsp;" : row.year}</span>
 <span>
 <p class="x">${escapeHtml(row.text)}</p>
 ${whenOf(row.dateKind) ? `<p class="datenote">${whenOf(row.dateKind)}</p>` : ""}
 ${row.sourceUrl ? `<p class="src"><a href="${escapeHtml(row.sourceUrl)}" rel="nofollow noopener">${escapeHtml(hostOf(row.sourceUrl))}</a></p>` : ""}
+${rememberForm(row.kind, row.id, month, day)}
 </span>
 </li>`).join("\n");
 
@@ -2045,7 +2052,7 @@ ${AFTER}
 <h1>${name}</h1>
 ${openingBand(page, songs, culture, highlight)}
 ${cultureSection(culture, name)}
-${feedSection(picked, rest, timeline.length, name, searched, timeline.length - searched - curatedCount, curatedCount)}
+${feedSection(picked, rest, timeline.length, name, searched, timeline.length - searched - curatedCount, curatedCount, page.month, page.day)}
 ${songSection(songs, name)}
 ${peopleRail(page, name)}
 <nav class="pager cards">
