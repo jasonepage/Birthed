@@ -124,6 +124,10 @@ kbd {
 
   <div id="date" hidden>
     <h3 class="dh" id="date-title">A date</h3>
+    <p class="keys">
+      <button class="act" id="gen">Ask for candidates</button>
+      <span class="note" id="gen-note" style="margin:0"></span>
+    </p>
 
     <h4 style="margin:20px 0 0;font-size:13px;color:#9C9490">Add a curated row</h4>
     <div class="form2">
@@ -507,6 +511,40 @@ kbd {
     loadCoverage();
     loadQueue();
   }
+
+  // Generation. The function checks is_admin() with this same token before it
+  // spends anything, because verify_jwt alone would let every reader of the
+  // iOS app run up a Gemini bill: they all hold a valid token.
+  el("gen").addEventListener("click", function () {
+    if (!selected) return;
+    var button = el("gen");
+    button.disabled = true;
+    note("gen-note", "Searching. This takes up to a minute.");
+    fetch(API + "/functions/v1/find-culture", {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ month: selected.m, day: selected.d }),
+    }).then(function (r) { return r.json().then(function (b) { return { ok: r.ok, body: b }; }); })
+      .then(function (r) {
+        var b = r.body || {};
+        if (!r.ok) { note("gen-note", b.error || "Refused.", "bad"); return; }
+        if (b.status === "paused") {
+          note("gen-note", "The month's search budget is spent. Nothing was run.", "bad");
+          return;
+        }
+        if (b.status === "failed") { note("gen-note", b.error || "Failed.", "bad"); return; }
+        // Written and dropped are both worth saying. A run that proposes
+        // nothing because everything it found was already here, or because no
+        // cited page answered, is a working run and not a broken one.
+        note("gen-note",
+          b.written + " proposed" + (b.dropped ? ", " + b.dropped + " dropped" : "") +
+          ". They are in the queue at the top, not on the site.",
+          b.written > 0 ? "good" : "");
+        reload();
+      })
+      .catch(function (e) { note("gen-note", String(e.message || e), "bad"); })
+      .then(function () { button.disabled = false; });
+  });
 
   el("add").addEventListener("click", function () {
     var date = el("f-date").value;
