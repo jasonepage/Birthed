@@ -81,6 +81,21 @@ kbd {
 }
 .c4 { background: #8A6BBF; color: #FFF7EE; }
 .qcount { font-variant-numeric: tabular-nums; }
+.ask { margin: 14px 0 0; }
+.asklede { font-size: 13px; color: #9C9490; margin: 0 0 10px; line-height: 1.5; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.chip {
+  background: none; border: 1px solid #3A3348; color: #B9B2AD; border-radius: 999px;
+  font: inherit; font-size: 12px; padding: 5px 11px; cursor: pointer;
+}
+.chip:hover { border-color: #EF5680; color: #FFF7EE; }
+.chip.on { border-color: #6FBF8A; color: #6FBF8A; }
+#focus {
+  background: #171326; border: 1px solid #3A3348; color: #FFF7EE;
+  border-radius: 5px; padding: 9px 11px; font: inherit; font-size: 14px;
+  width: 100%; min-height: 74px; resize: vertical;
+}
+.act:disabled { opacity: .45; cursor: default; border-color: #3A3348; color: #827B75; }
 </style>
 
 <div class="panel">
@@ -124,10 +139,17 @@ kbd {
 
   <div id="date" hidden>
     <h3 class="dh" id="date-title">A date</h3>
-    <p class="keys">
-      <button class="act" id="gen">Ask for candidates</button>
-      <span class="note" id="gen-note" style="margin:0"></span>
-    </p>
+    <div class="ask">
+      <p class="asklede">Tell it what to look for on this date. Pick a starter and edit it, or write your own. Leave the box empty to let it look for anything.</p>
+      <div class="chips" id="chips"></div>
+      <textarea id="focus" maxlength="500" placeholder="Anything. Or: the Minecraft version that came out on this day, and what it added."></textarea>
+      <p class="keys">
+        <button class="act" id="gen">Ask for candidates</button>
+        <button class="act" id="focus-clear">Clear</button>
+        <span class="note" id="gen-note" style="margin:0"></span>
+      </p>
+      <p class="note" id="budget" style="margin:6px 0 0"></p>
+    </div>
 
     <h4 style="margin:20px 0 0;font-size:13px;color:#9C9490">Add a curated row</h4>
     <div class="form2">
@@ -417,6 +439,7 @@ kbd {
     el("f-date").value = new Date().getUTCFullYear() + "-" + pad(m) + "-" + pad(d);
     note("add-note", "");
     show("date", true);
+    loadBudget();
     el("rows").innerHTML = "<p class=\\"lede\\">Loading.</p>";
 
     Promise.all([
@@ -512,6 +535,105 @@ kbd {
     loadQueue();
   }
 
+  // ---- what to look for --------------------------------------------------
+  // Starters, not categories. Each one is a sentence the model reads, so it is
+  // written the way you would ask a person, and it is editable in the box
+  // before it runs. The point of all of them is the same: a reader should be
+  // able to put themselves next to the thing and say how old they were.
+  var PRESETS = [
+    {
+      label: "Game updates",
+      text: "Version releases and major updates for games people kept playing for years: Minecraft, Fortnite, Roblox, Grand Theft Auto Online, Team Fortress 2, League of Legends, Old School RuneScape. Name the version number where there is one, and say what it added that people noticed.",
+    },
+    {
+      label: "Pokemon",
+      text: "Pokemon on this day: game releases and the region they released in, generation reveals, Pokemon Go events and updates, Trading Card Game set releases, and anime episodes people still bring up.",
+    },
+    {
+      label: "Consoles",
+      text: "Console and handheld launches, by region, and the hardware people remember being given: PlayStation, Xbox, Nintendo, Game Boy, Nintendo DS, Steam Deck, iPod, the first iPhone. The launch date in one named region, not a vague year.",
+    },
+    {
+      label: "Leaks",
+      text: "Leaks, datamines and reveals that got out before the company meant them to. Use the day the internet found out, not the day the thing later shipped, and say where it surfaced.",
+    },
+    {
+      label: "Videos",
+      text: "Videos everybody had seen that week: Vines, YouTube uploads, Twitch clips, TikToks. Use the upload date of the video itself, not the day an article was written about it.",
+    },
+    {
+      label: "Memes born",
+      text: "The day a meme actually started: the original post, tweet, image or video that everything else was copying. Point at the first version where it can still be pointed at.",
+    },
+    {
+      label: "Apps and platforms",
+      text: "Apps and platforms changing under everybody: launches, shutdowns, redesigns people hated, rebrands, and the day a feature everybody used disappeared.",
+    },
+    {
+      label: "Anime and streaming",
+      text: "Anime episodes and season premieres, and streaming releases that everybody watched at the same time and talked about the next day.",
+    },
+  ];
+
+  function clearChips() {
+    Array.prototype.forEach.call(el("chips").querySelectorAll(".chip.on"),
+      function (c) { c.classList.remove("on"); });
+  }
+
+  function drawChips() {
+    var box = el("chips");
+    box.innerHTML = "";
+    PRESETS.forEach(function (preset) {
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "chip";
+      button.textContent = preset.label;
+      button.addEventListener("click", function () {
+        // Clicking the lit one puts the box back to empty, which is the
+        // setting that lets the model look for anything.
+        var lit = button.classList.contains("on");
+        clearChips();
+        el("focus").value = lit ? "" : preset.text;
+        if (!lit) button.classList.add("on");
+        el("focus").focus();
+      });
+      box.appendChild(button);
+    });
+  }
+
+  // Setting value from a chip does not fire input, so this only ever means the
+  // curator typed over it, and the chip should stop claiming to describe it.
+  el("focus").addEventListener("input", clearChips);
+
+  el("focus").addEventListener("keydown", function (e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); el("gen").click(); }
+  });
+
+  el("focus-clear").addEventListener("click", function () {
+    el("focus").value = "";
+    clearChips();
+    el("focus").focus();
+  });
+
+  // The ceiling shown before the button is pressed rather than after. It is
+  // one number shared with find-facts, it is a value somebody set while
+  // looking at a bill, and it resets on the first of the month.
+  function loadBudget() {
+    return rest("rpc/fact_searches_left", { method: "POST", body: {} })
+      .then(function (left) {
+        if (typeof left !== "number") { note("budget", ""); return; }
+        el("gen").disabled = left <= 0;
+        if (left <= 0) {
+          note("budget", "No searches left this month. The count resets on the 1st, or somebody raises monthly_limit in fact_search_budget.", "bad");
+          return;
+        }
+        // Runs so far have averaged about ten searches each.
+        note("budget", left.toLocaleString() + " searches left this month, roughly " +
+          Math.floor(left / 10) + " more runs. Resets on the 1st.");
+      })
+      .catch(function () { note("budget", ""); });
+  }
+
   // Generation. The function checks is_admin() with this same token before it
   // spends anything, because verify_jwt alone would let every reader of the
   // iOS app run up a Gemini bill: they all hold a valid token.
@@ -523,13 +645,14 @@ kbd {
     fetch(API + "/functions/v1/find-culture", {
       method: "POST",
       headers: headers(),
-      body: JSON.stringify({ month: selected.m, day: selected.d }),
+      body: JSON.stringify({ month: selected.m, day: selected.d, focus: el("focus").value.trim() }),
     }).then(function (r) { return r.json().then(function (b) { return { ok: r.ok, body: b }; }); })
       .then(function (r) {
         var b = r.body || {};
         if (!r.ok) { note("gen-note", b.error || "Refused.", "bad"); return; }
         if (b.status === "paused") {
-          note("gen-note", "The month's search budget is spent. Nothing was run.", "bad");
+          note("gen-note", "No searches left this month, so nothing was run and nothing was spent.", "bad");
+          loadBudget();
           return;
         }
         if (b.status === "failed") { note("gen-note", b.error || "Failed.", "bad"); return; }
@@ -543,7 +666,7 @@ kbd {
         reload();
       })
       .catch(function (e) { note("gen-note", String(e.message || e), "bad"); })
-      .then(function () { button.disabled = false; });
+      .then(function () { button.disabled = false; loadBudget(); });
   });
 
   el("add").addEventListener("click", function () {
@@ -609,6 +732,7 @@ kbd {
             if (u && u.id) { userId = u.id; el("who").textContent = "Signed in as " + (u.email || u.id); }
           })
           .catch(function () { /* the panel still works, the audit column is null */ });
+        drawChips();
         loadQueue();
         loadCoverage().catch(function (e) { el("cov-lede").textContent = e.message; });
       })

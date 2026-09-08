@@ -22,7 +22,9 @@
 //
 //   Every cited page has to answer before the row is written at all.
 //
-//   One monthly ceiling, shared with find-facts, because it is one bill.
+//   Ceilings shared with find-facts, because it is one bill. A monthly one,
+//   and a daily one, added after a backfill spent a whole month in seventy
+//   minutes without ever exceeding the monthly figure.
 //
 // What is different here, and it is the hard part: this asks for a DATE, not
 // for a fact about a date. docs/internet-culture.md is the whole specification
@@ -115,13 +117,21 @@ function monthName(month: number): string {
  * instructions. If that document and this string ever disagree, the document
  * is right and this is a bug.
  */
-function researchPrompt(month: number, day: number, already: string): string {
+function researchPrompt(month: number, day: number, already: string, focus: string): string {
   const date = `${monthName(month)} ${day}`;
+  // The curator's steer goes here, near the top, where it shapes what gets
+  // looked for. The rules below it are the ones it must not be able to soften,
+  // which is why they come after: dating and sourcing are not preferences.
+  const lens = focus
+    ? `\n\nThis run is looking for something specific. Spend your searches on this and return fewer things rather than drifting off it:\n${focus}\n`
+    : "";
   return `You are building a dated timeline of internet and popular culture for one calendar date: ${date}, in any year from ${EARLIEST} onward.
 
 Run web searches and use what you find. Do not answer from memory.
 
 Find up to ${MAX_ROWS} things that happened on ${date} in some year and that somebody in their teens or twenties would recognise. A video being uploaded, a tweet being posted, a game or console or phone or app arriving, a platform launching or changing or shutting down, a real world event that became a meme, an album or a film that mattered to that audience.
+
+Why this matters, because it decides what is worth returning: people date their own lives by this stuff. Not by treaties and summits, by the version of a game that came out when they were fourteen, the console they got, the app everybody moved to, the video everybody had seen that week. "I was eleven when that came out" is the sentence this whole timeline exists to let somebody say. Prefer a thing that lets a reader place themselves against it over a thing that is merely notable.${lens}
 
 The single hardest rule, and the one that decides whether this is worth doing:
 
@@ -313,9 +323,15 @@ async function propose(
   key: string,
   month: number,
   day: number,
+  focus: string,
+  meter: { searches: number },
 ): Promise<{ written: number; dropped: number; searches: number }> {
   const { note, titles } = await alreadyHere(admin, month, day);
-  const notes = await research(key, researchPrompt(month, day, note));
+  const notes = await research(key, researchPrompt(month, day, note, focus));
+  // Recorded the moment the searches are known, not at the end. If the shaping
+  // call or the upsert throws after this line, the money is already spent and
+  // the ledger has to say so.
+  meter.searches = notes.searches;
   const shaped = await askGemini(key, shapePrompt(notes.text), false);
   const parsed = parseCandidates(shaped.text, month, day);
 
@@ -400,25 +416,66 @@ Deno.serve(async (request: Request) => {
   const day = Number(body.day);
   if (!Number.isInteger(month) || month < 1 || month > 12) return json({ error: "bad month" }, 400, request);
   if (!Number.isInteger(day) || day < 1 || day > 31) return json({ error: "bad day" }, 400, request);
+  // What the curator asked this run to look for. Capped, and it only ever
+  // narrows: it is placed above the dating and sourcing rules in the prompt so
+  // that no amount of "just give me anything about Pokemon" can talk the model
+  // out of needing a real day and a page that opens.
+  const focus = typeof body.focus === "string" ? body.focus.trim().slice(0, 500) : "";
 
   const admin = createClient(url, serviceRoleKey);
 
-  // One ceiling, shared with find-facts, because it is one bill. A run that
-  // would cross it does not start and says so, rather than being a surprise on
-  // a statement.
+  // The ceilings, shared with find-facts, because it is one bill. There is a
+  // monthly one and a daily one, and both are folded into fact_searches_left()
+  // so that this function sees a single number and cannot be the caller that
+  // forgets to check one of them. A run that would cross either does not start
+  // and says so, rather than being a surprise on a statement.
   const { data: remaining } = await admin.rpc("fact_searches_left");
   const searchesLeft = typeof remaining === "number" ? remaining : 0;
   if (searchesLeft <= 0) {
     return json({ status: "paused", searchesLeft, written: 0 }, 200, request);
   }
 
+  // Who asked, so a run that spends money has a name against it.
+  const { data: caller } = await asCaller.auth.getUser();
+  const requestedBy = caller?.user?.id ?? null;
+  const startedAt = new Date().toISOString();
+  const meter = { searches: 0 };
+
+  // Every run is written to culture_search_runs whether it worked or not,
+  // because fact_searches_left() sums that table alongside birth_fact_runs.
+  // A failed run still ran the searches it ran, and a ledger that recorded
+  // only successes would let a string of failures spend the month invisibly.
+  async function record(status: string, written: number, dropped: number, error: string | null) {
+    const { error: logError } = await admin.from("culture_search_runs").insert({
+      event_month: month,
+      event_day: day,
+      focus: focus || null,
+      status,
+      written,
+      dropped,
+      searches: meter.searches,
+      error,
+      requested_by: requestedBy,
+      started_at: startedAt,
+      finished_at: new Date().toISOString(),
+    });
+    // Logging is not the job. If the ledger write fails the curator still gets
+    // their candidates and the meter is short by this one run, which shows up
+    // in the panel the next time it loads.
+    if (logError) console.error("culture_search_runs insert failed:", logError.message);
+  }
+
   try {
-    const result = await propose(admin, geminiKey, month, day);
-    return json({ status: "done", searchesLeft: searchesLeft - result.searches, ...result }, 200, request);
-  } catch (error) {
+    const result = await propose(admin, geminiKey, month, day, focus, meter);
+    await record("ok", result.written, result.dropped, null);
     return json({
-      status: "failed",
-      error: String(error instanceof Error ? error.message : error).slice(0, 400),
+      status: "done",
+      searchesLeft: Math.max(0, searchesLeft - result.searches),
+      ...result,
     }, 200, request);
+  } catch (error) {
+    const message = String(error instanceof Error ? error.message : error).slice(0, 400);
+    await record("failed", 0, 0, message);
+    return json({ status: "failed", error: message, searchesLeft: Math.max(0, searchesLeft - meter.searches) }, 200, request);
   }
 });

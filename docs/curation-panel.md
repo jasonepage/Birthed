@@ -129,15 +129,51 @@ the response the way `find-facts` already does: answer at once, work after, let
 the panel poll. A curator asking for a month of candidates should not hold a
 connection open for four minutes.
 
-The budget is not optional and it is not a number in the code. `find-facts`
-already puts its ceiling in a table so it can be raised by somebody looking at
-a bill rather than by a deploy. Do the same, count against the same month, and
-show what is left in the panel. A curator who cannot see the meter will find it
-by hitting it.
+The budget is not optional and it is not a number in the code. It lives in
+`fact_search_budget` so it can be raised by somebody looking at a bill rather
+than by a deploy. Count against the same month, and show what is left in the
+panel. A curator who cannot see the meter will find it by hitting it.
 
 A batch that would exceed the remaining budget generates what it can and says
 how many it skipped. It does not fail, and it does not silently do less than it
 was asked.
+
+### What the monthly ceiling did not prevent
+
+On 6 September a `find-facts` backfill ran from 01:22 to 02:32. In seventy
+minutes it covered 319 dates, ran 3,182 searches, wrote 2,762 facts, crossed the
+3,000 ceiling and stopped. The ceiling worked. It had simply been set as a count
+by somebody who never converted it into money, and 3,000 searches turned out to
+be about forty dollars.
+
+Two things follow, and both are now built.
+
+**A ceiling on a month is not a ceiling on a night.** A limit that can be spent
+in seventy minutes does not limit anything that matters, because the failure
+being guarded against is a loop, and a loop finishes long before anybody looks
+at a dashboard. So there is a daily ceiling as well as a monthly one, and both
+are folded into `fact_searches_left()` rather than checked by each caller. A
+caller sees a single number. No function can be the one that forgets the other
+limit, and `find-facts` gained the daily cap without being redeployed.
+
+**A meter that nothing writes to is not a meter.** `find-culture` read
+`fact_searches_left()` and obeyed it, but never wrote back, so every panel run
+was free as far as the count knew. Raising the monthly figure would have handed
+the panel unlimited runway. Culture runs have their own ledger now,
+`culture_search_runs`, because `birth_fact_runs` requires a `birth_year` and a
+culture run has no birthday, and `fact_searches_left()` sums both.
+
+Failed runs are recorded too, at whatever they had spent when they broke. A run
+that dies after the research call has already paid for those searches, and a
+ledger that recorded only successes would let a string of failures spend a month
+invisibly.
+
+The known hole: a run counts when it finishes, so a hard crash between the
+research call and the ledger write spends money the meter never sees. The daily
+ceiling is the backstop for that, not the ledger.
+
+At the figures currently set, a run costs about twelve cents and a day is capped
+near five dollars.
 
 ---
 
@@ -220,7 +256,48 @@ keyboard speed and queue throughput in section 5 is reasoning, not measurement.
 - The site's query filters on `published`, and a `candidate` row on a date does
   not change that date's page.
 - A rejected row is never proposed again by the same generator run.
-- The budget meter is visible in the panel before a batch is started.
+- The budget meter is visible in the panel before a batch is started, not
+  after it is refused.
+- No single day can spend more than the daily ceiling, whichever function is
+  spending it.
+- Every run that spends money leaves a row, including a run that failed.
 - A batch over budget produces what it can and says what it skipped.
+- A curator's steer can narrow what a run looks for and cannot relax what a row
+  has to prove.
 - Every publish, reject and edit is attributable to an account.
 - The queue is operable start to finish without a pointing device.
+
+---
+
+## 12. Steering a run
+
+A curator types what a run should look for, and eight starters fill the box with
+a sentence they can then edit. An empty box means look for anything.
+
+This is not a category filter. It is a sentence the model reads, written the way
+you would ask a person, and editable before it runs. The starters exist because
+a blank box is a worse prompt than a mediocre starting point, and because the
+useful steers are not the obvious ones: "game updates" is a category, while
+naming Minecraft, Fortnite, Roblox and Team Fortress 2 and asking for version
+numbers is an instruction.
+
+**Where the steer sits in the prompt is the whole design.** It goes above the
+dating and sourcing rules, never below them. Above, it narrows what gets
+searched for. Below, it would be the last thing the model read before answering,
+and "just give me anything about Pokemon" would be competing with the rule that
+a row needs a real day and a page that opens. A curator may choose the subject.
+A curator may not relax the evidence. The ordering is what enforces that, rather
+than trust.
+
+The steer is capped at 500 characters and stored on the run in
+`culture_search_runs.focus`, so a date that produced good candidates can be
+traced back to the sentence that produced them, and a starter that keeps
+producing rejects can be found and rewritten.
+
+### Why these starters
+
+They all serve one sentence from `docs/dating-the-internet.md`: a reader should
+be able to put themselves next to a row and say how old they were. A console
+launch does that. A treaty does not. Games, consoles, uploads, leaks, shutdowns
+and platform changes are what people actually use to date their own lives, which
+is why the list is what it is, and why nothing on it is a category of importance.
