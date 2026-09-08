@@ -783,7 +783,11 @@ test("a date page can be moved off in both directions without reaching the foot"
 
 test("a month has its own colour and the brand pink is not it", () => {
   const september = renderDayPage(page);
-  assert.match(september, /<div class="day" style="--day:hsl\(/);
+  // Not pinned to the whole opening tag. That wrapper also carries the class
+  // naming its own date, which is how the per-request stylesheet knows whether
+  // this page is one of the three taking answers today.
+  assert.match(september, /<div class="day [^"]*" style="--day:hsl\(/);
+  assert.match(september, /class="day on-september-4"/);
   const march = renderDayPage({ month: 3, day: 12, people: [] });
   const hueOf = (html: string) => /--day:hsl\((\d+)/.exec(html)?.[1];
   assert.notEqual(hueOf(september), hueOf(march), "every page would wear the same second colour");

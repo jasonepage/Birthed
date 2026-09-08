@@ -96,6 +96,28 @@ function birthYearLabel(person: Person): string {
 
 const STYLE = `
 
+
+/* The three open dates.
+   Links to server redirects rather than to dates, so the labels are true on
+   every one of the 366 pages and nothing here goes stale overnight. today.css
+   lights whichever of the three this page happens to be. */
+.trip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 18px; }
+.trip a {
+  text-decoration: none; color: #A49BAE; border: 1px solid #2A2434;
+  border-radius: 999px; padding: 6px 13px; font-size: 13px;
+}
+.trip a:hover { color: #FFF7EE; }
+.tripnote { color: #7A7385; font-size: 12px; flex: 1 1 auto; min-width: 200px; }
+/* Drawn only on a date that is open, by today.css, which is generated per
+   request and is the only thing on this site that knows what day it is. The
+   buttons are therefore never shown on a page that would refuse them. */
+.rem { display: none; }
+.openflag {
+  display: none; align-items: center; gap: 6px; font-size: 11px; font-weight: 700;
+  letter-spacing: .1em; text-transform: uppercase; color: #BFD8F5;
+  border: 1px solid rgba(111, 165, 222, .5); border-radius: 999px; padding: 4px 10px;
+}
+
 /* Remembering. Four buttons, no script, no downvote.
 
    The class below is called afterword and not "said", which is what I called
@@ -107,7 +129,7 @@ const STYLE = `
    This was the third time. The test below now asserts the sentences are
    present, because both earlier collisions were caught by a test asserting the
    absence of something and this one reached production instead. */
-.rem { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; }
+.rem { flex-wrap: wrap; gap: 6px; margin: 10px 0 0; }
 .rem button {
   font: inherit; font-size: 12.5px; line-height: 1; cursor: pointer;
   background: none; color: #A49BAE; border: 1px solid #2A2434;
@@ -1880,7 +1902,7 @@ ${rememberForm("cultural_event", event.id, event.month, event.day)}</div>
     imported > 0 ? `<p class="credit">${written > 0 ? `The other ${imported}` : imported === 1 ? "This one" : `All ${imported}`} came out of Wikidata, which records an exact release date for ${imported === 1 ? "it" : "each of them"}. Nothing here was written by a model.</p>` : "",
   ].filter((line) => line !== "").join("\n");
 
-  return `<div class="hrow"><h2 class="section">What came out</h2></div>
+  return `<div class="hrow"><h2 class="section">What came out</h2><span class="openflag">Open today</span></div>
 <p class="lede">Games, records and releases dated to ${escapeHtml(name)} itself, newest first.</p>
 <ul class="culture">
 ${rows}
@@ -1999,7 +2021,7 @@ export function renderDayPage(
   const shortName = `${monthName(page.month).slice(0, 3)} ${page.day}`;
 
   return `${head(`Born on ${name}`, description, canonical, image, !isReady(page, facts), "", sequence)}
-<div class="day" style="--day:${hue.day};--day-soft:${hue.soft}">
+<div class="day on-${slug(page.month, page.day)}" style="--day:${hue.day};--day-soft:${hue.soft}">
 <div class="daybar">
 <a class="mark" href="/">Birthed</a>
 <span class="barnav">
@@ -2013,6 +2035,12 @@ export function renderDayPage(
 </span>
 </div>
 ${AFTER}
+<nav class="trip">
+<a href="/yesterday/">Yesterday</a>
+<a href="/today/">Today</a>
+<a href="/tomorrow/">Tomorrow</a>
+<span class="tripnote">Answering is open on these three, then a date seals until next year.</span>
+</nav>
 <p class="kicker">Born on</p>
 <h1>${name}</h1>
 ${openingBand(page, songs, culture, highlight)}

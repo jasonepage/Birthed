@@ -199,11 +199,40 @@ const TODAY_BEHIND_UTC_HOURS = 6;
  * Not cached, and it carries no personal anything: the date is the server's,
  * not the reader's.
  */
+/**
+ * The three dates that are open right now, in the order they read.
+ *
+ * Yesterday, today and tomorrow. A date takes answers for the day either side
+ * of itself and then seals until next year, and this is the one place that
+ * arithmetic lives on the web side.
+ */
+export function openDates(now: Date = new Date()): string[] {
+  const day = 24 * 60 * 60 * 1000;
+  return [-1, 0, 1].map((offset) => todaySlug(new Date(now.getTime() + offset * day)));
+}
+
+/**
+ * The stylesheet that knows what day it is.
+ *
+ * It rings today in the calendar, and it is now also what tells a page whether
+ * it is open. The pages are baked ahead of time and a baked page cannot know
+ * today's date, so every date page carries a class naming itself and this
+ * sheet reveals the answering buttons on exactly three of them.
+ *
+ * Which means the buttons are not drawn on a date that would refuse them. That
+ * is worth more than it sounds: a reader who taps and is told no has been
+ * wasted, and the alternative was drawing four dead buttons on 363 pages.
+ *
+ * If this sheet fails to load nobody can answer, which is the safe direction
+ * to fail in. The server still refuses a hand written post either way, because
+ * the check that matters is in the database.
+ */
 export function todayStylesheet(now: Date = new Date()): string {
-  // The exact string the calendar cell's href carries, so the selector is an
-  // equality test rather than a guess at the shape of the address.
+  const open = openDates(now);
   return `.cal .days a[href="/${todaySlug(now)}/"]{outline:2px solid ${TODAY};` +
-    `outline-offset:2px;color:#BFD8F5}\n`;
+    `outline-offset:2px;color:#BFD8F5}\n` +
+    open.map((date) => `.on-${date} .rem{display:flex}.on-${date} .openflag{display:inline-flex}`).join("") +
+    `\n${open.map((date) => `.trip a[href="/${date}/"]`).join(",")}{color:#BFD8F5;border-color:${TODAY}}\n`;
 }
 
 export function todaySlug(now: Date = new Date()): string {
@@ -227,6 +256,12 @@ export function redirectFor(
     const index = Math.min(dates.length - 1, Math.max(0, Math.floor(random() * dates.length)));
     const picked = dates[index]!;
     return `/${slug(picked.month, picked.day)}/`;
+  }
+
+  if (path === "/yesterday" || path === "/tomorrow") {
+    const day = 24 * 60 * 60 * 1000;
+    const when = new Date(now.getTime() + (path === "/tomorrow" ? day : -day));
+    return `/${todaySlug(when)}/`;
   }
 
   if (path === "/today") {

@@ -3,7 +3,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
 
-import { resolvePath, securityFor, start, todaySlug, todayStylesheet } from "../src/serve.js";
+import { openDates, redirectFor, resolvePath, securityFor, start, todaySlug, todayStylesheet } from "../src/serve.js";
 
 const ROOT = resolve("out");
 
@@ -148,4 +148,39 @@ test("only the add page may run its script and reach the project", () => {
     assert.match(admin, /connect-src https:\/\/[a-z0-9]+\.supabase\.co/);
   }
   assert.ok(!(securityFor("/administrator/")["Content-Security-Policy"] ?? "").includes("script-src"));
+});
+
+// ---------------------------------------------------------------------------
+// The three open dates.
+
+test("yesterday, today and tomorrow are the three that take answers", () => {
+  const open = openDates(new Date("2026-09-08T18:00:00Z"));
+  assert.deepEqual(open, ["september-7", "september-8", "september-9"]);
+});
+
+test("the three roll over a month boundary without a gap", () => {
+  assert.deepEqual(openDates(new Date("2026-10-01T18:00:00Z")),
+    ["september-30", "october-1", "october-2"]);
+});
+
+test("and over a year boundary", () => {
+  assert.deepEqual(openDates(new Date("2027-01-01T18:00:00Z")),
+    ["december-31", "january-1", "january-2"]);
+});
+
+test("the stylesheet opens exactly three dates and no others", () => {
+  const css = todayStylesheet(new Date("2026-09-08T18:00:00Z"));
+  for (const date of ["september-7", "september-8", "september-9"]) {
+    assert.ok(css.includes(`.on-${date} .rem{display:flex}`), `${date} should be open`);
+  }
+  assert.equal(css.includes(".on-september-6 .rem"), false, "a sealed date draws no buttons");
+  assert.equal(css.includes(".on-september-10 .rem"), false, "and neither does one not yet open");
+  assert.equal((css.match(/\.rem\{display:flex\}/g) ?? []).length, 3);
+});
+
+test("yesterday and tomorrow are redirects, so a link to them is never stale", () => {
+  const now = new Date("2026-09-08T18:00:00Z");
+  assert.equal(redirectFor("/yesterday/", now), "/september-7/");
+  assert.equal(redirectFor("/tomorrow/", now), "/september-9/");
+  assert.equal(redirectFor("/today/", now), "/september-8/");
 });
