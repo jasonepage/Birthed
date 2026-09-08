@@ -1206,7 +1206,30 @@ kbd {
   // written the way you would ask a person, and it is editable in the box
   // before it runs. The point of all of them is the same: a reader should be
   // able to put themselves next to the thing and say how old they were.
+  // The first four are aimed at a reader rather than at a category, and each
+  // one says how to look, because docs/researching-a-date.md found that
+  // searching the date returns listicles and the method that works is to
+  // search a memory and then check the date. The steer sits above the dating
+  // and sourcing rules in the prompt, so it can narrow what is looked for and
+  // cannot relax what a row has to prove.
+  var METHOD = " Do not search the date, which finds nothing. Think first of the things this person brings up unprompted, work out which of them fall on this date, then find a page published within days of it that says so. Absent beats wrong.";
   var PRESETS = [
+    {
+      label: "Twelve in 2009",
+      text: "Things somebody who was twelve in 2009 would recognise instantly: what they played, watched, posted and got in trouble for between about 2007 and 2013. Club Penguin, Runescape, early Minecraft, Call of Duty lobbies, the videos everybody at school had seen, the site that got blocked. Write for them, not about them." + METHOD,
+    },
+    {
+      label: "Twelve in 2016",
+      text: "Things somebody who was twelve in 2016 would recognise instantly: what they played, watched, posted and copied between about 2014 and 2020. Vine, musical.ly, Fortnite seasons, Undertale, the dress, the memes with a first post. Write for them, not about them." + METHOD,
+    },
+    {
+      label: "Broke containment",
+      text: "The thing that broke containment on this date, not the thing that was announced. A post, clip, leak or incident that left the place it started and everybody saw it that week. Use the day it got out, say where it surfaced, and skip anything that was merely scheduled or released." + METHOD,
+    },
+    {
+      label: "Still argued about",
+      text: "Things from this date that people still argue about the details of, years later: who was right, what really happened, whether it was staged. If nobody argues about it any more, leave it out. Prefer the thing with an anniversary post over the thing with a press release." + METHOD,
+    },
     {
       label: "Since 2018",
       text: "Only things from 2018 onward, nothing older. TikTok, Discord, Twitch, YouTube Shorts, Fortnite and Roblox seasons and live events, game patches, app changes, and things that happened on phones rather than on desktops. If this date has nothing from 2018 on, say so and return nothing rather than reaching further back.",

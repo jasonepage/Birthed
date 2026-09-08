@@ -42,3 +42,12 @@ test("a scan is an argument: the panel answers it and only a key moves a row", (
   // A proposal fills the form; the Add button is the write.
   assert.ok(script.includes("Pick the category and press Add"));
 });
+
+test("the starters aim at a reader and carry the method that works", () => {
+  const script = panelScript();
+  assert.ok(script.includes('label: "Twelve in 2009"'));
+  assert.ok(script.includes('label: "Broke containment"'));
+  // docs/researching-a-date.md: searching the date finds nothing.
+  assert.ok(script.includes("Do not search the date, which finds nothing."));
+  assert.ok(script.includes("then check the date") || script.includes("then find a page published within days of it"));
+});
