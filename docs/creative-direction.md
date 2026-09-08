@@ -148,11 +148,75 @@ The same facts told in the honest order are much stronger:
 That is true today, it is checkable, and it puts the humans at both ends where
 they belong. Use it instead.
 
-## 7. Left open
+## 7. Today gets its own rows
 
-- Whether the site should carry anything about today's news as well as this
-  date's past. It would break the concept as written, since the whole promise
-  is that a date is a fixed thing that seals. Not decided here.
+Decided 8 September 2026. This looked like it would break the concept and it
+does not, as long as it is framed correctly.
+
+**It is not a news feed. It is the newest layer of the same stack.** The
+September 8 page already carries 1998, 2000 and 2011. A thing that happens on
+8 September 2026 is a September 8 row for the year 2026, and it belongs on
+that page permanently, at the top, the same as every other year. Nothing about
+the seal changes. The date still opens for three days and still shuts.
+
+**This makes the ask card better, not worse.** Asking "do you remember this
+one" about something from six hours ago is a different question, and a more
+interesting one. It stops being about memory and becomes about reach: did this
+get to you. And because the row stays on the page, the same row is asked again
+next September, when it really is a memory question. The gap between what
+reached people the week it happened and what they still recognise a year later
+is the forgetting curve, measured. That is the year two idea in work list item
+12, arriving a year earlier and for free.
+
+### The rule that keeps this from becoming a news site
+
+A row about today earns its place only if it would still earn its place on
+this page in ten years.
+
+That is a narrow filter and it is meant to be. It keeps a game launch, a
+platform shutting down, a record broken, a death people will remember, a thing
+the internet spent the day on. It throws out daily politics, routine business
+news, and anything whose whole interest is that it is new. A date page with
+one real row from today is good. A date page with six rows of today's headlines
+is a news aggregator, and there are a thousand of those.
+
+### Three things that will go wrong
+
+**Today's news skews grim.** The suppression screens exist because eight
+thousand Wikipedia events were too heavy for a birthday page. Today's rows have
+to pass the same screens and probably a stricter one, because a fresh disaster
+at the top of somebody's birthday page is the worst thing this site could do.
+Nothing about today may lead the ask card without clearing `mayLead`.
+
+**Politics will try to get in and cannot be allowed to.** The site has no up
+or down vote precisely so that a crowd cannot fight on it. A daily political
+row is an invitation to have that fight anyway. The ten year rule mostly
+handles it. Where it does not, the answer is no row.
+
+**It needs a build every night and there is not one.** The pages are baked, so
+a row from today does not appear until something rebuilds. Sealing has the
+same problem and it is already an open question on the work list. One nightly
+job after the site's midnight covers both. It does not need a model and it must
+not use the fact finder, which cost forty dollars in seventy minutes.
+
+## 8. The site is signed by a person
+
+Decided 8 September 2026. The name is **Jason Evan Page**. A real name and one
+human sentence about why this exists, reachable in one tap from the first screen, and ideally a few words of
+it visible without the tap.
+
+The reason is narrow. A polished site with no owner, no price and no ads is,
+to a suspicious stranger, a data business that has not shown its hand yet.
+Silence is read as the answer, and the answer it is read as is the bad one. A
+name is the cheapest possible fix and it is the one thing an accusation of
+"this is a scam" cannot survive contact with.
+
+It does not need to be a biography. "I built this because I wanted to know what
+people actually remember, it costs me money to run, and nothing on it is for
+sale" over the name does the entire job.
+
+## 9. Left open
+
 - Whether the rotation should change on every load or hold for an hour.
 - Whether "Do you remember this one?" survives cold reader testing, which is
   work list item 11 and is still the right next test.
