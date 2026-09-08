@@ -29,3 +29,16 @@ test("a row with no sentence offers a draft, and the draft writes to the right t
   // Nothing saves until a key is pressed.
   assert.ok(script.includes("Nothing is saved until you press Enter"));
 });
+
+test("a scan is an argument: the panel answers it and only a key moves a row", () => {
+  const script = panelScript();
+  assert.ok(script.includes("/functions/v1/scan-day"));
+  // Every verdict carries agree and overrule, and both write the record.
+  assert.ok(script.includes('data-agree="'));
+  assert.ok(script.includes('data-overrule="'));
+  assert.ok(script.includes("body: { agreed: agreed, acted_at:"), "the overruled ones are kept");
+  // Agreeing with keep or heavy moves nothing.
+  assert.ok(script.includes('var moves = verdict !== "keep" && verdict !== "heavy";'));
+  // A proposal fills the form; the Add button is the write.
+  assert.ok(script.includes("Pick the category and press Add"));
+});

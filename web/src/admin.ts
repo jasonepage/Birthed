@@ -204,6 +204,7 @@ kbd {
       <p class="keys">
         <button class="act" id="gen">Ask for candidates</button>
         <button class="act" id="focus-clear">Clear</button>
+        <button class="act" id="scan" title="Judges every row on this date and says what it is missing. Writes only to day_scans.">Scan the day <kbd>s</kbd></button>
         <span class="note" id="gen-note" style="margin:0"></span>
       </p>
       <p class="note" id="budget" style="margin:6px 0 0"></p>
@@ -653,12 +654,15 @@ kbd {
         k: function () { moveRow(-1); },
         w: function () { pressOnRow("[data-draft]"); },
         h: function () { pressOnRow("[data-fact],[data-ev]"); },
+        y: function () { pressOnRow("[data-agree],[data-take]"); },
+        n: function () { pressOnRow("[data-overrule]"); },
       };
       if (onRow[ev.key]) { ev.preventDefault(); onRow[ev.key](); return; }
       return;
     }
-    // From anywhere else, g drops into the open date's rows.
+    // From anywhere else, g drops into the open date's rows and s scans it.
     if (ev.key === "g" && selected && rowsOnScreen().length > 0) { ev.preventDefault(); moveRow(1); return; }
+    if (ev.key === "s" && selected) { ev.preventDefault(); el("scan").click(); return; }
     var map = { a: "publish", r: "reject", e: "edit", j: "next", k: "prev", f: "flagged" };
     var what = map[ev.key];
     if (!what) return;
@@ -772,7 +776,8 @@ kbd {
         "source_checked,hidden_reason" +
         "&birth_month=eq." + m + "&birth_day=eq." + d +
         "&birth_year=eq.0&region_key=eq.&order=id.asc&limit=100"),
-      rest("day_scans?select=subject_kind,subject_id,verdict,reason,scanned_by,acted_at,agreed" +
+      rest("day_scans?select=id,subject_kind,subject_id,verdict,reason,scanned_by,acted_at,agreed," +
+        "proposal_title,proposal_context,proposal_source_url,proposal_year,created_at" +
         "&event_month=eq." + m + "&event_day=eq." + d + "&order=id.asc&limit=300"),
       rest("historical_events?select=id,event_year,description,suppressed" +
         "&event_month=eq." + m + "&event_day=eq." + d + "&order=event_year.desc&limit=200"),
@@ -788,6 +793,7 @@ kbd {
       });
       leads = {};
       (r[4] || []).forEach(function (l) { leads[l.subject_kind + ":" + l.subject_id] = l.line; });
+      scansOnScreen = r[2] || [];
       draw(cultural, r[1], r[3], r[2]);
     }).catch(function (e) {
       el("rows").innerHTML = '<p class="note bad">' + esc(e.message) + "</p>";
@@ -804,11 +810,37 @@ kbd {
       var v = byRow[kind + ":" + id];
       if (!v) return "";
       var ok = v.verdict === "keep";
+      // Answered verdicts stay on screen as a record. Unanswered ones carry
+      // the two keys, and either key writes agreed, which is the column that
+      // tells you later whether the prompt is any good.
+      var answer = v.acted_at
+        ? '<span class="vby"> ' + (v.agreed ? "agreed" : "overruled") + "</span>"
+        : ' <button class="act" data-agree="' + v.id + '" data-kind="' + esc(kind) + '" data-id="' + esc(id) + '" data-verdict="' + esc(v.verdict) + '">Agree <kbd>y</kbd></button>' +
+          ' <button class="act" data-overrule="' + v.id + '">Overrule <kbd>n</kbd></button>';
       return '<p class="verdict' + (ok ? " agrees" : "") + '">' +
         '<span class="vtag">' + esc(v.verdict) + "</span> " + esc(v.reason) +
-        '<span class="vby"> ' + esc(v.scanned_by) + "</span></p>";
+        '<span class="vby"> ' + esc(v.scanned_by) + "</span>" + answer + "</p>";
     }
+    var proposals = (scans || []).filter(function (v) { return v.verdict === "missing"; });
     var html = "";
+
+    // What the scan says the date is short of. A proposal is a row that does
+    // not exist, so accepting it fills the form below and the curator's Add is
+    // the write. Nothing here reaches a page on its own.
+    if (proposals.length > 0) {
+      html += '<h4 style="margin:22px 0 0;font-size:13px;color:#9C9490">What the scan says is missing (' + proposals.length + ")</h4>";
+      proposals.forEach(function (v) {
+        var done = v.acted_at ? (v.agreed ? "taken" : "passed") : "";
+        html += '<div class="row" tabindex="0" data-kind="proposal" data-id="' + esc(v.id) + '"><span class="yr">' + esc(v.proposal_year || "") + "</span><div>" +
+          '<p class="tx">' + esc(v.proposal_title || "") + "</p>" +
+          (v.proposal_context ? '<p class="meta" style="color:#B9B2AD">' + esc(v.proposal_context) + "</p>" : "") +
+          '<p class="meta">' + (v.proposal_source_url ? '<a href="' + esc(v.proposal_source_url) + '" rel="noopener" target="_blank">' + esc(v.proposal_source_url.slice(0, 80)) + "</a>" : "no source") +
+          '<span class="vby"> ' + esc(v.scanned_by) + (done ? ", " + done : "") + "</span></p></div>" +
+          '<div class="btns">' + (done ? "" :
+            '<button class="act" data-take="' + v.id + '">Take it <kbd>y</kbd></button>' +
+            '<button class="act" data-overrule="' + v.id + '">Pass <kbd>n</kbd></button>') + "</div></div>";
+      });
+    }
 
     // Published and written about. A published row with no sentence is not on
     // any page: renderDayPage drops it, because a game's name followed by "is
@@ -909,6 +941,15 @@ kbd {
           .then(reload).catch(function (e) { note("add-note", e.message, "bad"); });
       });
     });
+    Array.prototype.forEach.call(box.querySelectorAll("[data-agree]"), function (b) {
+      b.addEventListener("click", function () { agreeWith(b.dataset.agree, b.dataset.kind, b.dataset.id, b.dataset.verdict); });
+    });
+    Array.prototype.forEach.call(box.querySelectorAll("[data-overrule]"), function (b) {
+      b.addEventListener("click", function () { answerScan(b.dataset.overrule, false).then(reloadDate).catch(function (e) { note("add-note", e.message, "bad"); }); });
+    });
+    Array.prototype.forEach.call(box.querySelectorAll("[data-take]"), function (b) {
+      b.addEventListener("click", function () { takeProposal(b.dataset.take); });
+    });
     Array.prototype.forEach.call(box.querySelectorAll("[data-draft]"), function (b) {
       b.addEventListener("click", function () {
         var parts = b.dataset.draft.split(":");
@@ -925,6 +966,83 @@ kbd {
       });
     });
   }
+
+  // ---- answering a scan ---------------------------------------------------
+  //
+  // A verdict is an argument. Agreeing with one that says a row should go
+  // does the thing the verdict implies, on the row's own table, with the
+  // verdict written in as the reason; agreeing with keep or heavy moves
+  // nothing. Either way the scan row gets acted_at and agreed, which is the
+  // record that says whether the model is winning its arguments.
+  var scansOnScreen = [];
+
+  function answerScan(scanId, agreed) {
+    return rest("day_scans?id=eq." + scanId, {
+      method: "PATCH",
+      body: { agreed: agreed, acted_at: new Date().toISOString() },
+    });
+  }
+
+  function agreeWith(scanId, kind, id, verdict) {
+    var moves = verdict !== "keep" && verdict !== "heavy";
+    var reason = "scan said " + verdict;
+    var change = Promise.resolve();
+    if (moves && kind === "cultural_event") {
+      change = rest("cultural_events?id=eq." + id, { method: "PATCH",
+        body: { status: "rejected", rejected_reason: reason, reviewed_by: userId, reviewed_at: new Date().toISOString() } });
+    } else if (moves && kind === "birth_fact") {
+      change = rest("birth_facts?id=eq." + id, { method: "PATCH",
+        body: { verified: false, hidden_reason: reason, reviewed_by: userId, reviewed_at: new Date().toISOString() } });
+    } else if (moves && kind === "historical_event") {
+      change = rest("historical_events?id=eq." + id, { method: "PATCH",
+        body: { suppressed: true, suppressed_reason: reason } });
+    }
+    note("add-note", "Saving.");
+    change.then(function () { return answerScan(scanId, true); })
+      .then(function () { note("add-note", moves ? "Agreed, and the row is off the page." : "Agreed. Nothing moved.", "good"); return reloadDate(); })
+      .catch(function (e) { note("add-note", e.message, "bad"); });
+  }
+
+  // A proposal is not a row until a person adds it. Taking one fills the form
+  // with what the scan found, marks the scan as taken, and leaves the category
+  // and the Add button to the curator, because the scan does not know the
+  // category and the Add is the decision.
+  function takeProposal(scanId) {
+    var v = null;
+    scansOnScreen.forEach(function (x) { if (String(x.id) === String(scanId)) v = x; });
+    if (!v) return;
+    el("f-date").value = v.proposal_year + "-" + pad(selected.m) + "-" + pad(selected.d);
+    el("f-title").value = v.proposal_title || "";
+    el("f-context").value = v.proposal_context || "";
+    el("f-src").value = v.proposal_source_url || "";
+    answerScan(scanId, true).then(function () {
+      note("add-note", "Filled in below. Pick the category and press Add. Nothing is on the page yet.");
+      el("f-cat").focus();
+      return reloadDate();
+    }).catch(function (e) { note("add-note", e.message, "bad"); });
+  }
+
+  el("scan").addEventListener("click", function () {
+    if (!selected) return;
+    var button = el("scan");
+    button.disabled = true;
+    note("gen-note", "Scanning. Judging every row and looking for what is missing takes up to a minute.");
+    fetch(API + "/functions/v1/scan-day", {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ month: selected.m, day: selected.d }),
+    }).then(function (r) { return r.json().then(function (b) { return { ok: r.ok, body: b }; }); })
+      .then(function (r) {
+        var b = r.body || {};
+        if (!r.ok) { note("gen-note", b.error || "Refused.", "bad"); return; }
+        if (b.status === "paused") { note("gen-note", "No searches left, so nothing ran and nothing was spent.", "bad"); return; }
+        if (b.status === "failed") { note("gen-note", b.error || "Failed.", "bad"); return; }
+        note("gen-note", b.verdicts + " verdicts on " + b.rows + " rows, " + b.proposals + " proposed. All of it is an argument until you press a key.", "good");
+        reloadDate();
+      })
+      .catch(function (e) { note("gen-note", String(e.message || e), "bad"); })
+      .then(function () { button.disabled = false; loadBudget(); });
+  });
 
   // ---- drafting the missing sentence ------------------------------------
   //
