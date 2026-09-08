@@ -44,6 +44,17 @@ export interface TimelineRow {
    * knows about a line beyond its words and its year.
    */
   category: string | null;
+  /**
+   * Which kind of day this is, for a curated or imported cultural row:
+   * posted, happened, went_viral or ended. Null for everything else, because
+   * only that researcher was asked the question.
+   *
+   * This is the honesty the rest of the row cannot express. A year on its own
+   * claims the same confidence whether the timestamp came off the post itself
+   * or off a magazine writing about a thing that had already been going round
+   * for a fortnight. Those are different claims and the page should say so.
+   */
+  dateKind?: string | null;
 }
 
 /** A key a date can be looked up by, since a Map cannot take a pair. */
@@ -198,6 +209,7 @@ export function buildTimeline(
     // has a source and a category and no author, and saying otherwise in the
     // credit would be a claim about a person that is not true.
     curated: event.origin !== "imported",
+    dateKind: event.dateKind,
   }));
 
   const claimedByYear = new Map<number, string[]>();

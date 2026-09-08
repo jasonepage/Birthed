@@ -819,3 +819,51 @@ test("a date with only a couple of decades gets no bar at all", () => {
   }));
   assert.ok(!renderDayPage(page, songs).includes('class="decades"'));
 });
+
+// ---------------------------------------------------------------------------
+// Saying which kind of day the date actually is.
+//
+// The column has existed since the cultural table did and the page never
+// selected it, so a row whose date is "the week this broke out, nobody knows
+// when it was posted" printed a bare year and claimed the same confidence as
+// a row read straight off a timestamp. docs/internet-culture.md rule two
+// calls that the interesting part.
+
+const cultural = (over = {}) => ({
+  month: 9, day: 4, year: 2015,
+  title: "A meme starts",
+  context: "Somebody posted a picture and everybody copied it.",
+  sourceUrl: "https://knowyourmeme.com/memes/example",
+  category: "meme",
+  origin: "imported",
+  ...over,
+});
+
+test("a row dated to when it spread says so, and explains itself once", () => {
+  const html = renderDayPage(page, [], [], [], [cultural({ dateKind: "went_viral" })]);
+  assert.ok(html.includes("when it spread, not when it was posted"),
+    "the honest label is the differentiator and it has to reach the page");
+  assert.ok(html.includes("the original posting is gone or was never recorded"),
+    "a label a reader cannot interpret is decoration, so the page defines it once");
+});
+
+test("an exact posting date and a shutdown are labelled too", () => {
+  const posted = renderDayPage(page, [], [], [], [cultural({ dateKind: "posted" })]);
+  assert.ok(posted.includes("the exact day it was posted"));
+  const ended = renderDayPage(page, [], [], [], [cultural({ dateKind: "ended" })]);
+  assert.ok(ended.includes("the day it ended"));
+});
+
+test("an ordinary dated event carries no label at all", () => {
+  // "happened" is the case a reader already assumes. Printing it on most of
+  // the page would make the labels wallpaper and cost the other two their
+  // weight, which is the whole reason they are worth printing.
+  const html = renderDayPage(page, [], [], [], [cultural({ dateKind: "happened" })]);
+  assert.ok(!html.includes('class="datenote"'), "the ordinary case is not annotated");
+  assert.ok(!html.includes("the original posting is gone"), "and it does not drag in the footnote");
+});
+
+test("a row from before the column existed is not annotated either", () => {
+  const html = renderDayPage(page, [], [], [], [cultural({})]);
+  assert.ok(!html.includes('class="datenote"'));
+});

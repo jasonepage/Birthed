@@ -25,6 +25,18 @@ export interface CulturalEvent {
   /** tech, gaming, meme, music or cinema. Drives the coloured chip. */
   category: string;
   /**
+   * Which kind of day this is: posted, happened, went_viral or ended.
+   *
+   * Stored on every row since the column existed and never once fetched, so
+   * the page has been quietly rounding "this is the week it spread, nobody
+   * knows when it was posted" down to a bare year. docs/internet-culture.md
+   * rule two calls this the interesting part and says not to hide it, and
+   * hiding it is exactly what an unselected column does.
+   *
+   * Optional, and null, for a row written before the column existed.
+   */
+  dateKind?: string | null;
+  /**
    * "curated" when a person wrote and checked the row, "imported" when it came
    * out of a structured source. The credit at the foot of the section names
    * who found what, and ten hand written rows cannot share a sentence with
@@ -70,7 +82,7 @@ export async function fetchCulturalEvents(url: string, key: string): Promise<Cul
 
   for (let offset = 0; ; offset += pageSize) {
     const query = new URLSearchParams({
-      select: "event_date,category,event_title,context_string,source_url,origin",
+      select: "event_date,category,event_title,context_string,source_url,origin,date_kind",
       status: "eq.published",
       order: "event_date.asc,id.asc",
       limit: String(pageSize),
@@ -89,6 +101,7 @@ export async function fetchCulturalEvents(url: string, key: string): Promise<Cul
       context_string: string | null;
       source_url: string;
       origin: string | null;
+      date_kind: string | null;
     }[];
 
     for (const row of rows) {
@@ -107,6 +120,7 @@ export async function fetchCulturalEvents(url: string, key: string): Promise<Cul
         // ten rows did, and a row written before it existed is a hand written
         // one.
         origin: row.origin ?? "curated",
+        dateKind: row.date_kind,
       });
     }
 

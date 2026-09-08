@@ -234,6 +234,7 @@ ol.covers li:target .y a { color: ${ACCENT}; }
   to   { opacity: 1; transform: none; }
 }
 p.credit { color: ${QUIET}; font-size: 13px; margin: 14px 0 0; }
+p.datenote { color: ${QUIET}; font-size: 12.5px; margin: 7px 0 0; font-style: italic; }
 /* The year dial, and the reason it is built out of radio buttons.
    This site sends default-src 'none', so no page on it may run a script, and
    that is not an obstacle worth routing around: it is the strongest thing the
@@ -1451,6 +1452,32 @@ function kindOf(category: string | null): { label: string; klass: string } {
 }
 
 /**
+ * What kind of day a row's date actually is, said out loud.
+ *
+ * A bare year claims the same confidence whether the timestamp came off the
+ * post itself or off a magazine writing about something that had already been
+ * going round for a fortnight. Those are different claims. Every competitor
+ * prints them identically and this one does not, which is the entire argument
+ * of docs/internet-culture.md rule two: the limitation is the differentiator,
+ * so do not hide it.
+ *
+ * "happened" is deliberately absent. It is the ordinary case, it is what a
+ * reader already assumes a dated row means, and printing it on most of the
+ * page would turn the labels into wallpaper and cost the two that matter all
+ * of their weight.
+ */
+const WHEN: Record<string, string> = {
+  posted: "the exact day it was posted",
+  went_viral: "when it spread, not when it was posted",
+  ended: "the day it ended",
+};
+
+function whenOf(dateKind: string | null | undefined): string | null {
+  if (typeof dateKind !== "string") return null;
+  return WHEN[dateKind] ?? null;
+}
+
+/**
  * The things worth stopping on, and a drawer holding all the others.
  *
  * The whole list is still in the HTML. A closed drawer is a display state, so
@@ -1477,6 +1504,7 @@ function feedSection(
     return `<li class="${index === 0 ? "lead" : ""}"${delay}>
 <span class="head"><span class="tag ${kind.klass}">${kind.label}</span><span class="yr">${row.year === null ? "" : row.year}</span></span>
 <p class="said">${escapeHtml(row.text)}</p>
+${whenOf(row.dateKind) ? `<p class="datenote">${whenOf(row.dateKind)}</p>` : ""}
 ${row.sourceUrl ? `<p class="src"><a href="${escapeHtml(row.sourceUrl)}" rel="nofollow noopener">${escapeHtml(hostOf(row.sourceUrl))}</a></p>` : ""}
 </li>`;
   }).join("\n");
@@ -1485,6 +1513,7 @@ ${row.sourceUrl ? `<p class="src"><a href="${escapeHtml(row.sourceUrl)}" rel="no
 <span class="y">${row.year === null ? "&nbsp;" : row.year}</span>
 <span>
 <p class="x">${escapeHtml(row.text)}</p>
+${whenOf(row.dateKind) ? `<p class="datenote">${whenOf(row.dateKind)}</p>` : ""}
 ${row.sourceUrl ? `<p class="src"><a href="${escapeHtml(row.sourceUrl)}" rel="nofollow noopener">${escapeHtml(hostOf(row.sourceUrl))}</a></p>` : ""}
 </span>
 </li>`).join("\n");
@@ -1500,7 +1529,13 @@ ${others}
 </details>`
     : "";
 
+  const spread = [...picked, ...rest]
+    .filter((row) => row.dateKind === "went_viral").length;
+
   const credits = [
+    spread > 0
+      ? `<p class="credit">${spread === 1 ? "One row says" : `${spread} rows say`} "when it spread, not when it was posted". That means the original posting is gone or was never recorded, and the date is the week it broke out, taken from something published at the time. Printing that instead of a confident year is deliberate.</p>`
+      : "",
     searched > 0
       ? `<p class="credit">The ${searched} with a source link under them were found by Google's Gemini searching the web, and kept only when the page each one cites answered. Birthed is not affiliated with Google.</p>`
       : "",
