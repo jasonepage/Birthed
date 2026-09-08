@@ -215,6 +215,37 @@ It does not need to be a biography. "I built this because I wanted to know what
 people actually remember, it costs me money to run, and nothing on it is for
 sale" over the name does the entire job.
 
+## 9. What shipped on 8 September 2026
+
+In the order of section 5, and the first two were the gate on posting
+anywhere.
+
+- **The footer denied a cookie the site sets, on every one of 366 pages.** The
+  sentence written to answer the harvesting accusation said "this page sets no
+  cookies" while the answer route was returning a one year `bt` cookie, and
+  its whole value was that a reader could check it in the network tab in five
+  seconds. It now names the cookie and says what it is for. The privacy page's
+  website section says exactly what is kept, names `bt` and `by`, and says the
+  request address never reaches the database or an answer. Two tests fail if
+  either goes false again. This was work list item 1, and it was larger than
+  the work list thought, because the footer was not in it.
+- **The site is signed.** One line under the mechanic on every date page, and
+  a "Who made this" section on the About page in the first person. A test
+  asserts the name renders above the first ask card rather than under the
+  fold.
+- **The ask card is dealt rather than fixed.** Up to five candidates baked,
+  one revealed per request by `today.css`, which is never cached, so a reload
+  deals again. The rule that picked them changed too: evidence first, then a
+  1985 to 2015 window rather than distance from a single year, then shortness,
+  and each decade taken once before any decade is taken twice.
+- **"Anonymous" is on the ask card**, which was work list item 2.
+
+Not done, and next: culture rows are still not in the ask pool. They are the
+rows a reader under forty recognises and they are the reason the card exists,
+but they sit outside the timeline and `cultureSection` would have to learn the
+same hiding rule the feed has. That is work list item 5 and it is the single
+highest value thing left on the first screen.
+
 ## 9. Left open
 
 - Whether the rotation should change on every load or hold for an hour.

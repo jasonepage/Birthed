@@ -2422,7 +2422,7 @@ ${art}
 ${caption === "" ? "" : `<p class="askcap">${caption}</p>`}
 </div>
 ${rememberForm(row.kind, row.id, month, day)}
-<p class="askrule">One tap, no account. Ten answers per date, no score, and "never heard of it" counts the same as the others.</p>
+<p class="askrule">One tap, no account, anonymous. Ten answers per date, no score, and "never heard of it" counts the same as the others.</p>
 </section>`;
 }
 
