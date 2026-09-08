@@ -265,7 +265,13 @@ export function todayStylesheet(now: Date = new Date()): string {
     open.map((date) =>
       `.on-${date} .rem{display:flex}.on-${date} .openflag{display:inline-flex}` +
       `.on-${date} .yearask{display:block}`).join("") +
-    `\n${open.map((date) => `.trip a[href="/${date}/"]`).join(",")}{color:#BFD8F5;border-color:${TODAY}}\n`;
+    // The three chips are coloured in the stylesheet now, not here. This rule
+    // built selectors for date slugs, and that nav links to /yesterday/,
+    // /today/ and /tomorrow/, which are redirects, so it has never matched a
+    // single element on any page. Dead style that looks alive is the same
+    // family of bug as the class name collision in docs/handoff.md: nothing
+    // failed, nothing logged, and the thing simply did not happen.
+    `\n`;
 }
 
 export function todaySlug(now: Date = new Date()): string {

@@ -102,11 +102,27 @@ const STYLE = `
    every one of the 366 pages and nothing here goes stale overnight. today.css
    lights whichever of the three this page happens to be. */
 .trip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 18px; }
+/* The three dates that take answers, filled in rather than outlined.
+   Today is the blue this site already means today with: the calendar ring and
+   the open flag both use it, so a reader who has seen either one arrives
+   knowing what the colour says. Yesterday and tomorrow are the same shape in
+   grey, because they are the same kind of thing and only one of them is now.
+
+   Not a traffic light. Red, amber and green was the other suggestion and it
+   would import a meaning this page does not have: green next to red reads as
+   good next to bad, and the one rule the whole remembering design rests on is
+   that there is no direction anywhere in it. Three dates are not three
+   verdicts. */
 .trip a {
-  text-decoration: none; color: #A49BAE; border: 1px solid #2A2434;
-  border-radius: 999px; padding: 6px 13px; font-size: 13px;
+  text-decoration: none; color: #C9C2D4; background: #1C1726;
+  border: 1px solid #2A2434; border-radius: 999px; padding: 6px 13px;
+  font-size: 13px; font-weight: 600;
 }
-.trip a:hover { color: #FFF7EE; }
+.trip a[href="/today/"] {
+  color: #DCEBFF; background: rgba(111, 165, 222, 0.18); border-color: ${TODAY};
+}
+.trip a:hover { color: #FFF7EE; border-color: var(--day-soft, #C6B0F5); }
+.trip a[href="/today/"]:hover { color: #FFF7EE; border-color: #BFD8F5; }
 .tripnote { color: #7A7385; font-size: 12px; flex: 1 1 auto; min-width: 200px; }
 /* Drawn only on a date that is open, by today.css, which is generated per
    request and is the only thing on this site that knows what day it is. The

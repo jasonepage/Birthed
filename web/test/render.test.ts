@@ -1062,3 +1062,17 @@ test("answering the same row twice is not reported as a sealed date", () => {
   assert.ok(html.includes("You have already answered that one"));
   assert.ok(html.includes("Nothing is sealed"), "and it says so in as many words");
 });
+
+test("the three open dates are filled in, and today is the one that is blue", () => {
+  // A presence assertion. The rule that was supposed to colour these lived in
+  // today.css and built selectors for date slugs, while the nav links to
+  // /yesterday/, /today/ and /tomorrow/, so it had never matched an element on
+  // any page and nothing failed. Style that is dead but looks alive is the
+  // same family of bug as the class name collision in docs/handoff.md.
+  const html = renderDayPage(page);
+  assert.ok(html.includes('.trip a[href="/today/"]'), "today has no rule of its own");
+  assert.ok(html.includes("background: #1C1726"), "the chips are filled rather than outlined");
+  // Today wears the blue this site already means today with, the same one the
+  // calendar ring and the open flag use.
+  assert.ok(html.includes("border-color: #6FA5DE"));
+});
