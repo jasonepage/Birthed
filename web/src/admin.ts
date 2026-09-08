@@ -34,6 +34,24 @@ export function renderAdmin(api: { url: string; key: string }): string {
   font-size: 10px; color: #0E0C16; font-variant-numeric: tabular-nums;
   display: flex; align-items: center; justify-content: center; padding: 0;
 }
+/* A flag is a named rule from docs/internet-culture.md, checked against the
+   row's own words. Set quietly, because it is an argument and not a verdict:
+   plenty of good rows carry one and the curator overrules it by pressing a. */
+.flags { margin: 10px 0 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.flag {
+  font-size: 11px; font-weight: 700; letter-spacing: .04em; padding: 3px 8px;
+  border-radius: 999px; background: rgba(192, 138, 62, .18); color: #E0B060;
+  cursor: help;
+}
+.flags .ok { font-size: 11px; color: #6FBF8A; }
+.qflag { color: #E0B060; }
+/* The rest of the date, under the row being judged. Reviewing five rows an
+   hour apart with no reference point is the hardest judgement there is, and
+   it is what lets mid rows through at two in the morning. */
+.also { margin: 14px 0 0; padding: 12px 0 0; border-top: 1px solid rgba(255, 247, 238, .10); }
+.alsolab { margin: 0 0 6px; font-size: 11px; color: #827B75; }
+.alsorow { margin: 0 0 4px; font-size: 13px; color: #B9B2AD; }
+.gap { margin: 6px 0 0; color: #E0B060; }
 .c0 { background: #3A3348; color: #9C9490; }
 .c1 { background: #6E5A4A; color: #FFF7EE; }
 .c2 { background: #C08A3E; }
@@ -332,8 +350,78 @@ kbd {
   // does several hundred. That difference is the only reason this is a queue
   // and not the list further down the page.
   var queue = [];
+  var everything = [];
+  var onlyFlagged = false;
   var at = 0;
   var userId = null;
+
+  // ---- what is wrong with a row, named ----------------------------------
+  //
+  // Not a score and not a guess at whether anybody remembers the thing. Every
+  // flag below is a rule already written down in docs/internet-culture.md,
+  // checked against the row's own words, so a flag is a sentence a curator can
+  // agree or disagree with rather than a number they have to trust.
+  //
+  // The reason this exists: reviewing rows one at a time, an hour apart, with
+  // no reference point, is the hardest judgement there is, and it is why mid
+  // rows get through at two in the morning. A named flag restores the
+  // reference point without deciding anything.
+  // Narrower than it first was, because the first version flagged "Apple built
+  // a delete button for the U2 album" and "Taylor Swift was accepting an
+  // award", which are two of the strongest rows in the queue. The rule in the
+  // docs is not "mentions an album", it is "this row is a release calendar
+  // entry", and a game or app shipping is explicitly allowed. So it wants a
+  // release verb AND a music or film row, and it leaves gaming and tech alone.
+  var RELEASE_VERB = /\b(released|releases|is released|comes out|came out|opens in|opened in|hit (?:theaters|theatres|cinemas)|premiered|premieres|drops|dropped|goes on sale)\b/i;
+  var RELEASE_THING = /\b(album|single|EP|LP|film|movie|trailer|tour|soundtrack|record)\b/i;
+  var EXPLAINED = /\b(widely regarded|is considered|became a viral sensation|went on to|is known for|marked the|cemented|iconic|cultural phenomenon|paved the way)\b/i;
+
+  function flagsFor(row) {
+    var out = [];
+    var title = String(row.event_title || "");
+    var context = String(row.context_string || "");
+    var both = title + " " + context;
+
+    // An album coming out is not internet culture. Every date has several,
+    // they are what a Wikipedia date page is already full of, and they are the
+    // filler this site exists to replace.
+    var cat = String(row.category || "");
+    // cinema, not film. That is the name in the cultural_event_category enum,
+    // and guessing it wrong is a flag that silently never fires.
+    if ((cat === "music" || cat === "cinema") && RELEASE_VERB.test(both) && RELEASE_THING.test(both)) {
+      out.push(["release calendar", "reads like a release, not like something the internet did"]);
+    }
+
+    // Rule four. A reader who was there does not need it explained and a
+    // reader who was not is better served by the link.
+    if (EXPLAINED.test(both)) out.push(["explains the joke", "says why it mattered instead of saying what happened"]);
+
+    // The Snapchat Lenses problem: a true row nobody wrote. Two sentences is
+    // the shape of every good row in here.
+    if (context.replace(/\s+/g, " ").trim().length < 60) out.push(["thin", "not enough written for anybody to feel anything"]);
+
+    // Sourcing, in order of preference. Know Your Meme is fine for a row whose
+    // qualifier is that it spread, and never for one claiming an exact posting.
+    if (/knowyourmeme\.com/i.test(String(row.source_url || "")) && row.date_kind !== "went_viral") {
+      out.push(["circa source", "Know Your Meme dating an exact day"]);
+    }
+
+    return out;
+  }
+
+  function flagMarkup(flags) {
+    if (flags.length === 0) return '<p class="flags"><span class="ok">Nothing flagged.</span></p>';
+    return '<p class="flags">' + flags.map(function (f) {
+      return '<span class="flag" title="' + esc(f[1]) + '">' + esc(f[0]) + "</span>";
+    }).join("") + "</p>";
+  }
+
+  /** The other candidates waiting on the same date, so a set is judged as a set. */
+  function siblingsOf(row) {
+    return queue.filter(function (other) {
+      return other.id !== row.id && other.event_date === row.event_date;
+    });
+  }
 
   function drawQueue() {
     var card = el("q-card");
@@ -345,9 +433,24 @@ kbd {
     if (at >= queue.length) at = queue.length - 1;
     if (at < 0) at = 0;
     var row = queue[at];
+    var flagged = queue.filter(function (r) { return flagsFor(r).length > 0; }).length;
     el("q-lede").innerHTML = '<span class="qcount">' + (at + 1) + " of " + queue.length +
-      "</span> waiting. Nothing here is on the site until you say so.";
+      "</span> waiting" + (onlyFlagged ? " (flagged only, press f for all)" : "") +
+      ". Nothing here is on the site until you say so." +
+      (flagged > 0 && !onlyFlagged
+        ? ' <span class="qflag">' + flagged + " flagged. Press <kbd>f</kbd> for those alone.</span>"
+        : "");
     card.hidden = false;
+
+    var also = siblingsOf(row);
+    var alsoMarkup = also.length === 0 ? "" :
+      '<div class="also"><p class="alsolab">' + also.length +
+      (also.length === 1 ? " other row" : " other rows") + " waiting on " + esc(row.event_date) +
+      ", so judge the set rather than the row.</p>" +
+      also.map(function (o) {
+        return '<p class="alsorow">' + esc(o.context_string || o.event_title) + "</p>";
+      }).join("") + "</div>";
+
     card.innerHTML =
       '<div class="card">' +
       '<p class="when">' + esc(row.event_date) + " &middot; " + esc(row.category) +
@@ -356,16 +459,25 @@ kbd {
       (row.context_string ? '<p class="when" style="margin-top:8px">' + esc(row.event_title) + "</p>" : "") +
       (row.source_url ? '<p class="src"><a href="' + esc(row.source_url) +
         '" rel="noopener" target="_blank">' + esc(row.source_url.slice(0, 90)) + "</a></p>" : "") +
+      flagMarkup(flagsFor(row)) +
       '<p class="keys">' +
       '<button class="act" data-q="publish">Publish <kbd>a</kbd></button>' +
       '<button class="act" data-q="reject">Reject <kbd>r</kbd></button>' +
       '<button class="act" data-q="edit">Edit <kbd>e</kbd></button>' +
       '<button class="act" data-q="prev"><kbd>k</kbd></button>' +
       '<button class="act" data-q="next"><kbd>j</kbd></button>' +
-      "</p></div>";
+      "</p>" + alsoMarkup + "</div>";
     Array.prototype.forEach.call(card.querySelectorAll("[data-q]"), function (b) {
       b.addEventListener("click", function () { act(b.dataset.q); });
     });
+  }
+
+  /** Out of the visible queue and out of the full list behind it. */
+  function drop(row) {
+    var i = queue.indexOf(row);
+    if (i >= 0) queue.splice(i, 1);
+    var j = everything.indexOf(row);
+    if (j >= 0) everything.splice(j, 1);
   }
 
   function decide(row, status, reason) {
@@ -385,6 +497,18 @@ kbd {
   function act(what) {
     if (what === "next") { at += 1; drawQueue(); return; }
     if (what === "prev") { at -= 1; drawQueue(); return; }
+    // Flagged first is the fast pass: the rows most likely to be rejected,
+    // gathered, so they are cleared in one sitting instead of interrupting the
+    // good ones one at a time.
+    if (what === "flagged") {
+      onlyFlagged = !onlyFlagged;
+      queue = onlyFlagged
+        ? everything.filter(function (r) { return flagsFor(r).length > 0; })
+        : everything.slice();
+      at = 0;
+      drawQueue();
+      return;
+    }
     var row = queue[at];
     if (!row) return;
 
@@ -400,7 +524,7 @@ kbd {
       }).then(function () {
         // Edit and publish is one action, because the most common thing wrong
         // with a proposed row is that it is right and badly written.
-        queue.splice(at, 1); note("q-note", "Edited and published.", "good");
+        drop(row); note("q-note", "Edited and published.", "good");
         drawQueue(); loadCoverage();
       }).catch(function (e) { note("q-note", e.message, "bad"); });
       return;
@@ -410,7 +534,7 @@ kbd {
     var status = what === "publish" ? "published" : "rejected";
     note("q-note", "Saving.");
     decide(row, status, null).then(function () {
-      queue.splice(at, 1);
+      drop(row);
       note("q-note", status === "published" ? "Published." : "Rejected, and kept.", "good");
       drawQueue(); loadCoverage();
     }).catch(function (e) { note("q-note", e.message, "bad"); });
@@ -421,7 +545,7 @@ kbd {
     var tag = (ev.target && ev.target.tagName) || "";
     if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
     if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
-    var map = { a: "publish", r: "reject", e: "edit", j: "next", k: "prev" };
+    var map = { a: "publish", r: "reject", e: "edit", j: "next", k: "prev", f: "flagged" };
     var what = map[ev.key];
     if (!what) return;
     ev.preventDefault();
@@ -430,8 +554,8 @@ kbd {
 
   function loadQueue() {
     return rest("cultural_events?select=id,event_date,category,event_title,context_string," +
-      "source_url,origin&status=eq.candidate&order=event_date.asc&limit=500")
-      .then(function (rows) { queue = rows; at = 0; drawQueue(); })
+      "source_url,origin,date_kind&status=eq.candidate&order=event_date.asc&limit=500")
+      .then(function (rows) { everything = rows; queue = rows.slice(); onlyFlagged = false; at = 0; drawQueue(); })
       .catch(function (e) { el("q-lede").textContent = e.message; });
   }
 
@@ -466,8 +590,35 @@ kbd {
 
     var curatedDates = rows.filter(function (r) { return r.curated > 0; }).length;
     var noFacts = rows.filter(function (r) { return r.facts === 0; }).length;
-    el("cov-lede").textContent =
-      curatedDates + " of 366 dates have a curated row. " + noFacts + " have no verified facts at all.";
+
+    // The sentence that says what this project actually is right now.
+    //
+    // The panel led with a queue, which is a task, above a calendar, which is
+    // the state. That was right while one month was being worked and it hid
+    // the thing that matters: on 8 September 2026, 333 of 345 published rows
+    // were September and the other eleven months had twelve between them. A
+    // queue of forty six September rows reads as "the generator is producing
+    // mid" when what it means is "September is mined out and nowhere else has
+    // been touched". So the biggest month and the emptiest ones are named
+    // here, computed, every time the panel loads.
+    var byMonth = [];
+    for (var mi = 1; mi <= 12; mi++) byMonth.push({ m: mi, curated: 0 });
+    rows.forEach(function (r) { byMonth[r.month - 1].curated += (r.curated || 0); });
+    var ranked = byMonth.slice().sort(function (a, b) { return b.curated - a.curated; });
+    var top = ranked[0];
+    var rest = ranked.slice(1).reduce(function (n, x) { return n + x.curated; }, 0);
+    var empty = byMonth.filter(function (x) { return x.curated === 0; });
+
+    el("cov-lede").innerHTML =
+      esc(curatedDates + " of 366 dates have a curated row. " + noFacts + " have no verified facts at all.") +
+      (top && top.curated > 0
+        ? '<span class="gap"><br>' + esc(months[top.m - 1] + " holds " + top.curated +
+            " of them. Every other month has " + rest + " between them" +
+            (empty.length > 0
+              ? ", and " + empty.length + " " + (empty.length === 1 ? "month has" : "months have") +
+                " none at all: " + empty.map(function (x) { return months[x.m - 1]; }).join(", ")
+              : "") + ".") + "</span>"
+        : "");
 
     Array.prototype.forEach.call(el("months").querySelectorAll(".cell"), function (c) {
       c.addEventListener("click", function () { openDate(+c.dataset.m, +c.dataset.d, c); });
