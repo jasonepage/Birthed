@@ -2032,6 +2032,7 @@ export interface Remembered {
 const AFTER = `<p class="afterword" id="kept">Kept. It counts towards what this date is remembered for, and it will still be here next year.</p>
 <p class="afterword" id="sealed">This date is sealed. A day takes answers on the day itself and the day either side, and then it closes until next year. Come back on the day.</p>
 <p class="afterword" id="failed">That did not save, and it was this end rather than yours. The date is fine and nothing is closed. Try it again.</p>
+<p class="afterword" id="spent">That is your ten for this date. Ten is the whole budget, on purpose: a page of a hundred and fifty rows that you can answer all of is a page nobody chose anything on. The date opens again next year.</p>
 <p class="afterword" id="already">You have already answered that one, on this browser. It is below, with what everybody else said. Nothing is sealed and the rest of the date is still open.</p>
 <p class="afterword" id="undone">Taken back. Nothing was recorded and you can answer it again.</p>
 <p class="afterword" id="toolate">That one is in. It counts from here. An answer can be taken back for half a minute and then it stands.</p>`;

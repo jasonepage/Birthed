@@ -1046,7 +1046,7 @@ test("the page can say taken back, and can say too late, without saying sealed",
   assert.ok(html.includes("can be taken back for half a minute"));
   // Four different outcomes, four different sentences. Collapsing any two of
   // them is what let a duplicate answer report itself as a sealed date.
-  for (const id of ["kept", "already", "sealed", "failed", "undone", "toolate"]) {
+  for (const id of ["kept", "already", "spent", "sealed", "failed", "undone", "toolate"]) {
     assert.ok(html.includes(`id="${id}"`), `${id} has nothing to say`);
   }
 });
@@ -1110,4 +1110,16 @@ test("the link preview says what the site does, not what is on a page", () => {
   // A description that disagreed with the page would be the one thing most
   // people read before deciding whether to open it.
   assert.match(html, /<meta name="description" content="Every date on the calendar opens for three days a year\./);
+});
+
+test("running out of answers is its own sentence, and says why the limit exists", () => {
+  // Six reasons, six sentences. Being out of answers is a fact about the
+  // reader; sealed is a fact about the date. The whole history of this feature
+  // is one of those borrowing the other's explanation.
+  const html = renderDayPage(page);
+  assert.ok(html.includes('id="spent"'));
+  assert.ok(html.includes("That is your ten for this date"));
+  // The limit has to justify itself where it bites, or it reads as the site
+  // being broken rather than as the site having a rule.
+  assert.ok(html.includes("nobody chose anything on"));
 });

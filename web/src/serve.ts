@@ -531,9 +531,9 @@ export function readAnswer(body: string): Answer | null {
  * missing environment variable is how that fault survived from the day the
  * feature shipped.
  */
-type Recorded = "kept" | "already" | "sealed" | "closed" | "bad_token" | "unreachable";
+type Recorded = "kept" | "already" | "spent" | "sealed" | "closed" | "bad_token" | "unreachable";
 
-const REASONS = new Set(["kept", "already", "sealed", "closed", "bad_token"]);
+const REASONS = new Set(["kept", "already", "spent", "sealed", "closed", "bad_token"]);
 
 async function record(answer: Answer, token: string): Promise<Recorded> {
   const key = process.env.SUPABASE_ANON_KEY;
@@ -805,9 +805,14 @@ async function handle(
         // evenings pretending to be a sealed date. A page of a hundred and
         // fifty rows says nothing about which ones you have already done.
         ? `${where}?kept=${encodeURIComponent(`${answer.kind}:${answer.id}`)}#already`
-        : kept === "sealed" || kept === "closed"
-          ? `${where}#sealed`
-          : `${where}#failed`;
+        : kept === "spent"
+          // Out of answers on this date, which is a fact about the reader and
+          // not about the date. It is the sixth reason and it gets the sixth
+          // sentence, for the same reason the other five do.
+          ? `${where}#spent`
+          : kept === "sealed" || kept === "closed"
+            ? `${where}#sealed`
+            : `${where}#failed`;
     response.writeHead(303, {
       Location: back,
       "Cache-Control": "no-store",
