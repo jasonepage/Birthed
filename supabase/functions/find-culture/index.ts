@@ -34,6 +34,44 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
+
+/**
+ * Cross origin headers, and why this function needs them when find-facts does
+ * not.
+ *
+ * find-facts is called by the iOS app, which is native code and never asks a
+ * browser's permission to talk to anybody. This one is called from a page at
+ * birthed.app, which is a different origin from the project's, and the request
+ * carries an Authorization header, which is enough on its own to make the
+ * browser send an OPTIONS preflight first.
+ *
+ * Without an answer to that preflight the request never leaves the browser at
+ * all, and what a curator sees is "NetworkError when attempting to fetch
+ * resource", which says nothing about the cause and looks exactly like the
+ * server being down.
+ *
+ * The origin is checked rather than answered with a star. A star would let any
+ * page on the internet call this with a token it had somehow obtained, and the
+ * whole point of the is_admin check below is that holding a token is not
+ * enough.
+ */
+const ALLOWED_ORIGINS = [
+  "https://birthed.app",
+  "https://www.birthed.app",
+  "http://localhost:10000",
+];
+
+function corsHeaders(request: Request): Record<string, string> {
+  const origin = request.headers.get("Origin") ?? "";
+  if (!ALLOWED_ORIGINS.includes(origin)) return {};
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Headers": "authorization, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Max-Age": "3600",
+    Vary: "Origin",
+  };
+}
 /** Pinned for the reason find-facts pins it: this is the one that searches. */
 const MODEL = "gemini-3.7-flash";
 const MAX_ROWS = 12;
@@ -55,8 +93,16 @@ interface Candidate {
   quote: string;
 }
 
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
+/**
+ * Every answer carries the cross origin headers, not just the happy one. A 403
+ * without them reaches the page as a network failure, so a curator who is not
+ * allowed would be told the server is broken instead of being told no.
+ */
+function json(body: unknown, status = 200, request?: Request): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...JSON_HEADERS, ...(request ? corsHeaders(request) : {}) },
+  });
 }
 
 function monthName(month: number): string {
@@ -309,16 +355,21 @@ async function propose(
 }
 
 Deno.serve(async (request: Request) => {
-  if (request.method !== "POST") return json({ error: "method not allowed" }, 405);
+  // The preflight, answered before anything else looks at the body or the
+  // token, because a browser sends it without either.
+  if (request.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: corsHeaders(request) });
+  }
+  if (request.method !== "POST") return json({ error: "method not allowed" }, 405, request);
 
   const url = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
   const geminiKey = Deno.env.get("GEMINI_API_KEY");
-  if (!url || !serviceRoleKey || !anonKey) return json({ error: "function is misconfigured" }, 500);
-  if (!geminiKey) return json({ error: "GEMINI_API_KEY is not set" }, 500);
+  if (!url || !serviceRoleKey || !anonKey) return json({ error: "function is misconfigured" }, 500, request);
+  if (!geminiKey) return json({ error: "GEMINI_API_KEY is not set" }, 500, request);
   if (geminiKey.trim().startsWith("ey")) {
-    return json({ error: "GEMINI_API_KEY holds a JSON Web Token, not a Google key" }, 500);
+    return json({ error: "GEMINI_API_KEY holds a JSON Web Token, not a Google key" }, 500, request);
   }
 
   // verify_jwt is not the check that matters here.
@@ -330,25 +381,25 @@ Deno.serve(async (request: Request) => {
   // them and not about this function.
   const authorization = request.headers.get("Authorization") ?? "";
   if (!authorization.toLowerCase().startsWith("bearer ")) {
-    return json({ error: "sign in first" }, 401);
+    return json({ error: "sign in first" }, 401, request);
   }
   const asCaller = createClient(url, anonKey, {
     global: { headers: { Authorization: authorization } },
   });
   const { data: allowed, error: adminError } = await asCaller.rpc("is_admin");
-  if (adminError) return json({ error: "could not check curation access" }, 500);
-  if (allowed !== true) return json({ error: "not a curator" }, 403);
+  if (adminError) return json({ error: "could not check curation access" }, 500, request);
+  if (allowed !== true) return json({ error: "not a curator" }, 403, request);
 
   let body: Record<string, unknown>;
   try {
     body = await request.json();
   } catch {
-    return json({ error: "bad json" }, 400);
+    return json({ error: "bad json" }, 400, request);
   }
   const month = Number(body.month);
   const day = Number(body.day);
-  if (!Number.isInteger(month) || month < 1 || month > 12) return json({ error: "bad month" }, 400);
-  if (!Number.isInteger(day) || day < 1 || day > 31) return json({ error: "bad day" }, 400);
+  if (!Number.isInteger(month) || month < 1 || month > 12) return json({ error: "bad month" }, 400, request);
+  if (!Number.isInteger(day) || day < 1 || day > 31) return json({ error: "bad day" }, 400, request);
 
   const admin = createClient(url, serviceRoleKey);
 
@@ -358,16 +409,16 @@ Deno.serve(async (request: Request) => {
   const { data: remaining } = await admin.rpc("fact_searches_left");
   const searchesLeft = typeof remaining === "number" ? remaining : 0;
   if (searchesLeft <= 0) {
-    return json({ status: "paused", searchesLeft, written: 0 }, 200);
+    return json({ status: "paused", searchesLeft, written: 0 }, 200, request);
   }
 
   try {
     const result = await propose(admin, geminiKey, month, day);
-    return json({ status: "done", searchesLeft: searchesLeft - result.searches, ...result });
+    return json({ status: "done", searchesLeft: searchesLeft - result.searches, ...result }, 200, request);
   } catch (error) {
     return json({
       status: "failed",
       error: String(error instanceof Error ? error.message : error).slice(0, 400),
-    }, 200);
+    }, 200, request);
   }
 });
