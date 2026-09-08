@@ -25,7 +25,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { extname, join, normalize, resolve, sep } from "node:path";
 
 import { everyDate, slug } from "./model.js";
-import { TODAY, resultId, resultMarkup, undoForm, type Remembered } from "./render.js";
+import { ASK_SLOTS, TODAY, resultId, resultMarkup, undoForm, type Remembered } from "./render.js";
 
 
 const TYPES: Record<string, string> = {
@@ -254,7 +254,31 @@ export function openDates(now: Date = new Date()): string[] {
  * to fail in. The server still refuses a hand written post either way, because
  * the check that matters is in the database.
  */
-export function todayStylesheet(now: Date = new Date()): string {
+/**
+ * Which ask card each open date shows on this request.
+ *
+ * A number from zero to ASK_SLOTS minus one. Every page carries a card for
+ * every slot, so any number resolves on any date, whatever that date's own
+ * count of candidates is. See askSection in render.ts for the arithmetic.
+ *
+ * Random rather than clocked, and per date rather than one number for all
+ * three, because this sheet is generated on every request and is never
+ * cached, so a reader who reloads gets a different row to answer and a reader
+ * who steps between the three open dates does not get the same slot on each.
+ * That is the point: a fixed card is one chance to hook a stranger and the
+ * same card forever for anybody who comes back.
+ *
+ * A reader who has just answered is the exception and it is handled in the
+ * sheet rather than here. The redirect lands on that card's own identifier,
+ * so :target reveals it whatever this picked, and the picked one is hidden
+ * while a targeted one exists. Otherwise answering would scroll somebody to a
+ * card that the next roll had already replaced.
+ */
+function askSlot(random: () => number): number {
+  return Math.min(ASK_SLOTS - 1, Math.max(0, Math.floor(random() * ASK_SLOTS)));
+}
+
+export function todayStylesheet(now: Date = new Date(), random: () => number = Math.random): string {
   const open = openDates(now);
   const day = 24 * 60 * 60 * 1000;
   // The site's own clock, the same shift todaySlug makes.
@@ -292,7 +316,13 @@ export function todayStylesheet(now: Date = new Date()): string {
         `.on-${date} .state .dot{background:${TODAY};box-shadow:0 0 0 4px rgba(111,165,222,.18)}` +
         `.on-${date} .fuse{display:block}` +
         `.on-${date} .fuse span{--gone:${gone.toFixed(4)}}` +
-        `.on-${date} .ask{display:block}` +
+        `.on-${date} .asks${askSlot(random)}{display:block}` +
+        // The card the reader just answered, wherever the roll landed. The
+        // second rule is what stops two cards being on screen at once, and it
+        // is written with :has so that a browser without it shows two cards
+        // rather than none, which is the right way round for a fallback.
+        `.on-${date} .ask:target{display:block}` +
+        `.on-${date}:has(.ask:target) .ask:not(:target){display:none}` +
         `.on-${date} .asked{display:none}` +
         `.on-${date} .also a[href="${self[i]}"]{display:none}`;
     }).join("") +

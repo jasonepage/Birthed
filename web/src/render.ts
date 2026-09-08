@@ -155,6 +155,9 @@ const STYLE = `
    The sleeve on it is the number one record of that year on this date, which
    is not the thing being asked about: the year is the question and a sleeve
    says a year faster than a number does. */
+/* One of these is revealed per request by today.css, out of up to ASK_SLOTS
+   baked into the page. See askSection for why the card is dealt rather than
+   fixed. */
 .ask {
   display: none; margin: 16px 0 0; border-radius: 18px; overflow: hidden;
   background: linear-gradient(168deg, #221A2E 0%, #17121F 62%);
@@ -1897,14 +1900,22 @@ function feedSection(
   /// Whether this date has sealed, which is the only thing that earns a row
   /// the front page treatment.
   sealed = false,
-  /// The row the first ask at the top of the page was taken from, as
-  /// "kind:id", or null. That row is drawn here without its form and its
-  /// identifiers, because the ask carries them, and today.css hides it on the
-  /// three open dates so it is on the page once.
-  asked: string | null = null,
+  /// The rows the ask cards at the top of the page were taken from, each as
+  /// "kind:id". They are drawn here without their forms and their identifiers,
+  /// because the cards carry them, and today.css hides all of them on the three
+  /// open dates so no row is on the page twice.
+  ///
+  /// All of them, not only the one showing. Only one card is revealed per
+  /// request and the others could in principle keep their place in the feed,
+  /// but a row that moves between two places on the page depending on which
+  /// card was dealt is a row whose identifiers would have to be in both, and
+  /// an identifier in two places is the bug this class exists to prevent. Four
+  /// missing rows out of a hundred and fifty is a price worth paying for that.
+  asked: string[] = [],
 ): string {
   if (picked.length === 0) return "";
-  const isAsked = (row: TimelineRow) => asked !== null && `${row.kind}:${row.id}` === asked;
+  const askedSet = new Set(asked);
+  const isAsked = (row: TimelineRow) => askedSet.has(`${row.kind}:${row.id}`);
 
   const cards = picked.map((row, index) => {
     const kind = kindOf(row.category);
@@ -2279,43 +2290,118 @@ const AFTER = `<p class="afterword" id="kept">Kept. It counts towards what this 
 const ASK_YEARS_BACK = 25;
 
 /**
- * The row the page opens on, or null.
- *
- * A dull rule, so it can be checked on 366 pages: every row that passes both
- * card screens and the length in highlight.ts, from 1958 on so a record can
- * sit beside it, and of those the one nearest ASK_YEARS_BACK, shorter sentence
- * winning a tie. Nothing passing means no ask, and the state line and the
- * mechanic under the date still do their jobs.
+ * How many rows are baked as ask cards, and how many slots today.css picks
+ * from. One number, because a card carries the slot numbers that land on it
+ * and the arithmetic only works if both ends agree.
  */
-export function firstAsk(rows: TimelineRow[], now: number = new Date().getUTCFullYear()): TimelineRow | null {
-  const target = now - ASK_YEARS_BACK;
-  const passing = rows.filter((row) => row.year !== null && row.year >= 1958 && mayLead(row.text));
-  // Rows with a source of their own first, for the reason pickHighlights
-  // gives: each was kept because the page it cites answered, and the
-  // researcher was choosing what mattered about the date. Wikipedia's list is
-  // everything anybody ever added, and on September 8 it puts a shuttle
-  // resupply flight ahead of McGwire's 62nd home run.
-  const sourced = passing.filter((row) => row.sourceUrl !== null);
-  const pool = sourced.length > 0 ? sourced : passing;
-  let best: TimelineRow | null = null;
-  for (const row of pool) {
-    if (best === null) { best = row; continue; }
-    const gap = Math.abs((row.year ?? 0) - target);
-    const bestGap = Math.abs((best.year ?? 0) - target);
-    if (gap < bestGap || (gap === bestGap && row.text.length < best.text.length)) best = row;
-  }
-  return best;
+export const ASK_SLOTS = 5;
+
+/**
+ * The window a row's year has to fall in to be first choice.
+ *
+ * Wider than the single year ASK_YEARS_BACK named, and it replaces it as the
+ * thing that decides. Nearest to one year is a rule that reliably picks the
+ * routine over the memorable, because routine things get written down every
+ * year and memorable ones do not happen on schedule. Anything inside this
+ * window is treated as equally answerable and the tie is broken on evidence
+ * and on length instead.
+ */
+const ASK_FROM = 1985;
+const ASK_TO = 2015;
+
+/**
+ * How good a lead this row would be, higher is better.
+ *
+ * Evidence first, because a row somebody wrote and checked is a row a person
+ * chose, and Wikipedia's date article is everything anybody ever added. Then
+ * the window, then shortness, because the card is read in about a second.
+ */
+function askScore(row: TimelineRow): number {
+  const year = row.year ?? 0;
+  let score = 0;
+  if (row.curated === true) score += 400;
+  else if (row.sourceUrl !== null) score += 200;
+  if (year >= ASK_FROM && year <= ASK_TO) score += 120;
+  else score -= Math.min(100, Math.abs(year - (year < ASK_FROM ? ASK_FROM : ASK_TO)));
+  score -= Math.min(60, Math.floor(row.text.length / 4));
+  return score;
 }
 
 /**
- * The first ask, drawn only on the three open dates by today.css.
+ * Up to ASK_SLOTS rows to open the page on, best first.
  *
- * It carries the row's real identifiers, r-kind-id and rr-kind-id, so the
- * redirect after an answer lands here and the server writes the result here.
- * The same row in the feed is drawn without them; feedSection does that.
+ * **Why more than one.** A single fixed card is one chance to hook a stranger,
+ * and on September 8 the old rule spent it on a routine space station resupply
+ * flight, because that is what "nearest to twenty five years back, with a
+ * source" picks. It is also the same card every time a reader comes back, on a
+ * site whose whole promise is that the date changes under them. today.css
+ * reveals one of these per request, so the page is dealt rather than fixed.
+ *
+ * **Why the years are spread.** Two candidates from the same decade are one
+ * candidate as far as a reader is concerned, since the question the card asks
+ * is really about a time in their life. A decade is taken at most once while
+ * there is anything left to take, and only then does the list fill up.
  */
-function askSection(row: TimelineRow | null, songs: SongOfTheYear[], month: number, day: number): string {
-  if (row === null) return "";
+export function askCandidates(rows: TimelineRow[], limit: number = ASK_SLOTS): TimelineRow[] {
+  const passing = rows.filter((row) => row.year !== null && row.year >= 1958 && mayLead(row.text));
+  const ranked = [...passing].sort((a, b) => {
+    const gap = askScore(b) - askScore(a);
+    // Year descending on a tie, so the order is stable across builds rather
+    // than dependent on whatever order the two tables came back in.
+    return gap !== 0 ? gap : (b.year ?? 0) - (a.year ?? 0);
+  });
+  const out: TimelineRow[] = [];
+  const decades = new Set<number>();
+  for (const row of ranked) {
+    if (out.length >= limit) break;
+    const decade = Math.floor((row.year ?? 0) / 10);
+    if (decades.has(decade)) continue;
+    decades.add(decade);
+    out.push(row);
+  }
+  for (const row of ranked) {
+    if (out.length >= limit) break;
+    if (!out.includes(row)) out.push(row);
+  }
+  return out;
+}
+
+/**
+ * The best single ask, or null. Kept because a caller that wants one row
+ * should not have to know about slots.
+ */
+export function firstAsk(rows: TimelineRow[], _now: number = new Date().getUTCFullYear()): TimelineRow | null {
+  return askCandidates(rows, 1)[0] ?? null;
+}
+
+/**
+ * The ask cards, drawn only on the three open dates by today.css, one at a
+ * time.
+ *
+ * Each carries the row's real identifiers, r-kind-id and rr-kind-id, so the
+ * redirect after an answer lands here and the server writes the result here.
+ * Every one of these rows is drawn in the feed without them; feedSection does
+ * that, and today.css hides all of them there so no row is on the page twice.
+ *
+ * The slot classes are the whole rotation. today.css picks one number from
+ * zero to ASK_SLOTS minus one and reveals whatever carries it. A card lists
+ * every slot that lands on it under this page's own count, so a date with two
+ * candidates and a date with five both resolve any slot the sheet sends, and
+ * neither can be sent a number that reveals nothing.
+ */
+function askSection(rows: TimelineRow[], songs: SongOfTheYear[], month: number, day: number): string {
+  if (rows.length === 0) return "";
+  return rows.map((row, index) => askCard(row, rows.length, index, songs, month, day)).join("\n");
+}
+
+function askCard(
+  row: TimelineRow,
+  count: number,
+  index: number,
+  songs: SongOfTheYear[],
+  month: number,
+  day: number,
+): string {
   const song = songs.find((s) => s.year === row.year && s.hasArtwork === true);
   const art = song === undefined
     ? ""
@@ -2324,7 +2410,11 @@ function askSection(row: TimelineRow | null, songs: SongOfTheYear[], month: numb
     song === undefined ? "" : `Number one that week: <b>${escapeHtml(song.song)}</b>, ${escapeHtml(song.artist)}.`,
     row.sourceUrl ? `Source: <a href="${escapeHtml(row.sourceUrl)}" rel="nofollow noopener">${escapeHtml(hostOf(row.sourceUrl))}</a>` : "",
   ].filter((part) => part !== "").join(" &nbsp;");
-  return `<section class="ask" id="r-${row.kind}-${escapeHtml(row.id)}">
+  const slots: string[] = [];
+  for (let slot = 0; slot < ASK_SLOTS; slot += 1) {
+    if (slot % count === index) slots.push(`asks${slot}`);
+  }
+  return `<section class="ask ${slots.join(" ")}" id="r-${row.kind}-${escapeHtml(row.id)}">
 <div class="askhead"><span class="asklab">Do you remember this one?</span><span class="askyr">${row.year}</span></div>
 <div class="askbody${art === "" ? " noart" : ""}">
 ${art}
@@ -2558,8 +2648,8 @@ export function renderDayPage(
   const rest = theRest(timeline, picked);
   // The row the page opens on. Chosen from the chronological list rather than
   // the remembered order, because a sealed page never draws it.
-  const asked = firstAsk(chronological);
-  const askedKey = asked === null ? null : `${asked.kind}:${asked.id}`;
+  const asked = askCandidates(chronological);
+  const askedKeys = asked.map((row) => `${row.kind}:${row.id}`);
   const hue = dayHue(page.month);
   // The index of all 366 sits at the foot of every date page, which is what
   // lets "/" be today's page instead of a separate front door. A reader who
@@ -2602,7 +2692,7 @@ ${AFTER}
 ${askSection(asked, songs, page.month, page.day)}
 ${openingBand(page, songs, culture, highlight)}
 ${cultureSection(culture, name)}
-${memoryNote}${feedSection(picked, rest, timeline.length, name, searched, timeline.length - searched - curatedCount, curatedCount, page.month, page.day, memory !== null, askedKey)}
+${memoryNote}${feedSection(picked, rest, timeline.length, name, searched, timeline.length - searched - curatedCount, curatedCount, page.month, page.day, memory !== null, askedKeys)}
 ${songSection(songs, name)}
 ${peopleRail(page, name)}
 <nav class="pager cards">

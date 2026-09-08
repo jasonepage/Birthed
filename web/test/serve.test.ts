@@ -108,6 +108,46 @@ test("today.css names the date it is asked for, and turns over", () => {
   assert.match(eighth, /a\[href="\/september-8\/"\]/);
 });
 
+// The rotation. This sheet is generated on every request and never cached, so
+// the slot it names is the whole of what makes the ask card change under a
+// reader who reloads. Injected rather than left to Math.random, because a test
+// that rolls dice reports a bug once every few hundred runs and gets muted.
+test("today.css deals a different ask card per request, and gives back the one just answered", () => {
+  const when = new Date("2026-09-08T18:00:00Z");
+
+  // A fixed roll picks a fixed slot, and the same roll picks it on all three
+  // open dates. Every date page carries a card for every slot, so no roll can
+  // ever leave a page with nothing to answer.
+  const middle = todayStylesheet(when, () => 0.5);
+  for (const date of ["september-7", "september-8", "september-9"]) {
+    assert.match(middle, new RegExp(`\\.on-${date} \\.asks2\\{display:block\\}`));
+  }
+  assert.match(todayStylesheet(when, () => 0), /\.on-september-8 \.asks0\{display:block\}/);
+  // A source that returned exactly one would index one past the end.
+  assert.match(todayStylesheet(when, () => 0.999999), /\.on-september-8 \.asks4\{display:block\}/);
+  assert.match(todayStylesheet(when, () => 1), /\.on-september-8 \.asks4\{display:block\}/);
+
+  // Each date rolls separately, so stepping between the three open dates does
+  // not show the same slot on each.
+  const rolls = [0, 0.5, 0.99];
+  let next = 0;
+  const stepped = todayStylesheet(when, () => rolls[next++ % rolls.length] ?? 0);
+  assert.match(stepped, /\.on-september-7 \.asks0\{display:block\}/);
+  assert.match(stepped, /\.on-september-8 \.asks2\{display:block\}/);
+  assert.match(stepped, /\.on-september-9 \.asks4\{display:block\}/);
+
+  // The card the reader just answered is revealed by its own identifier
+  // whatever the roll landed on, and the rolled one steps aside so there is
+  // never a second card on screen. Written with :has so a browser without it
+  // shows two cards rather than none.
+  assert.match(middle, /\.on-september-8 \.ask:target\{display:block\}/);
+  assert.match(middle, /\.on-september-8:has\(\.ask:target\) \.ask:not\(:target\)\{display:none\}/);
+
+  // And none of it reaches a sealed date, which would be an answer button on a
+  // page that refuses answers.
+  assert.equal(middle.includes(".on-september-20"), false);
+});
+
 test("today.css switches the first screen on for the three open dates and nothing else", () => {
   // Noon in the site's clock on September 8: six hours behind UTC is 18:00Z.
   const css = todayStylesheet(new Date("2026-09-08T18:00:00Z"));
@@ -126,7 +166,7 @@ test("today.css switches the first screen on for the three open dates and nothin
   assert.match(css, /\.on-september-8 \.also a\[href="\/today\/"\]\{display:none\}/);
   assert.match(css, /\.on-september-7 \.also a\[href="\/yesterday\/"\]\{display:none\}/);
   // The ask comes up and the feed's copy of its row goes away, together.
-  assert.match(css, /\.on-september-8 \.ask\{display:block\}/);
+  assert.match(css, /\.on-september-8 \.asks[0-4]\{display:block\}/);
   // Equal specificity would lose to the baked grey, because this sheet loads
   // first. Two classes, not one.
   assert.match(css, /\.on-september-8 \.state \.dot\{background:#6FA5DE/);

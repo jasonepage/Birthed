@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { renderDayPage, renderRobots, renderSitemap, escapeHtml, isReady, undoForm } from "../src/render.js";
+import { ASK_SLOTS, askCandidates, renderDayPage, renderRobots, renderSitemap, escapeHtml, isReady, undoForm } from "../src/render.js";
 import { everyDate, neighbours, slug } from "../src/model.js";
 
 const page = {
@@ -1175,9 +1175,13 @@ test("the first ask is one real row with the three answers, and the feed carries
       description: "Star Trek first aired on NBC." },
   ];
   const html = renderDayPage(page, [], [], events);
-  const ask = html.slice(html.indexOf('<section class="ask"'), html.indexOf("</section>", html.indexOf('<section class="ask"')));
-  assert.ok(ask.includes("The first Wii console went on sale."), "the row nearest twenty five years back leads");
-  assert.ok(!ask.includes("bombing"), "a heavy row never leads, whatever its year");
+  const first = html.indexOf('<section class="ask ');
+  const ask = html.slice(first, html.indexOf("</section>", first));
+  assert.ok(ask.includes("The first Wii console went on sale."), "the best candidate is dealt first");
+  const cards = [...html.matchAll(/<section class="ask [\s\S]*?<\/section>/g)].map((m) => m[0]);
+  assert.ok(cards.length > 0);
+  assert.ok(cards.every((card) => !card.includes("bombing")),
+    "a heavy row is never a candidate, whatever its year");
   assert.ok(ask.includes('id="r-historical_event-near"'), "the ask carries the row's anchor so the redirect lands on it");
   assert.ok(ask.includes('id="rr-historical_event-near"'), "and its result paragraph, so the server writes here");
   for (const answer of ["remember", "heard", "never"]) assert.ok(ask.includes(`value="${answer}"`));
@@ -1188,13 +1192,56 @@ test("the first ask is one real row with the three answers, and the feed carries
   assert.match(html, /<li class="[^"]*asked"/, "the feed's copy is marked for today.css to put away");
 });
 
+// A single fixed card is one chance to hook a stranger and the same card
+// forever for anybody who comes back. Several are baked and today.css reveals
+// one, so the page is dealt rather than fixed.
+test("several ask cards are baked, and every slot lands on exactly one of them", () => {
+  const events = [
+    { id: "a", month: 9, day: 4, year: 1999, sourceUrl: "https://example.com/a", description: "A thing in 1999." },
+    { id: "b", month: 9, day: 4, year: 1986, sourceUrl: "https://example.com/b", description: "A thing in 1986." },
+    { id: "c", month: 9, day: 4, year: 2008, sourceUrl: "https://example.com/c", description: "A thing in 2008." },
+  ];
+  const html = renderDayPage(page, [], [], events);
+  const cards = [...html.matchAll(/<section class="ask ([^"]*)"/g)].map((m) => m[1] ?? "");
+  assert.equal(cards.length, 3, "one card per candidate");
+
+  // Every slot the stylesheet can send reveals exactly one card on this page,
+  // whatever this date's own count of candidates happens to be. A slot that
+  // revealed none would be a page with no ask on it and nothing to say why.
+  for (let slot = 0; slot < ASK_SLOTS; slot += 1) {
+    const hits = cards.filter((klasses) => klasses.split(" ").includes(`asks${slot}`));
+    assert.equal(hits.length, 1, `slot ${slot} reveals exactly one card`);
+  }
+
+  // Every candidate is put away in the feed, not only the one showing, so a
+  // row's identifiers are never in two places at once.
+  for (const id of ["a", "b", "c"]) {
+    assert.equal(html.split(`id="r-historical_event-${id}"`).length, 2, `one anchor for ${id}`);
+  }
+});
+
+// Two candidates from the same decade are one candidate as far as a reader is
+// concerned, because the question the card asks is about a time in their life.
+test("the candidates are spread across decades before the list is filled up", () => {
+  const rows = [
+    { kind: "historical_event" as const, id: "1", year: 1996, text: "One.", sourceUrl: "https://e.com/1", category: null, dateKind: null },
+    { kind: "historical_event" as const, id: "2", year: 1997, text: "Two.", sourceUrl: "https://e.com/2", category: null, dateKind: null },
+    { kind: "historical_event" as const, id: "3", year: 2004, text: "Three.", sourceUrl: "https://e.com/3", category: null, dateKind: null },
+  ];
+  const picked = askCandidates(rows, 2);
+  assert.equal(picked.length, 2);
+  const decades = picked.map((r) => Math.floor((r.year ?? 0) / 10));
+  assert.notEqual(decades[0], decades[1],
+    "one from each decade before a second from either");
+});
+
 test("the first ask stays away from years with no record beside them", () => {
   const events = [
     { id: "a", month: 9, day: 4, year: 1888, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
       description: "George Eastman registers the trademark Kodak." },
   ];
   const html = renderDayPage(page, [], [], events);
-  assert.equal(html.includes('<section class="ask"'), false, "nothing from 1958 on, so no ask");
+  assert.equal(html.includes('<section class="ask '), false, "nothing from 1958 on, so no ask");
   assert.ok(html.includes('id="r-historical_event-a"'), "and the row keeps its own anchor in the feed");
 });
 
