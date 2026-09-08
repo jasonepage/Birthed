@@ -60,6 +60,17 @@ export function renderAdmin(api: { url: string; key: string }): string {
 .state.live { color: #6FBF8A; }
 .checked { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #6E8F7B; }
 .why { margin: 6px 0 0; font-size: 12px; color: #827B75; font-style: italic; }
+/* A scan's argument about a row. Deliberately quiet and deliberately a
+   sentence: a number would be a thing the curator has to trust and a sentence
+   is a thing they can disagree with. */
+.verdict { margin: 6px 0 0; font-size: 12px; color: #9C9490; line-height: 1.45; }
+.verdict.agrees .vtag { background: rgba(111, 191, 138, .16); color: #6FBF8A; }
+.vtag {
+  display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: .08em;
+  text-transform: uppercase; padding: 2px 7px; border-radius: 999px; margin-right: 6px;
+  background: rgba(192, 138, 62, .18); color: #E0B060;
+}
+.vby { color: #5E5852; font-size: 11px; }
 .c0 { background: #3A3348; color: #9C9490; }
 .c1 { background: #6E5A4A; color: #FFF7EE; }
 .c2 { background: #C08A3E; }
@@ -721,6 +732,8 @@ kbd {
         "source_checked,hidden_reason" +
         "&birth_month=eq." + m + "&birth_day=eq." + d +
         "&birth_year=eq.0&region_key=eq.&order=id.asc&limit=100"),
+      rest("day_scans?select=subject_kind,subject_id,verdict,reason,scanned_by,acted_at,agreed" +
+        "&event_month=eq." + m + "&event_day=eq." + d + "&order=id.asc&limit=300"),
       rest("historical_events?select=id,event_year,description,suppressed" +
         "&event_month=eq." + m + "&event_day=eq." + d + "&order=event_year.desc&limit=200"),
     ]).then(function (r) {
@@ -731,13 +744,26 @@ kbd {
         var p = row.event_date.split("-");
         return +p[1] === m && +p[2] === d;
       });
-      draw(cultural, r[1], r[2]);
+      draw(cultural, r[1], r[3], r[2]);
     }).catch(function (e) {
       el("rows").innerHTML = '<p class="note bad">' + esc(e.message) + "</p>";
     });
   }
 
-  function draw(cultural, facts, events) {
+  function draw(cultural, facts, events, scans) {
+    // What a scan said about a row, if anything. A verdict is an argument and
+    // never a change: it is drawn beside the row and the curator's key is the
+    // only thing that moves anything. See docs/scan-a-day.md.
+    var byRow = {};
+    (scans || []).forEach(function (v) { byRow[v.subject_kind + ":" + v.subject_id] = v; });
+    function verdictMarkup(kind, id) {
+      var v = byRow[kind + ":" + id];
+      if (!v) return "";
+      var ok = v.verdict === "keep";
+      return '<p class="verdict' + (ok ? " agrees" : "") + '">' +
+        '<span class="vtag">' + esc(v.verdict) + "</span> " + esc(v.reason) +
+        '<span class="vby"> ' + esc(v.scanned_by) + "</span></p>";
+    }
     var html = "";
 
     // Published and written about. A published row with no sentence is not on
@@ -773,7 +799,7 @@ kbd {
         esc(needsWriting ? "needs a sentence" : (status === "published" ? "on the page" : status)) + "</span>" +
         '<span class="tagpill">' + esc(row.category) + " &middot; " + esc(row.origin) + "</span>" +
         (row.source_url ? ' &middot; <a href="' + esc(row.source_url) + '" rel="noopener">source</a>' : "") +
-        "</p></div>" +
+        "</p>" + verdictMarkup("cultural_event", row.id) + "</div>" +
         '<button class="act" data-del="' + esc(row.id) + '">Delete</button></div>';
     });
 
@@ -792,6 +818,7 @@ kbd {
         (row.source_url ? ' &middot; <a href="' + esc(row.source_url) + '" rel="noopener">source</a>' : "") +
         (row.source_checked === true ? ' &middot; <span class="checked">source answers</span>' : "") +
         "</p>" + (flags.length ? flagMarkup(flags) : "") +
+        verdictMarkup("birth_fact", row.id) +
         (row.hidden_reason ? '<p class="why">' + esc(row.hidden_reason) + "</p>" : "") + "</div>" +
         '<button class="act" data-fact="' + esc(row.id) +
         '" data-on="' + (row.verified ? "1" : "0") + '">' + (row.verified ? "Hide" : "Put back") + "</button></div>";
