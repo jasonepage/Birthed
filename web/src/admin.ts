@@ -260,6 +260,11 @@ kbd {
 .pts b { display: inline-block; min-width: 34px; color: #E9E1DB; font-size: 13px; margin-right: 8px; }
 .pts b.measured { color: #6FA5DE; }
 .pts .dim { color: #5E5852; font-style: italic; }
+.pts details.why { display: inline; }
+.pts details.why > summary { display: inline; cursor: pointer; color: #6E8F7B; list-style: none; margin-left: 6px; }
+.pts details.why > summary::-webkit-details-marker { display: none; }
+.pts details.why > span { display: block; margin: 6px 0 0; color: #827B75; line-height: 1.6; }
+.did { color: #6FBF8A; font-weight: 600; }
 .dp { color: #E9E1DB; font-size: 15px; }
 h4.sh { margin: 22px 0 0; font-size: 13px; color: #9C9490; }
 details.offpage { margin: 18px 0 0; }
@@ -1047,15 +1052,31 @@ ${POINTS_JS}
     return items;
   }
 
+  /**
+   * The number, said as what it is, with the arithmetic one click away.
+   *
+   * "44" on its own reads as a grade a robot gave the row, and it is not: no
+   * model's opinion is in it. So the line says "44 points" and a plain phrase
+   * for where they came from, and the full sum is behind "why", for a curator
+   * who wants to argue with a part.
+   */
+  var PART_WORDS = { selected: "Wikipedia picked it", reach: "people look it up", memory: "recent enough to remember",
+    written: "somebody wrote it", sourcing: "sourced", remembered: "readers remembered it" };
   function partsMarkup(it) {
     var p = it.points;
+    var earned = p.parts.filter(function (part) { return part[1] > 0; }).map(function (part) { return PART_WORDS[part[0]] || part[0]; });
+    var lost = p.parts.filter(function (part) { return part[1] < 0; }).map(function (part) { return part[0]; });
+    var summary = p.measured
+      ? "from what readers said"
+      : (earned.length ? "for: " + earned.join(", ") : "nothing earned yet") + (lost.length ? ". Loses points for: " + lost.join(", ") : "");
     var bits = p.parts.map(function (part) {
       var n = part[1];
-      return '<span title="' + esc(part[2]) + '">' + esc(part[0]) + " " + (n < 0 ? "-" + (-n) : n) + "</span>";
+      return esc(part[0]) + " " + (n < 0 ? "-" + (-n) : n) + " (" + esc(part[2]) + ")";
     });
     var reachWhy = reachNote(it.sourceUrl);
-    if (!p.measured && reachWhy) bits.push('<span class="dim">reach: ' + esc(reachWhy) + "</span>");
-    return '<p class="pts"><b' + (p.measured ? ' class="measured"' : "") + ">" + p.total + "</b>" + bits.join(" &middot; ") + "</p>";
+    if (!p.measured && reachWhy) bits.push("reach: " + esc(reachWhy));
+    return '<p class="pts"><b' + (p.measured ? ' class="measured"' : "") + ">" + p.total + " points</b> " + esc(summary) +
+      ' <details class="why"><summary>why</summary><span>' + bits.join("<br>") + "</span></details></p>";
   }
 
   function draw(cultural, facts, events, scans) {
@@ -1068,12 +1089,24 @@ ${POINTS_JS}
       // Answered verdicts stay on screen as a record. Unanswered ones carry
       // the two keys, and either key writes agreed, which is the column that
       // tells you later whether the prompt is any good.
-      var answer = v.acted_at
-        ? '<span class="vby"> ' + (v.agreed ? "agreed" : "overruled") + "</span>"
-        : ' <button class="act" data-agree="' + v.id + '" data-kind="' + esc(kind) + '" data-id="' + esc(id) + '" data-verdict="' + esc(v.verdict) + '">Agree <kbd>y</kbd></button>' +
-          ' <button class="act" data-overrule="' + v.id + '">Overrule <kbd>n</kbd></button>';
+      // Plain words, and only where there is a decision. A verdict of keep is
+      // a note, so it gets no buttons. A verdict that wants the row gone gets
+      // "Hide it" and "Keep it", which is what pressing them does, and after
+      // one is pressed the line says what you did in the same words.
+      var wants = v.verdict !== "keep" && v.verdict !== "heavy";
+      var answer = "";
+      if (v.acted_at) {
+        answer = '<span class="did"> ' + (v.agreed ? (wants ? "You hid it." : "Noted.") : "You kept it.") + "</span>";
+      } else if (wants) {
+        answer = ' <button class="act" data-agree="' + v.id + '" data-kind="' + esc(kind) + '" data-id="' + esc(id) + '" data-verdict="' + esc(v.verdict) + '">Hide it <kbd>y</kbd></button>' +
+          ' <button class="act" data-overrule="' + v.id + '">Keep it <kbd>n</kbd></button>';
+      } else if (v.verdict === "heavy") {
+        answer = ' <button class="act" data-agree="' + v.id + '" data-kind="' + esc(kind) + '" data-id="' + esc(id) + '" data-verdict="' + esc(v.verdict) + '">Noted <kbd>y</kbd></button>';
+      }
+      var label = { keep: "worth keeping", release: "just a release", encyclopedia: "reads like Wikipedia", thin: "nobody wrote it",
+        explains: "explains the joke", wrong_date: "wrong date", unsourced: "no source", heavy: "heavy" }[v.verdict] || v.verdict;
       return '<p class="verdict' + (ok ? " agrees" : "") + '">' +
-        '<span class="vtag">' + esc(v.verdict) + "</span> " + esc(v.reason) +
+        '<span class="vtag">' + esc(label) + "</span> " + esc(v.reason) +
         '<span class="vby"> ' + esc(v.scanned_by) + "</span>" + answer + "</p>";
     }
     var proposals = (scans || []).filter(function (v) { return v.verdict === "missing"; });
@@ -1107,8 +1140,8 @@ ${POINTS_JS}
     var needy = off.filter(function (it) { return it.off === "needs a sentence"; }).length;
 
     html += '<h4 class="sh">Everything on the page, ranked (' + on.length + ")</h4>" +
-      '<p class="note" style="margin:4px 0 0">Date points <b class="dp">' + date + "</b>, the decayed sum of the rows: the best at 100 percent, the next at 95, then 90. " +
-      "Fixing the top row moves it; adding a dull one does not. " +
+      '<p class="note" style="margin:4px 0 0">Points are a guess at how likely a reader is to remember a row, added up from five things a person can check: Wikipedia picked it for the day, how many people look it up, how recent it is, whether somebody wrote a sentence, and how good the source is. No model is asked. Once ten readers have answered a row, what they said replaces the guess. ' +
+      'This date scores <b class="dp">' + date + "</b>: the best row counts in full, the next at 95 percent, then 90, so fixing the top row moves it and adding a dull one does not. " +
       (measured > 0 ? measured + (measured === 1 ? " row is" : " rows are") + " measured by readers and that number replaces the estimate. " : "") +
       (needy > 0 ? needy + " published " + (needy === 1 ? "row is" : "rows are") + " a title with nothing written, so no reader sees " + (needy === 1 ? "it" : "them") + ". " : "") +
       '<button class="act" id="measure">Measure reach</button> <span class="note" id="measure-note" style="margin:0"></span></p>';
@@ -1241,7 +1274,7 @@ ${POINTS_JS}
     }
     note("add-note", "Saving.");
     change.then(function () { return answerScan(scanId, true); })
-      .then(function () { note("add-note", moves ? "Agreed, and the row is off the page." : "Agreed. Nothing moved.", "good"); return reloadDate(); })
+      .then(function () { note("add-note", moves ? "Hidden. It is in the list at the bottom if you change your mind." : "Noted.", "good"); return reloadDate(); })
       .catch(function (e) { note("add-note", e.message, "bad"); });
   }
 

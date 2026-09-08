@@ -37,6 +37,10 @@ test("a scan is an argument: the panel answers it and only a key moves a row", (
   // Every verdict carries agree and overrule, and both write the record.
   assert.ok(script.includes('data-agree="'));
   assert.ok(script.includes('data-overrule="'));
+  // The buttons say what they do, and a keep verdict is a note with none.
+  assert.ok(script.includes("Hide it <kbd>y</kbd>"));
+  assert.ok(script.includes("Keep it <kbd>n</kbd>"));
+  assert.ok(script.includes("You kept it."));
   assert.ok(script.includes("body: { agreed: agreed, acted_at:"), "the overruled ones are kept");
   // Agreeing with keep or heavy moves nothing.
   assert.ok(script.includes('var moves = verdict !== "keep" && verdict !== "heavy";'));
@@ -105,6 +109,13 @@ test("a date's points are top heavy: three excellent rows beat forty mediocre on
   const before = datePoints([80, 60, 40, 20]);
   assert.ok(datePoints([80, 60, 40, 20, 5]) - before < 5);
   assert.ok(datePoints([100, 60, 40, 20]) - before >= 19);
+});
+
+test("the number is labelled and its arithmetic is one click away", () => {
+  const script = panelScript();
+  assert.ok(script.includes('" points</b> "'), "the number says it is points");
+  assert.ok(script.includes("<summary>why</summary>"), "the parts are behind why");
+  assert.ok(script.includes("No model is asked."), "and the explainer says no model is in it");
 });
 
 test("the points never reach a public page", () => {
