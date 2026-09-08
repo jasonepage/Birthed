@@ -1980,7 +1980,7 @@ ${others}
   ].filter((line) => line !== "").join("\n");
 
   return `<div class="hrow"><h2 class="section">What happened</h2></div>
-<p class="lede">${rest.length === 0 ? `${total} things, oldest first.` : `${picked.length} worth stopping on, out of ${total}.`}</p>
+<p class="lede">${rest.length === 0 ? `${total} things, newest first.` : `${picked.length} worth stopping on, out of ${total}.`}</p>
 ${yearAsk(month, day)}
 <ul class="feed">
 ${cards}

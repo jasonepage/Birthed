@@ -266,10 +266,28 @@ export function buildTimeline(
   }
 
   const rows = [...fromCulture, ...fromFacts, ...fromEvents];
+  // Newest first, which is a change made on 8 September 2026 and is worth the
+  // paragraph.
+  //
+  // This ran oldest first until then, and the drawer on September 8 opened on
+  // Philip of Swabia being crowned King of Germany in 1198. A timeline read
+  // forwards is the more natural thing to build and it is the wrong way round
+  // for who is reading. Forty seven rows on that date, fourteen of them from
+  // 1958 on: oldest first spends the top of the feed on the eight hundred
+  // years nobody alive remembers, and buries every row anybody could answer
+  // with more than "never heard of it" under a coronation, a circumnavigation
+  // and the founding of St Augustine.
+  //
+  // It is still a timeline. It is read from now backwards, which is also how
+  // anybody scrolling actually reads one. A sealed date is unaffected, because
+  // byMemory replaces this order entirely with what its own people remembered.
+  //
+  // A fact with no year still sorts last rather than first, for the reason
+  // given above: it is the rarest row here and it says the least.
   rows.sort((a, b) => {
     if (a.year === null) return b.year === null ? 0 : 1;
     if (b.year === null) return -1;
-    return a.year - b.year;
+    return b.year - a.year;
   });
   return rows;
 }
@@ -344,7 +362,7 @@ export async function fetchEvents(url: string, key: string): Promise<DayEvent[]>
  * and the newest, which are the two a reader is most likely to want, and puts
  * four between them.
  *
- * Chronological on the way out, because the section says "oldest first" and
+ * In the list's own order on the way out, because the section says "newest first" and
  * that is still true of what is shown.
  */
 export function pickHighlights(rows: TimelineRow[], count = 6): TimelineRow[] {
@@ -354,12 +372,16 @@ export function pickHighlights(rows: TimelineRow[], count = 6): TimelineRow[] {
 
   const chosen: TimelineRow[] = [];
   const last = pool.length - 1;
-  // The oldest thing on the date leads, whoever found it. Preferring the
+  // The newest thing on the date leads, whoever found it. Preferring the
   // researched facts is right for the body of the feed and wrong for the top
-  // of it: on September 4 the researcher's oldest is a calendar reform in
-  // 1752, while the oldest thing that happened is the end of the Western
-  // Roman Empire, which was Wikipedia's line and was therefore in the drawer.
-  // The best sentence on the page must not be filed behind a source rule.
+  // of it: the best sentence on the page must not be filed behind a source
+  // rule, so whatever is first in the full list beats whatever the pool had.
+  //
+  // This was the oldest until 8 September 2026, on the reasoning that the end
+  // of the Western Roman Empire is a better lead than a calendar reform. True,
+  // and it was answering the wrong question. The lead card is the biggest
+  // thing in the feed and spending it on the most distant row is the same
+  // mistake as opening the drawer in 1198. See the sort in buildTimeline.
   const eldest = rows[0];
   for (let i = 0; i < count; i++) {
     const at = Math.round((i * last) / (count - 1));

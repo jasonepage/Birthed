@@ -145,7 +145,7 @@ test("the merged list drops the duplicates and keeps everything else", () => {
   const rows = buildTimeline(facts, events, "September", 4);
 
   assert.equal(rows.length, 4, "one of five is a duplicate of another");
-  assert.deepEqual(rows.map((row) => row.year), [1882, 1957, 1957, 1998], "ordered by year");
+  assert.deepEqual(rows.map((row) => row.year), [1998, 1957, 1957, 1882], "ordered by year, newest first");
   assert.equal(rows.filter((row) => row.text.includes("Google")).length, 1, "Google is founded once");
   // The researched fact survives the collision, not Wikipedia's line.
   assert.ok(rows.some((row) => row.text.startsWith("Larry Page and Sergey Brin formally")));

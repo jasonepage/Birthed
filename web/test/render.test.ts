@@ -308,18 +308,20 @@ test("a date page carries its found facts and the page each came from", () => {
   assert.ok(!html.includes("On September 4, 1957, Ford"), "the page's own date is not repeated per row");
   assert.match(html, /<span class="yr">1957<\/span>/);
   assert.ok(html.includes("en.wikipedia.org"));
-  assert.ok(html.includes("2 things, oldest first."));
+  assert.ok(html.includes("2 things, newest first."));
 });
 
-test("Wikipedia's own events join the researched ones, oldest first", () => {
+test("Wikipedia's own events join the researched ones, newest first", () => {
   const events = [
     { id: "t", month: 9, day: 4, year: 1888, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
       description: "George Eastman registers the trademark Kodak." },
   ];
   const html = renderDayPage(page, [], facts, events);
   assert.ok(html.includes("George Eastman registers the trademark Kodak."));
-  assert.ok(html.includes("3 things, oldest first."));
-  // 1888 is older than the 1957 fact, so it comes first in the list.
+  assert.ok(html.includes("3 things, newest first."));
+  // 1888 is older than the 1957 fact, so it comes last in the list. The feed
+  // reads from now backwards as of 8 September 2026; see the sort in
+  // buildTimeline for why.
   //
   // Measured inside the feed rather than across the whole page. The opening
   // band now names one thing above it, drawn from the same rows, so a raw
@@ -327,8 +329,8 @@ test("Wikipedia's own events join the researched ones, oldest first", () => {
   // question about the ordering.
   const feed = html.slice(html.indexOf('<ul class="feed">'));
   assert.ok(
-    feed.indexOf("Kodak") < feed.indexOf("Edsel"),
-    "the list is ordered by year, not by which source it came from",
+    feed.indexOf("Edsel") < feed.indexOf("Kodak"),
+    "the list is ordered by year, newest first, not by which source it came from",
   );
   // One credit for each source that is actually on the page, and the
   // Wikipedia rows do not each carry their own host line.
@@ -342,7 +344,7 @@ test("the same event from both sources is printed once", () => {
       description: "Ford unveils the Edsel to the public." },
   ];
   const html = renderDayPage(page, [], facts, events);
-  assert.ok(html.includes("2 things, oldest first."), "the duplicate is dropped, not added");
+  assert.ok(html.includes("2 things, newest first."), "the duplicate is dropped, not added");
   // Counting the word will not do: the fixture's own source address contains
   // it. What must not survive is Wikipedia's second telling of the event.
   assert.ok(!html.includes("Ford unveils the Edsel to the public."));
@@ -356,7 +358,7 @@ test("a page with no researched facts still has a section when Wikipedia does", 
   ];
   const html = renderDayPage(page, [], [], events);
   assert.match(html, /<h2 class="section">What happened<\/h2>/);
-  assert.ok(html.includes("1 things, oldest first."));
+  assert.ok(html.includes("1 things, newest first."));
   assert.ok(!html.includes("Google's Gemini"), "no Gemini credit when no Gemini rows");
   assert.match(html, /Creative Commons Attribution ShareAlike/);
 });
