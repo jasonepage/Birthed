@@ -320,8 +320,14 @@ test("Wikipedia's own events join the researched ones, oldest first", () => {
   assert.ok(html.includes("George Eastman registers the trademark Kodak."));
   assert.ok(html.includes("3 things, oldest first."));
   // 1888 is older than the 1957 fact, so it comes first in the list.
+  //
+  // Measured inside the feed rather than across the whole page. The opening
+  // band now names one thing above it, drawn from the same rows, so a raw
+  // indexOf over the document answers a question about the tiles instead of a
+  // question about the ordering.
+  const feed = html.slice(html.indexOf('<ul class="feed">'));
   assert.ok(
-    html.indexOf("Kodak") < html.indexOf("Edsel"),
+    feed.indexOf("Kodak") < feed.indexOf("Edsel"),
     "the list is ordered by year, not by which source it came from",
   );
   // One credit for each source that is actually on the page, and the

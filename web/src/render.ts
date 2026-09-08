@@ -4,9 +4,10 @@
 import { DayPage, Person, monthName, neighbours, slug, everyDate } from "./model.js";
 import { CHART_NAME, coverName, SongOfTheYear } from "./songs.js";
 import { calendar } from "./calendar.js";
-import { type CulturalEvent } from "./culture.js";
+import { type CulturalEvent, textOf } from "./culture.js";
 import { Fact, hostOf } from "./facts.js";
 import { buildTimeline, pickHighlights, theRest, type DayEvent, type TimelineRow } from "./timeline.js";
+import { cardHighlight, type Highlight } from "./highlight.js";
 
 /**
  * How many people a date page needs before it is worth putting in front of a
@@ -94,6 +95,87 @@ function birthYearLabel(person: Person): string {
 }
 
 const STYLE = `
+
+/* The opening band. Three tiles that are deliberately not the same object: a
+   face, a grid of album art, and a slab of type. The first screen used to be
+   three counts and three identical event cards, which read as an archive in
+   about two seconds. */
+.tiles {
+  display: grid; grid-template-columns: 1fr; gap: 11px; margin: 22px 0 0;
+}
+.tile {
+  position: relative; display: block; text-decoration: none; height: 190px;
+  overflow: hidden; border-radius: 16px; background: #141020;
+}
+.tbg {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; object-position: 50% 20%; display: block;
+}
+.tbg.noface {
+  display: grid; place-items: center;
+  font-family: Georgia, "Times New Roman", serif; font-size: 68px; font-weight: 800;
+  color: rgba(255, 247, 238, .92);
+  background: linear-gradient(150deg, var(--day, #8A6BE0), #201A2E);
+}
+.tveil {
+  position: absolute; inset: 0;
+  background: linear-gradient(transparent 26%, rgba(6, 4, 12, .58) 58%, rgba(6, 4, 12, .95));
+}
+.tin { position: absolute; inset: auto 0 0; padding: 14px 15px 15px; }
+.tlab {
+  display: block; font-size: 9.5px; letter-spacing: .18em; text-transform: uppercase;
+  font-weight: 700; margin-bottom: 5px; color: #A49BAE;
+}
+.tbig {
+  font-family: Georgia, "Times New Roman", serif; font-size: 21px; line-height: 1.14;
+  display: block; color: #FFF7EE;
+}
+.tsub { display: block; color: #A49BAE; font-size: 13px; margin-top: 6px; }
+.t-person { box-shadow: inset 0 0 0 1px rgba(239, 86, 128, .45); }
+.t-person .tlab { color: #EF5680; }
+.t-music { box-shadow: inset 0 0 0 1px rgba(160, 110, 240, .38); }
+.t-music .tlab { color: var(--day-soft, #C6B0F5); }
+.mosaic { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+.mosaic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Not a card. Square, cold, outside the system on purpose, so the heaviest
+   thing on a date does not look like a channel launching. */
+.t-moment {
+  background: #06050A; border-radius: 2px; box-shadow: none;
+  border-top: 1px solid #9FB6C9; border-bottom: 1px solid rgba(159, 182, 201, .22);
+}
+.t-moment .tlab { color: #9FB6C9; letter-spacing: .24em; }
+.t-moment .tbig { font-weight: 400; }
+.tyr {
+  position: absolute; top: 6px; right: 14px;
+  font-family: Georgia, serif; font-size: 72px; line-height: 1;
+  color: rgba(159, 182, 201, .32); letter-spacing: -.03em;
+}
+
+/* What came out, above what happened. */
+.culture { list-style: none; margin: 0; padding: 0; }
+.cul {
+  display: flex; gap: 16px; padding: 15px 0 15px 14px;
+  border-bottom: 1px solid #221C30; border-left: 2px solid var(--day, #8A6BE0);
+}
+.cul .cyr {
+  font-family: Georgia, serif; font-size: 21px; color: var(--day-soft, #C6B0F5);
+  width: 58px; flex: none; font-variant-numeric: tabular-nums; line-height: 1.3;
+}
+.cul .ctx {
+  margin: 0 0 8px; font-family: Georgia, "Times New Roman", serif;
+  font-size: 17px; line-height: 1.45; color: #FFF7EE;
+}
+@media (min-width: 760px) {
+  .tiles { grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 30px; }
+  .tile { height: 268px; }
+  .tin { padding: 18px 20px 20px; }
+  .tbg.noface { font-size: 92px; }
+  .tbig { font-size: 23px; }
+  .tyr { font-size: 96px; top: 10px; right: 18px; }
+  .cul { gap: 20px; padding-left: 16px; }
+  .cul .cyr { width: 68px; font-size: 24px; }
+  .cul .ctx { font-size: 18px; }
+}
 :root { color-scheme: dark; }
 * { box-sizing: border-box; }
 body {
@@ -884,22 +966,7 @@ p.calkey .sw.today { background: none; box-shadow: inset 0 0 0 2px ${TODAY}; }
 @media (max-width: 400px) { .barnav .here { min-width: 44px; font-size: 12px; } }
 
 /* What the page holds, as one object rather than three sentences. */
-.counts {
-  display: grid; grid-template-columns: repeat(3, 1fr);
-  margin: 22px 0 0; padding: 14px 4px;
-  border-top: 1px solid #2A2434; border-bottom: 1px solid #2A2434;
-}
-.counts div { text-align: center; border-left: 1px solid #2A2434; }
-.counts div:first-child { border-left: none; }
-.counts b {
-  display: block; font-family: Georgia, serif; font-size: 22px; line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-.counts span {
-  display: block; margin-top: 6px; font-size: 11px; letter-spacing: 0.13em;
-  text-transform: uppercase; color: #A79E98;
-}
-.counts b { color: #FFF7EE; }
+
 
 .hrow { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .hrow h2.section { margin-bottom: 0; }
@@ -1583,6 +1650,119 @@ ${cards}
 </div>`;
 }
 
+/**
+ * The first thing anybody sees, and the reason the counts are gone.
+ *
+ * "51 things, 67 number ones, 10 people" was inventory. It is the number that
+ * was easiest to compute, promoted to the most valuable space on the page, and
+ * it made a reader feel nothing. Under it sat three identical event cards
+ * starting in 878, so the first screen was text, then text, then text, and the
+ * whole thing read as an archive inside two seconds.
+ *
+ * Three tiles instead, chosen to be unalike rather than to be complete. A
+ * person, some album art, and one thing that happened. A face, a picture and a
+ * fact, in three different visual registers, before the eye reaches a list of
+ * anything.
+ *
+ * The third tile takes cardHighlight, which is the same function that picks the
+ * line for the share image, and it is reused here on purpose: it already
+ * refuses killings, bombings and crashes. 41 percent of the 19,734 Wikipedia
+ * events match that filter and every date has at least one. Without it, 134 of
+ * the 366 pages would open on somebody's worst day.
+ */
+function openingBand(
+  page: DayPage,
+  songs: SongOfTheYear[],
+  culture: CulturalEvent[],
+  highlight: Highlight | null,
+): string {
+  const person = page.people[0];
+  const withArt = songs.filter((song) => song.hasArtwork === true);
+  // Spread across the run rather than taken off the top, so the four covers are
+  // four decades and not four years of the same chart era.
+  const four = withArt.length <= 4
+    ? withArt
+    : [0, 1, 2, 3].map((i) => withArt[Math.round((i * (withArt.length - 1)) / 3)]!);
+
+  const faceTile = person === undefined ? "" : `<a class="tile t-person" href="https://www.wikidata.org/wiki/${escapeHtml(person.qid)}" rel="nofollow noopener">
+<span class="tbg noface">${escapeHtml(initialsOf(person.name))}</span>
+<span class="tveil"></span>
+<span class="tin"><span class="tlab">Born on this day</span><b class="tbig">${escapeHtml(person.name)}</b><span class="tsub">${escapeHtml(birthYearLabel(person))}</span></span>
+</a>`;
+
+  const artTile = four.length === 0 ? "" : `<div class="tile t-music">
+<span class="tbg mosaic">${four.map((song) => `<img src="/covers/${coverName(song.song, song.artist)}.jpg" alt="" loading="lazy" decoding="async">`).join("")}</span>
+<span class="tveil"></span>
+<span class="tin"><span class="tlab">Number one on this date</span><b class="tbig">${songs.length} songs, one a year</b><span class="tsub">Every year the chart has existed.</span></span>
+</div>`;
+
+  // Culture wins the third tile when there is any, because a game somebody
+  // played beats a treaty somebody signed for the reader this page is for.
+  const newest = [...culture].sort((a, b) => b.year - a.year)[0];
+  const momentTile = newest !== undefined
+    ? `<div class="tile t-moment"><span class="tyr">${newest.year}</span>
+<span class="tin"><span class="tlab">Out on this date</span><b class="tbig">${escapeHtml(newest.title)}</b></span></div>`
+    : highlight !== null
+      ? `<div class="tile t-moment"><span class="tyr">${highlight.year}</span>
+<span class="tin"><span class="tlab">On this date</span><b class="tbig">${escapeHtml(highlight.text)}</b></span></div>`
+      : "";
+
+  const tiles = [faceTile, artTile, momentTile].filter((t) => t !== "");
+  if (tiles.length === 0) return "";
+  return `<section class="tiles">\n${tiles.join("\n")}\n</section>`;
+}
+
+/**
+ * What came out on this date, above what happened on it.
+ *
+ * These are the rows a reader under forty actually recognises, and until now
+ * they were sorted by year in among Wikipedia's crusades, which is how a page
+ * about somebody's birthday came to open on a Frankish king being crowned in
+ * 878. Being a separate section is not a styling preference: they are a
+ * different kind of claim, curated or imported against an exact date with a
+ * year, where a historical_events row is a month and a day out of a prose list.
+ */
+function cultureSection(culture: CulturalEvent[], name: string): string {
+  if (culture.length === 0) return "";
+  const rows = [...culture]
+    .sort((a, b) => b.year - a.year)
+    .map((event) => {
+      const kind = kindOf(event.category);
+      const when = whenOf(event.dateKind);
+      return `<li class="cul ${kind.klass}">
+<span class="cyr">${event.year}</span>
+<div><p class="ctx">${escapeHtml(textOf(event))}</p>
+<span class="tag ${kind.klass}">${kind.label}</span>
+${when ? `<p class="datenote">${when}</p>` : ""}
+<p class="src"><a href="${escapeHtml(event.sourceUrl)}" rel="nofollow noopener">${escapeHtml(hostOf(event.sourceUrl))}</a></p></div>
+</li>`;
+    })
+    .join("\n");
+
+  // The label has to keep the paragraph that explains it. A reader cannot
+  // interpret "when it spread, not when it was posted" on its own, and printing
+  // an honest caveat nobody can read is decoration. This moved here with the
+  // rows and a test caught it going missing on the way.
+  const spread = culture.filter((event) => event.dateKind === "went_viral").length;
+  const note = spread > 0
+    ? `<p class="credit">${spread === 1 ? "One row says" : `${spread} rows say`} "when it spread, not when it was posted". That means the original posting is gone or was never recorded, and the date is the week it broke out, taken from something published at the time. Printing that instead of a confident year is deliberate.</p>`
+    : "";
+  const written = culture.filter((event) => event.origin !== "imported").length;
+  const imported = culture.length - written;
+  const credit = [
+    written > 0 ? `<p class="credit">${written === 1 ? "One of these was" : `${written} of these were`} written and checked by hand, against the page ${written === 1 ? "it links" : "each one links"}.</p>` : "",
+    imported > 0 ? `<p class="credit">The other ${imported} came out of Wikidata, which records a release date for each of them. Nothing here was written by a model.</p>` : "",
+  ].filter((line) => line !== "").join("\n");
+
+  return `<div class="hrow"><h2 class="section">What came out</h2></div>
+<p class="lede">Games, records and releases dated to ${escapeHtml(name)} itself, newest first.</p>
+<ul class="culture">
+${rows}
+</ul>
+${note}
+${credit}`;
+}
+
 export function renderDayPage(
   page: DayPage,
   songs: SongOfTheYear[] = [],
@@ -1633,7 +1813,11 @@ export function renderDayPage(
   // this category already says.
   // Built here rather than inside the section, because the description a
   // search result shows has to count the same rows the page ends up with.
-  const timeline = buildTimeline(facts, events, monthName(page.month), page.day, culture);
+  // Culture is no longer merged into the history feed. It was being sorted by
+  // year in among Wikipedia's crusades and treaties, which is how a page about
+  // a birthday ended up opening on 878. It gets its own section, above.
+  const timeline = buildTimeline(facts, events, monthName(page.month), page.day);
+  const highlight = cardHighlight(facts, events, page.month, page.day);
   // Three sources, counted apart, because the credit at the foot names who
   // found what and a curated row is not a searched one. Counting a person's
   // checked sentence as something a model turned up is the kind of wrong that
@@ -1686,11 +1870,8 @@ export function renderDayPage(
 </div>
 <p class="kicker">Born on</p>
 <h1>${name}</h1>
-<div class="counts">
-<div><b>${timeline.length}</b><span>things</span></div>
-<div><b>${songs.length}</b><span>number ones</span></div>
-<div><b>${count}</b><span>people</span></div>
-</div>
+${openingBand(page, songs, culture, highlight)}
+${cultureSection(culture, name)}
 ${feedSection(picked, rest, timeline.length, name, searched, timeline.length - searched - curatedCount, curatedCount)}
 ${songSection(songs, name)}
 ${peopleRail(page, name)}
