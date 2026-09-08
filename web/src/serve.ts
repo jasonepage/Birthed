@@ -7,18 +7,25 @@
 // there is no part of that worth a supply chain for. Node's own http and fs
 // are the whole of it.
 //
-// The pages themselves are still rendered ahead of time by build.ts. This
-// process does not touch the database and does not render anything, so a
-// Supabase outage cannot take the site down and a request costs a file read.
+// The pages themselves are still rendered ahead of time by build.ts. An
+// ordinary page view does not touch the database and does not render anything,
+// so a Supabase outage cannot take the site down and a request costs a file
+// read.
+//
+// Two requests are the exception and both of them follow an answer: the POST
+// that records one, and the single redirected GET carrying ?kept= that draws
+// the result. Nothing a reader can reach by browsing calls the database, and
+// when the ?kept= call fails the page is served exactly as it was built, so
+// the outage costs a result and never a site.
 
 import { randomBytes } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { extname, join, normalize, resolve, sep } from "node:path";
 
 import { everyDate, slug } from "./model.js";
-import { TODAY } from "./render.js";
+import { TODAY, resultId, resultMarkup, type Remembered } from "./render.js";
 
 
 const TYPES: Record<string, string> = {
@@ -221,7 +228,7 @@ export function openDates(now: Date = new Date()): string[] {
  *
  * Which means the buttons are not drawn on a date that would refuse them. That
  * is worth more than it sounds: a reader who taps and is told no has been
- * wasted, and the alternative was drawing four dead buttons on 363 pages.
+ * wasted, and the alternative was drawing three dead buttons on 363 pages.
  *
  * If this sheet fails to load nobody can answer, which is the safe direction
  * to fail in. The server still refuses a hand written post either way, because
@@ -231,7 +238,13 @@ export function todayStylesheet(now: Date = new Date()): string {
   const open = openDates(now);
   return `.cal .days a[href="/${todaySlug(now)}/"]{outline:2px solid ${TODAY};` +
     `outline-offset:2px;color:#BFD8F5}\n` +
-    open.map((date) => `.on-${date} .rem{display:flex}.on-${date} .openflag{display:inline-flex}`).join("") +
+    // The year control is revealed with the buttons and by the same rule. It
+    // is only worth asking somebody their birth year on a page where they can
+    // do something with it, and asking on the 363 dates that would refuse an
+    // answer is a personal question for nothing.
+    open.map((date) =>
+      `.on-${date} .rem{display:flex}.on-${date} .openflag{display:inline-flex}` +
+      `.on-${date} .yearask{display:block}`).join("") +
     `\n${open.map((date) => `.trip a[href="/${date}/"]`).join(",")}{color:#BFD8F5;border-color:${TODAY}}\n`;
 }
 
@@ -345,11 +358,35 @@ function send(
 // which is the invariant this file was built around.
 
 const TOKEN_COOKIE = "bt";
+/// The reader's birth year, asked once and kept beside the token.
+///
+/// A separate cookie rather than a second field inside the token one, because
+/// tokenFromCookie validates the token's shape strictly and a year sharing
+/// that value would have to loosen it. Two cookies is cheaper than a format.
+const YEAR_COOKIE = "by";
 const MAX_BODY = 4096;
 
 /** One person's opaque token. Not an account, not an address, not a fingerprint. */
 export function newToken(): string {
   return randomBytes(24).toString("base64url");
+}
+
+/**
+ * The birth year this browser saved, or null.
+ *
+ * Bounded by the same 1900 to 2100 the database column checks, so a hand
+ * edited cookie is treated as no year rather than as an answer the database
+ * will refuse for reasons nobody can see.
+ */
+export function yearFromCookie(header: string | undefined): number | null {
+  for (const part of (header ?? "").split(";")) {
+    const [name, ...rest] = part.trim().split("=");
+    if (name === YEAR_COOKIE) {
+      const year = Number(rest.join("=").trim());
+      if (Number.isInteger(year) && year >= 1900 && year <= 2100) return year;
+    }
+  }
+  return null;
 }
 
 export function tokenFromCookie(header: string | undefined): string | null {
@@ -410,7 +447,12 @@ function readBody(request: IncomingMessage): Promise<string> {
   });
 }
 
-const KINDS = new Set(["moment", "cultural_event", "historical_event", "person"]);
+// birth_fact was missing here and the timeline has been drawing buttons on
+// those rows since the day it shipped. Every answer given on a researched fact
+// was refused with a 400 and the reader was shown "No." with nothing on screen
+// saying why. The check constraint gained the kind in
+// 20260908070000_remembrances_birth_fact_kind.sql and this set was never told.
+const KINDS = new Set(["moment", "cultural_event", "historical_event", "birth_fact", "person"]);
 const DEPTHS = new Set(["there", "remember", "heard", "never"]);
 
 export interface Answer {
@@ -477,22 +519,125 @@ async function record(answer: Answer, token: string): Promise<boolean> {
   return (await response.json()) === true;
 }
 
+/**
+ * What a date's rows scored, for the one request that follows an answer.
+ *
+ * **This is the only place on the read path that ever calls the database, and
+ * it only runs when the query string says somebody just answered.** An
+ * ordinary page view still reads a baked file off disk and nothing else, which
+ * is the property that keeps this site up when Supabase is not. A failure here
+ * returns nothing and the page is served exactly as it was built, so the worst
+ * an outage costs is a missing result rather than a missing site.
+ */
+async function tallyFor(month: number, day: number): Promise<Map<string, Remembered>> {
+  const out = new Map<string, Remembered>();
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_ANON_KEY;
+  if (!url || !key) return out;
+
+  try {
+    const response = await fetch(`${url}/rest/v1/rpc/remembrance_tally`, {
+      method: "POST",
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ month_in: month, day_in: day }),
+    });
+    if (!response.ok) return out;
+    const rows = (await response.json()) as Array<{
+      subject_kind: string; subject_id: string; edition_year: number;
+      there: number; remembers: number; heard: number; never: number;
+    }>;
+    // This year's edition. An older one is a different question and the row it
+    // belongs under is a comparison this site does not draw yet.
+    const thisYear = new Date().getUTCFullYear();
+    for (const row of rows) {
+      if (row.edition_year !== thisYear) continue;
+      out.set(`${row.subject_kind}:${row.subject_id}`, {
+        there: row.there, remembers: row.remembers, heard: row.heard, never: row.never,
+      });
+    }
+  } catch {
+    return out;
+  }
+  return out;
+}
+
+/**
+ * The row a redirect says was just answered, or null.
+ *
+ * Read from the query string rather than trusted: it decides whether this one
+ * request is allowed to call the database, so it is bounded exactly the way a
+ * posted answer is.
+ */
+export function keptFrom(query: string | undefined): { kind: string; id: string } | null {
+  if (query === undefined || query === "") return null;
+  const value = new URLSearchParams(query).get("kept");
+  if (value === null) return null;
+  const cut = value.indexOf(":");
+  if (cut < 1) return null;
+  const kind = value.slice(0, cut);
+  const id = value.slice(cut + 1);
+  if (!KINDS.has(kind)) return null;
+  if (id === "" || id.length > 64) return null;
+  return { kind, id };
+}
+
 async function handle(
   root: string,
   request: IncomingMessage,
   response: ServerResponse,
 ): Promise<void> {
   const method = request.method ?? "GET";
-  const path = (request.url ?? "/").split("?")[0] ?? "/";
+  const [path = "/", query] = (request.url ?? "/").split("?");
 
   // POST reaches exactly one address and every other verb on every other path
   // is still refused. The allow header names the truth per path rather than
   // advertising POST across a site where it means nothing.
-  if (method !== "GET" && method !== "HEAD" && !(method === "POST" && path === "/remember")) {
+  const posts = path === "/remember" || path === "/year";
+  if (method !== "GET" && method !== "HEAD" && !(method === "POST" && posts)) {
     response.writeHead(405, {
-      Allow: path === "/remember" ? "POST" : "GET, HEAD",
+      Allow: posts ? "POST" : "GET, HEAD",
       ...SECURITY,
     }).end();
+    return;
+  }
+
+  // The one thing this site asks a reader about themselves, saved once.
+  //
+  // Its own address rather than a field on the 150 answer forms, because a
+  // control outside a form cannot reach into one without a script and this
+  // site runs none. The year is bounded here and again in yearFromCookie, so
+  // a hand edited cookie is no year rather than an answer the database refuses
+  // for reasons nobody can see.
+  if (method === "POST" && path === "/year") {
+    const body = await readBody(request);
+    const form = new URLSearchParams(body);
+    const year = Number(form.get("y"));
+    const month = Number(form.get("m"));
+    const day = Number(form.get("d"));
+    const good = Number.isInteger(year) && year >= 1900 && year <= 2100;
+    const back = Number.isInteger(month) && Number.isInteger(day)
+      && month >= 1 && month <= 12 && day >= 1 && day <= 31
+      ? `/${slug(month, day)}/`
+      : "/";
+
+    const cookie = good
+      ? `${YEAR_COOKIE}=${year}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax; Secure`
+      // Choosing the blank option clears it, which is the only way off this
+      // site to change your mind, and a reader who has one should have one.
+      : `${YEAR_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax; Secure`;
+
+    response.writeHead(303, {
+      Location: back,
+      "Cache-Control": "no-store",
+      "Set-Cookie": cookie,
+      ...SECURITY,
+    });
+    response.end();
     return;
   }
 
@@ -511,16 +656,30 @@ async function handle(
       response.end("No.\n");
       return;
     }
+    // The year comes from the cookie rather than the form, because no form on
+    // this site carries one: /year saves it once and every answer after it
+    // gets it for free. A posted year still wins if one ever arrives, so this
+    // is a fallback and not an override.
+    if (answer.birthYear === null) {
+      answer = { ...answer, birthYear: yearFromCookie(request.headers.cookie) };
+    }
+
     // Awaited, because a reader who taps and is sent back to a page that has
     // not recorded them has been lied to, and this is one round trip.
     const kept = await record(answer, token);
     // The fragment is the whole feedback mechanism. :target reveals one of two
     // sentences already in the page, so the site says something back without
     // running a script.
+    // Still a redirect rather than a rendered response, so a refresh is a GET
+    // and the fragment can put the reader back on the row they answered. The
+    // query string is what permits the one database call on the way back: see
+    // keptFrom and the note at the top of this file.
+    const where = `/${slug(answer.month, answer.day)}/`;
+    const row = `${answer.kind}-${answer.id}`;
     response.writeHead(303, {
       Location: kept
-        ? `/${slug(answer.month, answer.day)}/#kept`
-        : `/${slug(answer.month, answer.day)}/#sealed`,
+        ? `${where}?kept=${encodeURIComponent(`${answer.kind}:${answer.id}`)}#r-${row}`
+        : `${where}#sealed`,
       "Cache-Control": "no-store",
       // A year, because the point of the token is that the same browser is not
       // counted twice on a date it comes back to next year. HttpOnly because
@@ -571,6 +730,27 @@ async function handle(
   const file = full === null ? null : await fileFor(full);
 
   if (file !== null) {
+    // The one read that draws a result, and the only one that ever calls the
+    // database. It happens on the single redirected request after somebody has
+    // answered, it is rate limited per address like the answer itself was, and
+    // when anything about it fails the baked page is served untouched.
+    const kept = method === "GET" && file.endsWith(".html") ? keptFrom(query) : null;
+    if (kept !== null) {
+      const address = String(request.headers["x-forwarded-for"] ?? "").split(",")[0]?.trim()
+        || request.socket.remoteAddress || "unknown";
+      const shown = underLimit(address) ? await withResult(file, path, kept) : null;
+      if (shown !== null) {
+        response.writeHead(200, {
+          "Content-Type": "text/html; charset=utf-8",
+          // Never stored. It is one reader's own result on one row and it is
+          // wrong for everybody else and wrong for them a minute later.
+          "Cache-Control": "no-store",
+          ...securityFor(path),
+        });
+        response.end(shown);
+        return;
+      }
+    }
     send(response, 200, file, path, method === "HEAD");
     return;
   }
@@ -585,6 +765,44 @@ async function handle(
   }
   response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8", ...SECURITY });
   response.end(method === "HEAD" ? undefined : "Not found\n");
+}
+
+/**
+ * A baked page with one row's result written into it, or null.
+ *
+ * Null on every failure there is: a path that is not a date, a row nobody has
+ * answered, a database that did not reply, a page built before the result
+ * paragraphs existed. The caller serves the file as built in all of those
+ * cases, which is why an outage costs a result and not a site.
+ *
+ * The replacement is done with a function rather than a string so that a
+ * result containing a dollar sign cannot be read as a capture group, which is
+ * the kind of thing that works for a year and then meets one row.
+ */
+async function withResult(
+  file: string,
+  requestPath: string,
+  kept: { kind: string; id: string },
+): Promise<string | null> {
+  const date = everyDate().find((d) => {
+    const at = `/${slug(d.month, d.day)}`;
+    return requestPath === at || requestPath === `${at}/` || requestPath === `${at}/index.html`;
+  });
+  if (date === undefined) return null;
+
+  const counts = (await tallyFor(date.month, date.day)).get(`${kept.kind}:${kept.id}`);
+  if (counts === undefined) return null;
+
+  const marked = resultId(kept.kind, kept.id);
+  const anchor = `id="${marked}"></p>`;
+  let html: string;
+  try {
+    html = await readFile(file, "utf8");
+  } catch {
+    return null;
+  }
+  if (!html.includes(anchor)) return null;
+  return html.replace(anchor, () => `id="${marked}">${resultMarkup(counts)}</p>`);
 }
 
 /**
