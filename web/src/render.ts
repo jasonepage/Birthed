@@ -1547,6 +1547,11 @@ nav.pager.cards .after { text-align: right; }
   0%, 100% { box-shadow: 0 0 0 4px rgba(111, 165, 222, .18); }
   50% { box-shadow: 0 0 0 7px rgba(111, 165, 222, .08); }
 }
+/* Where the redirect lands after an answer. The bar is sticky and 56 pixels
+   tall, and a row scrolled flush to the top of the window sits under it, so
+   the thing that just arrived is the one thing hidden. Not motion, but it is
+   the landing, so it lives with the landing. */
+.ask, ul.feed li, details.more li, .cul { scroll-margin-top: 72px; }
 /* A press, felt. Not in the media query: a transform on :active is a state,
    not a motion, and the transition that softens it is switched off below. */
 .rem button:active, .yeardecs label:active, .yg button:active { transform: scale(.96); }
