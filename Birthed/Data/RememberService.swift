@@ -1,0 +1,426 @@
+import Foundation
+import Observation
+import Security
+
+/// The remembering loop, as the app performs it.
+///
+/// Modelled on `WorldLikesService`, and different from it in three ways that
+/// are all deliberate.
+///
+/// **It needs no account.** Every function it calls is granted to `anon`, so
+/// remembering works on a phone whose anonymous account has not been created
+/// yet, which `FR-011` says is a state the app must carry on through, and it
+/// keeps `FR-013` literally true: there is no sign in wall in front of this,
+/// not even the silent one.
+///
+/// **The token is not the account.** The database file promises that the token
+/// "is not an account, not an address, not a fingerprint" and "says nothing
+/// about who they are". The account's user id would have been easier and it
+/// would have broken that promise, because it joins straight to the profile
+/// row, which holds a birth date, a region and four counts. So this keeps its
+/// own random value in the keychain instead. It is stable per install and not
+/// guessable, which is all the database asks of it, and it is joinable to
+/// nothing.
+///
+/// **Nothing is shown back while a date is open.** The website shows four
+/// buttons and no counts, and that is right rather than unfinished. A number
+/// on screen while the window is open biases every answer that comes after it
+/// toward the majority, which would quietly destroy the one measurement this
+/// exists to take. Counts appear when the date has sealed and the answering is
+/// over. `RemembranceCounts` holds them, `SealText` says them.
+///
+/// **There are no points, no streaks, no badges and no leaderboard**, and
+/// there is no place in this file where one could be added by accident. An
+/// answer earns nothing. If it earned status people would answer for status,
+/// and if "I was there" outranked "never heard of it" then everybody was
+/// there and the signal is worthless. The only pressure on an answer is that
+/// the date closes.
+///
+/// **A remembrance is not analytics.** It is content the reader deliberately
+/// contributed, by pressing a button that says what it will do. There is still
+/// no event stream, no timing, no screen name and no device identifier beyond
+/// the keychain value below. `Tally` explains the stance and it is unchanged.
+@Observable
+final class RememberService {
+
+    // MARK: What the screen reads
+
+    /// This date's edition, once it has been asked for. Nil while loading, and
+    /// nil for a date that nobody has answered yet, which are different things
+    /// the interface happens to draw the same way.
+    private(set) var edition: Edition?
+
+    /// The counts per row, for the newest edition of the date being shown.
+    /// Empty while a date is open, on purpose: see the note above.
+    private(set) var counts: [String: RemembranceCounts] = [:]
+
+    /// Every edition's counts, newest year first, for the day a second edition
+    /// exists and this page can show 2026 beside 2027.
+    private(set) var byYear: [Int: [String: RemembranceCounts]] = [:]
+
+    /// How many days either side of a date take answers, read from the
+    /// database rather than assumed, because it is a column exactly so that
+    /// widening it is an update and not a new build of this app.
+    private(set) var windowDays: Int = 1
+
+    /// What this account has already answered, so the interface can show it
+    /// back. Held on the phone because `remembrances` is closed to every
+    /// client and always will be: only an admin can read that table, so there
+    /// is nothing to ask the server for.
+    private(set) var mine: [String: RememberDepth] = [:]
+
+    /// Set when an answer was refused because the date had already sealed, so
+    /// the page can say so once rather than failing quietly.
+    private(set) var refusedAsSealed = false
+
+    /// One edition of one date.
+    struct Edition: Equatable {
+        let year: Int
+        let openedAt: Date?
+        let closesAt: Date?
+        let sealedAt: Date?
+        /// Separate people, counted in the database and never itemised.
+        let people: Int
+        /// Answers, which is a larger number: one person can answer many rows.
+        let answers: Int
+
+        var isSealed: Bool { sealedAt != nil }
+    }
+
+    // MARK: Setting up
+
+    private let baseURL: URL
+    private let anonKey: String
+    private let session: URLSession
+    private let defaults: UserDefaults
+
+    /// Where this account's own answers are kept between launches.
+    private static let mineKey = "birthed.remember.mine"
+    /// The keychain account name for the token. Not the auth user id: see the
+    /// header.
+    private static let tokenKey = "remember_token"
+
+    init(baseURL: URL = Secrets.supabaseURL,
+         anonKey: String = Secrets.supabaseAnonKey,
+         session: URLSession = .shared,
+         defaults: UserDefaults = .standard) {
+        self.baseURL = baseURL
+        self.anonKey = anonKey
+        self.session = session
+        self.defaults = defaults
+        self.mine = Self.readMine(from: defaults)
+    }
+
+    /// The value the database is given so that one person cannot answer the
+    /// same row twice.
+    ///
+    /// Made once, on first use, and kept in the keychain rather than in
+    /// `UserDefaults`, which is readable from a file backup. Thirty two
+    /// hexadecimal characters, so it is comfortably over the sixteen the
+    /// database refuses below and there is no chance of two phones agreeing by
+    /// accident. Deleting the app takes it with everything else, which is
+    /// correct: the privacy page says deleting the app removes everything.
+    var voterToken: String {
+        if let existing = Keychain.get(Self.tokenKey), existing.count >= 16 {
+            return existing
+        }
+        var bytes = [UInt8](repeating: 0, count: 16)
+        // A failure here is not survivable as silence, because a predictable
+        // token would let one phone overwrite another's answers, so the
+        // fallback is still random rather than a constant.
+        if SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) != errSecSuccess {
+            bytes = (0..<16).map { _ in UInt8.random(in: 0...255) }
+        }
+        let token = bytes.map { String(format: "%02x", $0) }.joined()
+        Keychain.set(token, for: Self.tokenKey)
+        return token
+    }
+
+    // MARK: What this account has answered
+
+    private static func readMine(from defaults: UserDefaults) -> [String: RememberDepth] {
+        guard let stored = defaults.dictionary(forKey: mineKey) as? [String: String] else { return [:] }
+        return stored.compactMapValues { RememberDepth(rawValue: $0) }
+    }
+
+    private func writeMine() {
+        defaults.set(mine.mapValues(\.rawValue), forKey: Self.mineKey)
+    }
+
+    /// The key an answer is filed under on this phone.
+    ///
+    /// The edition year is part of it, because the same date reopens next year
+    /// on top of this one and answering September 8 in 2026 must not make the
+    /// 2027 buttons look already pressed. That is the entire feature: the
+    /// difference between the two editions is the measurement.
+    private func localKey(_ subject: RememberSubject, month: Int, day: Int, year: Int) -> String {
+        "\(year)-\(month)-\(day):\(subject.key)"
+    }
+
+    /// What this account answered about a row, or nil.
+    func answer(for subject: RememberSubject, month: Int, day: Int,
+                year: Int = RememberWindow.editionYear()) -> RememberDepth? {
+        mine[localKey(subject, month: month, day: day, year: year)]
+    }
+
+    /// Whether to draw the four buttons at all.
+    ///
+    /// Worked out with the database's own arithmetic, in Coordinated Universal
+    /// Time, so the buttons disappear at the moment the date really seals
+    /// rather than staying for another seven hours and being refused. See
+    /// `RememberWindow`.
+    func isOpen(month: Int, day: Int, now: Date = Date()) -> Bool {
+        if let edition, edition.isSealed { return false }
+        return RememberWindow.isOpen(month: month, day: day, windowDays: windowDays, now: now)
+    }
+
+    // MARK: Reading
+
+    private struct SettingsRow: Decodable { let window_days: Int }
+
+    private struct SummaryRow: Decodable {
+        let edition_year: Int
+        let opened_at: String?
+        let closes_at: String?
+        let sealed_at: String?
+        let people: Int
+        let answers: Int
+    }
+
+    private struct TallyRow: Decodable {
+        let subject_kind: String
+        let subject_id: String
+        let edition_year: Int
+        let there: Int
+        let remembers: Int
+        let heard: Int
+        let never: Int
+    }
+
+    /// Everything one date needs, in three requests.
+    ///
+    /// None of them is load bearing. A failure leaves the page exactly as a
+    /// brand new date correctly looks, which is four buttons and nothing else,
+    /// so there is no error state to draw and nothing to retry.
+    ///
+    /// **Nothing here writes.** `open_edition` creates a row the first time it
+    /// is called, so calling it to find out whether a date is open would make
+    /// an edition for every date anybody scrolled past. The window is worked
+    /// out from the setting instead, and the only thing that ever creates an
+    /// edition is somebody actually answering.
+    func load(month: Int, day: Int) async {
+        refusedAsSealed = false
+        // The first two do not depend on each other. The third reads both of
+        // them, so it waits rather than racing them: a tally that ran before
+        // the edition landed would decide whether the date had sealed by
+        // looking at a value that had not arrived yet, and would show counts
+        // on an open date about one time in three.
+        async let settings: Void = loadSettings()
+        async let summary: Void = loadEdition(month: month, day: day)
+        _ = await (settings, summary)
+        await loadTally(month: month, day: day)
+    }
+
+    private func loadSettings() async {
+        var components = URLComponents(
+            url: baseURL.appending(path: "rest/v1/remember_settings"),
+            resolvingAgainstBaseURL: false
+        )
+        components?.queryItems = [URLQueryItem(name: "select", value: "window_days")]
+        guard let url = components?.url else { return }
+        var request = URLRequest(url: url)
+        request.setValue(anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 15
+
+        guard let (data, response) = try? await session.data(for: request),
+              let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+              let rows = try? JSONDecoder().decode([SettingsRow].self, from: data),
+              let first = rows.first
+        else { return }
+        windowDays = first.window_days
+    }
+
+    private func loadEdition(month: Int, day: Int) async {
+        guard let rows: [SummaryRow] = await call("edition_summary", body: [
+            "month_in": month, "day_in": day,
+        ]) else { return }
+
+        let thisYear = RememberWindow.editionYear()
+        // The current year's edition, or the newest there is, because a date
+        // being looked at out of season should still show what it decided.
+        let row = rows.first { $0.edition_year == thisYear } ?? rows.max { $0.edition_year < $1.edition_year }
+        guard let row else {
+            edition = nil
+            return
+        }
+        edition = Edition(
+            year: row.edition_year,
+            openedAt: Self.instant(row.opened_at),
+            closesAt: Self.instant(row.closes_at),
+            sealedAt: Self.instant(row.sealed_at),
+            people: row.people,
+            answers: row.answers
+        )
+    }
+
+    private func loadTally(month: Int, day: Int) async {
+        guard let rows: [TallyRow] = await call("remembrance_tally", body: [
+            "month_in": month, "day_in": day,
+        ]) else { return }
+
+        var years: [Int: [String: RemembranceCounts]] = [:]
+        for row in rows {
+            guard let kind = RememberKind(rawValue: row.subject_kind) else { continue }
+            let subject = RememberSubject(kind: kind, id: row.subject_id)
+            years[row.edition_year, default: [:]][subject.key] = RemembranceCounts(
+                there: row.there, remembers: row.remembers, heard: row.heard, never: row.never
+            )
+        }
+        byYear = years
+
+        // Held back until the date has sealed. A count on screen during the
+        // window tells everybody who has not answered yet what the popular
+        // answer is, and an answer given after reading that is not a memory,
+        // it is agreement. See the header.
+        let thisYear = RememberWindow.editionYear()
+        if let edition, edition.isSealed {
+            counts = years[edition.year] ?? [:]
+        } else if RememberWindow.isOpen(month: month, day: day, windowDays: windowDays) {
+            counts = [:]
+        } else {
+            counts = years[thisYear] ?? years.keys.max().flatMap { years[$0] } ?? [:]
+        }
+    }
+
+    /// The counts for one row, or nil when there is nothing to show. Nil is
+    /// the ordinary state while a date is open.
+    func tally(for subject: RememberSubject) -> RemembranceCounts? {
+        counts[subject.key]
+    }
+
+    /// The same row in an earlier edition, for the year there is one to
+    /// compare against. Nil in year one, and a screen that says so honestly is
+    /// better than one that draws a trend from a single point.
+    func tally(for subject: RememberSubject, year: Int) -> RemembranceCounts? {
+        byYear[year]?[subject.key]
+    }
+
+    /// Which editions this date has, newest first.
+    var editionYears: [Int] { byYear.keys.sorted(by: >) }
+
+    // MARK: Writing
+
+    /// One answer.
+    ///
+    /// Not moved on screen first, which is the opposite of how the likes work,
+    /// and the difference is deliberate. A like is a preference and the worst
+    /// case for guessing wrong is a heart filled in on one phone that nobody
+    /// can see. This is a record. A reader who taps and is shown their own
+    /// answer on a date that had already sealed has been told something untrue
+    /// about a page whose entire claim is that it is a record. So it waits for
+    /// the one round trip and shows what actually happened.
+    ///
+    /// The birth year is only ever what the reader already put in their own
+    /// profile, and it is the point of the exercise: crossed with the answer
+    /// it produces a map of what each generation remembers, which is the one
+    /// part of this that cannot be scraped from anybody.
+    @discardableResult
+    func send(_ depth: RememberDepth, for subject: RememberSubject,
+              month: Int, day: Int, birthYear: Int?) async -> Bool {
+        var body: [String: Any] = [
+            "month_in": month,
+            "day_in": day,
+            "subject_kind_in": subject.kind.rawValue,
+            "subject_id_in": subject.id,
+            "voter_token_in": voterToken,
+            "depth_in": depth.rawValue,
+        ]
+        if let birthYear { body["birth_year_in"] = birthYear }
+
+        let reply = await callRaw("remember", body: body)
+        let kept = reply
+            .flatMap { String(data: $0, encoding: .utf8) }?
+            .trimmingCharacters(in: .whitespacesAndNewlines) == "true"
+        guard kept else {
+            // False means the date is sealed, the window does not cover it, or
+            // this token already answered this row. The first is the one worth
+            // saying out loud, and the page says it rather than doing nothing.
+            refusedAsSealed = true
+            await loadEdition(month: month, day: day)
+            return false
+        }
+
+        refusedAsSealed = false
+        let year = edition?.year ?? RememberWindow.editionYear()
+        mine[localKey(subject, month: month, day: day, year: year)] = depth
+        writeMine()
+        return true
+    }
+
+    // MARK: Plumbing
+
+    /// One remote procedure call, signed with the anonymous key only.
+    ///
+    /// The reader's own token is deliberately not sent. These functions are
+    /// granted to `anon`, they check the window inside the database where
+    /// nothing on a device can reach it, and sending an account token would
+    /// attach an identity to a row that is supposed to carry none.
+    private func call<Result: Decodable>(_ function: String, body: [String: Any]) async -> Result? {
+        guard let data = await callRaw(function, body: body) else { return nil }
+        return try? JSONDecoder().decode(Result.self, from: data)
+    }
+
+    /// The bytes that came back, undecoded.
+    ///
+    /// `remember` answers with a bare `true` or `false`, which is a top level
+    /// fragment rather than an object or an array, and not every decoder will
+    /// accept one. The website compares it as a value for the same reason, so
+    /// this hands the body back and lets the caller do that.
+    private func callRaw(_ function: String, body: [String: Any]) async -> Data? {
+        var request = URLRequest(url: baseURL.appending(path: "rest/v1/rpc/\(function)"))
+        request.httpMethod = "POST"
+        request.setValue(anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        request.timeoutInterval = 15
+
+        guard let (data, response) = try? await session.data(for: request),
+              let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode)
+        else { return nil }
+        return data
+    }
+
+    /// A timestamp as PostgREST prints it.
+    ///
+    /// Tried three ways, because getting this wrong has one specific and
+    /// nasty failure: a `sealed_at` that will not parse comes back as nil, nil
+    /// means not sealed, and the page would then offer four buttons on a date
+    /// that had closed and refuse every one of them.
+    private static func instant(_ text: String?) -> Date? {
+        guard let text else { return nil }
+        let plain = ISO8601DateFormatter()
+        plain.formatOptions = [.withInternetDateTime]
+        if let date = plain.date(from: text) { return date }
+
+        // PostgREST prints as many fractional digits as the value has, and
+        // `.withFractionalSeconds` wants exactly three, so five digits parse as
+        // nothing at all. Losing the fraction costs under a second on a
+        // timestamp that is compared against days.
+        var trimmed = text
+        if let dot = trimmed.firstIndex(of: "."),
+           let zone = trimmed[dot...].firstIndex(where: { "+-Z".contains($0) }) {
+            trimmed.removeSubrange(dot..<zone)
+        }
+        if let date = plain.date(from: trimmed) { return date }
+
+        // "+00" rather than "+00:00" is legal for Postgres and not for this
+        // parser.
+        if trimmed.hasSuffix("+00") || trimmed.hasSuffix("-00") {
+            return plain.date(from: String(trimmed.dropLast(3)) + "Z")
+        }
+        return nil
+    }
+}
