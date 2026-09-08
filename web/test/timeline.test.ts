@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildTimeline, pickHighlights, saysTheSameThing, splitDatePrefix, theRest } from "../src/timeline.js";
+import { buildTimeline, byMemory, memoryWeight, pickHighlights, saysTheSameThing, splitDatePrefix, theRest, type MemoryCount, type TimelineRow } from "../src/timeline.js";
 import { culturalByDate, culturalForDate, splitDate, textOf, type CulturalEvent } from "../src/culture.js";
 import { cardHighlight, renderShareCard } from "../src/share.js";
 
@@ -471,4 +471,70 @@ test("an imported row is not counted as a hand written one", () => {
 
   const byHand = buildTimeline([], [], "September", 4, [curated()]);
   assert.equal(byHand[0]?.curated, true);
+});
+
+
+const nothing: MemoryCount = { there: 0, remembers: 0, heard: 0, never: 0 };
+const sealedRow = (id: string, year: number): TimelineRow => ({
+  kind: "historical_event", id, year, text: `A thing from ${year}`, sourceUrl: null, category: null,
+});
+
+test("memory weight counts what survived and subtracts nothing", () => {
+  assert.equal(memoryWeight({ ...nothing, remembers: 10 }), 20);
+  assert.equal(memoryWeight({ ...nothing, heard: 10 }), 10);
+  assert.equal(memoryWeight({ ...nothing, never: 10 }), 0);
+  // A retired answer still counts, level with remembering. The site took those
+  // before "I was there" went, and they are not to be lost.
+  assert.equal(memoryWeight({ ...nothing, there: 10 }), 20);
+});
+
+test("no answer can ever push a row below a row nobody answered", () => {
+  // The rule the whole design rests on, as arithmetic. A negative here would
+  // be a downvote arriving through the back door.
+  for (let hated = 1; hated <= 100; hated++) {
+    assert.ok(memoryWeight({ ...nothing, never: hated }) >= memoryWeight(nothing),
+      `${hated} people never hearing of it pushed a row below silence`);
+  }
+});
+
+test("a sealed date leads with what its own people remembered", () => {
+  const rows = [sealedRow("a", 1980), sealedRow("b", 1990), sealedRow("c", 2000)];
+  const counts = new Map<string, MemoryCount>([
+    ["historical_event:c", { ...nothing, remembers: 40 }],
+    ["historical_event:a", { ...nothing, heard: 12 }],
+    ["historical_event:b", { ...nothing, never: 30 }],
+  ]);
+  const ranked = byMemory(rows, counts).map((r) => r.id);
+  assert.deepEqual(ranked, ["c", "a", "b"]);
+  assert.equal(ranked.length, rows.length, "a sealed page loses nothing");
+});
+
+test("a row nobody remembered sinks but stays, and stays above one nobody was asked", () => {
+  // The most interesting result this collects is a row that is thoroughly
+  // documented and that nobody has heard of. It must not be filtered off.
+  const rows = [sealedRow("asked", 1980), sealedRow("unasked", 1990)];
+  const counts = new Map<string, MemoryCount>([
+    ["historical_event:asked", { ...nothing, never: 30 }],
+  ]);
+  assert.deepEqual(byMemory(rows, counts).map((r) => r.id), ["asked", "unasked"]);
+});
+
+test("the sealed order is identical every time the page is built", () => {
+  // Swift and JavaScript both sort unstably. Without the position tiebreak the
+  // same sealed date would lay out differently on every build and "sealed"
+  // would be a word rather than a fact.
+  const rows = [sealedRow("a", 1980), sealedRow("b", 1990), sealedRow("c", 2000), sealedRow("d", 2010)];
+  const counts = new Map<string, MemoryCount>([
+    ["historical_event:a", { ...nothing, remembers: 3 }],
+    ["historical_event:c", { ...nothing, remembers: 3 }],
+  ]);
+  const first = byMemory(rows, counts).map((r) => r.id);
+  for (let i = 0; i < 50; i++) {
+    assert.deepEqual(byMemory(rows, counts).map((r) => r.id), first);
+  }
+});
+
+test("a date nobody answered keeps the order it arrived in", () => {
+  const rows = [sealedRow("a", 1980), sealedRow("b", 1990), sealedRow("c", 2000)];
+  assert.deepEqual(byMemory(rows, new Map()).map((r) => r.id), ["a", "b", "c"]);
 });

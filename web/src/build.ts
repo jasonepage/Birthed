@@ -16,7 +16,7 @@ import { DayPage, Person, everyDate, slug } from "./model.js";
 import { coverageByDay, fetchChartWeeks, songsForDate, withDownloadedCovers } from "./songs.js";
 import { buildSeed, factsByDay, factsForDate, fetchFacts, pickHighlights } from "./facts.js";
 import { isReady, renderDayPage, renderNotFound, renderRobots, renderSitemap } from "./render.js";
-import { eventsByDay, eventsForDate, fetchEvents } from "./timeline.js";
+import { eventsByDay, eventsForDate, fetchEvents, fetchSealedMemory } from "./timeline.js";
 import { culturalByDate, culturalForDate, fetchCulturalEvents } from "./culture.js";
 import { renderAdd, renderHome, renderPrivacy, renderSupport } from "./pages.js";
 import { renderAdmin } from "./admin.js";
@@ -144,6 +144,20 @@ async function main(): Promise<void> {
       : `${culture.length} curated cultural rows loaded, covering ${cultureFor.size} dates`,
   );
 
+  // What the sealed dates decided. Almost always empty, and that is the normal
+  // state: a date only seals once its three days are up.
+  //
+  // Baked in here rather than read on request, because a sealed date can never
+  // take another answer, so its order can never change again. A fixed thing
+  // belongs in the file, and it keeps the promise the server makes: an
+  // ordinary page view calls nothing.
+  const memory = await fetchSealedMemory(url, key);
+  console.log(
+    memory.size === 0
+      ? "no dates have sealed yet, so every page is in its ordinary order"
+      : `${memory.size} sealed dates will be laid out in the order their own people remembered them`,
+  );
+
   await inBatches(dates, CONCURRENCY, async (date) => {
     const page = await fetchDay(date.month, date.day, url, key);
     if (page.people.length === 0) empty++;
@@ -154,7 +168,12 @@ async function main(): Promise<void> {
     if (isReady(page, found)) ready.push(date);
     const directory = join(OUT, slug(date.month, date.day));
     await mkdir(directory, { recursive: true });
-    await writeFile(join(directory, "index.html"), renderDayPage(page, songs, found, happened, curated), "utf8");
+    await writeFile(
+      join(directory, "index.html"),
+      renderDayPage(page, songs, found, happened, curated,
+                    memory.get(`${date.month}-${date.day}`) ?? null),
+      "utf8",
+    );
     written++;
   });
 

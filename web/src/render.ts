@@ -6,7 +6,7 @@ import { CHART_NAME, coverName, SongOfTheYear } from "./songs.js";
 import { calendar } from "./calendar.js";
 import { type CulturalEvent, textOf } from "./culture.js";
 import { Fact, hostOf } from "./facts.js";
-import { buildTimeline, pickHighlights, theRest, type DayEvent, type TimelineRow } from "./timeline.js";
+import { buildTimeline, byMemory, pickHighlights, theRest, type DayEvent, type MemoryCount, type TimelineRow } from "./timeline.js";
 import { cardHighlight, type Highlight } from "./highlight.js";
 
 /**
@@ -158,6 +158,12 @@ const STYLE = `
    them. No colour on any of it: every date has at least one row where a
    coloured chart under a killing would be grotesque, so the reader's own
    answer is not singled out here at all and the shape does the talking. */
+/* Said above a sealed date's list, because the page has visibly rearranged and
+   nothing else on it explains why. */
+.memorynote {
+  margin: 26px 0 -8px; font-size: 13px; color: ${QUIET};
+  border-left: 2px solid var(--day-soft, #C6B0F5); padding-left: 12px;
+}
 .rres:empty { display: none; }
 .rres { display: block; margin: 10px 0 0; max-width: 420px; }
 .rrow { display: flex; align-items: center; gap: 10px; margin: 0 0 4px; }
@@ -2170,6 +2176,20 @@ export function renderDayPage(
   facts: Fact[] = [],
   events: DayEvent[] = [],
   culture: CulturalEvent[] = [],
+  /**
+   * What this date's own people remembered, when it has sealed.
+   *
+   * Null for every open date and for every date nobody has answered, which is
+   * almost all of them, and those pages are exactly the pages they were.
+   *
+   * Baked in at build time rather than read on request, and that is not a
+   * shortcut. A sealed date can never take another answer, so its order can
+   * never change again: the moment it seals the page becomes a fixed thing,
+   * and a fixed thing belongs in the file rather than in a query on every
+   * read. It also keeps the promise the server makes, which is that an
+   * ordinary page view calls nothing.
+   */
+  memory: Map<string, MemoryCount> | null = null,
 ): string {
   const name = `${monthName(page.month)} ${page.day}`;
   const canonical = `${SITE}/${slug(page.month, page.day)}/`;
@@ -2217,7 +2237,16 @@ export function renderDayPage(
   // Culture is no longer merged into the history feed. It was being sorted by
   // year in among Wikipedia's crusades and treaties, which is how a page about
   // a birthday ended up opening on 878. It gets its own section, above.
-  const timeline = buildTimeline(facts, events, monthName(page.month), page.day);
+  const chronological = buildTimeline(facts, events, monthName(page.month), page.day);
+  // The one place on this site where what readers did changes what a page
+  // looks like, and deliberately the last place: only after a date can never
+  // take another answer.
+  const timeline = memory === null ? chronological : byMemory(chronological, memory);
+  // Said once, because the page has visibly rearranged and nothing else on it
+  // explains why.
+  const memoryNote = memory === null
+    ? ""
+    : `<p class="memorynote">Sealed. In the order the people who were here remembered it.</p>`;
   const highlight = cardHighlight(facts, events, page.month, page.day);
   // Three sources, counted apart, because the credit at the foot names who
   // found what and a curated row is not a searched one. Counting a person's
@@ -2283,7 +2312,7 @@ ${AFTER}
 <h1>${name}</h1>
 ${openingBand(page, songs, culture, highlight)}
 ${cultureSection(culture, name)}
-${feedSection(picked, rest, timeline.length, name, searched, timeline.length - searched - curatedCount, curatedCount, page.month, page.day)}
+${memoryNote}${feedSection(picked, rest, timeline.length, name, searched, timeline.length - searched - curatedCount, curatedCount, page.month, page.day)}
 ${songSection(songs, name)}
 ${peopleRail(page, name)}
 <nav class="pager cards">

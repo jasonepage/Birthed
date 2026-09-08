@@ -379,3 +379,138 @@ export function pickHighlights(rows: TimelineRow[], count = 6): TimelineRow[] {
 export function theRest(rows: TimelineRow[], picked: TimelineRow[]): TimelineRow[] {
   return rows.filter((row) => !picked.includes(row));
 }
+
+
+/**
+ * What one row's answers came to, for ordering a sealed date.
+ *
+ * The same arithmetic the app uses, and it has to stay the same arithmetic:
+ * two clients that ranked a sealed page differently would be showing two
+ * different canvases for one date, and the whole claim is that the date has
+ * one.
+ */
+export interface MemoryCount {
+  there: number;
+  remembers: number;
+  heard: number;
+  never: number;
+}
+
+/**
+ * How much of a row survived, as one number.
+ *
+ * Nothing subtracts. "Never heard of it" is worth zero and never less than
+ * zero, because a negative is a downvote arriving through the back door and
+ * there is no direction anywhere in this design. Remembering is worth twice
+ * hearing of, because they are different claims: one is transmission, which is
+ * the thing this project exists to measure, and the other is documentation
+ * reaching somebody, which Wikipedia already counts.
+ */
+export function memoryWeight(count: MemoryCount): number {
+  return (count.there + count.remembers) * 2 + count.heard;
+}
+
+/**
+ * A sealed date, put back in the order its own people remembered it in.
+ *
+ * Only ever called for a date that has sealed. While one is open the order is
+ * chronological, because an order that moved with the answers would show every
+ * reader the popular answer before they gave their own, and that is the one
+ * thing that would destroy the measurement. Once it seals nobody can answer
+ * again, so the order cannot influence anything and is free to say what
+ * happened.
+ *
+ * It is a ranking and never a vote. No answer subtracts, no row can be pushed
+ * down by anybody, nothing is removed, and every row keeps the source it
+ * arrived with.
+ *
+ * Ties fall through to how many people answered, which separates a row thirty
+ * people had never heard of from a row nobody was asked about, and then to the
+ * incoming position, so a sealed page draws identically every time it is
+ * built. Without that last step "sealed" would be a word rather than a fact.
+ */
+export function byMemory(
+  rows: TimelineRow[],
+  counts: Map<string, MemoryCount>,
+): TimelineRow[] {
+  const of = (row: TimelineRow): MemoryCount =>
+    counts.get(`${row.kind}:${row.id}`) ?? { there: 0, remembers: 0, heard: 0, never: 0 };
+
+  return rows
+    .map((row, index) => ({ row, index }))
+    .sort((a, b) => {
+      const wa = memoryWeight(of(a.row));
+      const wb = memoryWeight(of(b.row));
+      if (wa !== wb) return wb - wa;
+      const ta = of(a.row);
+      const tb = of(b.row);
+      const answersA = ta.there + ta.remembers + ta.heard + ta.never;
+      const answersB = tb.there + tb.remembers + tb.heard + tb.never;
+      if (answersA !== answersB) return answersB - answersA;
+      return a.index - b.index;
+    })
+    .map((entry) => entry.row);
+}
+
+
+/**
+ * Every sealed date's answers, for the build.
+ *
+ * Two requests plus one per sealed date, and there are almost none of them:
+ * a date only seals after its three days are up, so in the first year this
+ * reads at most a handful and usually zero. An empty answer is the normal
+ * state and not a failure.
+ *
+ * Only the current year's editions. An older one is a different question, and
+ * the page it belongs to is a comparison this site does not draw yet.
+ */
+export async function fetchSealedMemory(
+  url: string,
+  key: string,
+): Promise<Map<string, Map<string, MemoryCount>>> {
+  const out = new Map<string, Map<string, MemoryCount>>();
+  const headers = { apikey: key, Authorization: `Bearer ${key}`, Accept: "application/json" };
+  const thisYear = new Date().getUTCFullYear();
+
+  let sealed: Array<{ event_month: number; event_day: number }>;
+  try {
+    const query = new URLSearchParams({
+      select: "event_month,event_day,edition_year",
+      sealed_at: "not.is.null",
+      edition_year: `eq.${thisYear}`,
+    });
+    const response = await fetch(`${url}/rest/v1/day_editions?${query}`, { headers });
+    if (!response.ok) return out;
+    sealed = (await response.json()) as Array<{ event_month: number; event_day: number }>;
+  } catch {
+    return out;
+  }
+
+  for (const edition of sealed) {
+    try {
+      const response = await fetch(`${url}/rest/v1/rpc/remembrance_tally`, {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ month_in: edition.event_month, day_in: edition.event_day }),
+      });
+      if (!response.ok) continue;
+      const rows = (await response.json()) as Array<{
+        subject_kind: string; subject_id: string; edition_year: number;
+        there: number; remembers: number; heard: number; never: number;
+      }>;
+      const forDate = new Map<string, MemoryCount>();
+      for (const row of rows) {
+        if (row.edition_year !== thisYear) continue;
+        forDate.set(`${row.subject_kind}:${row.subject_id}`, {
+          there: row.there, remembers: row.remembers, heard: row.heard, never: row.never,
+        });
+      }
+      if (forDate.size > 0) {
+        out.set(`${edition.event_month}-${edition.event_day}`, forDate);
+      }
+    } catch {
+      continue;
+    }
+  }
+  return out;
+}
