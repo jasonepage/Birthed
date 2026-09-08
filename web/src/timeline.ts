@@ -50,6 +50,13 @@ export interface TimelineRow {
    */
   leadLine?: string;
   /**
+   * Wikipedia's editors picked the thing that happened in this year on this
+   * date as one of the day's biggest. A ranking signal and nothing else: it
+   * decides what leads, it is never printed, and it makes no claim about this
+   * row beyond its year. See src/selected.ts.
+   */
+  selected?: boolean;
+  /**
    * Whether a person wrote this row and checked it, rather than a model
    * finding it or Wikipedia holding it. Carried on the row because the credit
    * at the foot of the section names who found what, and a curated row that
@@ -374,9 +381,26 @@ export async function fetchEvents(url: string, key: string): Promise<DayEvent[]>
  * that is still true of what is shown.
  */
 export function pickHighlights(rows: TimelineRow[], count = 6): TimelineRow[] {
+  // The top of the day, when anything says what that is.
+  //
+  // These six are the cards above the drawer, and until 8 September 2026 they
+  // were six rows spread evenly across the date's span, which is a way of
+  // showing the range and not a way of showing what mattered. Wikipedia's
+  // editors have picked the day's biggest events for years and that signal was
+  // sitting unused, so it goes here: a selected row leads, in the order the
+  // list is already in, and the old spread fills whatever is left.
+  //
+  // The drawer underneath stays newest first. Two shelves: the big things at
+  // the top, and everything else read from now backwards. See src/selected.ts.
+  const big = rows.filter((row) => row.selected === true);
+  if (big.length >= count) return big.slice(0, count);
+
   const researched = rows.filter((row) => row.sourceUrl !== null);
   const pool = researched.length >= count ? researched : rows;
-  if (pool.length <= count) return pool;
+  // Short dates take the early exit and still need the selection in front of
+  // them, which is the kind of thing that works on a date with fifty rows and
+  // quietly does nothing on a date with four.
+  if (pool.length <= count) return bigFirst(big, pool, count);
 
   const chosen: TimelineRow[] = [];
   const last = pool.length - 1;
@@ -402,7 +426,18 @@ export function pickHighlights(rows: TimelineRow[], count = 6): TimelineRow[] {
   if (eldest !== undefined && !chosen.includes(eldest)) {
     chosen.splice(0, 1, eldest);
   }
-  return chosen;
+  return bigFirst(big, chosen, count);
+}
+
+/**
+ * The day's biggest in front, then whatever else was chosen, capped.
+ *
+ * One place, because the two ways out of pickHighlights both need it and only
+ * one of them had it, which is a bug that looks like nothing on a busy date.
+ */
+function bigFirst(big: TimelineRow[], rest: TimelineRow[], count: number): TimelineRow[] {
+  if (big.length === 0) return rest.slice(0, count);
+  return [...big, ...rest.filter((row) => !big.includes(row))].slice(0, count);
 }
 
 /** The rows that are not in the picked handful, in the order they arrived. */

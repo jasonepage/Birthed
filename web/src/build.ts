@@ -19,6 +19,7 @@ import { isReady, renderDayPage, renderNotFound, renderRobots, renderSitemap } f
 import { eventsByDay, eventsForDate, fetchEvents, fetchSealedMemory } from "./timeline.js";
 import { culturalByDate, culturalForDate, fetchCulturalEvents } from "./culture.js";
 import { fetchLeadLines } from "./lead.js";
+import { fetchSelected } from "./selected.js";
 import { renderAdd, renderHome, renderPrivacy, renderSupport } from "./pages.js";
 import { renderAdmin } from "./admin.js";
 
@@ -162,6 +163,16 @@ async function main(): Promise<void> {
       : `${leadLines.size} lead lines written, and those rows lead their dates`,
   );
 
+  // What Wikipedia's editors call the top of each day. A ranking signal and
+  // never content: nothing from this table is printed, it only decides which
+  // of our own rows lead. Empty until the importer has run.
+  const selected = await fetchSelected(url, key);
+  console.log(
+    selected.size === 0
+      ? "no selected anniversaries imported, so every page is ordered as before"
+      : `${selected.size} dates carry a selection of the day's biggest events`,
+  );
+
   const memory = await fetchSealedMemory(url, key);
   console.log(
     memory.size === 0
@@ -182,7 +193,7 @@ async function main(): Promise<void> {
     await writeFile(
       join(directory, "index.html"),
       renderDayPage(page, songs, found, happened, curated,
-                    memory.get(`${date.month}-${date.day}`) ?? null, leadLines),
+                    memory.get(`${date.month}-${date.day}`) ?? null, leadLines, selected),
       "utf8",
     );
     written++;

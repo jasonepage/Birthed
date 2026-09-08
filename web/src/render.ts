@@ -9,6 +9,7 @@ import { Fact, hostOf } from "./facts.js";
 import { buildTimeline, byMemory, pickHighlights, theRest, type DayEvent, type MemoryCount, type TimelineRow } from "./timeline.js";
 import { cardHighlight, mayAsk, mayLead, mayLeadWords, type Highlight } from "./highlight.js";
 import { leadKey } from "./lead.js";
+import { selectedKey, type Selected } from "./selected.js";
 
 /**
  * How many people a date page needs before it is worth putting in front of a
@@ -2350,6 +2351,11 @@ function askScore(row: TimelineRow): number {
   // more than any combination of the rest, so a date with five written lines
   // fills its rotation with them and nothing else.
   if (row.leadLine !== undefined) score += 5_000;
+  // Somebody arguing on Wikipedia thought this was one of the day's biggest.
+  // Below a written line, because a person writing eight words for this site is
+  // a stronger signal than an editor picking a headline for a different one,
+  // and well above everything mechanical underneath.
+  if (row.selected === true) score += 1_000;
   if (row.curated === true) score += 400;
   else if (row.sourceUrl !== null) score += 200;
   if (year >= ASK_FROM && year <= ASK_TO) score += 120;
@@ -2624,6 +2630,12 @@ export function renderDayPage(
    * Empty is the normal state and every page is exactly the page it was.
    */
   leadLines: Map<string, string> = new Map(),
+  /**
+   * The years Wikipedia's editors picked as this date's biggest, by "month-day".
+   * Empty is the normal state until the importer has run and every page is
+   * exactly the page it was.
+   */
+  selected: Selected = new Map(),
 ): string {
   // A row nobody wrote does not go on a page.
   //
@@ -2646,6 +2658,8 @@ export function renderDayPage(
   // holding these rows agree about what is on it, and so it can be tested
   // without a network.
   const culture = everything.filter((row) => (row.context ?? "").trim() !== "");
+
+  const bigYears = selected.get(selectedKey(page.month, page.day)) ?? new Set<number>();
 
   const name = `${monthName(page.month)} ${page.day}`;
   const canonical = `${SITE}/${slug(page.month, page.day)}/`;
@@ -2696,7 +2710,13 @@ export function renderDayPage(
   const chronological = buildTimeline(facts, events, monthName(page.month), page.day)
     .map((row) => {
       const written = leadLines.get(leadKey(row.kind, row.id));
-      return written === undefined ? row : { ...row, leadLine: written };
+      const big = row.year !== null && bigYears.has(row.year);
+      if (written === undefined && !big) return row;
+      return {
+        ...row,
+        ...(written === undefined ? {} : { leadLine: written }),
+        ...(big ? { selected: true } : {}),
+      };
     });
   // The one place on this site where what readers did changes what a page
   // looks like, and deliberately the last place: only after a date can never

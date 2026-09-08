@@ -1270,6 +1270,30 @@ test("a culture row with nothing written about it is not on the page", () => {
 // no trace of them when they come back. These pin the two halves of the fix:
 // the marker is baked into every answerable row and hidden, and the style the
 // server writes says nothing about anybody else.
+// The site had no notion of importance at all: fifty four rows a date, every
+// one as important as every other, which is what a database looks like. On
+// September 8 that meant a space station resupply flight led while New
+// Amsterdam becoming New York sat in a drawer. Wikipedia's editors have picked
+// the top of each day for years and the signal was sitting unused.
+test("the day's biggest lead the cards, and the rest still read newest first", () => {
+  const events = [
+    { id: "ny", month: 9, day: 8, year: 1664, sourceUrl: "https://e.com/1", description: "New Amsterdam was renamed New York." },
+    { id: "dull", month: 9, day: 8, year: 2000, sourceUrl: "https://e.com/2", description: "A routine resupply flight went up." },
+    { id: "mid", month: 9, day: 8, year: 1975, sourceUrl: "https://e.com/3", description: "Something in 1975." },
+    { id: "old", month: 9, day: 8, year: 1400, sourceUrl: "https://e.com/4", description: "Something in 1400." },
+  ];
+  const big = new Map([["9-8", new Set([1664])]]);
+  const html = renderDayPage({ month: 9, day: 8, people: [] }, [], [], events, [], null, new Map(), big);
+
+  const feed = html.slice(html.indexOf('<ul class="feed">'));
+  assert.ok(feed.indexOf("New York") < feed.indexOf("resupply"),
+    "the selected row leads even though it is the oldest thing here");
+
+  // Nothing about the selection is printed. It decides order and says nothing.
+  assert.equal(html.includes("Wikipedia's editors"), false);
+  assert.equal(html.includes("selected"), false);
+});
+
 test("every answerable row carries a hidden mark for its own reader", () => {
   const html = renderDayPage({ month: 9, day: 4, people: [] }, [], [], [
     { id: "a", month: 9, day: 4, year: 1999, sourceUrl: "https://en.wikipedia.org/wiki/September_4",

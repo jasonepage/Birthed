@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { parseSelections } from "../src/import-anniversaries.js";
 import { buildTimeline, byMemory, memoryWeight, pickHighlights, saysTheSameThing, splitDatePrefix, theRest, type MemoryCount, type TimelineRow } from "../src/timeline.js";
 import { culturalByDate, culturalForDate, splitDate, textOf, type CulturalEvent } from "../src/culture.js";
 import { cardHighlight, renderShareCard } from "../src/share.js";
@@ -537,4 +538,27 @@ test("the sealed order is identical every time the page is built", () => {
 test("a date nobody answered keeps the order it arrived in", () => {
   const rows = [sealedRow("a", 1980), sealedRow("b", 1990), sealedRow("c", 2000)];
   assert.deepEqual(byMemory(rows, new Map()).map((r) => r.id), ["a", "b", "c"]);
+});
+
+// Parsed from wikitext rather than rendered HTML, because the wikitext is a
+// predictable list and the HTML around it changes with skins and templates. A
+// wrong year here silently promotes the wrong row on a page, which is worse
+// than a date having no selection at all, so anything off-shape is skipped.
+test("selected anniversaries are parsed, and anything off-shape is skipped", () => {
+  const wikitext = [
+    '*[[1664]] – [[New Amsterdam]] was renamed "[[New York City|New York]]" in honour of the [[James II of England|Duke of York]].',
+    "*[[1888]] – The inaugural season of [[The Football League]] began.",
+    "* a line with no year at all",
+    "not a list item [[1900]] – something",
+    "*[[1941]] – [[World War II]]: German forces began the siege of [[Leningrad]].",
+  ].join("\n");
+
+  const rows = parseSelections(wikitext, 9, 8, "https://example.com/sa");
+  assert.equal(rows.length, 3, "the two off-shape lines are skipped rather than guessed at");
+  assert.deepEqual(rows.map((r) => r.event_year), [1664, 1888, 1941]);
+  // Link labels win over targets, which is what a reader would have seen.
+  assert.ok(rows[0]?.text.includes("New York"));
+  assert.equal(rows[0]?.text.includes("New York City"), false);
+  assert.equal(rows[0]?.text.includes("[["), false, "no markup survives");
+  assert.equal(rows[0]?.event_month, 9);
 });

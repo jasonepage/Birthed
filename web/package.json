@@ -15,7 +15,8 @@
     "og:ci": "npx --yes playwright install chromium && npm run og",
     "serve": "npm run build && node dist/src/serve.js",
     "covers": "npm run build && node --env-file-if-exists=.env dist/src/download-covers.js",
-    "faces": "npm run build && node dist/src/download-faces.js"
+    "faces": "npm run build && node dist/src/download-faces.js",
+    "anniversaries": "npm run build && node --env-file-if-exists=.env dist/src/import-anniversaries.js"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
