@@ -160,6 +160,22 @@ struct DayPageView: View {
                     .foregroundStyle(palette.type.opacity(0.5))
             }
 
+            // What is left, said once at the top rather than on every row.
+            //
+            // The only number this feature shows anybody before a date seals,
+            // and it is the reader's own: it says nothing about what anybody
+            // answered and cannot bias a single tap. It is a budget and not a
+            // score. Nobody is ranked by it, spending all ten earns nothing,
+            // and spending none costs nothing.
+            if let left = remember.answersLeft,
+               remember.isOpen(month: model.date.month, day: model.date.day) {
+                Text(RememberCopy.left(left))
+                    .font(.footnote.weight(left == 0 ? .semibold : .regular))
+                    .foregroundStyle(palette.type.opacity(left == 0 ? 0.62 : 0.45))
+                    .contentTransition(.numericText())
+                    .animation(.snappy(duration: 0.25), value: left)
+            }
+
             if !feed.isEmpty { counts }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

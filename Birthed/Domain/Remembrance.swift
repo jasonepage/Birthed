@@ -373,6 +373,30 @@ enum RememberCopy {
     /// `forget`, where a device cannot argue with it.
     static let undo = "Undo"
 
+    /// What is left, said as a budget rather than as a score.
+    ///
+    /// A date carries about a hundred and fifty rows and until there was a
+    /// limit a reader could answer all of them in ninety seconds. Somebody who
+    /// does that is not remembering, they are clicking, and an instrument that
+    /// cannot tell those apart is measuring the clicking.
+    ///
+    /// Ten is enough to say the things you actually carry around about a date
+    /// and few enough that the eleventh row makes you choose, and the choosing
+    /// is the whole point. It is not a score and it must never become one:
+    /// nobody is ranked by how many they spend, spending all ten earns
+    /// nothing, and spending none costs nothing. A budget limits one person.
+    /// A leaderboard compares them.
+    static func left(_ remaining: Int) -> String {
+        switch remaining {
+        case 0: return "No answers left on this date"
+        case 1: return "1 answer left on this date"
+        default: return "\(remaining) answers left on this date"
+        }
+    }
+
+    /// Said where the buttons would have been, once they are all gone.
+    static let spent = "That is your ten for this date. It opens again next year."
+
     /// Said when the window has closed, or when the answer was never there.
     /// One sentence for both, because they are the same thing to a reader.
     static let tooLateToUndo = "That one is in. It counts from here."

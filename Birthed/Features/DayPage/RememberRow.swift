@@ -73,6 +73,9 @@ struct RememberRow: View {
     /// This row's own refusal, so one sealed row does not put the message
     /// under every other row on the page.
     @State private var refused = false
+    /// This row's own "you are out", so one refusal does not print the message
+    /// under every other row on the page.
+    @State private var spentOut = false
 
     private var answered: RememberDepth? {
         justAnswered ?? remember.answer(for: subject, month: month, day: day)
@@ -87,10 +90,17 @@ struct RememberRow: View {
         // it does.
         if let answered {
             given(answered)
+        } else if spentOut {
+            note(RememberCopy.spent)
         } else if refused {
             note(RememberCopy.sealed)
-        } else if isOpen {
+        } else if isOpen, remember.answersLeft.map({ $0 > 0 }) ?? true {
             asking
+        } else if isOpen {
+            // Out of answers, so the row does not offer four buttons it knows
+            // would be refused. It says nothing at all, and the count in the
+            // header says why once rather than a hundred and fifty times.
+            EmptyView()
         } else if let counts = remember.tally(for: subject, month: month, day: day),
                   let summary = counts.summary() {
             // A sealed date the reader did not answer gets the one line

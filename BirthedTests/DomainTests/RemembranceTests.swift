@@ -402,6 +402,20 @@ final class RemembranceTests: XCTestCase {
         XCTAssertEqual(empty.removing(.never).total, 0)
     }
 
+    /// A budget, said in whole sentences, and never as a score.
+    func testWhatIsLeftIsSaidAsACountAndNotAsAScore() {
+        XCTAssertEqual(RememberCopy.left(10), "10 answers left on this date")
+        XCTAssertEqual(RememberCopy.left(1), "1 answer left on this date")
+        XCTAssertEqual(RememberCopy.left(0), "No answers left on this date")
+        // Nothing here ranks anybody, congratulates anybody, or counts up.
+        for word in ["score", "points", "streak", "rank", "best", "record"] {
+            for n in [0, 1, 10] {
+                XCTAssertFalse(RememberCopy.left(n).lowercased().contains(word),
+                               "\(word) got into the budget line")
+            }
+        }
+    }
+
     // MARK: The seal
 
     func testASealedDateSaysWhatItDecidedAndWhen() {
@@ -462,6 +476,8 @@ final class RemembranceTests: XCTestCase {
         lines.append(RememberCopy.answers(43))
         lines.append(RememberCopy.undo)
         lines.append(RememberCopy.tooLateToUndo)
+        lines.append(RememberCopy.spent)
+        lines.append(contentsOf: [0, 1, 10].map(RememberCopy.left))
         for line in lines {
             XCTAssertFalse(line.contains("\u{2014}"), "an em dash got into: \(line)")
             XCTAssertFalse(line.contains("\u{2013}"), "an en dash got into: \(line)")

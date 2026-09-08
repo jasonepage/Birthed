@@ -73,6 +73,14 @@ final class RememberService {
     /// exists and this page can show 2026 beside 2027.
     private(set) var byYear: [Int: [String: RemembranceCounts]] = [:]
 
+    /// How many answers this reader has left on the date being shown.
+    ///
+    /// Nil until it has been read, and the interface shows nothing rather than
+    /// guessing. The number is the reader's own and says nothing about
+    /// anybody else: it is the only figure this feature puts on screen before
+    /// a date has sealed, and it cannot leak what anybody answered.
+    private(set) var answersLeft: Int?
+
     /// How many days either side of a date take answers, read from the
     /// database rather than assumed, because it is a column exactly so that
     /// widening it is an update and not a new build of this app.
@@ -87,6 +95,10 @@ final class RememberService {
     /// Set when an answer was refused because the date had already sealed, so
     /// the page can say so once rather than failing quietly.
     private(set) var refusedAsSealed = false
+
+    /// Set when an answer was refused because this reader has spent their ten
+    /// on this date.
+    private(set) var outOfAnswers = false
 
     /// One edition of one date.
     struct Edition: Equatable {
@@ -225,6 +237,7 @@ final class RememberService {
     /// edition is somebody actually answering.
     func load(month: Int, day: Int) async {
         refusedAsSealed = false
+        outOfAnswers = false
         // The first two do not depend on each other. The third reads both of
         // them, so it waits rather than racing them: a tally that ran before
         // the edition landed would decide whether the date had sealed by
@@ -232,7 +245,8 @@ final class RememberService {
         // on an open date about one time in three.
         async let settings: Void = loadSettings()
         async let summary: Void = loadEdition(month: month, day: day)
-        _ = await (settings, summary)
+        async let budget: Void = loadBudget(month: month, day: day)
+        _ = await (settings, summary, budget)
         await loadTally(month: month, day: day)
     }
 
@@ -254,6 +268,17 @@ final class RememberService {
               let first = rows.first
         else { return }
         windowDays = first.window_days
+    }
+
+    private func loadBudget(month: Int, day: Int) async {
+        let reply = await callRaw("answers_left", body: [
+            "month_in": month, "day_in": day, "voter_token_in": voterToken,
+        ])
+        guard let text = reply.flatMap({ String(data: $0, encoding: .utf8) })?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              let value = Int(text)
+        else { return }
+        answersLeft = value
     }
 
     private func loadEdition(month: Int, day: Int) async {
@@ -368,6 +393,14 @@ final class RememberService {
             // all.
             .trimmingCharacters(in: CharacterSet(charactersIn: "\"")) ?? ""
 
+        if reason == "spent" {
+            // Out of answers on this date. A fact about the reader, not about
+            // the date, and the row says so in its own words.
+            outOfAnswers = true
+            answersLeft = 0
+            return false
+        }
+
         guard reason == "kept" || reason == "already" else {
             // Sealed, out of window, or a token the database will not take.
             // Only the first two are facts about the date and the row says so
@@ -391,6 +424,10 @@ final class RememberService {
         // total with themselves in it twice.
         if reason == "kept" {
             counts[subject.key] = (counts[subject.key] ?? RemembranceCounts()).adding(depth)
+            // Only a new row costs one. Tapping something already answered
+            // lands as "already" and spends nothing, which the database
+            // enforces and this mirrors.
+            if let left = answersLeft { answersLeft = max(0, left - 1) }
         }
         return true
     }
@@ -424,6 +461,9 @@ final class RememberService {
         mine.removeValue(forKey: localKey(subject, month: month, day: day, year: year))
         writeMine()
         counts[subject.key] = (counts[subject.key] ?? RemembranceCounts()).removing(depth)
+        // An undo hands the answer back. The row is gone from the table, so
+        // the database would say the same on the next read.
+        if let left = answersLeft { answersLeft = left + 1 }
         return true
     }
 
