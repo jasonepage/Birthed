@@ -449,9 +449,21 @@ async function search(
       category: candidate.category.slice(0, 30),
       source_url: candidate.source_url.slice(0, 1000),
       source_quote: candidate.quote.slice(0, 600),
-      // Unverified rows are kept, because only the service role can read
-      // them and they are how a bad citation gets looked at later.
-      verified: live[index],
+      // The finder's own check: it fetched the cited page and asked whether
+      // that page says what this row says. Real, and the best thing in this
+      // pipeline. It is written down as what it is.
+      source_checked: live[index],
+      // And it is not a decision. This used to be `live[index]` too, and
+      // `verified` is what the site reads to decide what a reader sees, so a
+      // model checking its own citation was also the thing publishing it:
+      // 2,411 sentences reached public pages without a person reading one,
+      // while every culture row waited for somebody to press a key.
+      //
+      // Every fact now lands off the page and waits. A citation that holds up
+      // says the row is true. Whether a true thing is worth putting at the top
+      // of somebody's birthday is a different question and no fetch answers
+      // it.
+      verified: false,
       model: MODEL,
     }));
     const { error } = await admin.from("birth_facts").upsert(rows, {
@@ -460,7 +472,10 @@ async function search(
     });
     if (error) throw new Error(error.message);
 
-    const found = rows.filter((row) => row.verified).length;
+    // Counted on the citation check rather than on `verified`, which is now
+    // false for every row this function writes. Reading it off `verified`
+    // would report every successful run as a total failure.
+    const found = rows.filter((row) => row.source_checked).length;
     if (found === 0) {
       throw new Error(`no cited page answered, out of ${rows.length}`);
     }

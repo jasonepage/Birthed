@@ -58,6 +58,8 @@ export function renderAdmin(api: { url: string; key: string }): string {
   color: #827B75;
 }
 .state.live { color: #6FBF8A; }
+.checked { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #6E8F7B; }
+.why { margin: 6px 0 0; font-size: 12px; color: #827B75; font-style: italic; }
 .c0 { background: #3A3348; color: #9C9490; }
 .c1 { background: #6E5A4A; color: #FFF7EE; }
 .c2 { background: #C08A3E; }
@@ -469,6 +471,11 @@ kbd {
       out.push(["explains the joke", "says why it mattered instead of saying what happened"]);
     }
     if (!row.source_url) out.push(["unsourced", "nothing to check it against"]);
+    // The finder fetched the cited page and it did not answer. That is the one
+    // machine check in this pipeline that is worth a curator's attention, and
+    // it used to be the thing that published the row instead of telling
+    // anybody about it.
+    if (row.source_checked === false) out.push(["source did not answer", "the finder fetched the cited page and it did not say this"]);
     return out;
   }
 
@@ -710,7 +717,8 @@ kbd {
       // app user's own birthday, in the second person and scoped to their
       // town, which never reach any page and read as errors when they appear
       // beside rows that do.
-      rest("birth_facts?select=id,birth_year,fact,category,source_url,verified" +
+      rest("birth_facts?select=id,birth_year,fact,category,source_url,verified," +
+        "source_checked,hidden_reason" +
         "&birth_month=eq." + m + "&birth_day=eq." + d +
         "&birth_year=eq.0&region_key=eq.&order=id.asc&limit=100"),
       rest("historical_events?select=id,event_year,description,suppressed" +
@@ -765,7 +773,9 @@ kbd {
         (row.verified ? "on the page" : "hidden") + "</span>" +
         ' &middot; <span class="tagpill">' + esc(row.category || "event") + "</span>" +
         (row.source_url ? ' &middot; <a href="' + esc(row.source_url) + '" rel="noopener">source</a>' : "") +
-        "</p>" + (flags.length ? flagMarkup(flags) : "") + "</div>" +
+        (row.source_checked === true ? ' &middot; <span class="checked">source answers</span>' : "") +
+        "</p>" + (flags.length ? flagMarkup(flags) : "") +
+        (row.hidden_reason ? '<p class="why">' + esc(row.hidden_reason) + "</p>" : "") + "</div>" +
         '<button class="act" data-fact="' + esc(row.id) +
         '" data-on="' + (row.verified ? "1" : "0") + '">' + (row.verified ? "Hide" : "Put back") + "</button></div>";
     });
