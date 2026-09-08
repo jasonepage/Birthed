@@ -3,7 +3,7 @@ import { test } from "node:test";
 import {
   anniversaryArticles, articlesByRow, buildSitelinkQuery, isContextTitle,
   linksIn, observanceMatch, observancesFrom, primaryArticle, readSitelinks,
-  rowKey, sectionById,
+  rowKey, sectionById, allEventLinks,
 } from "../src/signals.js";
 
 // A stripped down copy of the shape a Wikipedia date article actually has:
@@ -69,6 +69,24 @@ test("a link after a preposition of place is demoted below the subject", () => {
   const line = `The last <a href="/wiki/Thylacine">thylacine</a> dies at the
     <a href="/wiki/Hobart_Zoo">Hobart Zoo</a> in <a href="/wiki/Tasmania">Tasmania</a>.`;
   assert.equal(primaryArticle(line), "Thylacine");
+});
+
+test("the most famous link is dropped, which is what stops a king eating a battle", () => {
+  // The September 7 failure exactly. Every one of these is a real link on the
+  // Battle of Arsuf line, and the first version returned Richard I of England.
+  const line = `<a href="/wiki/Third_Crusade">Third Crusade</a>: <a href="/wiki/Battle_of_Arsuf">Battle of Arsuf</a>: <a href="/wiki/Richard_I_of_England">Richard I of England</a> defeats <a href="/wiki/Saladin">Saladin</a>.`;
+  const fame = new Map([["Third Crusade", 80], ["Battle of Arsuf", 41], ["Richard I of England", 112], ["Saladin", 108]]);
+  assert.equal(primaryArticle(line, fame), "Battle of Arsuf");
+});
+
+test("without a fame map the picker still answers, just less well", () => {
+  const line = `<a href="/wiki/Battle_of_Arsuf">Battle of Arsuf</a>: <a href="/wiki/Richard_I_of_England">Richard I of England</a> wins.`;
+  assert.equal(primaryArticle(line), "Richard I of England");
+});
+
+test("dropping the most famous link never empties a single link line", () => {
+  const line = `The network <a href="/wiki/ESPN">ESPN</a> makes its debut.`;
+  assert.equal(primaryArticle(line, new Map([["ESPN", 40]])), "ESPN");
 });
 
 test("a demoted link is still better than nothing", () => {
@@ -151,4 +169,12 @@ test("sitelink counts are read back by title", () => {
   ] } });
   assert.equal(map.get("The Blitz"), 44);
   assert.equal(map.get("ESPN"), 40);
+});
+
+test("every link in the events section is offered for the fame lookup", () => {
+  const all = allEventLinks(PAGE);
+  assert.ok(all.includes("The Blitz"));
+  assert.ok(all.includes("London"));
+  assert.ok(all.includes("Independence of Brazil"));
+  assert.equal(all.includes("Buddy Holly"), false, "births are not events");
 });

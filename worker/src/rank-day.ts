@@ -20,7 +20,7 @@ import { parseEvents } from "./events.js";
 import { fetchPage } from "./wikipedia.js";
 import { monthlyViewsForTitles } from "./pageviews.js";
 import {
-  anniversaryArticles, anniversaryUrl, articlesByRow, fetchSitelinks,
+  allEventLinks, anniversaryArticles, anniversaryUrl, articlesByRow, fetchSitelinks,
   observanceMatch, observancesFrom, primaryArticle, rowKey, type Observance,
 } from "./signals.js";
 import { gravityOf, importanceOf, memorialCount, rememberedFor, shapeOf } from "./importance.js";
@@ -66,8 +66,14 @@ export async function rankDay(month: number, day: number): Promise<RankedDay | n
   if (page === null) return null;
 
   const { events } = parseEvents(page.html);
-  const articles = articlesByRow(page.html);
   const observances = observancesFrom(page.html);
+
+  // Two passes over the same HTML, because picking the article needs to know
+  // which link is the famous one and that is a question only Wikidata answers.
+  // One batched query for every link on the date, then the picker, then views
+  // for the handful of articles it settled on.
+  const fame = await fetchSitelinks(allEventLinks(page.html), config.userAgent);
+  const articles = articlesByRow(page.html, fame);
 
   // Wikipedia's own editors' pick for this date. A missing page is fine and
   // common on the less eventful dates, and costs the run one signal.
@@ -78,10 +84,7 @@ export async function rankDay(month: number, day: number): Promise<RankedDay | n
   const anniversaries = annPage === null ? new Set<string>() : anniversaryArticles(annPage.html);
 
   const titles = [...new Set([...articles.values()])];
-  const [views, sitelinks] = await Promise.all([
-    monthlyViewsForTitles(titles, config.userAgent),
-    fetchSitelinks(titles, config.userAgent),
-  ]);
+  const views = await monthlyViewsForTitles(titles, config.userAgent);
 
   // An observance is proposed, never applied. Tying "National Threatened
   // Species Day" to the thylacine dying cannot be done by string overlap, and
@@ -101,7 +104,7 @@ export async function rankDay(month: number, day: number): Promise<RankedDay | n
     const article = articles.get(rowKey(event.year, event.description)) ?? null;
     const signals = {
       views: article === null ? 0 : views.get(article) ?? 0,
-      sitelinks: article === null ? 0 : sitelinks.get(article) ?? 0,
+      sitelinks: article === null ? 0 : fame.get(article) ?? 0,
       anniversary: article !== null && anniversaries.has(article),
       observed: false,
     };
@@ -138,7 +141,7 @@ function report(d: RankedDay): void {
       .filter(Boolean).join(",");
     console.log(
       `${mark} ${r.score.toFixed(2).padStart(5)}  ${String(r.year).padStart(4)}  ` +
-      `v${String(r.views).padStart(7)} s${String(r.sitelinks).padStart(3)} ${flags.padEnd(11)}` +
+      `v${String(r.views).padStart(7)} s${String(r.sitelinks).padStart(3)} ${flags.padEnd(12)}` +
       `${(r.article ?? "(no article)").slice(0, 34).padEnd(35)}${r.description.slice(0, 60)}`,
     );
   });

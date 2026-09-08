@@ -44,6 +44,14 @@ export function isContextTitle(title: string): boolean {
   return CONTEXT.test(title.trim());
 }
 
+function listItems(html: string): string[] {
+  const items: string[] = [];
+  const pattern = /<li\b[^>]*>([\s\S]*?)<\/li>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = pattern.exec(html)) !== null) items.push(m[1] ?? "");
+  return items;
+}
+
 /** Every wiki link in a stretch of HTML, in the order it appears. */
 export function linksIn(html: string): Link[] {
   const out: Link[] = [];
@@ -64,69 +72,101 @@ export function linksIn(html: string): Link[] {
 /**
  * Which article a line is about.
  *
- * Three rules, in order, and all three come from how Wikipedia writes these
- * lines rather than from anything invented here.
+ * The first version of this ranked September 7 and produced nonsense, in a way
+ * worth writing down because the nonsense was consistent. The Battle of Arsuf
+ * scored as Richard I of England. The treaty of Baden scored as the Holy Roman
+ * Empire. The Boxer Protocol scored as the Boxer Rebellion. The relief of Malta
+ * scored as Philip II of Spain. A medieval skirmish came out above the night
+ * the Blitz began.
  *
- * ONE, drop everything before a leading topic prefix. Date lines are routinely
- * written "World War II: the German Luftwaffe begins the Blitz". The words
- * before the colon are the file the editor put it under, not the event, and
- * left in they win every time, because the Second World War is in two hundred
- * languages and the Blitz is in forty. Every date in the 1940s would have
- * ranked as the same event.
+ * The rule had been "longest anchor text", on the reasoning that event articles
+ * carry long specific titles. What it actually selected was the most famous
+ * proper noun in the sentence, because these lines are written by naming a
+ * large well known thing in order to locate a small specific one. So the ranker
+ * was measuring the fame of the context rather than the importance of the
+ * event, and every line mentioning a king ranked as that king.
  *
- * TWO, demote a link that follows a preposition of place or origin. "dies at
- * the Hobart Zoo" and "independence from Portugal" are where and from whom,
- * never what. This is the rule the first version of this file did not have,
- * and its absence decided that the last thylacine dying was an article about a
- * zoo. A demoted link is still used if nothing else survives, because a
- * location is a better answer than no answer.
+ * The correction is to use that same structure in reverse. In a date line, the
+ * event is the SPECIFIC thing and the context is the FAMOUS thing, so the most
+ * globally famous link is the one to throw away. Fame is measured by sitelinks,
+ * which the caller has already fetched for every link on the date.
  *
- * THREE, of what is left, the longest anchor wins. An article about an event
- * carries a long specific title, "Mountain Meadows Massacre", "Federal
- * takeover of Fannie Mae and Freddie Mac", while the links around it are short
- * and general. Ties go to the LAST one, because these sentences put the actor
- * before the act: "the Luftwaffe begins the Blitz" ties at nine characters and
- * the second one is the thing that happened.
+ * Four rules, in order:
  *
- * It is still a heuristic and it will still be wrong. That is why the chosen
- * title is stored on the row: a curator sees what the ranker measured, and a
- * bad pick is visible rather than being an unexplained position in a list.
+ * ONE, drop a topic prefix before a colon near the front of the line. "World
+ * War II: the German Luftwaffe begins the Blitz". The words before the colon
+ * are the file an editor put it under.
+ *
+ * TWO, demote a link after a preposition of place or origin. "dies at the
+ * Hobart Zoo", "independence from Portugal". Where and from whom, never what.
+ * Without this, the thylacine going extinct is an article about a zoo.
+ *
+ * THREE, when fame is known and more than one candidate survives, drop the
+ * single most famous one. Not all the famous ones: dropping every link above a
+ * threshold empties lines whose subject genuinely is well known.
+ *
+ * FOUR, of what is left, the longest anchor, ties to the later link, because
+ * these sentences put the actor before the act.
+ *
+ * It is still a heuristic. "Bitcoin becomes legal tender in El Salvador" has no
+ * article about the event and will pick something imperfect no matter what the
+ * rule is. That is why the chosen title is stored on the row rather than used
+ * and discarded: a curator can see what the ranker looked at, and a bad pick is
+ * visible instead of being an unexplained position in a list.
  */
-// cellText trims, so the preposition can be the last thing in the string with
-// no space after it. The first version of this pattern required trailing
-// whitespace and therefore never matched anything at all.
 const PLACE_WORD = /\b(in|at|near|from|to|into|outside|aboard|of)(\s+(the|a|an))?\s*$/i;
 const TOPIC_PREFIX = 45;
 
-export function primaryArticle(lineHtml: string): string | null {
+export function primaryArticle(lineHtml: string, fame?: Map<string, number>): string | null {
   const links = linksIn(lineHtml);
   if (links.length === 0) return null;
 
-  // Rule one. The colon has to be near the front to be a topic prefix; a colon
-  // halfway through a sentence is punctuation.
   let floor = 0;
   const colon = lineHtml.indexOf(":");
-  if (colon > 0 && cellText(lineHtml.slice(0, colon)).length <= TOPIC_PREFIX) {
-    floor = colon;
-  }
+  if (colon > 0 && cellText(lineHtml.slice(0, colon)).length <= TOPIC_PREFIX) floor = colon;
 
-  let best: Link | null = null;
-  let fallback: Link | null = null;
+  const kept: Link[] = [];
+  const demoted: Link[] = [];
   for (const link of links) {
     if (link.at < floor) continue;
     if (isContextTitle(link.title) || isContextTitle(link.anchor)) continue;
-    // Rule two.
     const before = cellText(lineHtml.slice(floor, link.at));
-    const demoted = PLACE_WORD.test(before);
-    if (demoted) {
-      if (fallback === null || link.anchor.length > fallback.anchor.length) fallback = link;
-      continue;
+    (PLACE_WORD.test(before) ? demoted : kept).push(link);
+  }
+
+  let pool = kept.length > 0 ? kept : demoted;
+  if (pool.length === 0) return null;
+
+  // Rule three. Only when fame is known and there is something left afterwards.
+  if (fame !== undefined && pool.length > 1) {
+    let most: Link | null = null;
+    let mostFame = -1;
+    for (const link of pool) {
+      const f = fame.get(link.title) ?? 0;
+      if (f > mostFame) { mostFame = f; most = link; }
     }
-    // Rule three, ties to the later link.
+    if (most !== null && mostFame > 0) pool = pool.filter((l) => l !== most);
+  }
+
+  let best: Link | null = null;
+  for (const link of pool) {
     if (best === null || link.anchor.length >= best.anchor.length) best = link;
   }
-  const chosen = best ?? fallback;
-  return chosen === null ? null : chosen.title;
+  return best === null ? null : best.title;
+}
+
+/** Every article linked from the Events section, for the fame lookup. */
+export function allEventLinks(html: string): string[] {
+  const section = sectionById(html, "Events");
+  if (section === null) return [];
+  const out = new Set<string>();
+  for (const item of listItems(section)) {
+    const own = item.split(/<ul\b/i)[0] ?? "";
+    for (const link of linksIn(own)) {
+      if (!isContextTitle(link.title)) out.add(link.title);
+    }
+  }
+  return [...out];
 }
 
 /**
@@ -158,13 +198,6 @@ export function sectionById(html: string, id: string): string | null {
   return next < 0 ? rest : rest.slice(0, next + 1);
 }
 
-function listItems(html: string): string[] {
-  const items: string[] = [];
-  const pattern = /<li\b[^>]*>([\s\S]*?)<\/li>/gi;
-  let m: RegExpExecArray | null;
-  while ((m = pattern.exec(html)) !== null) items.push(m[1] ?? "");
-  return items;
-}
 
 /**
  * Which article each event line on a date page is about.
@@ -173,7 +206,7 @@ function listItems(html: string): string[] {
  * Returns a map keyed by `rowKey`, so the caller can look up the rows it
  * already has rather than trying to keep two lists in the same order.
  */
-export function articlesByRow(html: string): Map<string, string> {
+export function articlesByRow(html: string, fame?: Map<string, number>): Map<string, string> {
   const section = sectionById(html, "Events");
   const out = new Map<string, string>();
   if (section === null) return out;
@@ -186,7 +219,7 @@ export function articlesByRow(html: string): Map<string, string> {
     const year = Number(m[1]);
     if (!Number.isInteger(year)) continue;
     const description = (m[2] ?? "").replace(/(\s*\[\d+\])+\s*$/, "").trim();
-    const article = primaryArticle(own);
+    const article = primaryArticle(own, fame);
     if (article === null) continue;
     out.set(rowKey(year, description), article);
   }
