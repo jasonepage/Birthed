@@ -13,6 +13,104 @@
 
 import { SITE, escapeHtml, head } from "./render.js";
 
+
+/**
+ * The points, as plain JavaScript in a string, because it runs in the panel's
+ * script and in the tests and there must be exactly one copy of it. No
+ * backticks and no dollar-brace inside, since it is pasted into a template.
+ *
+ * Built the way osu! builds performance points, for four properties and not
+ * for the number: computed from stored inputs and never hand set, comparable
+ * across dates, top heavy so three excellent rows beat forty mediocre ones,
+ * and a ranking rather than a judgement. docs/panel-brief.md, section 4.
+ *
+ * It never reaches a public page, an API a reader can hit, or the share card.
+ * A test asserts the date page does not contain it.
+ */
+export const POINTS_JS = `
+  // Each component is a column or a count, and each is worth points. The
+  // parts are returned as well as the total so a curator can argue with
+  // "reach 12", which is a conversation, instead of with "58", which is not.
+  var WEIGHTS = { selected: 40, reach: 30, memory: 20, written: 10, sourcing: 10 };
+  var FLAG_COST = {
+    "release calendar": 20, "explains the joke": 10, "thin": 15,
+    "unsourced": 10, "source did not answer": 10, "circa source": 5,
+  };
+  var SOURCING = { primary: 10, news: 7, encyclopedia: 4, circa: 0, none: 0 };
+  /** Where a source sits on the ladder in docs/internet-culture.md. */
+  function sourcingOf(url, dateKind) {
+    if (!url) return "none";
+    var u = String(url).toLowerCase();
+    if (/knowyourmeme\\.com/.test(u)) return dateKind === "went_viral" ? "encyclopedia" : "circa";
+    if (/wikipedia\\.org|wikidata\\.org|britannica\\.com/.test(u)) return "encyclopedia";
+    if (/web\\.archive\\.org|archive\\.today|archive\\.ph|twitter\\.com|x\\.com|youtube\\.com|youtu\\.be|reddit\\.com|tiktok\\.com|vine\\.co|instagram\\.com|steamcommunity\\.com|store\\.steampowered\\.com|minecraft\\.wiki|patchnotes|changelog|\\.gov\\/|nasa\\.gov/.test(u)) return "primary";
+    return "news";
+  }
+  /** Living memory: a curve on the year, full between 1985 and 2015. */
+  function memoryOf(year) {
+    if (year === null || year === undefined || isNaN(year)) return 0;
+    if (year >= 1985 && year <= 2015) return WEIGHTS.memory;
+    if (year < 1985) return Math.max(0, Math.round(WEIGHTS.memory * (1 - (1985 - year) / 40)));
+    return Math.max(0, Math.round(WEIGHTS.memory * (1 - (year - 2015) / 12)));
+  }
+  /** Reach: log scaled yearly pageviews, a million a year is the full thirty. */
+  function reachOf(views) {
+    if (views === null || views === undefined) return null;
+    var v = Math.max(0, Number(views) || 0);
+    return Math.round(WEIGHTS.reach * Math.min(1, Math.log10(v + 1) / 6));
+  }
+  /**
+   * One row's points. Input fields: selected (bool), views (number, or null
+   * when unmeasured), year, written (bool), sourceUrl, dateKind, flags (names),
+   * answers ({there, remembers, heard, never} or null).
+   *
+   * A reader answer REPLACES the estimate. It does not average with it. The
+   * whole estimate is a guess standing in for the measurement this site
+   * exists to collect, and when the measurement arrives the guess gets out of
+   * the way. That is the first thing this function does, so nothing below it
+   * can leak back in. Ten answers is the floor, the same floor the public
+   * site uses before it prints a count.
+   */
+  function rowPoints(input) {
+    var a = input.answers;
+    if (a) {
+      var total = (a.there || 0) + (a.remembers || 0) + (a.heard || 0) + (a.never || 0);
+      if (total >= 10) {
+        var kept = ((a.there || 0) + (a.remembers || 0)) * 2 + (a.heard || 0);
+        var pts = Math.round(100 * kept / (2 * total));
+        return { total: pts, measured: true, parts: [["remembered", pts, kept + " of " + (2 * total) + " from " + total + " answers, and this replaces every estimate below"]] };
+      }
+    }
+    var parts = [];
+    parts.push(["selected", input.selected ? WEIGHTS.selected : 0, input.selected ? "Wikipedia's editors chose it for the day" : "not among Wikipedia's picks for the day"]);
+    var reach = reachOf(input.views);
+    parts.push(["reach", reach === null ? 0 : reach, reach === null ? "unmeasured" : (Number(input.views) || 0).toLocaleString() + " views a year on the cited article"]);
+    parts.push(["memory", memoryOf(input.year), input.year ? "the year " + input.year : "no year"]);
+    parts.push(["written", input.written ? WEIGHTS.written : 0, input.written ? "somebody wrote it" : "a bare title or nobody wrote a line"]);
+    var ladder = sourcingOf(input.sourceUrl, input.dateKind);
+    parts.push(["sourcing", SOURCING[ladder], ladder]);
+    (input.flags || []).forEach(function (f) {
+      if (FLAG_COST[f]) parts.push([f, -FLAG_COST[f], "flagged"]);
+    });
+    var sum = 0;
+    parts.forEach(function (p) { sum += p[1]; });
+    return { total: Math.max(0, sum), measured: false, parts: parts };
+  }
+  /**
+   * A date's points: the decayed sum of its rows, best first, each worth 95
+   * percent of the one before. Three excellent rows beat forty mediocre
+   * ones. Adding a fifth dull row moves a date almost not at all; fixing its
+   * top row moves it a lot. That is the property that answers "which of 366
+   * dates do I work on tonight".
+   */
+  function datePoints(rowTotals) {
+    var sorted = rowTotals.slice().sort(function (x, y) { return y - x; });
+    var sum = 0;
+    for (var i = 0; i < sorted.length; i++) sum += sorted[i] * Math.pow(0.95, i);
+    return Math.round(sum);
+  }
+`;
+
 export function renderAdmin(api: { url: string; key: string }): string {
   return `${head(
     "Birthed curation",
@@ -154,6 +252,24 @@ kbd {
 .draft details { margin-top: 8px; font-size: 12px; color: #827B75; }
 .draft details p { margin: 6px 0 0; line-height: 1.5; max-height: 160px; overflow: auto; }
 .draft .to { font-size: 11px; color: #827B75; margin: 0 0 8px; }
+/* The points, in parts. The total is the first thing and the parts are the
+   rest of the line, each with its reason on hover. A measured total, one
+   readers gave, is blue, the colour the site already means "what people
+   said" with. */
+.pts { margin: 6px 0 0; font-size: 11.5px; color: #827B75; font-variant-numeric: tabular-nums; }
+.pts b { display: inline-block; min-width: 34px; color: #E9E1DB; font-size: 13px; margin-right: 8px; }
+.pts b.measured { color: #6FA5DE; }
+.pts .dim { color: #5E5852; font-style: italic; }
+.dp { color: #E9E1DB; font-size: 15px; }
+h4.sh { margin: 22px 0 0; font-size: 13px; color: #9C9490; }
+details.offpage { margin: 18px 0 0; }
+details.offpage > summary { cursor: pointer; font-size: 13px; color: #9C9490; padding: 8px 0; }
+/* The weakest dates by decayed points, so "what do I do tonight" is on the
+   screen. Estimates only: reader answers are loaded when a date is opened. */
+.weak { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 10px 0 0; }
+.weak button { background: #171326; border: 1px solid #3A3348; color: #B9B2AD; border-radius: 6px; padding: 8px 10px; text-align: left; font: inherit; font-size: 12px; cursor: pointer; }
+.weak button:hover { border-color: #EF5680; color: #FFF7EE; }
+.weak b { display: block; color: #E9E1DB; font-size: 14px; }
 </style>
 
 <div class="panel">
@@ -182,6 +298,10 @@ kbd {
   <p class="lede" id="q-lede">Loading.</p>
   <div id="q-card" hidden></div>
   <p class="note" id="q-note"></p>
+
+  <h3 class="dh">Weakest dates</h3>
+  <p class="lede" id="weak-lede">Ranked by decayed points, the estimate only. Reader answers replace it once a date is opened.</p>
+  <div class="weak" id="weak"></div>
 
   <h3 class="dh">Every date</h3>
   <p class="lede" id="cov-lede">Loading.</p>
@@ -237,6 +357,7 @@ kbd {
 <script>
 (function () {
   "use strict";
+${POINTS_JS}
   var API = ${JSON.stringify(api.url)};
   var KEY = ${JSON.stringify(api.key)};
   var TOKEN_KEY = "birthed.admin.token";
@@ -783,6 +904,7 @@ kbd {
         "&event_month=eq." + m + "&event_day=eq." + d + "&order=event_year.desc&limit=200"),
       rest("lead_lines?select=subject_kind,subject_id,line" +
         "&event_month=eq." + m + "&event_day=eq." + d + "&limit=300"),
+      loadTally(m, d),
     ]).then(function (r) {
       // The cultural filter above cannot express "any year, this month and
       // day" in one PostgREST clause, so the day is matched here instead. The
@@ -800,12 +922,145 @@ kbd {
     });
   }
 
+  // ---- the one screen -----------------------------------------------------
+  //
+  // Everything on the date, ranked, with what is wrong with each row named
+  // in a sentence and scored in parts. One list, not three, because the
+  // question a curator has is "what should I fix on this date" and that has
+  // one answer per date, not one per table.
+  var reach = {};      // source_url -> { views_year, error }
+  var selectedByDate = {}; // "m-d" -> { year: text }
+  var tally = {};      // "kind:id" -> counts, for the open date
+
+  function loadReach() {
+    return pageAll("article_reach?select=source_url,views_year,error&order=source_url.asc")
+      .then(function (rows) { reach = {}; rows.forEach(function (r) { reach[r.source_url] = r; }); })
+      .catch(function () { reach = {}; });
+  }
+  function loadSelected() {
+    return pageAll("selected_anniversaries?select=event_month,event_day,event_year&order=id.asc")
+      .then(function (rows) {
+        selectedByDate = {};
+        rows.forEach(function (r) {
+          var k = r.event_month + "-" + r.event_day;
+          if (!selectedByDate[k]) selectedByDate[k] = {};
+          selectedByDate[k][r.event_year] = true;
+        });
+      })
+      .catch(function () { selectedByDate = {}; });
+  }
+  function loadTally(m, d) {
+    return rest("rpc/remembrance_tally", { method: "POST", body: { month_in: m, day_in: d } })
+      .then(function (rows) {
+        tally = {};
+        (rows || []).forEach(function (r) {
+          var k = r.subject_kind + ":" + r.subject_id;
+          var t = tally[k] || { there: 0, remembers: 0, heard: 0, never: 0 };
+          t.there += r.there || 0; t.remembers += r.remembers || 0; t.heard += r.heard || 0; t.never += r.never || 0;
+          tally[k] = t;
+        });
+      })
+      .catch(function () { tally = {}; });
+  }
+  /** Every page of a PostgREST list, a thousand at a time. */
+  function pageAll(path) {
+    var out = [];
+    function page(offset) {
+      return rest(path + "&limit=1000&offset=" + offset).then(function (rows) {
+        out = out.concat(rows);
+        return rows.length === 1000 ? page(offset + 1000) : out;
+      });
+    }
+    return page(0);
+  }
+
+  /** The reach measurement for a source, as the points function wants it. */
+  function viewsFor(url) {
+    if (!url) return null;
+    var r = reach[url];
+    if (!r || r.views_year === null || r.views_year === undefined) return null;
+    return r.views_year;
+  }
+  function reachNote(url) {
+    if (!url) return "no source";
+    var r = reach[url];
+    if (!r) return "not measured yet";
+    if (r.error) return r.error;
+    return null;
+  }
+
+  /**
+   * One shape for every kind of row, so one list can hold them all. status
+   * is "on" when a reader can see it and "off" otherwise, with the reason.
+   */
+  function itemsOf(cultural, facts, events, m, d) {
+    var items = [];
+    var picks = selectedByDate[m + "-" + d] || {};
+    cultural.forEach(function (row) {
+      var status = row.status || "published";
+      var said = String(row.context_string || "").trim();
+      var year = Number(String(row.event_date).slice(0, 4)) || null;
+      var pairs = flagsFor(row);
+      var flags = pairs.map(function (f) { return f[0]; });
+      items.push({
+        flagPairs: pairs,
+        kind: "cultural_event", id: row.id, year: year, text: said || row.event_title, title: row.event_title,
+        on: status === "published" && said !== "",
+        off: status !== "published" ? status : (said === "" ? "needs a sentence" : null),
+        sourceUrl: row.source_url, dateKind: row.date_kind, category: row.category, origin: row.origin,
+        flags: flags, written: said.length >= 60, selected: !!picks[year], canDraft: status === "published" && said === "",
+      });
+    });
+    facts.forEach(function (row) {
+      var line = leads["birth_fact:" + row.id];
+      var pairs = factFlagsFor(row);
+      var flags = pairs.map(function (f) { return f[0]; });
+      // A found fact has no year column; the year is in the sentence, which
+      // is where the site's own timeline reads it from too.
+      var yearIn = /\b(1[0-9]{3}|20[0-9]{2})\b/.exec(String(row.fact || ""));
+      var factYear = yearIn ? Number(yearIn[1]) : null;
+      items.push({
+        flagPairs: pairs,
+        kind: "birth_fact", id: String(row.id), year: factYear, text: row.fact, title: null, line: line || null,
+        on: !!row.verified, off: row.verified ? null : "hidden",
+        sourceUrl: row.source_url, dateKind: null, category: row.category || "event", origin: "found",
+        flags: flags, written: !!line, selected: !!(factYear && picks[factYear]), canDraft: !!row.verified && !line,
+        hiddenReason: row.hidden_reason, sourceChecked: row.source_checked,
+      });
+    });
+    events.forEach(function (row) {
+      var line = leads["historical_event:" + row.id];
+      items.push({
+        kind: "historical_event", id: String(row.id), year: row.event_year, text: row.description, title: null, line: line || null,
+        on: !row.suppressed, off: row.suppressed ? "hidden" : null,
+        sourceUrl: "https://en.wikipedia.org/wiki/" + months[m - 1] + "_" + d, dateKind: null, category: "wikipedia", origin: "wikipedia",
+        flags: [], flagPairs: [], written: !!line, selected: !!picks[row.event_year], canDraft: !row.suppressed && !line,
+      });
+    });
+    items.forEach(function (it) {
+      it.points = rowPoints({
+        selected: it.selected, views: viewsFor(it.sourceUrl), year: it.year, written: it.written,
+        sourceUrl: it.sourceUrl, dateKind: it.dateKind, flags: it.flags,
+        answers: tally[it.kind + ":" + it.id] || null,
+      });
+    });
+    return items;
+  }
+
+  function partsMarkup(it) {
+    var p = it.points;
+    var bits = p.parts.map(function (part) {
+      var n = part[1];
+      return '<span title="' + esc(part[2]) + '">' + esc(part[0]) + " " + (n < 0 ? "-" + (-n) : n) + "</span>";
+    });
+    var reachWhy = reachNote(it.sourceUrl);
+    if (!p.measured && reachWhy) bits.push('<span class="dim">reach: ' + esc(reachWhy) + "</span>");
+    return '<p class="pts"><b' + (p.measured ? ' class="measured"' : "") + ">" + p.total + "</b>" + bits.join(" &middot; ") + "</p>";
+  }
+
   function draw(cultural, facts, events, scans) {
-    // What a scan said about a row, if anything. A verdict is an argument and
-    // never a change: it is drawn beside the row and the curator's key is the
-    // only thing that moves anything. See docs/scan-a-day.md.
     var byRow = {};
-    (scans || []).forEach(function (v) { byRow[v.subject_kind + ":" + v.subject_id] = v; });
+    (scans || []).forEach(function (v) { if (v.subject_kind) byRow[v.subject_kind + ":" + v.subject_id] = v; });
     function verdictMarkup(kind, id) {
       var v = byRow[kind + ":" + id];
       if (!v) return "";
@@ -828,7 +1083,7 @@ kbd {
     // not exist, so accepting it fills the form below and the curator's Add is
     // the write. Nothing here reaches a page on its own.
     if (proposals.length > 0) {
-      html += '<h4 style="margin:22px 0 0;font-size:13px;color:#9C9490">What the scan says is missing (' + proposals.length + ")</h4>";
+      html += '<h4 class="sh">What the scan says is missing (' + proposals.length + ")</h4>";
       proposals.forEach(function (v) {
         var done = v.acted_at ? (v.agreed ? "taken" : "passed") : "";
         html += '<div class="row" tabindex="0" data-kind="proposal" data-id="' + esc(v.id) + '"><span class="yr">' + esc(v.proposal_year || "") + "</span><div>" +
@@ -842,87 +1097,74 @@ kbd {
       });
     }
 
-    // Published and written about. A published row with no sentence is not on
-    // any page: renderDayPage drops it, because a game's name followed by "is
-    // released" is the filler the site exists to replace. Counting it here
-    // would put this panel back to telling the curator something the site does
-    // not agree with, which is the bug that took an evening to find.
-    function onThePage(r) {
-      return (r.status || "published") === "published" &&
-        String(r.context_string || "").trim() !== "";
+    var items = itemsOf(cultural, facts, events, selected.m, selected.d);
+    var on = items.filter(function (it) { return it.on; });
+    var off = items.filter(function (it) { return !it.on; });
+    on.sort(function (a, b) { return b.points.total - a.points.total; });
+    var date = datePoints(on.map(function (it) { return it.points.total; }));
+    var measured = on.filter(function (it) { return it.points.measured; }).length;
+    var unmeasured = on.filter(function (it) { return !it.points.measured && viewsFor(it.sourceUrl) === null && it.sourceUrl && !reachNote(it.sourceUrl); }).length;
+    var needy = off.filter(function (it) { return it.off === "needs a sentence"; }).length;
+
+    html += '<h4 class="sh">Everything on the page, ranked (' + on.length + ")</h4>" +
+      '<p class="note" style="margin:4px 0 0">Date points <b class="dp">' + date + "</b>, the decayed sum of the rows: the best at 100 percent, the next at 95, then 90. " +
+      "Fixing the top row moves it; adding a dull one does not. " +
+      (measured > 0 ? measured + (measured === 1 ? " row is" : " rows are") + " measured by readers and that number replaces the estimate. " : "") +
+      (needy > 0 ? needy + " published " + (needy === 1 ? "row is" : "rows are") + " a title with nothing written, so no reader sees " + (needy === 1 ? "it" : "them") + ". " : "") +
+      '<button class="act" id="measure">Measure reach</button> <span class="note" id="measure-note" style="margin:0"></span></p>';
+
+    function rowMarkup(it) {
+      var offLabel = it.off ? '<span class="st st-' + esc(it.off === "needs a sentence" ? "candidate" : it.off) + '">' + esc(it.off) + "</span>" : "";
+      var buttons = "";
+      if (it.canDraft) buttons += '<button class="act" data-draft="' + esc(it.kind + ":" + it.id) + '">Draft <kbd>w</kbd></button>';
+      if (it.kind === "cultural_event") buttons += '<button class="act" data-del="' + esc(it.id) + '">Delete</button>';
+      if (it.kind === "birth_fact") buttons += '<button class="act" data-fact="' + esc(it.id) + '" data-on="' + (it.on ? "1" : "0") + '">' + (it.on ? "Hide" : "Put back") + "</button>";
+      if (it.kind === "historical_event") buttons += '<button class="act" data-ev="' + esc(it.id) + '" data-on="' + (it.on ? "1" : "0") + '">' + (it.on ? "Hide" : "Put back") + "</button>";
+      return '<div class="row" tabindex="0" data-kind="' + esc(it.kind) + '" data-id="' + esc(it.id) + '"><span class="yr">' + (it.year || "") + "</span><div>" +
+        '<p class="tx">' + esc(it.text) + "</p>" +
+        (it.line ? '<p class="meta">Card line: <span style="color:#E9E1DB">' + esc(it.line) + "</span></p>" : "") +
+        '<p class="meta">' + offLabel + '<span class="tagpill">' + esc(it.category) + " &middot; " + esc(it.origin) + "</span>" +
+        (it.sourceUrl && it.kind !== "historical_event" ? ' &middot; <a href="' + esc(it.sourceUrl) + '" rel="noopener">source</a>' : "") +
+        (it.sourceChecked === true ? ' &middot; <span class="checked">source answers</span>' : "") + "</p>" +
+        partsMarkup(it) +
+        (it.flagPairs.length ? flagMarkup(it.flagPairs) : "") +
+        verdictMarkup(it.kind, it.id) +
+        (it.hiddenReason ? '<p class="why">' + esc(it.hiddenReason) + "</p>" : "") + "</div>" +
+        '<div class="btns">' + buttons + "</div></div>";
     }
-    var live = cultural.filter(onThePage).length;
-    html += '<h4 style="margin:22px 0 0;font-size:13px;color:#9C9490">Cultural rows (' + cultural.length + ")</h4>";
-    var needy = cultural.filter(function (r) {
-      return (r.status || "published") === "published" && String(r.context_string || "").trim() === "";
-    }).length;
-    html += '<p class="note" style="margin:4px 0 0">' + live + " on the page. " +
-      (needy > 0
-        ? needy + " more are a title with nothing written about them, so no reader sees those either. Write one line and it is back."
-        : "Everything else here is waiting in the queue at the top or already turned down, and no reader can see it.") +
-      "</p>";
-    if (cultural.length === 0) html += '<p class="note">None yet.</p>';
-    // Status on every row. Without it a candidate sitting in the queue and a
-    // row that is live on the page looked exactly alike here, which makes the
-    // one question this list exists to answer, what is actually on the page,
-    // unanswerable by looking at it.
-    cultural.forEach(function (row) {
-      var status = row.status || "published";
-      var needsWriting = status === "published" && String(row.context_string || "").trim() === "";
-      html += '<div class="row" tabindex="0" data-kind="cultural_event" data-id="' + esc(row.id) + '"><span class="yr">' + esc(row.event_date.slice(0, 4)) + "</span><div>" +
-        '<p class="tx">' + esc(row.context_string || row.event_title) + "</p>" +
-        '<p class="meta"><span class="st st-' + esc(status) + '">' +
-        esc(needsWriting ? "needs a sentence" : (status === "published" ? "on the page" : status)) + "</span>" +
-        '<span class="tagpill">' + esc(row.category) + " &middot; " + esc(row.origin) + "</span>" +
-        (row.source_url ? ' &middot; <a href="' + esc(row.source_url) + '" rel="noopener">source</a>' : "") +
-        "</p>" + verdictMarkup("cultural_event", row.id) + "</div>" +
-        '<div class="btns">' +
-        (needsWriting ? '<button class="act" data-draft="cultural_event:' + esc(row.id) + '">Draft <kbd>w</kbd></button>' : "") +
-        '<button class="act" data-del="' + esc(row.id) + '">Delete</button></div></div>';
-    });
+    on.forEach(function (it) { html += rowMarkup(it); });
+    if (on.length === 0) html += '<p class="note">Nothing on the page for this date.</p>';
 
-    html += '<h4 style="margin:26px 0 0;font-size:13px;color:#9C9490">Facts on the page (' + facts.length + ")</h4>";
-    facts.forEach(function (row) {
-      // State on the left with the rest of the row's facts about itself, and
-      // the button says what pressing it does. It used to say "Shown", which
-      // is the state, so the only control on a found fact read as a label and
-      // the page looked like it had none.
-      var flags = factFlagsFor(row);
-      var factLine = leads["birth_fact:" + row.id];
-      html += '<div class="row" tabindex="0" data-kind="birth_fact" data-id="' + esc(row.id) + '"><span class="yr">' + (row.birth_year || "") + "</span><div>" +
-        '<p class="tx">' + esc(row.fact) + "</p>" +
-        (factLine ? '<p class="meta">Card line: <span style="color:#E9E1DB">' + esc(factLine) + "</span></p>" : "") +
-        '<p class="meta"><span class="state' + (row.verified ? " live" : "") + '">' +
-        (row.verified ? "on the page" : "hidden") + "</span>" +
-        ' &middot; <span class="tagpill">' + esc(row.category || "event") + "</span>" +
-        (row.source_url ? ' &middot; <a href="' + esc(row.source_url) + '" rel="noopener">source</a>' : "") +
-        (row.source_checked === true ? ' &middot; <span class="checked">source answers</span>' : "") +
-        "</p>" + (flags.length ? flagMarkup(flags) : "") +
-        verdictMarkup("birth_fact", row.id) +
-        (row.hidden_reason ? '<p class="why">' + esc(row.hidden_reason) + "</p>" : "") + "</div>" +
-        '<div class="btns">' +
-        (row.verified && !factLine ? '<button class="act" data-draft="birth_fact:' + esc(row.id) + '">Draft <kbd>w</kbd></button>' : "") +
-        '<button class="act" data-fact="' + esc(row.id) +
-        '" data-on="' + (row.verified ? "1" : "0") + '">' + (row.verified ? "Hide" : "Put back") + "</button></div></div>";
-    });
-
-    html += '<h4 style="margin:26px 0 0;font-size:13px;color:#9C9490">Wikipedia lines (' + events.length + ")</h4>";
-    events.forEach(function (row) {
-      var live = !row.suppressed;
-      var evLine = leads["historical_event:" + row.id];
-      html += '<div class="row" tabindex="0" data-kind="historical_event" data-id="' + esc(row.id) + '"><span class="yr">' + (row.event_year || "") + "</span><div>" +
-        '<p class="tx">' + esc(row.description) + "</p>" +
-        (evLine ? '<p class="meta">Card line: <span style="color:#E9E1DB">' + esc(evLine) + "</span></p>" : "") +
-        '<p class="meta"><span class="state' + (live ? " live" : "") + '">' +
-        (live ? "on the page" : "hidden") + "</span></p>" + verdictMarkup("historical_event", row.id) + "</div>" +
-        '<div class="btns">' +
-        (live && !evLine ? '<button class="act" data-draft="historical_event:' + esc(row.id) + '">Draft <kbd>w</kbd></button>' : "") +
-        '<button class="act" data-ev="' + esc(row.id) +
-        '" data-on="' + (live ? "1" : "0") + '">' + (live ? "Hide" : "Put back") + "</button></div></div>";
-    });
+    if (off.length > 0) {
+      html += '<details class="offpage"><summary>Off the page (' + off.length + "): " +
+        (needy > 0 ? needy + " needing a sentence, " : "") + off.filter(function (it) { return it.off !== "needs a sentence"; }).length +
+        " hidden, rejected or waiting</summary>";
+      off.sort(function (a, b) { return (a.off === "needs a sentence" ? 0 : 1) - (b.off === "needs a sentence" ? 0 : 1) || b.points.total - a.points.total; });
+      off.forEach(function (it) { html += rowMarkup(it); });
+      html += "</details>";
+    }
 
     el("rows").innerHTML = html;
     wire();
+    el("measure").addEventListener("click", measureReach);
+  }
+
+  function measureReach() {
+    if (!selected) return;
+    var b = el("measure");
+    b.disabled = true;
+    note("measure-note", "Asking Wikipedia how many people looked each thing up. Free, no key.");
+    fetch(API + "/functions/v1/measure-reach", {
+      method: "POST", headers: headers(),
+      body: JSON.stringify({ month: selected.m, day: selected.d }),
+    }).then(function (r) { return r.json(); })
+      .then(function (r) {
+        if (r.status !== "done") { note("measure-note", r.error || "Failed.", "bad"); return; }
+        note("measure-note", r.measured + " measured, " + r.unmeasurable + " could not be, " + r.already + " already fresh.", "good");
+        return loadReach().then(reloadDate);
+      })
+      .catch(function (e) { note("measure-note", String(e.message || e), "bad"); })
+      .then(function () { b.disabled = false; });
   }
 
   function wire() {
@@ -1195,6 +1437,63 @@ kbd {
     return openDate(selected.m, selected.d, null);
   }
 
+  // ---- the weakest dates --------------------------------------------------
+  //
+  // Every row on every date, scored with the same function, summed with the
+  // same decay, and the bottom of the list drawn. Reader answers are not
+  // loaded here, that is one request per date, so this is the estimate and
+  // it says so; opening a date loads the answers and they replace it.
+  function rankYear() {
+    el("weak-lede").textContent = "Loading every row on every date.";
+    return Promise.all([
+      pageAll("cultural_events?select=id,event_date,category,event_title,context_string,source_url,date_kind,origin,status&status=eq.published&order=id.asc"),
+      pageAll("birth_facts?select=id,birth_month,birth_day,fact,category,source_url,verified,source_checked&verified=eq.true&birth_year=eq.0&region_key=eq.&order=id.asc"),
+      pageAll("historical_events?select=id,event_month,event_day,event_year&suppressed=eq.false&order=id.asc"),
+      pageAll("lead_lines?select=subject_kind,subject_id,event_month,event_day,line&order=id.asc"),
+    ]).then(function (r) {
+      var byDate = {};
+      function bucket(m, d) { var k = m + "-" + d; if (!byDate[k]) byDate[k] = { m: m, d: d, cultural: [], facts: [], events: [] }; return byDate[k]; }
+      r[0].forEach(function (row) { var p = row.event_date.split("-"); bucket(+p[1], +p[2]).cultural.push(row); });
+      r[1].forEach(function (row) { bucket(row.birth_month, row.birth_day).facts.push(row); });
+      r[2].forEach(function (row) { bucket(row.event_month, row.event_day).events.push({ id: row.id, event_year: row.event_year, description: "", suppressed: false }); });
+      var savedLeads = leads, savedTally = tally;
+      var leadsByDate = {};
+      r[3].forEach(function (l) { var k = l.event_month + "-" + l.event_day; if (!leadsByDate[k]) leadsByDate[k] = {}; leadsByDate[k][l.subject_kind + ":" + l.subject_id] = l.line; });
+      tally = {};
+      var scored = [];
+      for (var m = 1; m <= 12; m++) {
+        for (var d = 1; d <= lengths[m - 1]; d++) {
+          var b = bucket(m, d);
+          leads = leadsByDate[m + "-" + d] || {};
+          var items = itemsOf(b.cultural, b.facts, b.events, m, d).filter(function (it) { return it.on; });
+          var top = items.slice().sort(function (x, y) { return y.points.total - x.points.total; })[0];
+          scored.push({ m: m, d: d, points: datePoints(items.map(function (it) { return it.points.total; })), rows: items.length, top: top ? top.points.total : 0 });
+        }
+      }
+      leads = savedLeads; tally = savedTally;
+      scored.sort(function (x, y) { return x.points - y.points || x.rows - y.rows; });
+      // A date with nothing on it is the weakest there is and also not a
+      // thing to rank: it needs rows, not fixing. Counted, then set aside.
+      var empty = scored.filter(function (x) { return x.rows === 0; }).length;
+      var withRows = scored.filter(function (x) { return x.rows > 0; });
+      var weakest = withRows.slice(0, 18);
+      var best = withRows[withRows.length - 1];
+      el("weak-lede").textContent = "The 18 lowest of the " + withRows.length + " dates with rows, by decayed points, the estimate only. Reader answers replace it once a date is opened." +
+        (empty > 0 ? " " + empty + " dates have nothing on them at all." : "") +
+        (best ? " The strongest is " + months[best.m - 1] + " " + best.d + " at " + best.points + "." : "");
+      el("weak").innerHTML = weakest.map(function (x) {
+        return '<button data-m="' + x.m + '" data-d="' + x.d + '"><b>' + x.points + "</b>" + months[x.m - 1] + " " + x.d + ", " + x.rows + " rows, top " + x.top + "</button>";
+      }).join("");
+      Array.prototype.forEach.call(el("weak").querySelectorAll("button"), function (c) {
+        c.addEventListener("click", function () {
+          var cell = el("months").querySelector('.cell[data-m="' + c.dataset.m + '"][data-d="' + c.dataset.d + '"]');
+          openDate(+c.dataset.m, +c.dataset.d, cell);
+          el("date").scrollIntoView({ block: "start" });
+        });
+      });
+    }).catch(function (e) { el("weak-lede").textContent = e.message; });
+  }
+
   function reload() {
     if (selected) openDate(selected.m, selected.d, null);
     loadCoverage();
@@ -1455,6 +1754,9 @@ kbd {
           .catch(function () { /* the panel still works, the audit column is null */ });
         drawChips();
         loadQueue();
+        // Reach and the editors' picks are loaded once and used by every date
+        // and by the ranking, so the ranking waits for them.
+        Promise.all([loadReach(), loadSelected()]).then(rankYear);
         loadCoverage().catch(function (e) { el("cov-lede").textContent = e.message; });
       })
       .catch(function () { show("signin", true); note("signin-note", "Could not reach the server.", "bad"); });
