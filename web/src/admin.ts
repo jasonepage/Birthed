@@ -186,6 +186,16 @@ kbd {
   var API = ${JSON.stringify(api.url)};
   var KEY = ${JSON.stringify(api.key)};
   var TOKEN_KEY = "birthed.admin.token";
+  // The refresh token, kept beside the access token.
+  //
+  // Only the access token was ever stored, and Supabase issues those with an
+  // hour on them, so a curator who came back the next evening was sent to
+  // their email for a new link every single time. The refresh token is the
+  // thing that fixes that: it lasts weeks, it rotates on every use, and
+  // trading it for a new access token is one request that happens before the
+  // panel draws. This is what every Supabase client does; there is no client
+  // here because the policy for this page names one origin it may talk to.
+  var REFRESH_KEY = "birthed.admin.refresh";
   var token = null;
   var months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   var lengths = [31,29,31,30,31,30,31,31,30,31,30,31];
@@ -230,8 +240,41 @@ kbd {
     if (!location.hash) return null;
     var parts = new URLSearchParams(location.hash.slice(1));
     var t = parts.get("access_token");
-    if (t) history.replaceState(null, "", location.pathname);
-    return t;
+    if (!t) return null;
+    history.replaceState(null, "", location.pathname);
+    return { access: t, refresh: parts.get("refresh_token") };
+  }
+
+  function remember(access, refresh) {
+    token = access;
+    try {
+      localStorage.setItem(TOKEN_KEY, access);
+      if (refresh) localStorage.setItem(REFRESH_KEY, refresh);
+    } catch (e) { /* private window, so this session lasts as long as the tab */ }
+  }
+
+  /**
+   * Trade the refresh token for a new access token, or resolve false.
+   *
+   * Rotating, so the answer carries a new refresh token and the old one stops
+   * working. Storing the new one is not optional: miss it and the next visit
+   * is back at the email.
+   */
+  function refreshSession() {
+    var saved = null;
+    try { saved = localStorage.getItem(REFRESH_KEY); } catch (e) { saved = null; }
+    if (!saved) return Promise.resolve(false);
+    return fetch(API + "/auth/v1/token?grant_type=refresh_token", {
+      method: "POST",
+      headers: { apikey: KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: saved }),
+    }).then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (body) {
+        if (!body || !body.access_token) return false;
+        remember(body.access_token, body.refresh_token);
+        return true;
+      })
+      .catch(function () { return false; });
   }
 
   el("send").addEventListener("click", function () {
@@ -272,7 +315,10 @@ kbd {
   });
 
   function signOut() {
-    try { localStorage.removeItem(TOKEN_KEY); } catch (e) { /* private window */ }
+    try {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(REFRESH_KEY);
+    } catch (e) { /* private window */ }
     token = null;
     show("panel", false); show("denied", false); show("signin", true);
   }
@@ -733,14 +779,33 @@ kbd {
   function start() {
     var fragment = readFragment();
     if (fragment) {
-      token = fragment;
-      try { localStorage.setItem(TOKEN_KEY, token); } catch (e) { /* private window */ }
+      remember(fragment.access, fragment.refresh);
     } else {
       try { token = localStorage.getItem(TOKEN_KEY); } catch (e) { token = null; }
     }
 
-    if (!token) { show("signin", true); return; }
+    // No access token but maybe a refresh one, which is the ordinary state
+    // after a browser restart.
+    if (!token) {
+      refreshSession().then(function (ok) {
+        if (ok) { admitted(); return; }
+        show("signin", true);
+      });
+      return;
+    }
+    admitted();
+  }
 
+  /**
+   * Draw the panel if this token may curate, once, after trying a refresh.
+   *
+   * An hour old access token and a revoked account look identical from here,
+   * and only one of them is worth sending somebody to their email over. So a
+   * refusal spends one request finding out which it was before it says
+   * anything, and the sentence at the end is only reached when the refresh
+   * token is gone or dead too.
+   */
+  function admitted(retried) {
     // The panel is drawn only after the database says this token may curate.
     // Not because hiding it protects anything, every write is checked again by
     // a policy, but because a panel full of buttons that all fail is a worse
@@ -749,12 +814,14 @@ kbd {
       .then(function (r) { return r.ok ? r.json() : false; })
       .then(function (ok) {
         if (ok !== true) {
-          // An expired token looks the same as a refused one from here, and
-          // the useful thing in both cases is to offer the sign in again.
-          try { localStorage.removeItem(TOKEN_KEY); } catch (e) { /* ignore */ }
-          token = null;
-          show("signin", true);
-          note("signin-note", "That link has expired or the account cannot curate. Ask for another.");
+          if (!retried) {
+            refreshSession().then(function (fresh) {
+              if (fresh) { admitted(true); return; }
+              forgetAndAsk();
+            });
+            return;
+          }
+          forgetAndAsk();
           return;
         }
         show("panel", true);
@@ -769,6 +836,16 @@ kbd {
         loadCoverage().catch(function (e) { el("cov-lede").textContent = e.message; });
       })
       .catch(function () { show("signin", true); note("signin-note", "Could not reach the server.", "bad"); });
+  }
+
+  function forgetAndAsk() {
+    try {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(REFRESH_KEY);
+    } catch (e) { /* ignore */ }
+    token = null;
+    show("signin", true);
+    note("signin-note", "That sign in has run out, or the account cannot curate. Ask for another.");
   }
 
   start();
