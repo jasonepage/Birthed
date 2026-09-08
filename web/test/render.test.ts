@@ -234,13 +234,13 @@ test("all 366 are linked once, in a leap year and out of one", () => {
 // this is can be written at build time. Today cannot, because these pages are
 // baked into a deploy and served unchanged until the next one, so a today
 // written here would still point at the day of the deploy a week later.
-// The footer claims there is nothing to fill in, and on one page that is
-// false. /add has a form, runs a script and posts a birthday to the project,
-// which is why it carries its own widened policy header. A claim that is true
-// on 370 pages and false on one is worse than no claim, because the one is the
-// page somebody screenshots.
+// The footer says there is no sign up, and on one page that is false. /add
+// has a form, runs a script and posts a birthday to the project, which is why
+// it carries its own widened policy header. A claim that is true on 370 pages
+// and false on one is worse than no claim, because the one is the page
+// somebody screenshots.
 test("every page says nothing is collected, except the page that collects", () => {
-  const claim = "nothing to fill in";
+  const claim = "no sign up";
   const collecting = renderAdd({ url: "https://example.supabase.co", key: "anon" });
   assert.ok(!collecting.includes(claim), "/add takes a birthday and must not claim otherwise");
 
@@ -533,7 +533,32 @@ test("the privacy page no longer claims the site runs no scripts", () => {
   const html = renderPrivacy();
   assert.ok(!html.includes("runs no scripts"));
   assert.ok(html.includes("after the hash symbol"));
-  assert.ok(html.includes("sets no cookies"));
+  // This used to assert the page carried "sets no cookies", which pinned the
+  // claim in place while the answer route was setting one. The test above
+  // asserts the opposite now, on purpose.
+});
+
+// The footer sentence is the answer to the Reddit accusation and its whole
+// value is that a reader can check every clause in the network tab. It said
+// the page set no cookies while the answer route was setting a one year one.
+// These two assertions exist so that the next thing stored about a reader
+// either appears in the sentence or fails the build.
+test("the footer names the cookie instead of denying it", () => {
+  const html = renderPrivacy();
+  assert.ok(!html.includes("sets no cookies"), "answering sets one, so the line may not deny it");
+  assert.ok(html.includes("one random string is kept in a cookie"));
+  assert.ok(html.includes("not counted twice"), "the line says what the cookie is for");
+});
+
+// The privacy page has to name both cookies by the names the reader will see
+// in their browser, or naming them in the footer is the only honest text on
+// the site and the page behind it still reads as boilerplate.
+test("the privacy page names both cookies and refuses the address", () => {
+  const html = renderPrivacy();
+  assert.ok(html.includes("<code>bt</code>"), "the answer token is named");
+  assert.ok(html.includes("<code>by</code>"), "the birth year cookie is named");
+  assert.ok(html.includes("never sent to our database and is never stored against an answer"));
+  assert.ok(html.includes("no analytics service"));
 });
 
 test("the hidden attribute beats the stylesheet", () => {

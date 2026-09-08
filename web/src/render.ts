@@ -1501,10 +1501,22 @@ const SITELINKS = `<p class="sitelinks"><a href="/">Every date</a> · <a href="/
  * it if anything tried. Writing the stronger sentence would hand the one
  * reader who opens the source a reason to disbelieve the rest of it, and the
  * whole point of the line is that it survives being checked.
+ *
+ * **It said "this page sets no cookies" until 8 September 2026, and answering
+ * made that false.** A POST to record an answer comes back with a one year
+ * `bt` cookie, so the sentence written to survive the network tab was refuted
+ * by the network tab, on 366 pages, in the exact place a suspicious reader
+ * looks first. "Nothing to fill in" went the same way when the answer buttons
+ * and the birth year picker arrived. The rule this breaks is not a style rule:
+ * a checkable claim that is false is worse than no claim, because the reader
+ * who checks is the reader who was going to defend the site in the comments.
+ * So the cookie is now named in the line itself rather than admitted on a
+ * policy page. Anything that later stores something new about a reader has to
+ * be added here in the same commit, or this sentence is a lie again.
  */
 export const FOOT = `<footer>
 ${SITELINKS}
-<p class="nothing">No account, no sign up and nothing to fill in. This page sets no cookies and loads nothing from any other company.</p>
+<p class="nothing">No account, no sign up, and nothing on this page is loaded from another company. Answer a row and one random string is kept in a cookie, so the same browser is not counted twice on the same date. That is the whole of what is kept about you.</p>
 ${CREDIT}
 </footer>`;
 
