@@ -67,6 +67,18 @@ export interface EventSignals {
   anniversary: boolean;
   /** An annual observance is anchored to this event on this date. */
   observed: boolean;
+  /**
+   * Whether the score was taken from an article about the event, rather than
+   * from an article about a person or a place named in the line.
+   *
+   * This carries more weight than it looks like it should. "Giuseppe Garibaldi
+   * enters Naples" measures as Garibaldi, who is in a hundred and thirty
+   * languages, and the line finished sixth on September 7 on his fame alone.
+   * If Wikipedia has never written an article about the thing that happened,
+   * that is close to a definition of the thing not being what the day is
+   * remembered for.
+   */
+  ownArticle: boolean;
 }
 
 /**
@@ -97,7 +109,10 @@ export function importanceOf(s: EventSignals): number {
     Math.log10(Math.max(0, s.views) + 1) * 1.0 +
     Math.log10(Math.max(0, s.sitelinks) + 1) * 1.5 +
     (s.anniversary ? 1.0 : 0) +
-    (s.observed ? 2.5 : 0)
+    (s.observed ? 2.5 : 0) -
+    // Three points is roughly a thousandfold in attention, which is the right
+    // size of thumb for "we are measuring the wrong thing and know it".
+    (s.ownArticle ? 0 : 3.0)
   );
 }
 

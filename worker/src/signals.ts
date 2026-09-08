@@ -101,12 +101,21 @@ export function linksIn(html: string): Link[] {
  * Hobart Zoo", "independence from Portugal". Where and from whom, never what.
  * Without this, the thylacine going extinct is an article about a zoo.
  *
- * THREE, when fame is known and more than one candidate survives, drop the
- * single most famous one. Not all the famous ones: dropping every link above a
- * threshold empties lines whose subject genuinely is well known.
+ * THREE, throw away every link that Wikidata says is a person or a place. This
+ * is the rule that finally worked. Dropping the single most famous link was not
+ * enough, because Saladin is more famous than Richard I and the Holy Roman
+ * Empire is more famous than the Kingdom of France, so removing one context
+ * link only promoted the next one.
  *
- * FOUR, of what is left, the longest anchor, ties to the later link, because
- * these sentences put the actor before the act.
+ * FOUR, of the survivors, the one carried by the fewest language editions,
+ * because in a date line the event is the specific thing and everything else in
+ * the sentence is there to locate it. A battle is in forty languages and the
+ * king who won it is in a hundred and twelve.
+ *
+ * When rule three leaves nothing, the line has no article about what happened,
+ * and it says so rather than pretending. That is not a failure to report: if
+ * Wikipedia never wrote the article, the event is almost certainly not what the
+ * date is remembered for.
  *
  * It is still a heuristic. "Bitcoin becomes legal tender in El Salvador" has no
  * article about the event and will pick something imperfect no matter what the
@@ -117,9 +126,19 @@ export function linksIn(html: string): Link[] {
 const PLACE_WORD = /\b(in|at|near|from|to|into|outside|aboard|of)(\s+(the|a|an))?\s*$/i;
 const TOPIC_PREFIX = 45;
 
-export function primaryArticle(lineHtml: string, fame?: Map<string, number>): string | null {
+export interface Pick {
+  article: string | null;
+  /**
+   * Whether the chosen article is about the event rather than about somebody
+   * or somewhere named in it. False means Wikipedia has not written an article
+   * about what happened, which is itself a strong statement about the day.
+   */
+  ownArticle: boolean;
+}
+
+export function pickArticle(lineHtml: string, entities?: Map<string, Entity>): Pick {
   const links = linksIn(lineHtml);
-  if (links.length === 0) return null;
+  if (links.length === 0) return { article: null, ownArticle: false };
 
   let floor = 0;
   const colon = lineHtml.indexOf(":");
@@ -133,29 +152,40 @@ export function primaryArticle(lineHtml: string, fame?: Map<string, number>): st
     const before = cellText(lineHtml.slice(floor, link.at));
     (PLACE_WORD.test(before) ? demoted : kept).push(link);
   }
+  const all = kept.length > 0 ? kept : demoted;
+  if (all.length === 0) return { article: null, ownArticle: false };
 
-  let pool = kept.length > 0 ? kept : demoted;
-  if (pool.length === 0) return null;
-
-  // Rule three. Only when fame is known and there is something left afterwards.
-  if (fame !== undefined && pool.length > 1) {
-    let most: Link | null = null;
-    let mostFame = -1;
-    for (const link of pool) {
-      const f = fame.get(link.title) ?? 0;
-      if (f > mostFame) { mostFame = f; most = link; }
-    }
-    if (most !== null && mostFame > 0) pool = pool.filter((l) => l !== most);
+  // Without Wikidata there is nothing to reason with, so fall back to the old
+  // guess and do not claim the pick is an event article.
+  if (entities === undefined) {
+    let best: Link | null = null;
+    for (const link of all) if (best === null || link.anchor.length >= best.anchor.length) best = link;
+    return { article: best?.title ?? null, ownArticle: false };
   }
 
+  const subjects = all.filter((l) => !isContextEntity(entities.get(l.title)));
+  const pool = subjects.length > 0 ? subjects : all;
+
+  // The most specific survivor, measured by how few language editions carry it.
+  // A battle is in forty and the king who won it is in a hundred and twelve.
   let best: Link | null = null;
+  let bestFame = Number.POSITIVE_INFINITY;
   for (const link of pool) {
-    if (best === null || link.anchor.length >= best.anchor.length) best = link;
+    const fame = entities.get(link.title)?.sitelinks ?? Number.MAX_SAFE_INTEGER;
+    if (fame < bestFame || (fame === bestFame && best !== null && link.anchor.length > best.anchor.length)) {
+      best = link;
+      bestFame = fame;
+    }
   }
-  return best === null ? null : best.title;
+  return { article: best?.title ?? null, ownArticle: subjects.length > 0 };
 }
 
-/** Every article linked from the Events section, for the fame lookup. */
+/** Just the title, for callers that do not care how it was found. */
+export function primaryArticle(lineHtml: string, entities?: Map<string, Entity>): string | null {
+  return pickArticle(lineHtml, entities).article;
+}
+
+/** Every article linked from the Events section, for the entity lookup. */
 export function allEventLinks(html: string): string[] {
   const section = sectionById(html, "Events");
   if (section === null) return [];
@@ -206,9 +236,9 @@ export function sectionById(html: string, id: string): string | null {
  * Returns a map keyed by `rowKey`, so the caller can look up the rows it
  * already has rather than trying to keep two lists in the same order.
  */
-export function articlesByRow(html: string, fame?: Map<string, number>): Map<string, string> {
+export function articlesByRow(html: string, entities?: Map<string, Entity>): Map<string, Pick> {
   const section = sectionById(html, "Events");
-  const out = new Map<string, string>();
+  const out = new Map<string, Pick>();
   if (section === null) return out;
 
   for (const item of listItems(section)) {
@@ -219,9 +249,9 @@ export function articlesByRow(html: string, fame?: Map<string, number>): Map<str
     const year = Number(m[1]);
     if (!Number.isInteger(year)) continue;
     const description = (m[2] ?? "").replace(/(\s*\[\d+\])+\s*$/, "").trim();
-    const article = primaryArticle(own, fame);
-    if (article === null) continue;
-    out.set(rowKey(year, description), article);
+    const pick = pickArticle(own, entities);
+    if (pick.article === null) continue;
+    out.set(rowKey(year, description), pick);
   }
   return out;
 }
@@ -312,54 +342,100 @@ export function anniversaryUrl(monthName: string, day: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Sitelinks, the signal that stops this being an American calendar.
+// What each link IS, which turned out to matter more than how famous it is.
 //
-// One query for every article on a date, by title, asking Wikidata how many
-// language editions carry it. Batched by identifier the way the culture
-// importer batches its earliest-publication lookup, and for the same reason:
-// asking the service to aggregate over everything it holds is the version that
-// times out.
+// The second live run still put Richard I of England at the top of September 7
+// and scored the treaty of Baden as the Kingdom of France. Dropping the single
+// most famous link had not been enough, because Saladin is more famous than
+// Richard and the Holy Roman Empire is more famous than France, so throwing
+// away one context link only promoted the next one.
+//
+// The distinction the rule was reaching for is not fame at all. Richard I is a
+// PERSON. The Kingdom of France is a COUNTRY. The Battle of Arsuf is a BATTLE.
+// A date line names people and places to locate an event, and Wikidata already
+// records which of those a thing is, in P31.
+//
+// So a link whose type is a human or a piece of geography is context by
+// definition, and an event line that has nothing else in it does not have an
+// article about what happened. That last part is the strongest signal on this
+// page and it fell out of the fix by accident: if Wikipedia has not written an
+// article about the thing that happened, it is almost certainly not what the
+// day is remembered for. "Giuseppe Garibaldi enters Naples" is a person and a
+// city and nothing else, and it should not be in anybody's top five.
 
 const WIKIDATA = "https://query.wikidata.org/sparql";
 
-export function buildSitelinkQuery(titles: string[]): string {
-  const values = titles
-    .map((t) => `"${t.replace(/["\\]/g, "\\$&")}"@en`)
-    .join(" ");
-  return `SELECT ?title ?sitelinks WHERE {
+export interface Entity {
+  sitelinks: number;
+  /** English labels of every P31 value, lowercased. */
+  types: string[];
+}
+
+/**
+ * Types that are context in a date line, matched on the label rather than on a
+ * list of identifiers.
+ *
+ * Labels because the identifier list is endless and unstable: a historical
+ * country, a former kingdom, a commune of France and a census designated place
+ * are four different items that all mean "this is a place". The words they
+ * share are short and they do not change.
+ */
+const CONTEXT_TYPE = /\b(human|country|sovereign state|city|town|village|municipality|commune|island|river|mountain|province|county|region|state|kingdom|empire|dynasty|republic|capital|settlement|territory|continent|nation)\b/;
+
+export function isContextEntity(entity: Entity | undefined): boolean {
+  if (entity === undefined) return false;
+  return entity.types.some((t) => CONTEXT_TYPE.test(t));
+}
+
+export function buildEntityQuery(titles: string[]): string {
+  const values = titles.map((t) => `"${t.replace(/["\\]/g, "\\$&")}"@en`).join(" ");
+  return `SELECT ?title ?sitelinks (GROUP_CONCAT(DISTINCT ?typeLabel; separator="|") AS ?types) WHERE {
   VALUES ?title { ${values} }
   ?article schema:about ?item ; schema:isPartOf <https://en.wikipedia.org/> ; schema:name ?title .
   ?item wikibase:sitelinks ?sitelinks .
-}`;
+  OPTIONAL { ?item wdt:P31 ?type . ?type rdfs:label ?typeLabel . FILTER(lang(?typeLabel) = "en") }
+}
+GROUP BY ?title ?sitelinks`;
 }
 
-interface SitelinkAnswer {
-  results?: { bindings?: { title?: { value: string }; sitelinks?: { value: string } }[] };
+interface EntityAnswer {
+  results?: {
+    bindings?: {
+      title?: { value: string };
+      sitelinks?: { value: string };
+      types?: { value: string };
+    }[];
+  };
 }
 
-export function readSitelinks(answer: SitelinkAnswer): Map<string, number> {
-  const out = new Map<string, number>();
+export function readEntities(answer: EntityAnswer): Map<string, Entity> {
+  const out = new Map<string, Entity>();
   for (const row of answer.results?.bindings ?? []) {
     const title = row.title?.value;
     const raw = row.sitelinks?.value;
     if (title === undefined || raw === undefined) continue;
     const n = Number(raw);
-    if (Number.isFinite(n)) out.set(title, n);
+    if (!Number.isFinite(n)) continue;
+    const types = (row.types?.value ?? "")
+      .split("|")
+      .map((t) => t.trim().toLowerCase())
+      .filter((t) => t !== "");
+    out.set(title, { sitelinks: n, types });
   }
   return out;
 }
 
 /**
- * Sitelink counts for a batch of article titles.
+ * Sitelinks and types for a batch of article titles.
  *
- * Fails open with an empty map, the same choice `fetchEarliestPublications`
- * makes: a date that scores on views alone is a worse ranking, and a run that
- * drops 366 dates because a volunteer funded service was busy is a worse day.
+ * Fails open with an empty map, the same choice fetchEarliestPublications
+ * makes: a date ranked on views alone is a worse ranking, and a run that drops
+ * 366 dates because a volunteer funded service was busy is a worse day.
  */
-export async function fetchSitelinks(
+export async function fetchEntities(
   titles: string[],
   userAgent: string,
-): Promise<Map<string, number>> {
+): Promise<Map<string, Entity>> {
   if (titles.length === 0) return new Map();
   const response = await fetch(WIKIDATA, {
     method: "POST",
@@ -368,8 +444,8 @@ export async function fetchSitelinks(
       Accept: "application/sparql-results+json",
       "Content-Type": "application/x-www-form-urlencoded",
     },
-    body: new URLSearchParams({ query: buildSitelinkQuery(titles) }),
+    body: new URLSearchParams({ query: buildEntityQuery(titles) }),
   });
   if (!response.ok) return new Map();
-  return readSitelinks((await response.json()) as SitelinkAnswer);
+  return readEntities((await response.json()) as EntityAnswer);
 }

@@ -4,8 +4,8 @@ import {
   gravityOf, importanceOf, memorialCount, rememberedFor, shapeOf,
 } from "../src/importance.js";
 
-const sig = (views: number, sitelinks: number, anniversary = false, observed = false) =>
-  ({ views, sitelinks, anniversary, observed });
+const sig = (views: number, sitelinks: number, anniversary = false, observed = false, ownArticle = true) =>
+  ({ views, sitelinks, anniversary, observed, ownArticle });
 
 test("a commemorated national day outranks a bigger English audience", () => {
   // The case this file exists for. ESPN's article is read far more in English
@@ -24,6 +24,21 @@ test("the anniversary list is worth a thumb, not the decision", () => {
 
 test("zero everything does not throw and scores nothing", () => {
   assert.equal(importanceOf(sig(0, 0)), 0);
+});
+
+test("a row measured on somebody else's fame is docked", () => {
+  // Giuseppe Garibaldi entering Naples: a person and a city and no article
+  // about the event. It finished sixth on September 7 on his fame alone.
+  const borrowed = importanceOf(sig(44235, 130, false, false, false));
+  const own = importanceOf(sig(36750, 45, true, false, true));
+  assert.ok(own > borrowed, `the Blitz ${own} should beat Garibaldi ${borrowed}`);
+});
+
+test("the penalty is exactly three points and nothing else changes", () => {
+  assert.equal(
+    importanceOf(sig(1000, 20, true, true, true)) - importanceOf(sig(1000, 20, true, true, false)),
+    3,
+  );
 });
 
 test("negative counts are floored rather than producing NaN", () => {

@@ -20,7 +20,7 @@ import { parseEvents } from "./events.js";
 import { fetchPage } from "./wikipedia.js";
 import { monthlyViewsForTitles } from "./pageviews.js";
 import {
-  allEventLinks, anniversaryArticles, anniversaryUrl, articlesByRow, fetchSitelinks,
+  allEventLinks, anniversaryArticles, anniversaryUrl, articlesByRow, fetchEntities,
   observanceMatch, observancesFrom, primaryArticle, rowKey, type Observance,
 } from "./signals.js";
 import { gravityOf, importanceOf, memorialCount, rememberedFor, shapeOf } from "./importance.js";
@@ -38,6 +38,7 @@ export interface RankedRow {
   year: number;
   description: string;
   article: string | null;
+  ownArticle: boolean;
   views: number;
   sitelinks: number;
   anniversary: boolean;
@@ -72,8 +73,8 @@ export async function rankDay(month: number, day: number): Promise<RankedDay | n
   // which link is the famous one and that is a question only Wikidata answers.
   // One batched query for every link on the date, then the picker, then views
   // for the handful of articles it settled on.
-  const fame = await fetchSitelinks(allEventLinks(page.html), config.userAgent);
-  const articles = articlesByRow(page.html, fame);
+  const entities = await fetchEntities(allEventLinks(page.html), config.userAgent);
+  const articles = articlesByRow(page.html, entities);
 
   // Wikipedia's own editors' pick for this date. A missing page is fine and
   // common on the less eventful dates, and costs the run one signal.
@@ -83,7 +84,7 @@ export async function rankDay(month: number, day: number): Promise<RankedDay | n
   );
   const anniversaries = annPage === null ? new Set<string>() : anniversaryArticles(annPage.html);
 
-  const titles = [...new Set([...articles.values()])];
+  const titles = [...new Set([...articles.values()].map((p) => p.article!))];
   const views = await monthlyViewsForTitles(titles, config.userAgent);
 
   // An observance is proposed, never applied. Tying "National Threatened
@@ -101,12 +102,14 @@ export async function rankDay(month: number, day: number): Promise<RankedDay | n
   proposals.sort((a, b) => b.match - a.match);
 
   const rows: RankedRow[] = events.map((event) => {
-    const article = articles.get(rowKey(event.year, event.description)) ?? null;
+    const pick = articles.get(rowKey(event.year, event.description));
+    const article = pick?.article ?? null;
     const signals = {
       views: article === null ? 0 : views.get(article) ?? 0,
-      sitelinks: article === null ? 0 : fame.get(article) ?? 0,
+      sitelinks: article === null ? 0 : entities.get(article)?.sitelinks ?? 0,
       anniversary: article !== null && anniversaries.has(article),
       observed: false,
+      ownArticle: pick?.ownArticle ?? false,
     };
     return {
       year: event.year,
@@ -137,16 +140,23 @@ function report(d: RankedDay): void {
   const shown = Math.max(d.memorial, 8);
   d.rows.slice(0, shown).forEach((r, i) => {
     const mark = i < d.memorial ? "*" : " ";
-    const flags = [r.anniversary ? "anniv" : "", r.gravity === "grave" ? "GRAVE" : ""]
-      .filter(Boolean).join(",");
+    const flags = [
+      r.anniversary ? "anniv" : "",
+      r.gravity === "grave" ? "GRAVE" : "",
+      r.ownArticle ? "" : "borrowed",
+    ].filter(Boolean).join(",");
     console.log(
       `${mark} ${r.score.toFixed(2).padStart(5)}  ${String(r.year).padStart(4)}  ` +
-      `v${String(r.views).padStart(7)} s${String(r.sitelinks).padStart(3)} ${flags.padEnd(12)}` +
+      `v${String(r.views).padStart(7)} s${String(r.sitelinks).padStart(3)} ${flags.padEnd(21)}` +
       `${(r.article ?? "(no article)").slice(0, 34).padEnd(35)}${r.description.slice(0, 60)}`,
     );
   });
   const noArticle = d.rows.filter((r) => r.article === null).length;
-  if (noArticle > 0) console.log(`\n  ${noArticle} rows scored zero because no article could be picked from the line`);
+  const borrowed = d.rows.filter((r) => r.article !== null && !r.ownArticle).length;
+  if (noArticle > 0) console.log(`\n  ${noArticle} rows had no link to measure at all`);
+  if (borrowed > 0) {
+    console.log(`  ${borrowed} rows have no article about the event itself and were docked three points`);
+  }
   if (d.proposals.length > 0) {
     console.log("\n  observance links to confirm or reject:");
     for (const p of d.proposals.slice(0, 3)) {

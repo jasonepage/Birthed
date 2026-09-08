@@ -1,9 +1,9 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import {
-  anniversaryArticles, articlesByRow, buildSitelinkQuery, isContextTitle,
-  linksIn, observanceMatch, observancesFrom, primaryArticle, readSitelinks,
-  rowKey, sectionById, allEventLinks,
+  allEventLinks, anniversaryArticles, articlesByRow, buildEntityQuery,
+  isContextEntity, isContextTitle, linksIn, observanceMatch, observancesFrom,
+  pickArticle, primaryArticle, readEntities, rowKey, sectionById, type Entity,
 } from "../src/signals.js";
 
 // A stripped down copy of the shape a Wikipedia date article actually has:
@@ -71,22 +71,69 @@ test("a link after a preposition of place is demoted below the subject", () => {
   assert.equal(primaryArticle(line), "Thylacine");
 });
 
-test("the most famous link is dropped, which is what stops a king eating a battle", () => {
-  // The September 7 failure exactly. Every one of these is a real link on the
-  // Battle of Arsuf line, and the first version returned Richard I of England.
-  const line = `<a href="/wiki/Third_Crusade">Third Crusade</a>: <a href="/wiki/Battle_of_Arsuf">Battle of Arsuf</a>: <a href="/wiki/Richard_I_of_England">Richard I of England</a> defeats <a href="/wiki/Saladin">Saladin</a>.`;
-  const fame = new Map([["Third Crusade", 80], ["Battle of Arsuf", 41], ["Richard I of England", 112], ["Saladin", 108]]);
-  assert.equal(primaryArticle(line, fame), "Battle of Arsuf");
+const ent = (sitelinks: number, ...types: string[]): Entity => ({ sitelinks, types });
+
+// The real Battle of Arsuf line, which the first two versions of this picker
+// both scored as Richard I of England.
+const ARSUF = `<a href="/wiki/Third_Crusade">Third Crusade</a>: <a href="/wiki/Battle_of_Arsuf">Battle of Arsuf</a>: <a href="/wiki/Richard_I_of_England">Richard I of England</a> defeats <a href="/wiki/Saladin">Saladin</a>.`;
+const ARSUF_ENTITIES = new Map<string, Entity>([
+  ["Third Crusade", ent(80, "crusade", "war")],
+  ["Battle of Arsuf", ent(41, "battle")],
+  ["Richard I of England", ent(112, "human")],
+  ["Saladin", ent(130, "human")],
+]);
+
+test("people and places are thrown out, which is what stops a king eating a battle", () => {
+  assert.equal(primaryArticle(ARSUF, ARSUF_ENTITIES), "Battle of Arsuf");
 });
 
-test("without a fame map the picker still answers, just less well", () => {
-  const line = `<a href="/wiki/Battle_of_Arsuf">Battle of Arsuf</a>: <a href="/wiki/Richard_I_of_England">Richard I of England</a> wins.`;
-  assert.equal(primaryArticle(line), "Richard I of England");
+test("dropping the single most famous link would not have been enough", () => {
+  // Saladin outranks Richard, so removing one context link only promotes the
+  // next one. This is the case that broke the second version.
+  const withoutRichard = new Map(ARSUF_ENTITIES);
+  withoutRichard.delete("Richard I of England");
+  assert.equal(primaryArticle(ARSUF, withoutRichard), "Battle of Arsuf");
 });
 
-test("dropping the most famous link never empties a single link line", () => {
+test("a line of only people and places says it has no article of its own", () => {
+  const line = `<a href="/wiki/Giuseppe_Garibaldi">Giuseppe Garibaldi</a> enters <a href="/wiki/Naples">Naples</a>.`;
+  const e = new Map<string, Entity>([
+    ["Giuseppe Garibaldi", ent(130, "human")],
+    ["Naples", ent(200, "big city", "municipality of italy")],
+  ]);
+  const pick = pickArticle(line, e);
+  assert.equal(pick.ownArticle, false);
+  assert.equal(pick.article, "Giuseppe Garibaldi", "still names what it measured");
+});
+
+test("the most specific survivor wins, not the longest anchor", () => {
+  const line = `The <a href="/wiki/Treaty_of_Baden">treaty of Baden</a> between the
+    <a href="/wiki/Kingdom_of_France">kingdom of France</a> and the
+    <a href="/wiki/Holy_Roman_Empire">Holy Roman Empire</a> is ratified.`;
+  const e = new Map<string, Entity>([
+    ["Treaty of Baden", ent(21, "treaty")],
+    ["Kingdom of France", ent(87, "historical country", "kingdom")],
+    ["Holy Roman Empire", ent(180, "historical country", "empire")],
+  ]);
+  assert.equal(primaryArticle(line, e), "Treaty of Baden");
+});
+
+test("without an entity map the picker answers but does not claim an event article", () => {
+  const pick = pickArticle(ARSUF);
+  assert.equal(pick.ownArticle, false);
+});
+
+test("a single link line is never emptied", () => {
   const line = `The network <a href="/wiki/ESPN">ESPN</a> makes its debut.`;
-  assert.equal(primaryArticle(line, new Map([["ESPN", 40]])), "ESPN");
+  const e = new Map<string, Entity>([["ESPN", ent(40, "television network")]]);
+  assert.equal(primaryArticle(line, e), "ESPN");
+});
+
+test("a taxon is a subject, not a place", () => {
+  assert.equal(isContextEntity(ent(90, "taxon")), false);
+  assert.equal(isContextEntity(ent(112, "human")), true);
+  assert.equal(isContextEntity(ent(200, "big city")), true);
+  assert.equal(isContextEntity(undefined), false);
 });
 
 test("a demoted link is still better than nothing", () => {
@@ -107,10 +154,10 @@ test("only the Events section is read for events", () => {
 
 test("each event row is keyed to the article it is about", () => {
   const map = articlesByRow(PAGE);
-  assert.equal(map.get(rowKey(1822, "Dom Pedro I declares the independence of Brazil from Portugal.")),
+  assert.equal(map.get(rowKey(1822, "Dom Pedro I declares the independence of Brazil from Portugal."))?.article,
     "Independence of Brazil");
-  assert.equal(map.get(rowKey(1936, "The last thylacine dies at the Hobart Zoo in Tasmania.")), "Thylacine");
-  assert.equal(map.get(rowKey(1979, "The cable network ESPN makes its debut.")), "ESPN");
+  assert.equal(map.get(rowKey(1936, "The last thylacine dies at the Hobart Zoo in Tasmania."))?.article, "Thylacine");
+  assert.equal(map.get(rowKey(1979, "The cable network ESPN makes its debut."))?.article, "ESPN");
 });
 
 test("a line with no link is absent rather than present and empty", () => {
@@ -152,23 +199,24 @@ test("the anniversaries list yields article titles and skips bare years", () => 
 });
 
 test("a quotation mark in a title cannot break the query", () => {
-  const q = buildSitelinkQuery([`He said "no"`, "ESPN"]);
+  const q = buildEntityQuery([`He said "no"`, "ESPN"]);
   assert.ok(q.includes('\\"no\\"'));
   assert.ok(q.includes('"ESPN"@en'));
 });
 
-test("a sitelink answer that is empty or malformed yields an empty map", () => {
-  assert.equal(readSitelinks({}).size, 0);
-  assert.equal(readSitelinks({ results: { bindings: [{ title: { value: "X" } }] } }).size, 0);
+test("an answer that is empty or malformed yields an empty map", () => {
+  assert.equal(readEntities({}).size, 0);
+  assert.equal(readEntities({ results: { bindings: [{ title: { value: "X" } }] } }).size, 0);
 });
 
-test("sitelink counts are read back by title", () => {
-  const map = readSitelinks({ results: { bindings: [
-    { title: { value: "The Blitz" }, sitelinks: { value: "44" } },
+test("sitelinks and types are read back by title", () => {
+  const map = readEntities({ results: { bindings: [
+    { title: { value: "The Blitz" }, sitelinks: { value: "44" }, types: { value: "aerial bombing|Military operation" } },
     { title: { value: "ESPN" }, sitelinks: { value: "40" } },
   ] } });
-  assert.equal(map.get("The Blitz"), 44);
-  assert.equal(map.get("ESPN"), 40);
+  assert.equal(map.get("The Blitz")?.sitelinks, 44);
+  assert.deepEqual(map.get("The Blitz")?.types, ["aerial bombing", "military operation"]);
+  assert.deepEqual(map.get("ESPN")?.types, []);
 });
 
 test("every link in the events section is offered for the fame lookup", () => {
