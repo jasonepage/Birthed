@@ -124,7 +124,11 @@ export async function rankDay(month: number, day: number): Promise<RankedDay | n
 
   const scores = rows.map((r) => r.score);
   const memorial = memorialCount(scores);
-  const headline = rememberedFor(rows.slice(0, 3).map((r) => r.article ?? ""));
+  // Built only from rows that have an article about the event. September 7
+  // otherwise announced itself as "Boxer Rebellion, Mona Lisa and Bitcoin".
+  const headline = rememberedFor(
+    rows.filter((r) => r.ownArticle).slice(0, 3).map((r) => r.article ?? ""),
+  );
 
   return { month, day, rows, observances, proposals, shape: shapeOf(scores), memorial, headline };
 }

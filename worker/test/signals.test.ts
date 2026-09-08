@@ -3,7 +3,8 @@ import { test } from "node:test";
 import {
   allEventLinks, anniversaryArticles, articlesByRow, buildEntityQuery,
   isContextEntity, isContextTitle, linksIn, observanceMatch, observancesFrom,
-  pickArticle, primaryArticle, readEntities, rowKey, sectionById, type Entity,
+  isEventEntity, isObservance, pickArticle, primaryArticle, readEntities,
+  rowKey, sectionById, type Entity,
 } from "../src/signals.js";
 
 // A stripped down copy of the shape a Wikipedia date article actually has:
@@ -127,6 +128,52 @@ test("a single link line is never emptied", () => {
   const line = `The network <a href="/wiki/ESPN">ESPN</a> makes its debut.`;
   const e = new Map<string, Entity>([["ESPN", ent(40, "television network")]]);
   assert.equal(primaryArticle(line, e), "ESPN");
+});
+
+test("the Boxer Protocol is not demoted out of its own line by a genitive", () => {
+  // "of" used to be treated as a preposition of place, so "the signing of the
+  // Boxer Protocol" threw the Protocol away and the parent Rebellion won.
+  const line = `The <a href="/wiki/Boxer_Rebellion">Boxer Rebellion</a> in
+    <a href="/wiki/Qing_dynasty">Qing dynasty</a> officially ends with the signing of the
+    <a href="/wiki/Boxer_Protocol">Boxer Protocol</a>.`;
+  const e = new Map<string, Entity>([
+    ["Boxer Rebellion", ent(78, "rebellion")],
+    ["Qing dynasty", ent(150, "historical country", "dynasty")],
+    ["Boxer Protocol", ent(25, "treaty")],
+  ]);
+  assert.equal(primaryArticle(line, e), "Boxer Protocol");
+});
+
+test("a painting, a currency and a vehicle class are not events", () => {
+  // All three passed the person-and-place filter on September 7 and ranked as
+  // if the day were remembered for them.
+  assert.equal(isEventEntity(ent(146, "painting")), false);
+  assert.equal(isEventEntity(ent(152, "cryptocurrency")), false);
+  assert.equal(isEventEntity(ent(140, "class of vehicle")), false);
+  assert.equal(isEventEntity(ent(46, "aviation accident")), true);
+  assert.equal(isEventEntity(ent(36, "battle")), true);
+  assert.equal(isEventEntity(ent(25, "treaty")), true);
+  assert.equal(isEventEntity(undefined), false);
+});
+
+test("a line pointing at an object rather than a happening says so", () => {
+  const line = `<a href="/wiki/Guillaume_Apollinaire">Guillaume Apollinaire</a> is arrested
+    on suspicion of stealing the <a href="/wiki/Mona_Lisa">Mona Lisa</a>.`;
+  const e = new Map<string, Entity>([
+    ["Guillaume Apollinaire", ent(90, "human")],
+    ["Mona Lisa", ent(146, "painting")],
+  ]);
+  const pick = pickArticle(line, e);
+  assert.equal(pick.article, "Mona Lisa");
+  assert.equal(pick.ownArticle, false, "a painting is not what happened");
+});
+
+test("saints are not observances and national days are", () => {
+  assert.equal(isObservance("Independence Day (Brazil)"), true);
+  assert.equal(isObservance("National Threatened Species Day (Australia)"), true);
+  assert.equal(isObservance("Clodoald"), false);
+  assert.equal(isObservance("Gratus of Aosta"), false);
+  assert.equal(isObservance("Christian feast day:"), false);
 });
 
 test("a taxon is a subject, not a place", () => {

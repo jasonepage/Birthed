@@ -123,7 +123,13 @@ export function linksIn(html: string): Link[] {
  * and discarded: a curator can see what the ranker looked at, and a bad pick is
  * visible instead of being an unexplained position in a list.
  */
-const PLACE_WORD = /\b(in|at|near|from|to|into|outside|aboard|of)(\s+(the|a|an))?\s*$/i;
+// "of" was in this list and had to come out. It is a genitive far more often
+// than a preposition of place: "the signing of the Boxer Protocol", "the
+// founding of Interpol", "the death of X". Every one of those points AT the
+// subject, and with "of" here the Boxer Protocol was demoted out of its own
+// line and the parent Boxer Rebellion won it. Geography is caught by the type
+// check below instead, which is where it belonged all along.
+const PLACE_WORD = /\b(in|at|near|from|into|outside|aboard)(\s+(the|a|an))?\s*$/i;
 const TOPIC_PREFIX = 45;
 
 export interface Pick {
@@ -177,7 +183,7 @@ export function pickArticle(lineHtml: string, entities?: Map<string, Entity>): P
       bestFame = fame;
     }
   }
-  return { article: best?.title ?? null, ownArticle: subjects.length > 0 };
+  return { article: best?.title ?? null, ownArticle: isEventEntity(entities.get(best?.title ?? "")) };
 }
 
 /** Just the title, for callers that do not care how it was found. */
@@ -279,6 +285,25 @@ export interface Observance {
   article: string | null;
 }
 
+/**
+ * A real observance, as opposed to the rest of that section.
+ *
+ * September 7 returned sixteen entries and eleven were saints: Clodoald,
+ * Gratus of Aosta, Marko Krizin. Wikipedia files the Christian feast days under
+ * the same heading as the national days, as a nested list under one "Christian
+ * feast day:" line, and every name in it arrives looking like an observance.
+ *
+ * The shape that survives is a named day with a place attached, which is what
+ * every civic observance on the calendar looks like: Independence Day (Brazil),
+ * Constitution Day (Fiji), National Threatened Species Day (Australia). A saint
+ * is a bare name. This drops a handful of genuine religious observances that
+ * happen to be written without a country, and that is the right trade when the
+ * alternative is eleven saints diluting the strongest signal on the page.
+ */
+export function isObservance(text: string): boolean {
+  return /\bday\b/i.test(text) && /\(/.test(text);
+}
+
 export function observancesFrom(html: string): Observance[] {
   const section =
     sectionById(html, "Holidays_and_observances") ?? sectionById(html, "Holidays");
@@ -287,7 +312,7 @@ export function observancesFrom(html: string): Observance[] {
   for (const item of listItems(section)) {
     const own = item.split(/<ul\b/i)[0] ?? "";
     const text = cellText(own).replace(/\s+/g, " ").trim();
-    if (text.length < 4) continue;
+    if (text.length < 4 || !isObservance(text)) continue;
     out.push({ text, article: primaryArticle(own) });
   }
   return out;
@@ -380,11 +405,33 @@ export interface Entity {
  * are four different items that all mean "this is a place". The words they
  * share are short and they do not change.
  */
-const CONTEXT_TYPE = /\b(human|country|sovereign state|city|town|village|municipality|commune|island|river|mountain|province|county|region|state|kingdom|empire|dynasty|republic|capital|settlement|territory|continent|nation)\b/;
+const CONTEXT_TYPE = /\b(human|country|sovereign state|city|town|village|municipality|commune|island|river|brook|stream|creek|lake|bay|harbou?r|mountain|valley|province|county|region|state|kingdom|empire|dynasty|republic|capital|settlement|territory|continent|nation|neighbou?rhood|district)\b/;
 
 export function isContextEntity(entity: Entity | undefined): boolean {
   if (entity === undefined) return false;
   return entity.types.some((t) => CONTEXT_TYPE.test(t));
+}
+
+/**
+ * Types that mean the article is about something that HAPPENED.
+ *
+ * The person and place filter above is a negative test and it let three things
+ * through on September 7 that are not events at all: the Mona Lisa is a
+ * painting, Bitcoin is a currency, and Submarine is a class of vehicle. All
+ * three scored as if the day were remembered for them, on the fame of an object
+ * mentioned in the sentence.
+ *
+ * So the test for whether a line has an article of its own is positive. Not
+ * "this is not a person" but "this is a battle, a treaty, a crash, an
+ * election". If Wikipedia has written an article about the happening rather
+ * than about a thing involved in it, the day probably is remembered for it, and
+ * if it has not, the row is scoring on borrowed weight and says so.
+ */
+const EVENT_TYPE = /\b(event|battle|war|siege|conflict|campaign|military operation|invasion|revolution|rebellion|uprising|revolt|coup|massacre|genocide|attack|bombing|assassination|murder|disaster|accident|crash|collision|sinking|earthquake|eruption|flood|storm|hurricane|cyclone|famine|epidemic|pandemic|treaty|protocol|agreement|accord|convention|declaration|law|act|election|referendum|ceremony|festival|occurrence|incident|expedition|voyage|flight|mission|launch|discovery|trial|riot|strike|scandal|crisis|summit|conference|independence|coronation|match|tournament|race|premiere|release)\b/;
+
+export function isEventEntity(entity: Entity | undefined): boolean {
+  if (entity === undefined) return false;
+  return entity.types.some((t) => EVENT_TYPE.test(t));
 }
 
 export function buildEntityQuery(titles: string[]): string {
