@@ -215,6 +215,81 @@ It does not need to be a biography. "I built this because I wanted to know what
 people actually remember, it costs me money to run, and nothing on it is for
 sale" over the name does the entire job.
 
+## 10. The youth problem, measured
+
+Written after reading the live September 8 page rather than the database.
+
+**The differentiator is a rounding error.** That page carries 47 rows in the
+feed. Fourteen of them are from 1958 on. The rest run from 1198 to 1946, and
+the drawer opens on a Prince of Hohenstaufen being crowned King of Germany.
+There are 341 published culture rows across 366 dates, which is under one per
+date, and none of them is on the first screen.
+
+So a nineteen year old opening a date page is shown, in order: a coronation
+from the twelfth century, a number one record from before their parents were
+born, and a rail of notable people most of whom are dead. The thing this site
+has that nothing else has is real, and by volume it is a rounding error against
+an encyclopedia. That is the whole youth problem and it is not a design
+problem. No layout rescues a page whose content is not for the reader.
+
+**What the code proved today.** The ask card never changed on reload because
+only one row on September 8 could be a candidate at all, and the scorer that
+picked it would rather have International Literacy Day than the first
+broadcast of Star Trek, because that sentence is eighteen characters shorter.
+Both facts point the same way. Ranking Wikipedia's sentences by anything
+measurable produces the dullest one that fits, every time, because the dull
+ones are short and the memorable ones need a clause to say what they were.
+
+## 11. What curation has to produce, and in what order
+
+Nathan is right that this needs people. The panel to do it already exists.
+`docs/curation-panel.md` designed it, the three states shipped, and a curator
+publishes by pressing one key. What is missing is not the tool. It is a
+decision about what the people are producing, and there are two products, not
+one.
+
+**First, and smaller, and far higher leverage: a lead line per date.** One
+short human sentence per date, written for the ask card and nothing else. Not a
+rewrite of the feed. Not a new fact. The same row, said the way a person would
+say it.
+
+> Wikipedia: "The science fiction television series Star Trek made its
+> broadcast television debut in the United States on NBC with the episode The
+> Man Trap."
+>
+> Lead line: "Star Trek went out for the first time."
+
+That is 366 sentences. It is a week of evenings, or a month at ten a night, and
+it fixes the single most important element on the site, which is the one thing
+a stranger is asked to do. It needs one nullable column and one line in the
+picker. Nothing else changes.
+
+**Second, and larger: enough culture rows to change the mix.** Three per date,
+on the first screen, is roughly 1,100 rows against 341 published today. Around
+700 more. The generator and the approval gate both exist, so this is a
+budgeting question rather than a building one, and it runs into the standing
+policy from the forty dollar night: every run gets an estimate in dollars
+before it starts, not a count.
+
+**What a team means with no users.** Not payroll. Three shapes, and the third
+is already built:
+
+1. Jason and Nathan doing ten a night. Slow, free, and the only version where
+   the taste of the site is the taste of the people who made it.
+2. Opening the panel to a handful of trusted people, one at a time, each with
+   their own account against the admin allowlist that already exists.
+3. The model proposes and a person presses a key. This is the shipped loop and
+   it has already earned its keep by catching five album and film rows before
+   anybody saw them.
+
+The honest order is three for volume and one for taste, and one goes first,
+because a lead line written by a person is the part a stranger reads.
+
+**What curation must never become.** Writing rows to fill a date.
+`docs/internet-culture.md` already says thin years stay thin, and a date with
+three real culture rows and four invented ones is a dead site. The panel exists
+to say no faster, not to say yes more.
+
 ## 9. What shipped on 8 September 2026
 
 In the order of section 5, and the first two were the gate on posting
