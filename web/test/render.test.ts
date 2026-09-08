@@ -1046,7 +1046,19 @@ test("the page can say taken back, and can say too late, without saying sealed",
   assert.ok(html.includes("can be taken back for half a minute"));
   // Four different outcomes, four different sentences. Collapsing any two of
   // them is what let a duplicate answer report itself as a sealed date.
-  for (const id of ["kept", "sealed", "failed", "undone", "toolate"]) {
+  for (const id of ["kept", "already", "sealed", "failed", "undone", "toolate"]) {
     assert.ok(html.includes(`id="${id}"`), `${id} has nothing to say`);
   }
+});
+
+test("answering the same row twice is not reported as a sealed date", () => {
+  // Three evenings went on this one message. remember() returns false for four
+  // different reasons and the page called all of them "sealed", which is a
+  // claim about the date and is wrong for three of the four. The commonest by
+  // far is a row you already answered, on a page where nothing says which
+  // ones you have done.
+  const html = renderDayPage(page);
+  assert.ok(html.includes('id="already"'));
+  assert.ok(html.includes("You have already answered that one"));
+  assert.ok(html.includes("Nothing is sealed"), "and it says so in as many words");
 });

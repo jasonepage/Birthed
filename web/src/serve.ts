@@ -525,13 +525,15 @@ export function readAnswer(body: string): Answer | null {
  * missing environment variable is how that fault survived from the day the
  * feature shipped.
  */
-type Recorded = "kept" | "refused" | "unreachable";
+type Recorded = "kept" | "already" | "sealed" | "closed" | "bad_token" | "unreachable";
+
+const REASONS = new Set(["kept", "already", "sealed", "closed", "bad_token"]);
 
 async function record(answer: Answer, token: string): Promise<Recorded> {
   const key = process.env.SUPABASE_ANON_KEY;
   if (!key) return "unreachable";
   const url = projectBase();
-  const response = await fetch(`${url}/rest/v1/rpc/remember`, {
+  const response = await fetch(`${url}/rest/v1/rpc/remember_status`, {
     method: "POST",
     headers: {
       apikey: key,
@@ -550,7 +552,11 @@ async function record(answer: Answer, token: string): Promise<Recorded> {
     }),
   });
   if (!response.ok) return "unreachable";
-  return (await response.json()) === true ? "kept" : "refused";
+  const reason = await response.json();
+  // A reason this server does not know about is not a reason to claim
+  // something about the date. It is our end failing to keep up with the
+  // database, which is exactly the confusion this whole change is about.
+  return typeof reason === "string" && REASONS.has(reason) ? reason as Recorded : "unreachable";
 }
 
 /**
@@ -781,13 +787,21 @@ async function handle(
     // keptFrom and the note at the top of this file.
     const where = `/${slug(answer.month, answer.day)}/`;
     const row = `${answer.kind}-${answer.id}`;
+    // Five reasons, five destinations, and not one of them borrowing another
+    // one's explanation. "Sealed" is a claim about the date and it is only
+    // made when the date is actually shut: an answer already given, a token
+    // the database will not take, and a request that never arrived are all
+    // about the reader or about us.
     const back = kept === "kept"
       ? `${where}?kept=${encodeURIComponent(`${answer.kind}:${answer.id}`)}#r-${row}`
-      : kept === "refused"
-        ? `${where}#sealed`
-        // Our fault, said as our fault. It must not borrow the sealed sentence:
-        // that sentence is a claim about the date and this is a claim about us.
-        : `${where}#failed`;
+      : kept === "already"
+        // By far the most common of these, and the one that spent three
+        // evenings pretending to be a sealed date. A page of a hundred and
+        // fifty rows says nothing about which ones you have already done.
+        ? `${where}?kept=${encodeURIComponent(`${answer.kind}:${answer.id}`)}#already`
+        : kept === "sealed" || kept === "closed"
+          ? `${where}#sealed`
+          : `${where}#failed`;
     response.writeHead(303, {
       Location: back,
       "Cache-Control": "no-store",
