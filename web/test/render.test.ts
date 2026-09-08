@@ -1300,7 +1300,10 @@ test("a sealed row counts its own people, and only once there are enough of them
   // Nothing anywhere is a rating or a direction. Checked as shapes rather than
   // as words, because the card's own copy says "no score" and a bare search for
   // that string fails on the page promising the opposite of it.
-  for (const shape of [/\b\d+(\.\d+)?\s*(out of|\/)\s*(10|5|100)\b/i, /\bupvote|downvote\b/i, /\brated?\s+\d/i]) {
+  // A bare slash matched "aspect-ratio: 4 / 5" in the stylesheet, which is the
+  // kind of assertion that fails for a reason nobody can read. Rating language
+  // only.
+  for (const shape of [/\b\d+\s*out of\s*(ten|10|five|5)\b/i, /\bupvote|downvote\b/i, /\brate[ds]?\s+\d/i, /\bscore of\b/i]) {
     assert.equal(shape.test(html), false, shape + " never appears");
   }
   assert.ok(html.includes("no score"), "and the card still promises there is not one");
