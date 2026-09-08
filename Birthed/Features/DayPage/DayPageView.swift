@@ -45,8 +45,21 @@ struct DayPageView: View {
     private var readerBirthYear: Int? { profileStore.profile?.birthday.year }
     private var palette: StagePalette { .forScheme(colorScheme) }
 
+    /// The page, and on a sealed date the page its own people made.
+    ///
+    /// While a date is open this is arithmetic: the reader's age band, then a
+    /// deal. It has to be, because an order that moved with the answers would
+    /// show every reader the popular answer before they gave their own.
+    ///
+    /// Once it seals nobody can answer again, so the order cannot influence
+    /// anything, and it is free to say what happened. That is the only place
+    /// in this product where what readers did changes what a page looks like,
+    /// and it is the whole payoff: two editions of the same date are two
+    /// visibly different pages.
     private var feed: [DayFeed.Item] {
-        model.feed(facts: factsService.dayFacts, readerBirthYear: readerBirthYear)
+        let base = model.feed(facts: factsService.dayFacts, readerBirthYear: readerBirthYear)
+        guard remember.edition?.isSealed == true else { return base }
+        return DayFeed.byMemory(base, counts: remember.counts)
     }
 
     var body: some View {
@@ -158,6 +171,14 @@ struct DayPageView: View {
                 Text(line)
                     .font(.footnote)
                     .foregroundStyle(palette.type.opacity(0.5))
+            }
+
+            // The page has visibly rearranged and a reader who was not here
+            // last week has no way to know why, so it says so once.
+            if remember.edition?.isSealed == true {
+                Text(RememberCopy.orderedByMemory)
+                    .font(.footnote)
+                    .foregroundStyle(palette.type.opacity(0.42))
             }
 
             // What is left, said once at the top rather than on every row.

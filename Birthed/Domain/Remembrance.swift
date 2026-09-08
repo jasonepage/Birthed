@@ -240,6 +240,28 @@ struct RemembranceCounts: Equatable, Sendable {
 
     var total: Int { there + remembers + heard + never }
 
+    /// How much of this row survived, as one number, for ordering a sealed
+    /// page by what people actually carried around.
+    ///
+    /// **Nothing subtracts.** "Never heard of it" is worth zero and never less
+    /// than zero, because a negative would be a downvote arriving through the
+    /// back door and there is no direction anywhere in this design. A row
+    /// forty people have never heard of does not get pushed below a row nobody
+    /// answered at all: it lands level with it and is separated by how many
+    /// people engaged with it, which is the honest difference between "we
+    /// asked and it had not survived" and "nobody looked".
+    ///
+    /// Remembering is worth twice hearing of, because they are two different
+    /// claims. "I remember it" is transmission, the thing this whole project
+    /// exists to measure. "Heard of it" is documentation reaching somebody,
+    /// which Wikipedia already counts.
+    ///
+    /// "I was there" is weighted with remembering rather than above it. It is
+    /// retired from both clients, so it only ever arrives from answers the
+    /// website took before it went, and inventing a third tier for a value
+    /// nobody can give any more would rank the past above the present.
+    var memoryWeight: Int { (there + remembers) * 2 + heard }
+
     /// One answer's share of the total, between zero and one. Zero when
     /// nobody has answered, rather than undefined.
     func share(for depth: RememberDepth) -> Double {
@@ -396,6 +418,10 @@ enum RememberCopy {
 
     /// Said where the buttons would have been, once they are all gone.
     static let spent = "That is your ten for this date. It opens again next year."
+
+    /// Said under the seal, because the page has visibly rearranged and a
+    /// reader who was not here last week has no way to know why.
+    static let orderedByMemory = "In the order the people who were here remembered it."
 
     /// Said when the window has closed, or when the answer was never there.
     /// One sentence for both, because they are the same thing to a reader.

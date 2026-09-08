@@ -195,6 +195,48 @@ struct DayFeed {
         return settled(interleave(items, salt: salt))
     }
 
+    // MARK: The sealed order
+
+    /// A sealed date, put back in the order its own people remembered it in.
+    ///
+    /// **This is the only place in the product where what readers did changes
+    /// what a page looks like**, and it is deliberately the last place: while a
+    /// date is open the order is arithmetic, because an order that moved with
+    /// the answers would show every reader the popular answer before they gave
+    /// their own, which is the one thing that would destroy the measurement.
+    /// Once a date seals nobody can answer it again, so the order cannot
+    /// influence anything and is free to say what happened.
+    ///
+    /// **It is a ranking and never a vote.** No answer subtracts, no row can be
+    /// pushed down by anybody, nothing is removed, and every row keeps the
+    /// source it arrived with. What rises is what people said reached them.
+    /// The difference matters: a page a crowd can push things off is a
+    /// popularity contest with citations attached, and this project's only
+    /// asset is that it does not lie.
+    ///
+    /// **Deterministic, because a sealed page is supposed to be permanent.**
+    /// Swift's sort is not stable, so ties fall through to how many people
+    /// answered and then to the row's position in the incoming order. Without
+    /// that last step the same sealed date would draw in a different order on
+    /// every load, and "sealed" would be a word rather than a fact.
+    ///
+    /// The heavy rule is applied again at the end. Memory weight knows nothing
+    /// about what a row says, and the most remembered thing on a date is quite
+    /// often the worst thing that ever happened on it.
+    static func byMemory(_ items: [Item], counts: [String: RemembranceCounts]) -> [Item] {
+        let ranked = items.enumerated().sorted { left, right in
+            let a = left.element.subject.flatMap { counts[$0.key] } ?? RemembranceCounts()
+            let b = right.element.subject.flatMap { counts[$0.key] } ?? RemembranceCounts()
+            if a.memoryWeight != b.memoryWeight { return a.memoryWeight > b.memoryWeight }
+            // Level on memory, so the one more people engaged with goes first.
+            // This is what separates a row forty people had never heard of from
+            // a row nobody was asked about.
+            if a.total != b.total { return a.total > b.total }
+            return left.offset < right.offset
+        }
+        return settled(ranked.map(\.element))
+    }
+
     /// The same deal `FactOrder` uses, over feed items. The ids are the
     /// stable thing about a row, so the deal depends on the set and the salt
     /// and not on the order the server sent them in.

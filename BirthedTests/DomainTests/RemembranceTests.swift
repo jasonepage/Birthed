@@ -416,6 +416,123 @@ final class RemembranceTests: XCTestCase {
         }
     }
 
+    // MARK: The sealed order
+
+    /// The one number that decides a sealed page. Remembering is worth twice
+    /// hearing of, because they are two different claims, and never heard of
+    /// it is worth zero and never less.
+    func testMemoryWeightCountsWhatSurvivedAndSubtractsNothing() {
+        XCTAssertEqual(RemembranceCounts(remembers: 10).memoryWeight, 20)
+        XCTAssertEqual(RemembranceCounts(heard: 10).memoryWeight, 10)
+        XCTAssertEqual(RemembranceCounts(never: 10).memoryWeight, 0)
+        // A retired answer still counts, level with remembering, because the
+        // website took those before it went and they are not to be lost.
+        XCTAssertEqual(RemembranceCounts(there: 10).memoryWeight, 20)
+    }
+
+    /// The rule this whole design rests on, asserted as arithmetic. No answer
+    /// can make a row worth less than a row nobody answered.
+    func testNoAnswerCanEverPushARowDown() {
+        let untouched = RemembranceCounts()
+        for hated in 1...100 {
+            let all = RemembranceCounts(never: hated)
+            XCTAssertGreaterThanOrEqual(all.memoryWeight, untouched.memoryWeight,
+                                        "\(hated) people never hearing of it pushed a row below silence")
+        }
+        // And adding any answer of any kind never lowers the weight.
+        let base = RemembranceCounts(there: 1, remembers: 2, heard: 3, never: 4)
+        for depth in RememberDepth.allCases {
+            XCTAssertGreaterThanOrEqual(base.adding(depth).memoryWeight, base.memoryWeight)
+        }
+    }
+
+    private func sealedFeed() -> [DayFeed.Item] {
+        DayFeed.build(
+            facts: [fact(1, "A researched thing"), fact(2, "Another researched thing")],
+            events: [event(1985, "A thing that happened", id: 10),
+                     event(1995, "A thing nobody recalls", id: 11),
+                     event(2005, "A thing everybody recalls", id: 12)],
+            people: [person("Q1", "Somebody", born: 1970)],
+            songs: [song(1985, "A song")],
+            films: [film(1985, "A film")],
+            readerBirthYear: 1990
+        )
+    }
+
+    func testASealedPageLeadsWithWhatPeopleRemembered() {
+        let items = sealedFeed()
+        let counts: [String: RemembranceCounts] = [
+            RememberSubject(kind: .historicalEvent, id: "12").key: RemembranceCounts(remembers: 40),
+            RememberSubject(kind: .historicalEvent, id: "10").key: RemembranceCounts(heard: 12),
+            RememberSubject(kind: .historicalEvent, id: "11").key: RemembranceCounts(never: 30),
+        ]
+        let ranked = DayFeed.byMemory(items, counts: counts)
+
+        XCTAssertEqual(ranked.first?.subject, RememberSubject(kind: .historicalEvent, id: "12"))
+        // Heard of it beats an unanswered row, and a row nobody had heard of
+        // sinks below both without being removed from the page.
+        let order = ranked.compactMap(\.subject).map(\.id)
+        XCTAssertLessThan(order.firstIndex(of: "10")!, order.firstIndex(of: "11")!)
+        XCTAssertEqual(ranked.count, items.count, "a sealed page loses nothing")
+    }
+
+    /// The interesting result keeps its place on the page rather than being
+    /// filtered off it. A row that is thoroughly documented and that nobody has
+    /// heard of is the best thing this collects.
+    func testARowNobodyRememberedIsRankedLastAndStillPresent() {
+        let items = sealedFeed()
+        let forgotten = RememberSubject(kind: .historicalEvent, id: "11")
+        let ranked = DayFeed.byMemory(items, counts: [
+            forgotten.key: RemembranceCounts(never: 30),
+            RememberSubject(kind: .historicalEvent, id: "10").key: RemembranceCounts(remembers: 5),
+        ])
+        XCTAssertTrue(ranked.contains { $0.subject == forgotten })
+        // Level on weight with the untouched rows, and ahead of them, because
+        // thirty people were asked and it had not survived.
+        let untouched = ranked.firstIndex { $0.subject == RememberSubject(kind: .person, id: "Q1") }!
+        XCTAssertLessThan(ranked.firstIndex { $0.subject == forgotten }!, untouched)
+    }
+
+    /// A sealed page is meant to be permanent. Swift's sort is not stable, so
+    /// without the position tiebreak the same date would draw differently on
+    /// every load and "sealed" would be a word rather than a fact.
+    func testTheSealedOrderIsIdenticalEveryTimeItIsDrawn() {
+        let items = sealedFeed()
+        let counts: [String: RemembranceCounts] = [
+            RememberSubject(kind: .historicalEvent, id: "10").key: RemembranceCounts(remembers: 3),
+            RememberSubject(kind: .historicalEvent, id: "12").key: RemembranceCounts(remembers: 3),
+        ]
+        let first = DayFeed.byMemory(items, counts: counts).map(\.id)
+        for _ in 0..<50 {
+            XCTAssertEqual(DayFeed.byMemory(items, counts: counts).map(\.id), first)
+        }
+    }
+
+    /// With nothing answered it must not scramble the page it was given.
+    func testAnUnansweredDateKeepsTheOrderItArrivedIn() {
+        let items = sealedFeed()
+        XCTAssertEqual(DayFeed.byMemory(items, counts: [:]).map(\.id), DayFeed.settled(items).map(\.id))
+    }
+
+    /// Memory weight knows nothing about what a row says, and the most
+    /// remembered thing on a date is very often the worst thing that ever
+    /// happened on it.
+    func testTheHeaviestRowStillDoesNotLeadASealedPage() {
+        let grim = event(2001, "A gunman opened fire at the school, killing eleven.", id: 90)
+        let ordinary = event(1999, "A quiet thing happened.", id: 91)
+        let items = DayFeed.build(facts: [], events: [grim, ordinary], people: [], songs: [], films: [],
+                                  readerBirthYear: 1990)
+        XCTAssertTrue(DayFeed.isHeavy(grim.description), "the fixture is not actually heavy")
+
+        let ranked = DayFeed.byMemory(items, counts: [
+            RememberSubject(kind: .historicalEvent, id: "90").key: RemembranceCounts(remembers: 500),
+            RememberSubject(kind: .historicalEvent, id: "91").key: RemembranceCounts(remembers: 1),
+        ])
+        XCTAssertFalse(DayFeed.isHeavy(ranked.first?.text ?? ""),
+                       "the most remembered row on the date led the page, and it was a killing")
+        XCTAssertTrue(ranked.contains { $0.subject?.id == "90" }, "and it is still on the page")
+    }
+
     // MARK: The seal
 
     func testASealedDateSaysWhatItDecidedAndWhen() {
@@ -477,6 +594,7 @@ final class RemembranceTests: XCTestCase {
         lines.append(RememberCopy.undo)
         lines.append(RememberCopy.tooLateToUndo)
         lines.append(RememberCopy.spent)
+        lines.append(RememberCopy.orderedByMemory)
         lines.append(contentsOf: [0, 1, 10].map(RememberCopy.left))
         for line in lines {
             XCTAssertFalse(line.contains("\u{2014}"), "an em dash got into: \(line)")
