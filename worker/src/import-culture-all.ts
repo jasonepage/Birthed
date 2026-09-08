@@ -2,6 +2,7 @@
 //
 //   node dist/src/import-culture-all.js
 //   node dist/src/import-culture-all.js --dry-run
+//   node dist/src/import-culture-all.js --dry-run --print --from 9 --to 9
 //   node dist/src/import-culture-all.js --from 9 --to 10
 //
 // 366 queries against a volunteer funded service, so they go one at a time
@@ -27,6 +28,10 @@ async function main(): Promise<void> {
   await loadDotEnv();
   const args = process.argv.slice(2);
   const dryRun = args.includes("--dry-run");
+  // This was hardcoded off, which made a dry run of this runner useless: it
+  // printed how many rows it would keep and never what they were, so the only
+  // question a dry run exists to answer could not be answered by running one.
+  const print = args.includes("--print");
 
   const valueAfter = (flag: string): number | null => {
     const at = args.indexOf(flag);
@@ -45,7 +50,7 @@ async function main(): Promise<void> {
   for (let month = from; month <= to; month++) {
     for (let day = 1; day <= (DAYS_IN_MONTH[month - 1] ?? 31); day++) {
       try {
-        const result = await importCulture(month, day, { dryRun, print: false });
+        const result = await importCulture(month, day, { dryRun, print });
         fetched += result.fetched;
         kept += result.kept;
       } catch (error) {
