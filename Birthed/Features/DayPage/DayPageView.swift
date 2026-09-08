@@ -11,6 +11,9 @@ import SwiftUI
 struct DayPageView: View {
     @Environment(FactsService.self) private var factsService
     @Environment(ProfileStore.self) private var profileStore
+    /// What this date is remembered for, and whether it is still taking
+    /// answers. See `RememberService`.
+    @Environment(RememberService.self) private var remember
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.openURL) private var openURL
 
@@ -24,6 +27,13 @@ struct DayPageView: View {
     /// One player for the whole feed, so a second tap means "this instead"
     /// rather than "both at once".
     @State private var preview = PreviewPlayer()
+    /// The one row showing its four answers, by handle.
+    ///
+    /// Held here rather than in the row for the same reason the player is:
+    /// opening a second one has to close the first. Four buttons under every
+    /// row turned the feed into a form, and two sets of four on screen is most
+    /// of the way back to that.
+    @State private var askingAbout: String?
 
     let onOpenSettings: () -> Void
 
@@ -144,6 +154,12 @@ struct DayPageView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
+            if let line = rememberLine {
+                Text(line)
+                    .font(.footnote)
+                    .foregroundStyle(palette.type.opacity(0.5))
+            }
+
             if !feed.isEmpty { counts }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -242,6 +258,28 @@ struct DayPageView: View {
         }
     }
 
+    /// What this date is doing about answers: closing at some point, or
+    /// closed already and holding what it decided.
+    ///
+    /// A sealed page says what it decided and when, permanently. That is the
+    /// year one version of time travel and it exists from the first day: next
+    /// year the same date reopens on top of this one, and the difference
+    /// between the two editions is a measurement of collective forgetting that
+    /// cannot be scraped from anywhere, because it does not exist anywhere.
+    ///
+    /// In year one there is nothing to compare against, and a page that says
+    /// so honestly is better than one that draws a trend from a single point.
+    private var rememberLine: String? {
+        if let edition = remember.edition, let sealedAt = edition.sealedAt {
+            return SealText.line(sealedAt: sealedAt, people: edition.people)
+        }
+        guard remember.isOpen(month: model.date.month, day: model.date.day),
+              let closes = RememberWindow.closes(month: model.date.month, day: model.date.day,
+                                                 windowDays: remember.windowDays)
+        else { return nil }
+        return SealText.openLine(closes: closes)
+    }
+
     // MARK: The feed
 
     @ViewBuilder
@@ -295,6 +333,13 @@ struct DayPageView: View {
                             playing: item.kind != .film && item.previewURL != nil
                                      && item.previewURL == preview.nowPlaying,
                             onPlay: { url in preview.toggle(url) })
+                    // Only a row with a handle the database would recognise.
+                    // A row without one draws nothing rather than collecting
+                    // answers against a guess. See `RememberSubject`.
+                    if let subject = item.subject {
+                        RememberRow(subject: subject, month: model.date.month, day: model.date.day,
+                                    palette: palette, expanded: $askingAbout)
+                    }
                 }
                 .padding(.horizontal, 22)
                 .onAppear { if let fact = item.fact { factsService.noteSeen(fact.id) } }
@@ -391,11 +436,13 @@ struct DayPageView: View {
         // A new date is a new day's worth of rows, so it opens at its own
         // first dozen rather than inheriting the last date's expansion.
         showingAll = false
+        askingAbout = nil
         // Two awaits in a row rather than two child tasks. Both callees live
         // on the main actor, so running them as children would carry nothing
         // Sendable and buy no time.
         await model.load(readerBirthYear: readerBirthYear)
         await factsService.readDay(month: model.date.month, day: model.date.day)
+        await remember.load(month: model.date.month, day: model.date.day)
         shareImage = renderShareCard()
     }
 
@@ -405,8 +452,10 @@ struct DayPageView: View {
         // The arrows do not go through `reload`, so this has to be said in
         // both places or a date walked to opens already expanded.
         showingAll = false
+        askingAbout = nil
         await model.move(byDays: days, readerBirthYear: readerBirthYear)
         await factsService.readDay(month: model.date.month, day: model.date.day)
+        await remember.load(month: model.date.month, day: model.date.day)
         shareImage = renderShareCard()
     }
 

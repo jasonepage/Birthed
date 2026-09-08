@@ -27,6 +27,11 @@ struct BirthedApp: App {
     /// Also account-bound: the whole inbox is one row level security policy,
     /// so without a signed in account it has nothing to read.
     @State private var inbox: BirthdayInbox
+    /// What each date is remembered for. Deliberately NOT account-bound: every
+    /// function it calls is granted to anon, so remembering works on a phone
+    /// whose silent account has not been created yet, and its token is its own
+    /// random value rather than the user id. See `RememberService`.
+    @State private var remember = RememberService()
 
     private let repository = SupabaseRestDayPageRepository()
 
@@ -50,6 +55,7 @@ struct BirthedApp: App {
                 .environment(worldLikes)
                 .environment(yearCharts)
                 .environment(inbox)
+                .environment(remember)
         }
     }
 }
