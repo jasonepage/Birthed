@@ -138,6 +138,22 @@ kbd {
   width: 100%; min-height: 74px; resize: vertical;
 }
 .act:disabled { opacity: .45; cursor: default; border-color: #3A3348; color: #827B75; }
+/* A row can take focus, so the keys work on it. The ring is the only thing
+   that says which row a key will act on, so it is not subtle. */
+.row[tabindex]:focus { outline: none; box-shadow: inset 3px 0 0 #EF5680; padding-left: 10px; }
+.row .btns { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+/* The draft. Three lines to choose between, the chosen one in a box to edit,
+   and the page it was drawn from underneath in case the line says more than
+   the record does. Nothing here is saved until the key is pressed. */
+.draft { grid-column: 1 / -1; margin: 10px 0 4px; padding: 12px 14px; border: 1px solid #3A3348; border-radius: 8px; background: #120F1E; }
+.draft .cand { display: block; width: 100%; text-align: left; background: none; border: 1px solid #2A2434; color: #E9E1DB; border-radius: 6px; padding: 8px 10px; margin: 0 0 6px; font: inherit; font-size: 14px; cursor: pointer; }
+.draft .cand:hover, .draft .cand.on { border-color: #6FBF8A; }
+.draft .cand kbd { margin-right: 8px; }
+.draft textarea { width: 100%; min-height: 56px; background: #171326; border: 1px solid #3A3348; color: #FFF7EE; border-radius: 5px; padding: 8px 10px; font: inherit; font-size: 14px; resize: vertical; margin: 6px 0 0; }
+.draft .keys { margin-top: 8px; }
+.draft details { margin-top: 8px; font-size: 12px; color: #827B75; }
+.draft details p { margin: 6px 0 0; line-height: 1.5; max-height: 160px; overflow: auto; }
+.draft .to { font-size: 11px; color: #827B75; margin: 0 0 8px; }
 </style>
 
 <div class="panel">
@@ -397,6 +413,10 @@ kbd {
   // and not the list further down the page.
   var queue = [];
   var everything = [];
+  // The written card lines on the open date, keyed the way the answer forms
+  // key a row. A timeline row with one of these has its sentence; one without
+  // is a row the Draft button applies to.
+  var leads = {};
   var onlyFlagged = false;
   var at = 0;
   var userId = null;
@@ -619,6 +639,26 @@ kbd {
     var tag = (ev.target && ev.target.tagName) || "";
     if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
     if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+    // A draft open takes 1, 2, 3 and Escape wherever focus is.
+    if (drafting) {
+      if (ev.key === "Escape") { ev.preventDefault(); closeDraft(); return; }
+      if (ev.key === "1" || ev.key === "2" || ev.key === "3") { ev.preventDefault(); pickDraft(+ev.key - 1); return; }
+    }
+    // Inside the date's rows the same letters act on the focused row, so the
+    // queue at the top and the date below never fight over j and k: whichever
+    // one has focus gets the key.
+    if (focusedRow()) {
+      var onRow = {
+        j: function () { moveRow(1); },
+        k: function () { moveRow(-1); },
+        w: function () { pressOnRow("[data-draft]"); },
+        h: function () { pressOnRow("[data-fact],[data-ev]"); },
+      };
+      if (onRow[ev.key]) { ev.preventDefault(); onRow[ev.key](); return; }
+      return;
+    }
+    // From anywhere else, g drops into the open date's rows.
+    if (ev.key === "g" && selected && rowsOnScreen().length > 0) { ev.preventDefault(); moveRow(1); return; }
     var map = { a: "publish", r: "reject", e: "edit", j: "next", k: "prev", f: "flagged" };
     var what = map[ev.key];
     if (!what) return;
@@ -718,7 +758,7 @@ kbd {
     loadBudget();
     el("rows").innerHTML = "<p class=\\"lede\\">Loading.</p>";
 
-    Promise.all([
+    return Promise.all([
       rest("cultural_events?select=id,event_date,category,event_title,context_string,source_url,origin,status" +
         "&event_date=gte." + "1000-" + pad(m) + "-" + pad(d) +
         "&order=event_date.desc&limit=200"),
@@ -736,6 +776,8 @@ kbd {
         "&event_month=eq." + m + "&event_day=eq." + d + "&order=id.asc&limit=300"),
       rest("historical_events?select=id,event_year,description,suppressed" +
         "&event_month=eq." + m + "&event_day=eq." + d + "&order=event_year.desc&limit=200"),
+      rest("lead_lines?select=subject_kind,subject_id,line" +
+        "&event_month=eq." + m + "&event_day=eq." + d + "&limit=300"),
     ]).then(function (r) {
       // The cultural filter above cannot express "any year, this month and
       // day" in one PostgREST clause, so the day is matched here instead. The
@@ -744,6 +786,8 @@ kbd {
         var p = row.event_date.split("-");
         return +p[1] === m && +p[2] === d;
       });
+      leads = {};
+      (r[4] || []).forEach(function (l) { leads[l.subject_kind + ":" + l.subject_id] = l.line; });
       draw(cultural, r[1], r[3], r[2]);
     }).catch(function (e) {
       el("rows").innerHTML = '<p class="note bad">' + esc(e.message) + "</p>";
@@ -793,14 +837,16 @@ kbd {
     cultural.forEach(function (row) {
       var status = row.status || "published";
       var needsWriting = status === "published" && String(row.context_string || "").trim() === "";
-      html += '<div class="row"><span class="yr">' + esc(row.event_date.slice(0, 4)) + "</span><div>" +
+      html += '<div class="row" tabindex="0" data-kind="cultural_event" data-id="' + esc(row.id) + '"><span class="yr">' + esc(row.event_date.slice(0, 4)) + "</span><div>" +
         '<p class="tx">' + esc(row.context_string || row.event_title) + "</p>" +
         '<p class="meta"><span class="st st-' + esc(status) + '">' +
         esc(needsWriting ? "needs a sentence" : (status === "published" ? "on the page" : status)) + "</span>" +
         '<span class="tagpill">' + esc(row.category) + " &middot; " + esc(row.origin) + "</span>" +
         (row.source_url ? ' &middot; <a href="' + esc(row.source_url) + '" rel="noopener">source</a>' : "") +
         "</p>" + verdictMarkup("cultural_event", row.id) + "</div>" +
-        '<button class="act" data-del="' + esc(row.id) + '">Delete</button></div>';
+        '<div class="btns">' +
+        (needsWriting ? '<button class="act" data-draft="cultural_event:' + esc(row.id) + '">Draft <kbd>w</kbd></button>' : "") +
+        '<button class="act" data-del="' + esc(row.id) + '">Delete</button></div></div>';
     });
 
     html += '<h4 style="margin:26px 0 0;font-size:13px;color:#9C9490">Facts on the page (' + facts.length + ")</h4>";
@@ -810,8 +856,10 @@ kbd {
       // is the state, so the only control on a found fact read as a label and
       // the page looked like it had none.
       var flags = factFlagsFor(row);
-      html += '<div class="row"><span class="yr">' + (row.birth_year || "") + "</span><div>" +
+      var factLine = leads["birth_fact:" + row.id];
+      html += '<div class="row" tabindex="0" data-kind="birth_fact" data-id="' + esc(row.id) + '"><span class="yr">' + (row.birth_year || "") + "</span><div>" +
         '<p class="tx">' + esc(row.fact) + "</p>" +
+        (factLine ? '<p class="meta">Card line: <span style="color:#E9E1DB">' + esc(factLine) + "</span></p>" : "") +
         '<p class="meta"><span class="state' + (row.verified ? " live" : "") + '">' +
         (row.verified ? "on the page" : "hidden") + "</span>" +
         ' &middot; <span class="tagpill">' + esc(row.category || "event") + "</span>" +
@@ -820,19 +868,25 @@ kbd {
         "</p>" + (flags.length ? flagMarkup(flags) : "") +
         verdictMarkup("birth_fact", row.id) +
         (row.hidden_reason ? '<p class="why">' + esc(row.hidden_reason) + "</p>" : "") + "</div>" +
+        '<div class="btns">' +
+        (row.verified && !factLine ? '<button class="act" data-draft="birth_fact:' + esc(row.id) + '">Draft <kbd>w</kbd></button>' : "") +
         '<button class="act" data-fact="' + esc(row.id) +
-        '" data-on="' + (row.verified ? "1" : "0") + '">' + (row.verified ? "Hide" : "Put back") + "</button></div>";
+        '" data-on="' + (row.verified ? "1" : "0") + '">' + (row.verified ? "Hide" : "Put back") + "</button></div></div>";
     });
 
     html += '<h4 style="margin:26px 0 0;font-size:13px;color:#9C9490">Wikipedia lines (' + events.length + ")</h4>";
     events.forEach(function (row) {
       var live = !row.suppressed;
-      html += '<div class="row"><span class="yr">' + (row.event_year || "") + "</span><div>" +
+      var evLine = leads["historical_event:" + row.id];
+      html += '<div class="row" tabindex="0" data-kind="historical_event" data-id="' + esc(row.id) + '"><span class="yr">' + (row.event_year || "") + "</span><div>" +
         '<p class="tx">' + esc(row.description) + "</p>" +
+        (evLine ? '<p class="meta">Card line: <span style="color:#E9E1DB">' + esc(evLine) + "</span></p>" : "") +
         '<p class="meta"><span class="state' + (live ? " live" : "") + '">' +
-        (live ? "on the page" : "hidden") + "</span></p></div>" +
+        (live ? "on the page" : "hidden") + "</span></p>" + verdictMarkup("historical_event", row.id) + "</div>" +
+        '<div class="btns">' +
+        (live && !evLine ? '<button class="act" data-draft="historical_event:' + esc(row.id) + '">Draft <kbd>w</kbd></button>' : "") +
         '<button class="act" data-ev="' + esc(row.id) +
-        '" data-on="' + (live ? "1" : "0") + '">' + (live ? "Hide" : "Put back") + "</button></div>";
+        '" data-on="' + (live ? "1" : "0") + '">' + (live ? "Hide" : "Put back") + "</button></div></div>";
     });
 
     el("rows").innerHTML = html;
@@ -855,6 +909,12 @@ kbd {
           .then(reload).catch(function (e) { note("add-note", e.message, "bad"); });
       });
     });
+    Array.prototype.forEach.call(box.querySelectorAll("[data-draft]"), function (b) {
+      b.addEventListener("click", function () {
+        var parts = b.dataset.draft.split(":");
+        openDraft(b.closest(".row"), parts[0], parts.slice(1).join(":"));
+      });
+    });
     Array.prototype.forEach.call(box.querySelectorAll("[data-ev]"), function (b) {
       b.addEventListener("click", function () {
         var live = b.dataset.on === "1";
@@ -864,6 +924,157 @@ kbd {
         }).then(reload).catch(function (e) { note("add-note", e.message, "bad"); });
       });
     });
+  }
+
+  // ---- drafting the missing sentence ------------------------------------
+  //
+  // One control, two destinations. A culture row's sentence is
+  // cultural_events.context_string and a timeline row's is lead_lines.line.
+  // They do the same job for different tables, and the function says which
+  // one it is writing to so this panel never guesses.
+  //
+  // Nothing is saved until Enter. Three candidates are offered rather than
+  // one because choosing is faster and more accurate than judging, and the
+  // page the row cites is shown underneath so a line that says more than the
+  // record can be caught before it is on a page.
+  var drafting = null;
+
+  function closeDraft() {
+    if (drafting && drafting.box && drafting.box.parentNode) drafting.box.parentNode.removeChild(drafting.box);
+    drafting = null;
+  }
+
+  function openDraft(rowEl, kind, id) {
+    if (!rowEl) return;
+    closeDraft();
+    var box = document.createElement("div");
+    box.className = "draft";
+    box.innerHTML = '<p class="to">Drafting. Nothing is saved until you press Enter.</p>';
+    rowEl.appendChild(box);
+    drafting = { box: box, kind: kind, id: id, row: rowEl, candidates: [] };
+    fetch(API + "/functions/v1/draft-line", {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ kind: kind, id: id }),
+    }).then(function (r) { return r.json().then(function (b) { return { ok: r.ok, body: b }; }); })
+      .then(function (r) {
+        if (!drafting || drafting.box !== box) return;
+        var b = r.body || {};
+        if (!r.ok || b.status !== "done") {
+          box.innerHTML = '<p class="to">' + esc(b.error || "Nothing came back.") + ' <button class="act" data-x="1">Close <kbd>Esc</kbd></button></p>';
+          box.querySelector("[data-x]").addEventListener("click", closeDraft);
+          return;
+        }
+        drafting.candidates = b.candidates;
+        drafting.writesTo = b.row.writes_to;
+        var html = '<p class="to">Writes to ' + esc(b.row.writes_to) + ". Pick with <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd>, edit, <kbd>Enter</kbd> saves, <kbd>Esc</kbd> closes.</p>";
+        b.candidates.forEach(function (c, i) {
+          html += '<button class="cand" data-pick="' + i + '"><kbd>' + (i + 1) + "</kbd>" + esc(c) + "</button>";
+        });
+        html += '<textarea id="draft-text" placeholder="Or write your own."></textarea>' +
+          '<p class="keys"><button class="act" data-save="1">Save <kbd>Enter</kbd></button>' +
+          '<button class="act" data-x="1">Close <kbd>Esc</kbd></button><span class="note" id="draft-note" style="margin:0"></span></p>' +
+          (b.source_text
+            ? "<details><summary>The page it cites, as text. A line may not say more than this and the row do.</summary><p>" + esc(b.source_text) + "</p></details>"
+            : '<p class="to" style="margin-top:8px">The cited page did not answer, so these rest on the sentence the row already has.</p>');
+        box.innerHTML = html;
+        Array.prototype.forEach.call(box.querySelectorAll("[data-pick]"), function (c) {
+          c.addEventListener("click", function () { pickDraft(+c.dataset.pick); });
+        });
+        box.querySelector("[data-save]").addEventListener("click", saveDraft);
+        box.querySelector("[data-x]").addEventListener("click", closeDraft);
+        var ta = el("draft-text");
+        ta.addEventListener("keydown", function (e) {
+          if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveDraft(); }
+          if (e.key === "Escape") { e.preventDefault(); closeDraft(); }
+        });
+        pickDraft(0);
+      })
+      .catch(function (e) {
+        if (drafting && drafting.box === box) box.innerHTML = '<p class="to">' + esc(String(e.message || e)) + "</p>";
+      });
+  }
+
+  function pickDraft(i) {
+    if (!drafting || !drafting.candidates[i]) return;
+    Array.prototype.forEach.call(drafting.box.querySelectorAll(".cand"), function (c, j) {
+      c.classList.toggle("on", j === i);
+    });
+    var ta = el("draft-text");
+    ta.value = drafting.candidates[i];
+    ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+  }
+
+  function saveDraft() {
+    if (!drafting) return;
+    var line = (el("draft-text").value || "").replace(/[\u2013\u2014]/g, ",").replace(/\s+/g, " ").trim();
+    if (line.length < 8) { note("draft-note", "Too short to be a line.", "bad"); return; }
+    if (line.length > 190) { note("draft-note", "Over 190 characters. The card is two lines on a phone.", "bad"); return; }
+    note("draft-note", "Saving.");
+    var write;
+    if (drafting.kind === "cultural_event") {
+      // The same write the queue's edit does: a sentence on a published row.
+      write = rest("cultural_events?id=eq." + drafting.id, {
+        method: "PATCH",
+        body: { context_string: line, reviewed_by: userId, reviewed_at: new Date().toISOString() },
+      });
+    } else {
+      write = rest("lead_lines?on_conflict=subject_kind,subject_id", {
+        method: "POST",
+        headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+        body: [{
+          subject_kind: drafting.kind, subject_id: drafting.id,
+          event_month: selected.m, event_day: selected.d,
+          line: line, written_by: userId, updated_at: new Date().toISOString(),
+        }],
+      });
+    }
+    write.then(function () {
+      note("draft-note", "Saved.", "good");
+      var kind = drafting.kind, id = drafting.id;
+      closeDraft();
+      reloadDate().then(function () { focusRow(kind, id); });
+    }).catch(function (e) { note("draft-note", e.message, "bad"); });
+  }
+
+  // ---- the keyboard path through a date ----------------------------------
+  function rowsOnScreen() {
+    return Array.prototype.slice.call(el("rows").querySelectorAll(".row[tabindex]"));
+  }
+  function focusedRow() {
+    var a = document.activeElement;
+    return a && a.closest ? a.closest(".row[tabindex]") : null;
+  }
+  function focusRow(kind, id) {
+    var rows = rowsOnScreen();
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].dataset.kind === kind && rows[i].dataset.id === id) { rows[i].focus(); return; }
+    }
+  }
+  function moveRow(step) {
+    var rows = rowsOnScreen();
+    if (rows.length === 0) return false;
+    var cur = focusedRow();
+    var i = cur ? rows.indexOf(cur) : -1;
+    var next = Math.max(0, Math.min(rows.length - 1, i + step));
+    rows[next].focus();
+    rows[next].scrollIntoView({ block: "nearest" });
+    return true;
+  }
+  /** Press the button the key names on the focused row, if it has one. */
+  function pressOnRow(selector) {
+    var cur = focusedRow();
+    if (!cur) return false;
+    var b = cur.querySelector(selector);
+    if (!b) return false;
+    b.click();
+    return true;
+  }
+
+  function reloadDate() {
+    if (!selected) return Promise.resolve();
+    return openDate(selected.m, selected.d, null);
   }
 
   function reload() {
