@@ -22,12 +22,22 @@ import Security
 /// guessable, which is all the database asks of it, and it is joinable to
 /// nothing.
 ///
-/// **Nothing is shown back while a date is open.** The website shows four
-/// buttons and no counts, and that is right rather than unfinished. A number
-/// on screen while the window is open biases every answer that comes after it
-/// toward the majority, which would quietly destroy the one measurement this
-/// exists to take. Counts appear when the date has sealed and the answering is
-/// over. `RemembranceCounts` holds them, `SealText` says them.
+/// **Nothing is shown to somebody who has not answered yet. Everything is
+/// shown the moment they do.**
+///
+/// The first version of this hid the counts on an open date from everybody,
+/// and that was half right and half wrong in a way worth writing down. The
+/// half that is right: a number on screen in front of a reader who has not
+/// answered tells them what the popular answer is, and an answer given after
+/// reading that is agreement rather than memory, which quietly destroys the
+/// one measurement this exists to take.
+///
+/// The half that was wrong: it hid the counts from people who had already
+/// answered too, and those people cannot be biased any more, because they have
+/// already committed. So the reader got nothing back at all, and a page that
+/// takes an answer and says nothing is a form rather than a thing worth
+/// opening. The count is now gated on having answered that row, which protects
+/// the measurement exactly as well and pays the reader immediately.
 ///
 /// **There are no points, no streaks, no badges and no leaderboard**, and
 /// there is no place in this file where one could be added by accident. An
@@ -51,7 +61,12 @@ final class RememberService {
     private(set) var edition: Edition?
 
     /// The counts per row, for the newest edition of the date being shown.
-    /// Empty while a date is open, on purpose: see the note above.
+    ///
+    /// Always loaded. Whether a given row's counts may be drawn is decided by
+    /// `tally(for:month:day:)` and not by whether they were fetched, because
+    /// two readers on the same page are allowed to see different things: the
+    /// one who has answered may see the result and the one who has not may
+    /// not.
     private(set) var counts: [String: RemembranceCounts] = [:]
 
     /// Every edition's counts, newest year first, for the day a second edition
@@ -279,24 +294,28 @@ final class RememberService {
         }
         byYear = years
 
-        // Held back until the date has sealed. A count on screen during the
-        // window tells everybody who has not answered yet what the popular
-        // answer is, and an answer given after reading that is not a memory,
-        // it is agreement. See the header.
+        // The edition being shown, which is this year's while a date is in
+        // season and the newest there is otherwise, so a date looked at out of
+        // season still shows what it decided. Who may see any of it is decided
+        // per row, below.
         let thisYear = RememberWindow.editionYear()
-        if let edition, edition.isSealed {
-            counts = years[edition.year] ?? [:]
-        } else if RememberWindow.isOpen(month: month, day: day, windowDays: windowDays) {
-            counts = [:]
-        } else {
-            counts = years[thisYear] ?? years.keys.max().flatMap { years[$0] } ?? [:]
-        }
+        let shown = edition?.year ?? thisYear
+        counts = years[shown] ?? years[thisYear] ?? years.keys.max().flatMap { years[$0] } ?? [:]
     }
 
-    /// The counts for one row, or nil when there is nothing to show. Nil is
-    /// the ordinary state while a date is open.
-    func tally(for subject: RememberSubject) -> RemembranceCounts? {
-        counts[subject.key]
+    /// The counts for one row, or nil when this reader may not see them.
+    ///
+    /// Two ways to earn them: the date has sealed, so the answering is over
+    /// and nothing can be biased, or this account has answered this row, so
+    /// this reader has already committed and cannot be biased either.
+    /// Everybody else gets nil, which is the ordinary state on an open date
+    /// and is what stops the page telling a reader the popular answer before
+    /// they have given their own.
+    func tally(for subject: RememberSubject, month: Int, day: Int) -> RemembranceCounts? {
+        guard let counts = counts[subject.key], counts.total > 0 else { return nil }
+        if let edition, edition.isSealed { return counts }
+        if answer(for: subject, month: month, day: day) != nil { return counts }
+        return nil
     }
 
     /// The same row in an earlier edition, for the year there is one to
@@ -355,6 +374,12 @@ final class RememberService {
         let year = edition?.year ?? RememberWindow.editionYear()
         mine[localKey(subject, month: month, day: day, year: year)] = depth
         writeMine()
+        // Counted here rather than fetched again. The reveal has to have the
+        // reader in it or the tap reads as having done nothing, and the rest
+        // of the number is as of when the page loaded, which on one date over
+        // three days is the same number. A second round trip to move a figure
+        // by one is not worth the wait in front of it.
+        counts[subject.key] = (counts[subject.key] ?? RemembranceCounts()).adding(depth)
         return true
     }
 

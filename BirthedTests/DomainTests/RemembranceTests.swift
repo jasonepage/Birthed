@@ -329,6 +329,61 @@ final class RemembranceTests: XCTestCase {
         XCTAssertNil(RemembranceCounts().summary())
     }
 
+    // MARK: The reveal
+
+    func testTheSharesAddUpAndSurviveNobodyHavingAnswered() {
+        let counts = RemembranceCounts(there: 0, remembers: 1, heard: 1, never: 2)
+        XCTAssertEqual(counts.share(for: .never), 0.5, accuracy: 0.0001)
+        XCTAssertEqual(counts.share(for: .remember), 0.25, accuracy: 0.0001)
+        XCTAssertEqual(counts.share(for: .there), 0, accuracy: 0.0001)
+
+        // Zero rather than a division by nothing.
+        XCTAssertEqual(RemembranceCounts().share(for: .never), 0, accuracy: 0.0001)
+    }
+
+    /// The three the app offers, always, so a row that nobody has heard of
+    /// still shows the two answers nobody gave.
+    func testTheResultDrawsTheThreeAnswersTheAppOffers() {
+        let counts = RemembranceCounts(there: 0, remembers: 3, heard: 0, never: 40)
+        XCTAssertEqual(counts.breakdown.map(\.depth), [.remember, .heard, .never])
+        XCTAssertEqual(counts.breakdown.map(\.count), [3, 0, 40])
+    }
+
+    /// And the fourth as well when the website collected some, because the
+    /// numbers underneath have to add up to the total printed beside them.
+    func testAnAnswerFromTheWebsiteIsDrawnRatherThanQuietlyDropped() {
+        let counts = RemembranceCounts(there: 9, remembers: 3, heard: 0, never: 40)
+        XCTAssertEqual(counts.breakdown.map(\.depth), [.there, .remember, .heard, .never])
+        XCTAssertEqual(counts.breakdown.map(\.count).reduce(0, +), counts.total)
+    }
+
+    /// The reveal has to have the reader in it. Somebody who has just pressed
+    /// a button and is shown a count without themselves in it will assume the
+    /// tap did nothing.
+    func testYourOwnAnswerIsInTheNumberYouAreShown() {
+        let before = RemembranceCounts(there: 0, remembers: 2, heard: 1, never: 5)
+        let after = before.adding(.never)
+        XCTAssertEqual(after.never, 6)
+        XCTAssertEqual(after.total, before.total + 1)
+        XCTAssertEqual(after.remembers, before.remembers)
+        XCTAssertEqual(after.heard, before.heard)
+        XCTAssertEqual(after.there, before.there)
+    }
+
+    func testAFirstAnswerOnAnUntouchedRowCountsAsOne() {
+        let counts = RemembranceCounts().adding(.remember)
+        XCTAssertEqual(counts.total, 1)
+        XCTAssertEqual(counts.remembers, 1)
+        XCTAssertEqual(counts.share(for: .remember), 1, accuracy: 0.0001)
+    }
+
+    func testTheTotalIsCalledAnswersRatherThanPeople() {
+        // One person answering twelve rows is twelve answers, and only
+        // edition_summary knows how many people that was.
+        XCTAssertEqual(RememberCopy.answers(1), "1 answer so far")
+        XCTAssertEqual(RememberCopy.answers(43), "43 answers so far")
+    }
+
     // MARK: The seal
 
     func testASealedDateSaysWhatItDecidedAndWhen() {
@@ -385,6 +440,8 @@ final class RemembranceTests: XCTestCase {
         lines.append(contentsOf: RememberDepth.allCases.map(\.label))
         lines.append(contentsOf: RememberDepth.allCases.map(\.spokenAfter))
         lines.append(RemembranceCounts(there: 9, remembers: 1, heard: 1, never: 1).summary() ?? "")
+        lines.append(RememberCopy.answers(1))
+        lines.append(RememberCopy.answers(43))
         for line in lines {
             XCTAssertFalse(line.contains("\u{2014}"), "an em dash got into: \(line)")
             XCTAssertFalse(line.contains("\u{2013}"), "an en dash got into: \(line)")

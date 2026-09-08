@@ -240,6 +240,55 @@ struct RemembranceCounts: Equatable, Sendable {
 
     var total: Int { there + remembers + heard + never }
 
+    /// One answer's share of the total, between zero and one. Zero when
+    /// nobody has answered, rather than undefined.
+    func share(for depth: RememberDepth) -> Double {
+        guard total > 0 else { return 0 }
+        return Double(count(for: depth)) / Double(total)
+    }
+
+    /// One line of the little result drawn under a row somebody answered.
+    struct Slice: Equatable, Sendable {
+        let depth: RememberDepth
+        let count: Int
+        let share: Double
+    }
+
+    /// The result, in the order it is drawn.
+    ///
+    /// The three the app offers, and "I was there" as well but only when
+    /// somebody actually gave it. Drawing a permanent empty row for an answer
+    /// this app no longer offers would be explaining a decision to a reader who
+    /// never saw the button, and hiding a row that has real answers in it would
+    /// make the numbers underneath not add up to the total printed beside them.
+    var breakdown: [Slice] {
+        var rows: [Slice] = []
+        if there > 0 {
+            rows.append(Slice(depth: .there, count: there, share: share(for: .there)))
+        }
+        for depth in RememberDepth.offered {
+            rows.append(Slice(depth: depth, count: count(for: depth), share: share(for: depth)))
+        }
+        return rows
+    }
+
+    /// This account's own answer, added the moment it is given.
+    ///
+    /// The reveal has to include the reader or it reads as a lie: somebody who
+    /// has just pressed "never heard of it" and is shown a count that does not
+    /// have them in it will assume the tap did nothing. The rest of the number
+    /// is as of when the page loaded, which for one date over three days is
+    /// the same number, and the alternative is a second round trip to move a
+    /// figure by one.
+    func adding(_ depth: RememberDepth) -> RemembranceCounts {
+        RemembranceCounts(
+            there: there + (depth == .there ? 1 : 0),
+            remembers: remembers + (depth == .remember ? 1 : 0),
+            heard: heard + (depth == .heard ? 1 : 0),
+            never: never + (depth == .never ? 1 : 0)
+        )
+    }
+
     func count(for depth: RememberDepth) -> Int {
         switch depth {
         case .there: return there
@@ -289,6 +338,14 @@ enum RememberCopy {
     /// Asking once, small, and opening only when somebody says yes is the
     /// same amount of feature and about a tenth of the furniture.
     static let prompt = "Do you remember this?"
+
+    /// The total under the little result. Said as answers rather than people,
+    /// because that is what a per row count is: one person answering twelve
+    /// rows is twelve answers, and only `edition_summary` knows how many
+    /// people that was.
+    static func answers(_ total: Int) -> String {
+        total == 1 ? "1 answer so far" : "\(total) answers so far"
+    }
 
     /// What a row says when the answer arrived too late.
     static let sealed = "This date has sealed. It reopens next year."
