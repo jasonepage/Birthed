@@ -1187,6 +1187,32 @@ ul.feed li.lead { padding: 22px 20px 20px; }
 ul.feed li.lead .said { font-size: 23px; line-height: 1.28; }
 ul.feed li.lead .yr { font-size: 30px; color: var(--day-soft); }
 
+/* The front page lead, and only on a date that has sealed.
+   On an open date nothing has earned the top of the page, and setting a row
+   large because it happened to be first would be putting a headline on a story
+   nobody chose. Once a date seals, the row at the top is the one its own
+   people said they remembered, and the hierarchy is real. */
+ul.feed li.sealedlead {
+  padding: 30px 28px 26px;
+  background: linear-gradient(168deg, #221A2E 0%, #17121F 62%);
+  border-color: #3A3348;
+}
+ul.feed li.sealedlead .said {
+  font-size: clamp(28px, 4.6vw, 44px); line-height: 1.14; font-weight: 800;
+  letter-spacing: -0.015em; margin: 14px 0 0;
+}
+ul.feed li.sealedlead .yr { font-size: 40px; }
+ul.feed li.sealedlead .leadmark {
+  display: inline-flex; align-items: center; gap: 7px; margin: 0 0 4px;
+  font-size: 10.5px; font-weight: 800; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--day-soft, #C6B0F5);
+}
+ul.feed li.sealedlead .leadmark::before {
+  content: ""; width: 18px; height: 2px; border-radius: 2px;
+  background: var(--day-soft, #C6B0F5);
+}
+@media (max-width: 560px) { ul.feed li.sealedlead { padding: 22px 18px 20px; } }
+
 /* The rest, behind one tap. Present in the HTML, so it is still indexed and
    still answers a search: closed is a display state, not a missing page. */
 details.more {
@@ -1725,6 +1751,9 @@ function feedSection(
   // an answer against the wrong date.
   month = 0,
   day = 0,
+  /// Whether this date has sealed, which is the only thing that earns a row
+  /// the front page treatment.
+  sealed = false,
 ): string {
   if (picked.length === 0) return "";
 
@@ -1733,8 +1762,16 @@ function feedSection(
     // Only the first few are staggered. The rest are below the fold on every
     // screen, so animating them would move things nobody is looking at.
     const delay = index < 6 ? ` style="--i:${index}"` : "";
-    return `<li class="${index === 0 ? "lead" : ""}" id="r-${row.kind}-${escapeHtml(row.id)}"${delay}>
+    const lead = index === 0 ? (sealed ? "lead sealedlead" : "lead") : "";
+    // Said above the lead rather than left to be inferred, because a row set
+    // four times the size of the one under it is a claim, and the reader is
+    // owed what the claim rests on.
+    const mark = index === 0 && sealed
+      ? `<span class="leadmark">Most remembered</span>`
+      : "";
+    return `<li class="${lead}" id="r-${row.kind}-${escapeHtml(row.id)}"${delay}>
 <span class="head"><span class="tag ${kind.klass}">${kind.label}</span><span class="yr">${row.year === null ? "" : row.year}</span></span>
+${mark}
 <p class="said">${escapeHtml(row.text)}</p>
 ${whenOf(row.dateKind) ? `<p class="datenote">${whenOf(row.dateKind)}</p>` : ""}
 ${row.sourceUrl ? `<p class="src"><a href="${escapeHtml(row.sourceUrl)}" rel="nofollow noopener">${escapeHtml(hostOf(row.sourceUrl))}</a></p>` : ""}
@@ -2312,7 +2349,7 @@ ${AFTER}
 <h1>${name}</h1>
 ${openingBand(page, songs, culture, highlight)}
 ${cultureSection(culture, name)}
-${memoryNote}${feedSection(picked, rest, timeline.length, name, searched, timeline.length - searched - curatedCount, curatedCount, page.month, page.day)}
+${memoryNote}${feedSection(picked, rest, timeline.length, name, searched, timeline.length - searched - curatedCount, curatedCount, page.month, page.day, memory !== null)}
 ${songSection(songs, name)}
 ${peopleRail(page, name)}
 <nav class="pager cards">

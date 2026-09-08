@@ -1133,3 +1133,31 @@ test("running out of answers is its own sentence, and says why the limit exists"
   // being broken rather than as the site having a rule.
   assert.ok(html.includes("nobody chose anything on"));
 });
+
+test("only a sealed date gets a front page lead", () => {
+  const facts = [
+    { id: "a", month: 9, day: 4, fact: "The first thing.", category: "event",
+      sourceUrl: "https://example.org/a" },
+    { id: "b", month: 9, day: 4, fact: "The second thing.", category: "event",
+      sourceUrl: "https://example.org/b" },
+  ];
+
+  // Open. Nothing has earned the top of the page, so nothing is set large.
+  //
+  // Checking the class is APPLIED, not that the string is absent: the rule
+  // itself lives in the stylesheet on every page, so a bare includes() here
+  // passes for the wrong reason and would go on passing if the class were
+  // applied to every date on the site.
+  const open = renderDayPage(page, [], facts);
+  assert.equal(open.includes('class="lead sealedlead"'), false);
+  assert.equal(open.includes("Most remembered"), false);
+
+  // Sealed. The row its own people remembered leads, and says why it leads,
+  // because a row set four times the size of the one under it is a claim.
+  const sealed = renderDayPage(page, [], facts, [], [], new Map([
+    ["birth_fact:b", { there: 0, remembers: 9, heard: 0, never: 0 }],
+  ]));
+  assert.ok(sealed.includes('class="lead sealedlead"'));
+  assert.ok(sealed.includes("Most remembered"));
+  assert.ok(sealed.includes("In the order the people who were here remembered it"));
+});

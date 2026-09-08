@@ -361,6 +361,12 @@ struct DayPageView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     if index > 0 { hairline }
                     FeedRow(item: item, palette: palette, isLead: index == 0,
+                            // The front page lead, and only on a date that has
+                            // sealed. On an open date nothing has earned the
+                            // top of the page yet, and setting a row large
+                            // because it happened to be dealt first would be
+                            // putting a headline on a story nobody chose.
+                            isSealedLead: index == 0 && remember.edition?.isSealed == true,
                             onLike: { fact in Task { await factsService.toggleLike(fact) } },
                             onShare: { fact in
                                 sharingFact = fact
@@ -521,6 +527,15 @@ private struct FeedRow: View {
     let item: DayFeed.Item
     let palette: StagePalette
     var isLead: Bool = false
+    /// The one row a sealed date decided was its lead.
+    ///
+    /// Set large, with its artwork above the text rather than beside it, so
+    /// the page has a front page rather than a hundred and fifty rows of
+    /// identical weight. The hierarchy is real: it was not chosen by an
+    /// editor, a model or a vote, it is the row the date's own people said
+    /// they remembered, and it only exists once the date can never take
+    /// another answer.
+    var isSealedLead: Bool = false
     let onLike: (BirthFact) -> Void
     let onShare: (BirthFact) -> Void
     let onOpen: (URL) -> Void
@@ -528,16 +543,115 @@ private struct FeedRow: View {
     var onPlay: (URL) -> Void = { _ in }
 
     var body: some View {
-        // The cover sits beside the row rather than above it. A chart row is
-        // three short lines, and a square the height of three short lines is
-        // the one place it fits without pushing everything else down a screen.
-        HStack(alignment: .top, spacing: 13) {
-            if let art = item.artworkURL {
-                cover(art)
+        if isSealedLead {
+            lead
+        } else {
+            // The cover sits beside the row rather than above it. A chart row
+            // is three short lines, and a square the height of three short
+            // lines is the one place it fits without pushing everything else
+            // down a screen.
+            HStack(alignment: .top, spacing: 13) {
+                if let art = item.artworkURL {
+                    cover(art)
+                }
+                rowText
             }
-            rowText
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    /// The lead: artwork the width of the page, then the sentence, set large.
+    ///
+    /// The opposite arrangement to every other row, on purpose. Everywhere
+    /// else the picture is a thumbnail beside three short lines, because a
+    /// hundred and fifty full width images is a scroll nobody finishes. Here
+    /// there is exactly one, and it is the whole point of a front page: the
+    /// eye lands on it before it reads anything.
+    private var lead: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if let art = item.artworkURL {
+                AsyncImage(url: art) { phase in
+                    if case let .success(image) = phase {
+                        image.resizable().aspectRatio(contentMode: .fill)
+                    } else {
+                        palette.type.opacity(0.06)
+                    }
+                }
+                // Square for a sleeve, two by three for a poster, which is
+                // what a film poster has been since before anybody reading
+                // this was born.
+                .aspectRatio(item.kind == .film ? 2.0 / 3.0 : 1, contentMode: .fit)
+                .frame(maxWidth: .infinity)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(palette.type.opacity(0.12), lineWidth: 0.75)
+                )
+                .overlay(alignment: .bottomTrailing) {
+                    if item.previewURL != nil, item.kind != .film {
+                        ZStack {
+                            Circle().fill(.black.opacity(0.5)).frame(width: 44, height: 44)
+                            Image(systemName: playing ? "pause.fill" : "play.fill")
+                                .font(.system(size: 17, weight: .black))
+                                .foregroundStyle(.white)
+                                .offset(x: playing ? 0 : 2)
+                        }
+                        .padding(14)
+                    }
+                }
+                .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .onTapGesture {
+                    if let sample = item.previewURL, item.kind != .film {
+                        onPlay(sample)
+                    } else if let store = item.storeURL {
+                        onOpen(store)
+                    }
+                }
+            }
+
+            leadText
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.bottom, 6)
+    }
+
+    /// The lead's words. The same parts as any other row, at the size a lead
+    /// is set in, and with the kicker saying what put it here.
+    private var leadText: some View {
+        VStack(alignment: .leading, spacing: 11) {
+            HStack(alignment: .center, spacing: 8) {
+                Text(item.kicker)
+                    .font(.system(size: 10, weight: .heavy))
+                    .kerning(1.6)
+                    .foregroundStyle(Theme.kicker(kind: item.kind, category: item.fact?.category))
+
+                if let age = item.ageLabel {
+                    Text(age.uppercased())
+                        .font(.system(size: 9, weight: .heavy))
+                        .kerning(1.2)
+                        .foregroundStyle(palette.type.opacity(0.55))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(palette.type.opacity(0.09), in: Capsule())
+                }
+
+                Spacer(minLength: 8)
+
+                if let fact = item.fact {
+                    shareButton(fact)
+                    likeButton(fact)
+                }
+            }
+
+            Text(item.text)
+                .font(.system(size: 32, weight: .heavy, design: .serif))
+                .lineSpacing(3)
+                .foregroundStyle(palette.type)
+                .fixedSize(horizontal: false, vertical: true)
+                .multilineTextAlignment(.leading)
+
+            detailLine
+        }
     }
 
     /// A sleeve is square and a poster is not.
