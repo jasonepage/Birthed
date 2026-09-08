@@ -947,6 +947,40 @@ async function handle(
         return;
       }
     }
+    // Your own marks, on a date you have answered before.
+    //
+    // Only for a request that carries a token, which means only for somebody
+    // who has answered something somewhere, so the ordinary visitor still gets
+    // a file off disk and nothing else. When the call fails, or the reader has
+    // said nothing about this date, marks is "" and the page is served exactly
+    // as it was built. That is the same bargain the result path makes: an
+    // outage costs a mark, never a site.
+    const token = method === "GET" && file.endsWith(".html")
+      ? tokenFromCookie(request.headers.cookie)
+      : null;
+    const marked = token === null ? null : dateFor(path);
+    if (marked !== null && token !== null) {
+      const marks = await myMarks(marked.month, marked.day, token);
+      if (marks !== "") {
+        let html: string | null = null;
+        try {
+          html = await readFile(file, "utf8");
+        } catch {
+          html = null;
+        }
+        if (html !== null) {
+          response.writeHead(200, {
+            "Content-Type": "text/html; charset=utf-8",
+            // Never stored. It is one reader's own answers and it is wrong for
+            // everybody else who would be handed the cached copy.
+            "Cache-Control": "no-store",
+            ...securityFor(path),
+          });
+          response.end(method === "HEAD" ? undefined : html + marks);
+          return;
+        }
+      }
+    }
     send(response, 200, file, path, method === "HEAD");
     return;
   }
@@ -964,6 +998,72 @@ async function handle(
 }
 
 /**
+ * What this browser said about this date, as one style block, or "".
+ *
+ * The pixel problem, in one function. A reader answers ten rows, the page
+ * looks identical afterwards, and there is no trace of them when they come
+ * back. On r/place you saw your own colour go on the grid and it was still
+ * there the next day, and that difference is the whole of why answering here
+ * felt like less than placing a pixel. See docs/the-pixel-problem.md.
+ *
+ * **Nothing here is about anybody else.** No counts, no totals, no other
+ * token's answers. It is one browser being shown what it already told us,
+ * which is the only thing this site can hand back today without touching the
+ * seal or inventing a score. A number that moved would be a direction, and a
+ * direction is a weapon on a site carrying September 11.
+ *
+ * A style block rather than rewritten rows, because the words then arrive once
+ * instead of being baked into a hundred and fifty rows that almost nobody will
+ * ever see, and because a page that fails to get an answer here is exactly the
+ * page it was built as.
+ */
+async function myMarks(month: number, day: number, token: string): Promise<string> {
+  const key = process.env.SUPABASE_ANON_KEY;
+  if (!key) return "";
+  let rows: { subject_kind: string; subject_id: string; depth: string }[];
+  try {
+    const response = await fetch(`${projectBase()}/rest/v1/rpc/my_answers`, {
+      method: "POST",
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ month_in: month, day_in: day, voter_token_in: token }),
+    });
+    if (!response.ok) return "";
+    rows = (await response.json()) as { subject_kind: string; subject_id: string; depth: string }[];
+  } catch {
+    return "";
+  }
+  if (!Array.isArray(rows) || rows.length === 0) return "";
+
+  // The reader's own three words back, in their own terms. Not a judgement of
+  // the row and not a tally: it is a quotation of the button they pressed.
+  const said: Record<string, string> = {
+    remember: "You remembered this.",
+    heard: "You had heard of it.",
+    never: "You had never heard of it.",
+  };
+
+  const rules: string[] = [];
+  for (const row of rows) {
+    const words = said[row.depth];
+    if (words === undefined) continue;
+    // The identifiers come out of our own database and are used inside a
+    // selector, so anything that could close one is dropped rather than
+    // escaped. A row whose id is not the shape we write is not marked, which
+    // costs one mark and cannot produce a stylesheet somebody else wrote.
+    const id = `r-${row.subject_kind}-${row.subject_id}`;
+    if (!/^[A-Za-z0-9_-]+$/.test(id)) continue;
+    rules.push(`#${id} .mine{display:block}#${id} .mine::after{content:"${words}"}`);
+  }
+  if (rules.length === 0) return "";
+  return `<style>${rules.join("")}</style>`;
+}
+
+/**
  * A baked page with one row's result written into it, or null.
  *
  * Null on every failure there is: a path that is not a date, a row nobody has
@@ -975,16 +1075,22 @@ async function handle(
  * result containing a dollar sign cannot be read as a capture group, which is
  * the kind of thing that works for a year and then meets one row.
  */
+/** The date a request path names, or null. */
+function dateFor(requestPath: string): { month: number; day: number } | null {
+  const found = everyDate().find((d) => {
+    const at = `/${slug(d.month, d.day)}`;
+    return requestPath === at || requestPath === `${at}/` || requestPath === `${at}/index.html`;
+  });
+  return found ?? null;
+}
+
 async function withResult(
   file: string,
   requestPath: string,
   kept: { kind: string; id: string },
 ): Promise<string | null> {
-  const date = everyDate().find((d) => {
-    const at = `/${slug(d.month, d.day)}`;
-    return requestPath === at || requestPath === `${at}/` || requestPath === `${at}/index.html`;
-  });
-  if (date === undefined) return null;
+  const date = dateFor(requestPath);
+  if (date === null) return null;
 
   const counts = (await tallyFor(date.month, date.day)).get(`${kept.kind}:${kept.id}`);
   if (counts === undefined) return null;

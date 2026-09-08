@@ -200,6 +200,7 @@ const STYLE = `
 .ask .rem button:hover { border-color: var(--day-soft, #C6B0F5); background: rgba(198, 176, 245, .14); }
 .ask .rres { padding: 0 16px; }
 .ask .undo { padding: 0 16px; }
+.ask .mine { padding: 6px 16px 0; margin: 0; }
 .askrule { margin: 0; padding: 6px 16px 14px; font-size: 12.5px; color: #827B75; line-height: 1.45; }
 /* The row the ask was taken from, where it sits in the feed. Hidden by
    today.css on the three open dates, so a row is on the page once: at the top
@@ -209,6 +210,17 @@ const STYLE = `
    request and is the only thing on this site that knows what day it is. The
    buttons are therefore never shown on a page that would refuse them. */
 .rem { display: none; }
+
+/* Your own mark on this date, and the reason it is empty here.
+   A reader answers ten rows, the page looks identical afterwards, and there is
+   no trace of them when they come back. On r/place you saw your own colour go
+   on the grid and it was still there tomorrow, and that difference is the
+   whole of why answering here felt like less than placing a pixel.
+   So the server writes one style block naming the rows this browser answered,
+   and the words arrive with it rather than being baked 150 times over. Nothing
+   about anybody else is ever in that block: no counts, no totals, no score.
+   See myMarks in serve.ts. */
+.mine { display: none; margin: 6px 0 0; font-size: 12.5px; color: #6FA5DE; }
 
 /* Remembering. Three buttons, no script, no downvote.
 
@@ -1949,6 +1961,7 @@ ${mark}
 ${whenOf(row.dateKind) ? `<p class="datenote">${whenOf(row.dateKind)}</p>` : ""}
 ${row.sourceUrl ? `<p class="src"><a href="${escapeHtml(row.sourceUrl)}" rel="nofollow noopener">${escapeHtml(hostOf(row.sourceUrl))}</a></p>` : ""}
 ${isAsked(row) ? "" : rememberForm(row.kind, row.id, month, day)}
+${isAsked(row) ? "" : `<p class="mine"></p>`}
 </li>`;
   }).join("\n");
 
@@ -1959,6 +1972,7 @@ ${isAsked(row) ? "" : rememberForm(row.kind, row.id, month, day)}
 ${whenOf(row.dateKind) ? `<p class="datenote">${whenOf(row.dateKind)}</p>` : ""}
 ${row.sourceUrl ? `<p class="src"><a href="${escapeHtml(row.sourceUrl)}" rel="nofollow noopener">${escapeHtml(hostOf(row.sourceUrl))}</a></p>` : ""}
 ${isAsked(row) ? "" : rememberForm(row.kind, row.id, month, day)}
+${isAsked(row) ? "" : `<p class="mine"></p>`}
 </span>
 </li>`).join("\n");
 
@@ -2464,6 +2478,7 @@ ${art}
 ${caption === "" ? "" : `<p class="askcap">${caption}</p>`}
 </div>
 ${rememberForm(row.kind, row.id, month, day)}
+<p class="mine"></p>
 <p class="askrule">One tap, no account, anonymous. Ten answers per date, no score, and "never heard of it" counts the same as the others.</p>
 </section>`;
 }

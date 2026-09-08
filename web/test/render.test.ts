@@ -1266,6 +1266,24 @@ test("a culture row with nothing written about it is not on the page", () => {
   assert.equal(html.includes("Mini Ninjas"), false, "a bare title does not");
 });
 
+// A reader answers ten rows, the page looks identical afterwards, and there is
+// no trace of them when they come back. These pin the two halves of the fix:
+// the marker is baked into every answerable row and hidden, and the style the
+// server writes says nothing about anybody else.
+test("every answerable row carries a hidden mark for its own reader", () => {
+  const html = renderDayPage({ month: 9, day: 4, people: [] }, [], [], [
+    { id: "a", month: 9, day: 4, year: 1999, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
+      description: "A thing happened in 1999." },
+  ]);
+  assert.ok(html.includes('id="r-historical_event-a"'), "the row has the anchor the mark is keyed to");
+  assert.ok(html.includes('<p class="mine"></p>'), "and an empty marker beside its form");
+  const style = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
+  assert.match(style, /\.mine \{ display: none;/, "hidden until this reader's own answers say otherwise");
+  // Empty on purpose. The words arrive with the style block rather than being
+  // baked into a hundred and fifty rows almost nobody will ever see.
+  assert.equal(html.includes("You remembered this"), false);
+});
+
 test("a plural does not walk a heavy row onto the card", () => {
   const rows = [
     { kind: "historical_event" as const, id: "bomb", year: 2007, text: "Russia tests the largest conventional weapon ever, the Father of All Bombs.", sourceUrl: "https://e.com/1", category: null, dateKind: null },
