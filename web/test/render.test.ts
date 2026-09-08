@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ASK_SLOTS, askCandidates, renderDayPage, renderRobots, renderSitemap, escapeHtml, isReady, undoForm } from "../src/render.js";
+import { ASK_SLOTS, askCandidates, renderDayPage, renderRobots, renderSitemap, escapeHtml, isReady, undoForm, resultMarkup } from "../src/render.js";
 import { everyDate, neighbours, slug } from "../src/model.js";
 
 const page = {
@@ -1579,4 +1579,60 @@ test("the year dial's hidden labels stay inside the strip that scrolls", () => {
   ]);
   const style = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
   assert.match(style, /\.dial \.ticks label \{[^}]*position: relative/);
+});
+
+/**
+ * Every animation on a date page lives inside the no-preference media query,
+ * so the page is complete with all of it off. Walks the stylesheet with a
+ * brace counter rather than a regex, because a regex cannot tell an
+ * animation inside the block from one that follows it.
+ */
+function animationsOutsideMotionBlocks(css: string): string[] {
+  const out: string[] = [];
+  const open = "@media (prefers-reduced-motion: no-preference)";
+  const openMin = "@media (prefers-reduced-motion:no-preference)";
+  let depth = 0;
+  let inside = false;
+  let insideDepth = 0;
+  let i = 0;
+  while (i < css.length) {
+    if (!inside && (css.startsWith(open, i) || css.startsWith(openMin, i))) {
+      inside = true;
+      insideDepth = depth;
+    }
+    const ch = css[i];
+    if (ch === "{") depth++;
+    if (ch === "}") {
+      depth--;
+      if (inside && depth === insideDepth) inside = false;
+    }
+    if (!inside && css.startsWith("animation:", i) && !css.startsWith("animation: none", i)) {
+      out.push(css.slice(Math.max(0, i - 60), i + 40).replace(/\s+/g, " "));
+    }
+    i++;
+  }
+  return out;
+}
+
+test("no animation on a date page plays when the reader asked for reduced motion", () => {
+  const html = renderDayPage(page);
+  const style = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
+  // The keyframes themselves are allowed anywhere; they do nothing until
+  // something names them.
+  const stray = animationsOutsideMotionBlocks(style).filter((s) => !s.includes("@keyframes"));
+  assert.deepEqual(stray, [], "an animation sits outside the motion block");
+  // The four the motion work added are present, by name, so this test cannot
+  // pass by the block being empty.
+  for (const name of ["burn", "rise", "rail", "draw"]) {
+    assert.ok(style.includes(`@keyframes ${name}`), `${name} keyframes are baked`);
+  }
+  assert.ok(style.includes(".rres:not(:empty) { animation: rise"), "the result lands");
+  assert.ok(style.includes(":target .mine { animation: rise"), "the reader's own mark lands after it");
+  assert.ok(style.includes(".afterword:target { animation: rise"), "the sentence at the top lands");
+});
+
+test("the result bars carry their place in the list so they can land one beat apart", () => {
+  const html = resultMarkup({ there: 0, remembers: 3, heard: 1, never: 1 });
+  assert.ok(html.includes('style="width:60%;--i:0"'));
+  assert.ok(html.includes('style="width:20%;--i:2"'));
 });

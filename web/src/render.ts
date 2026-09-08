@@ -1082,10 +1082,10 @@ body.home {
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
   mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
 }
-.railtrack {
-  display: flex; gap: 14px; flex: none; list-style: none; margin: 0; padding: 0;
-  animation: rail 72s linear infinite;
-}
+.railtrack { display: flex; gap: 14px; flex: none; list-style: none; margin: 0; padding: 0; }
+/* Gated here rather than switched off later, so that every animation on the
+   site sits behind the same question and a test can walk the sheet and check. */
+@media (prefers-reduced-motion: no-preference) { .railtrack { animation: rail 72s linear infinite; } }
 @keyframes rail { to { transform: translateX(calc(-100% - 14px)); } }
 /* Hold it still to read one. Focus as well as hover, because a keyboard is
    how somebody reaches these without a pointer and a link that keeps sliding
@@ -1482,6 +1482,38 @@ nav.pager.cards .after { text-align: right; }
 @media (prefers-reduced-motion: no-preference) {
   ul.feed li { animation: rise 460ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards; }
   ul.feed li[style] { animation-delay: calc(var(--i) * 45ms); }
+}
+
+/* ---- Motion ---------------------------------------------------------------
+
+   One timing system: 460 milliseconds, the curve the covers and the feed
+   already rise on, and a 45 millisecond stagger. Every animation below is
+   inside the no-preference media query and the page is complete with all of
+   it off. Nothing here counts, climbs or ticks. The fuse is the model: a
+   thing moves because it carries information the still page does not.
+
+   1. The answer landing. A reader taps, the server redirects to the row, and
+   the result, their own mark and the sentence at the top appear fully formed
+   as if they had always been there. This is the only motion a reader causes
+   rather than watches, so it is the one that matters most. The result bars
+   draw out to their real width, which is the answer arriving; the reader's
+   own words follow one beat later; the afterword at the top of the page
+   rises when it is the target. Only the row just answered is the :target and
+   only it carries a non-empty result, so nothing else on the page moves. */
+@keyframes draw { from { transform: scaleX(0); } to { transform: none; } }
+@media (prefers-reduced-motion: no-preference) {
+  .rres:not(:empty) { animation: rise 460ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards; }
+  .rbar span {
+    transform-origin: left center;
+    animation: draw 460ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
+    animation-delay: calc(90ms + var(--i, 0) * 45ms);
+  }
+  .rtot, .undo { animation: rise 460ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards; animation-delay: 225ms; }
+  :target .mine { animation: rise 460ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards; animation-delay: 270ms; }
+  .afterword:target { animation: rise 460ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards; }
+
+}
+  50% { box-shadow: 0 0 0 7px rgba(111, 165, 222, .08); }
 }
 `;
 
@@ -2320,10 +2352,12 @@ export function resultMarkup(counts: Remembered): string {
   rows.push(["Heard of it", counts.heard]);
   rows.push(["Never heard of it", counts.never]);
 
-  const bars = rows.map(([label, count]) => {
+  // --i is the bar's place in the list, for the stagger when the result
+  // lands. Same variable the covers and the feed rise on.
+  const bars = rows.map(([label, count], index) => {
     const share = Math.round((count / total) * 100);
     return `<span class="rrow"><span class="rlab">${escapeHtml(label)}</span>` +
-      `<span class="rbar"><span style="width:${count > 0 ? Math.max(share, 2) : 0}%"></span></span>` +
+      `<span class="rbar"><span style="width:${count > 0 ? Math.max(share, 2) : 0}%;--i:${index}"></span></span>` +
       `<span class="rnum">${count}</span></span>`;
   }).join("");
 
