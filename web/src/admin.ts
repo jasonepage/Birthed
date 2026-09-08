@@ -52,6 +52,12 @@ export function renderAdmin(api: { url: string; key: string }): string {
 .alsolab { margin: 0 0 6px; font-size: 11px; color: #827B75; }
 .alsorow { margin: 0 0 4px; font-size: 13px; color: #B9B2AD; }
 .gap { margin: 6px 0 0; color: #E0B060; }
+/* What a row is, beside what it says. The button next to it carries the verb. */
+.state {
+  font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+  color: #827B75;
+}
+.state.live { color: #6FBF8A; }
 .c0 { background: #3A3348; color: #9C9490; }
 .c1 { background: #6E5A4A; color: #FFF7EE; }
 .c2 { background: #C08A3E; }
@@ -239,13 +245,40 @@ kbd {
     return h;
   }
 
-  function rest(path, options) {
+  /**
+   * A request, and one retry after a refresh if the session died under it.
+   *
+   * The bug this fixes, seen at 03:36 on 8 September 2026: the panel had been
+   * open for over an hour, every read still worked, and every write came back
+   * 403 "new row violates row-level security policy for table birth_facts".
+   * That message reads like a policy problem and is not one. The access token
+   * had simply expired, so PostgREST stopped treating the caller as
+   * authenticated and fell back to anon, and anon has no write policy on that
+   * table. Reads kept working because reading a verified fact is public.
+   *
+   * Refreshing at page load, which is the other half of this fix, does nothing
+   * for a tab left open, and a tab left open is what curating actually looks
+   * like. So the retry lives here, around every call the panel makes, rather
+   * than in any one of them.
+   */
+  function rest(path, options, retried) {
     var opts = options || {};
     return fetch(API + "/rest/v1/" + path, {
       method: opts.method || "GET",
       headers: headers(opts.headers),
       body: opts.body ? JSON.stringify(opts.body) : undefined,
     }).then(function (r) {
+      if (r.status === 401 || r.status === 403) {
+        if (retried) {
+          return r.text().then(function (t) {
+            throw new Error("Signed out. " + r.status + " " + t.slice(0, 160));
+          });
+        }
+        return refreshSession().then(function (ok) {
+          if (!ok) throw new Error("That sign in has run out. Ask for another link.");
+          return rest(path, options, true);
+        });
+      }
       if (!r.ok) return r.text().then(function (t) { throw new Error(r.status + " " + t.slice(0, 200)); });
       return r.status === 204 ? null : r.json();
     });
@@ -414,6 +447,29 @@ kbd {
     return '<p class="flags">' + flags.map(function (f) {
       return '<span class="flag" title="' + esc(f[1]) + '">' + esc(f[0]) + "</span>";
     }).join("") + "</p>";
+  }
+
+  /**
+   * The same idea for a found fact, against the rules that apply to one.
+   *
+   * A fact is not a culture row and the flags differ. What they share is that
+   * every one is checkable and none of them is a guess at whether the thing
+   * is interesting, which no rule can tell you.
+   */
+  function factFlagsFor(row) {
+    var out = [];
+    var text = String(row.fact || "");
+    // Its own category says so. A film opening or a record coming out is what
+    // a Wikipedia date page is already full of, and it is the filler this
+    // site exists to replace.
+    if (String(row.category || "") === "release") {
+      out.push(["release calendar", "the row's own category says this is a release"]);
+    }
+    if (EXPLAINED.test(text)) {
+      out.push(["explains the joke", "says why it mattered instead of saying what happened"]);
+    }
+    if (!row.source_url) out.push(["unsourced", "nothing to check it against"]);
+    return out;
   }
 
   /** The other candidates waiting on the same date, so a set is judged as a set. */
@@ -698,22 +754,31 @@ kbd {
 
     html += '<h4 style="margin:26px 0 0;font-size:13px;color:#9C9490">Facts on the page (' + facts.length + ")</h4>";
     facts.forEach(function (row) {
+      // State on the left with the rest of the row's facts about itself, and
+      // the button says what pressing it does. It used to say "Shown", which
+      // is the state, so the only control on a found fact read as a label and
+      // the page looked like it had none.
+      var flags = factFlagsFor(row);
       html += '<div class="row"><span class="yr">' + (row.birth_year || "") + "</span><div>" +
         '<p class="tx">' + esc(row.fact) + "</p>" +
-        '<p class="meta"><span class="tagpill">' + esc(row.category || "event") + "</span>" +
+        '<p class="meta"><span class="state' + (row.verified ? " live" : "") + '">' +
+        (row.verified ? "on the page" : "hidden") + "</span>" +
+        ' &middot; <span class="tagpill">' + esc(row.category || "event") + "</span>" +
         (row.source_url ? ' &middot; <a href="' + esc(row.source_url) + '" rel="noopener">source</a>' : "") +
-        "</p></div>" +
-        '<button class="act' + (row.verified ? " on" : "") + '" data-fact="' + esc(row.id) +
-        '" data-on="' + (row.verified ? "1" : "0") + '">' + (row.verified ? "Shown" : "Hidden") + "</button></div>";
+        "</p>" + (flags.length ? flagMarkup(flags) : "") + "</div>" +
+        '<button class="act" data-fact="' + esc(row.id) +
+        '" data-on="' + (row.verified ? "1" : "0") + '">' + (row.verified ? "Hide" : "Put back") + "</button></div>";
     });
 
     html += '<h4 style="margin:26px 0 0;font-size:13px;color:#9C9490">Wikipedia lines (' + events.length + ")</h4>";
     events.forEach(function (row) {
       var live = !row.suppressed;
       html += '<div class="row"><span class="yr">' + (row.event_year || "") + "</span><div>" +
-        '<p class="tx">' + esc(row.description) + "</p></div>" +
-        '<button class="act' + (live ? " on" : "") + '" data-ev="' + esc(row.id) +
-        '" data-on="' + (live ? "1" : "0") + '">' + (live ? "Shown" : "Hidden") + "</button></div>";
+        '<p class="tx">' + esc(row.description) + "</p>" +
+        '<p class="meta"><span class="state' + (live ? " live" : "") + '">' +
+        (live ? "on the page" : "hidden") + "</span></p></div>" +
+        '<button class="act" data-ev="' + esc(row.id) +
+        '" data-on="' + (live ? "1" : "0") + '">' + (live ? "Hide" : "Put back") + "</button></div>";
     });
 
     el("rows").innerHTML = html;
