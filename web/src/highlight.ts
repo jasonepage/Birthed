@@ -62,6 +62,21 @@ const NOT_FROM_AN_ENCYCLOPEDIA =
 const LONGEST_LINE = 110;
 
 /**
+ * Whether a sentence may lead a page.
+ *
+ * Both screens and the length, in one place, for the first ask on a date
+ * page. The ask sits above everything else on the three open dates, so it is
+ * held to the card's standard rather than the feed's: 41 percent of the
+ * imported events would fail this, every date has at least one, and the one
+ * that leads must not be a killing set in the type reserved for a question.
+ */
+export function mayLead(text: string): boolean {
+  return text.length <= LONGEST_LINE &&
+    !NOT_ON_A_BIRTHDAY_CARD.test(text) &&
+    !NOT_FROM_AN_ENCYCLOPEDIA.test(text);
+}
+
+/**
  * The one thing that happened, chosen for a card.
  *
  * Drawn from the researched facts rather than from Wikipedia's events, and

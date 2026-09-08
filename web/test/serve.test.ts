@@ -108,6 +108,33 @@ test("today.css names the date it is asked for, and turns over", () => {
   assert.match(eighth, /a\[href="\/september-8\/"\]/);
 });
 
+test("today.css switches the first screen on for the three open dates and nothing else", () => {
+  // Noon in the site's clock on September 8: six hours behind UTC is 18:00Z.
+  const css = todayStylesheet(new Date("2026-09-08T18:00:00Z"));
+  // Each open page gets its own sentence, in the order the dates read.
+  assert.match(css, /\.on-september-7 \.senpast,/);
+  assert.match(css, /\.on-september-8 \.sennow,/);
+  assert.match(css, /\.on-september-9 \.sennext,/);
+  assert.equal(css.includes(".on-september-10 "), false, "a sealed date gets nothing");
+  // The fuse. Yesterday's date is in its last third, today's in the middle,
+  // tomorrow's in its first, and noon puts each one halfway through its third.
+  const gone = (date: string) => Number(new RegExp(`\\.on-${date} \\.fuse span\\{--gone:([0-9.]+)\\}`).exec(css)?.[1]);
+  assert.ok(Math.abs(gone("september-7") - 5 / 6) < 0.01, `yesterday's date reads ${gone("september-7")}`);
+  assert.ok(Math.abs(gone("september-8") - 3 / 6) < 0.01, `today's date reads ${gone("september-8")}`);
+  assert.ok(Math.abs(gone("september-9") - 1 / 6) < 0.01, `tomorrow's date reads ${gone("september-9")}`);
+  // The link to the page itself is hidden, so the line names the other two.
+  assert.match(css, /\.on-september-8 \.also a\[href="\/today\/"\]\{display:none\}/);
+  assert.match(css, /\.on-september-7 \.also a\[href="\/yesterday\/"\]\{display:none\}/);
+  // The ask comes up and the feed's copy of its row goes away, together.
+  assert.match(css, /\.on-september-8 \.ask\{display:block\}/);
+  // Equal specificity would lose to the baked grey, because this sheet loads
+  // first. Two classes, not one.
+  assert.match(css, /\.on-september-8 \.state \.dot\{background:#6FA5DE/);
+  assert.match(css, /\.on-september-8 \.asked\{display:none\}/);
+  // Nothing sets a rule for an element the page no longer has.
+  assert.equal(css.includes("openflag"), false);
+});
+
 test("today.css is shifted off UTC the same way /today is", () => {
   // Early morning UTC is still the previous evening in North America, which is
   // where the traffic is. The redirect already makes that choice; the ring has

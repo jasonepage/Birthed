@@ -777,7 +777,9 @@ test("the drawer holds everything the feed did not, and the page still carries i
 
 test("a date page can be moved off in both directions without reaching the foot", () => {
   const html = renderDayPage(page);
-  const bar = html.slice(html.indexOf('<div class="daybar">'), html.indexOf('<p class="kicker">'));
+  const stateAt = html.indexOf('<p class="state">');
+  assert.ok(stateAt > 0, "the state line has to exist for this slice to mean anything");
+  const bar = html.slice(html.indexOf('<div class="daybar">'), stateAt);
   assert.ok(bar.includes('href="/september-3/"'), "the day before is not reachable from the bar");
   assert.ok(bar.includes('href="/september-5/"'), "the day after is not reachable from the bar");
   // The pair at the foot stays, because that is how a crawler walks all 366.
@@ -1080,18 +1082,72 @@ test("answering the same row twice is not reported as a sealed date", () => {
   assert.ok(html.includes("Nothing is sealed"), "and it says so in as many words");
 });
 
-test("the three open dates are filled in, and today is the one that is blue", () => {
-  // A presence assertion. The rule that was supposed to colour these lived in
-  // today.css and built selectors for date slugs, while the nav links to
-  // /yesterday/, /today/ and /tomorrow/, so it had never matched an element on
-  // any page and nothing failed. Style that is dead but looks alive is the
-  // same family of bug as the class name collision in docs/handoff.md.
+test("the first screen says open or sealed in words, and sealed is what a page says on its own", () => {
+  // The Yesterday, Today and Tomorrow chips this replaces were coloured by
+  // href rather than by date, so a sealed page lit "Today" in blue and said
+  // answering was open under it. docs/first-impression-proposal.md.
   const html = renderDayPage(page);
-  assert.ok(html.includes('.trip a[href="/today/"]'), "today has no rule of its own");
-  assert.ok(html.includes("background: #1C1726"), "the chips are filled rather than outlined");
-  // Today wears the blue this site already means today with, the same one the
-  // calendar ring and the open flag use.
-  assert.ok(html.includes("border-color: #6FA5DE"));
+  assert.equal(html.includes('class="trip"'), false, "the chips are gone");
+  assert.equal(html.includes('class="kicker">Born on'), false, "and so is the database kicker");
+  // Four sentences baked, one shown. The sealed one is the default, so a page
+  // whose today.css never arrived says the safe thing.
+  for (const name of ["senpast", "sennow", "sennext", "senshut"]) {
+    assert.ok(html.includes(`class="sen ${name}"`), `${name} is baked into every page`);
+  }
+  assert.ok(html.includes("Closes tonight"));
+  assert.ok(html.includes("Closes tomorrow night"));
+  assert.ok(html.includes("Two more days"));
+  assert.ok(html.includes("<b>Sealed.</b> Opens again on September 3, for three days."),
+    "a sealed page names the day it opens, which is the day before it");
+  const style = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
+  assert.match(style, /\.sen \{ display: none; \}/);
+  assert.match(style, /\.senshut \{ display: inline; \}/);
+  // The mechanic is under the date in two versions, because "say which ones
+  // you remember" is a lie on the 363 pages that refuse answers.
+  assert.ok(html.includes('class="sen senopen">Everything below happened on this date. Say which ones you <b>remember</b>.'));
+  assert.ok(html.includes('class="sen senshut">Everything below happened on this date. For three days a year'));
+  // The fuse and the ask are present and off; today.css turns them on.
+  assert.ok(html.includes('<div class="fuse"'));
+  assert.match(style, /\.fuse \{ display: none;/);
+  assert.match(style, /\.ask \{\s*display: none;/);
+  // No "Open today" flag beside a section any more: the state line says it for
+  // the whole page.
+  assert.equal(html.includes("Open today"), false);
+});
+
+test("the first ask is one real row with the three answers, and the feed carries that row without them", () => {
+  const events = [
+    { id: "old", month: 9, day: 4, year: 476, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
+      description: "Romulus Augustulus is deposed." },
+    { id: "grim", month: 9, day: 4, year: 2001, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
+      description: "A bombing killed forty people." },
+    { id: "near", month: 9, day: 4, year: 1999, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
+      description: "The first Wii console went on sale." },
+    { id: "far", month: 9, day: 4, year: 1966, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
+      description: "Star Trek first aired on NBC." },
+  ];
+  const html = renderDayPage(page, [], [], events);
+  const ask = html.slice(html.indexOf('<section class="ask"'), html.indexOf("</section>", html.indexOf('<section class="ask"')));
+  assert.ok(ask.includes("The first Wii console went on sale."), "the row nearest twenty five years back leads");
+  assert.ok(!ask.includes("bombing"), "a heavy row never leads, whatever its year");
+  assert.ok(ask.includes('id="r-historical_event-near"'), "the ask carries the row's anchor so the redirect lands on it");
+  assert.ok(ask.includes('id="rr-historical_event-near"'), "and its result paragraph, so the server writes here");
+  for (const answer of ["remember", "heard", "never"]) assert.ok(ask.includes(`value="${answer}"`));
+  assert.ok(ask.includes("Do you remember this one?"));
+  // Once in the page. The feed's copy has no anchor and no form.
+  assert.equal(html.split('id="r-historical_event-near"').length, 2, "one anchor for the row");
+  assert.equal(html.split('id="rr-historical_event-near"').length, 2, "one result paragraph for the row");
+  assert.match(html, /<li class="[^"]*asked"/, "the feed's copy is marked for today.css to put away");
+});
+
+test("the first ask stays away from years with no record beside them", () => {
+  const events = [
+    { id: "a", month: 9, day: 4, year: 1888, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
+      description: "George Eastman registers the trademark Kodak." },
+  ];
+  const html = renderDayPage(page, [], [], events);
+  assert.equal(html.includes('<section class="ask"'), false, "nothing from 1958 on, so no ask");
+  assert.ok(html.includes('id="r-historical_event-a"'), "and the row keeps its own anchor in the feed");
 });
 
 test("the about page explains what the site does before what is on a page", () => {

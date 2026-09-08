@@ -256,21 +256,46 @@ export function openDates(now: Date = new Date()): string[] {
  */
 export function todayStylesheet(now: Date = new Date()): string {
   const open = openDates(now);
+  const day = 24 * 60 * 60 * 1000;
+  // The site's own clock, the same shift todaySlug makes.
+  const shifted = now.getTime() - TODAY_BEHIND_UTC_HOURS * 60 * 60 * 1000;
+  const startOfToday = Math.floor(shifted / day) * day;
+  // Which of the four baked state sentences each open page shows, in the
+  // order openDates returns them: yesterday's date, today's, tomorrow's.
+  const sentence = ["senpast", "sennow", "sennext"];
+  // The link in the "three open dates" line that points at the page itself.
+  const self = ["/yesterday/", "/today/", "/tomorrow/"];
   return `.cal .days a[href="/${todaySlug(now)}/"]{outline:2px solid ${TODAY};` +
     `outline-offset:2px;color:#BFD8F5}\n` +
-    // The year control is revealed with the buttons and by the same rule. It
-    // is only worth asking somebody their birth year on a page where they can
-    // do something with it, and asking on the 363 dates that would refuse an
-    // answer is a personal question for nothing.
-    open.map((date) =>
-      `.on-${date} .rem{display:flex}.on-${date} .openflag{display:inline-flex}` +
-      `.on-${date} .yearask{display:block}`).join("") +
-    // The three chips are coloured in the stylesheet now, not here. This rule
-    // built selectors for date slugs, and that nav links to /yesterday/,
-    // /today/ and /tomorrow/, which are redirects, so it has never matched a
-    // single element on any page. Dead style that looks alive is the same
-    // family of bug as the class name collision in docs/handoff.md: nothing
-    // failed, nothing logged, and the thing simply did not happen.
+    open.map((date, i) => {
+      // A date is open from the start of the day before it to the end of the
+      // day after it. Yesterday's date opened two days ago, today's opened
+      // yesterday, tomorrow's opened at the start of today. The fraction of
+      // the three days that has gone is what the fuse under the state line
+      // draws, and it is true to the second this sheet was generated.
+      const opensAt = startOfToday + (i - 2) * day;
+      const gone = Math.min(1, Math.max(0, (shifted - opensAt) / (3 * day)));
+      return `.on-${date} .rem{display:flex}` +
+        // The year control is revealed with the buttons and by the same rule.
+        // It is only worth asking somebody their birth year on a page where
+        // they can do something with it, and asking on the 363 dates that
+        // would refuse an answer is a personal question for nothing.
+        `.on-${date} .yearask{display:block}` +
+        // The first screen. The state sentence for this page, the open
+        // version of the mechanic, the lit dot, the fuse, the ask card, and
+        // the feed's copy of the ask row put away so the row is on the page
+        // once.
+        `.on-${date} .${sentence[i]},.on-${date} .senopen{display:inline}` +
+        `.on-${date} .senshut{display:none}` +
+        // .state .dot, not .dot: today.css is linked before the inline stylesheet,
+        // so a rule of equal specificity here loses to the baked grey.
+        `.on-${date} .state .dot{background:${TODAY};box-shadow:0 0 0 4px rgba(111,165,222,.18)}` +
+        `.on-${date} .fuse{display:block}` +
+        `.on-${date} .fuse span{--gone:${gone.toFixed(4)}}` +
+        `.on-${date} .ask{display:block}` +
+        `.on-${date} .asked{display:none}` +
+        `.on-${date} .also a[href="${self[i]}"]{display:none}`;
+    }).join("") +
     `\n`;
 }
 

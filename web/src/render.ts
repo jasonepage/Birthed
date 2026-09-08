@@ -7,7 +7,7 @@ import { calendar } from "./calendar.js";
 import { type CulturalEvent, textOf } from "./culture.js";
 import { Fact, hostOf } from "./facts.js";
 import { buildTimeline, byMemory, pickHighlights, theRest, type DayEvent, type MemoryCount, type TimelineRow } from "./timeline.js";
-import { cardHighlight, type Highlight } from "./highlight.js";
+import { cardHighlight, mayLead, type Highlight } from "./highlight.js";
 
 /**
  * How many people a date page needs before it is worth putting in front of a
@@ -97,42 +97,92 @@ function birthYearLabel(person: Person): string {
 const STYLE = `
 
 
-/* The three open dates.
-   Links to server redirects rather than to dates, so the labels are true on
-   every one of the 366 pages and nothing here goes stale overnight. today.css
-   lights whichever of the three this page happens to be. */
-.trip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 18px; }
-/* The three dates that take answers, filled in rather than outlined.
-   Today is the blue this site already means today with: the calendar ring and
-   the open flag both use it, so a reader who has seen either one arrives
-   knowing what the colour says. Yesterday and tomorrow are the same shape in
-   grey, because they are the same kind of thing and only one of them is now.
+/* The first screen, decided September 8, 2026. docs/first-impression-proposal.md.
 
-   Not a traffic light. Red, amber and green was the other suggestion and it
-   would import a meaning this page does not have: green next to red reads as
-   good next to bad, and the one rule the whole remembering design rests on is
-   that there is no direction anywhere in it. Three dates are not three
-   verdicts. */
-.trip a {
-  text-decoration: none; color: #C9C2D4; background: #1C1726;
-  border: 1px solid #2A2434; border-radius: 999px; padding: 6px 13px;
-  font-size: 13px; font-weight: 600;
+   The state line is the first thing after the bar. Four sentences are baked
+   into every page and one is shown: the sealed one by default, so a page with
+   no today.css says the safe thing, and today.css turns on one of the other
+   three for the three dates that are open. The Yesterday, Today and Tomorrow
+   chips this replaces were coloured by href rather than by date, so a sealed
+   page lit "Today" in blue and said answering was open under it. */
+.state { margin: 20px 0 0; font-size: 14px; font-weight: 600; color: #C9C2D4; line-height: 1.4; }
+.state .dot {
+  display: inline-block; width: 9px; height: 9px; border-radius: 999px;
+  background: #3A3348; margin: 0 8px 1px 0; vertical-align: middle;
 }
-.trip a[href="/today/"] {
-  color: #DCEBFF; background: rgba(111, 165, 222, 0.18); border-color: ${TODAY};
+.sen { display: none; }
+.senshut { display: inline; }
+.sen b { color: #FFF7EE; font-weight: 700; }
+/* The fuse. A two pixel line exactly as long as the part of the three days
+   that has gone. Its length is one custom property, --gone, which today.css
+   sets from the real clock on every request, so it is true to the second the
+   page loaded without a script. Where motion is allowed the same line creeps:
+   the animation is 72 hours long and today.css starts it however far in we
+   already are. It counts nothing and nobody. It is only the clock. */
+.fuse { display: none; height: 2px; margin: 10px 0 0; background: #241E2E; border-radius: 2px; overflow: hidden; }
+.fuse span {
+  display: block; height: 100%; width: calc(var(--gone, 0) * 100%);
+  background: ${TODAY}; border-radius: 2px;
 }
-.trip a:hover { color: #FFF7EE; border-color: var(--day-soft, #C6B0F5); }
-.trip a[href="/today/"]:hover { color: #FFF7EE; border-color: #BFD8F5; }
-.tripnote { color: #7A7385; font-size: 12px; flex: 1 1 auto; min-width: 200px; }
+@media (prefers-reduced-motion: no-preference) {
+  .fuse span { animation: burn 259200s linear forwards; animation-delay: calc(var(--gone, 0) * -259200s); }
+}
+@keyframes burn { from { width: 0 } to { width: 100% } }
+/* The mechanic, in two sentences under the date. Two versions, because "say
+   which ones you remember" is a lie on a page that refuses answers, and 363
+   of the 366 do. */
+.mechanic { margin: 0 0 4px; color: #B9B2AD; font-size: 15px; line-height: 1.4; max-width: 58ch; text-wrap: pretty; }
+.mechanic b { color: #FFF7EE; font-weight: 600; }
+/* The other open dates, as one quiet line. today.css hides the link to the
+   page you are on, so the sentence names the other two. */
+.also { margin: 0; font-size: 13px; color: #827B75; }
+.also a { color: #A49BAE; text-decoration: none; border-bottom: 1px solid #3A3348; }
+.also a:hover { color: #FFF7EE; }
+
+/* The first ask. One row from this date with the three answers at full size,
+   above the fold on a phone. Drawn only on the three open dates, by today.css.
+   The sleeve on it is the number one record of that year on this date, which
+   is not the thing being asked about: the year is the question and a sleeve
+   says a year faster than a number does. */
+.ask {
+  display: none; margin: 16px 0 0; border-radius: 18px; overflow: hidden;
+  background: linear-gradient(168deg, #221A2E 0%, #17121F 62%);
+  box-shadow: inset 0 0 0 1px rgba(255, 247, 238, .10);
+}
+.askhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px 0; }
+.asklab { font-size: 10.5px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--day-soft, #C6B0F5); }
+.askyr { font-family: Georgia, serif; font-size: 26px; font-weight: 700; color: var(--day-soft, #C6B0F5); line-height: 1; }
+.askbody { display: grid; grid-template-columns: 64px 1fr; gap: 14px; padding: 10px 16px 0; align-items: start; }
+.askbody.noart { grid-template-columns: 1fr; }
+.askart { width: 64px; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: #17141F; box-shadow: 0 6px 18px rgba(0, 0, 0, .45); }
+.askart img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.asksaid {
+  margin: 0; font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(17px, 4.4vw, 22px); line-height: 1.3; text-wrap: pretty;
+}
+.askcap { grid-column: 1 / -1; font-size: 11.5px; color: #827B75; line-height: 1.35; margin: 4px 0 0; }
+.askcap b { color: #A49BAE; font-weight: 600; }
+.askcap a { color: #827B75; text-decoration: none; }
+.askcap a:hover { color: ${ACCENT}; text-decoration: underline; }
+/* Same three words every row further down uses, bigger here, once, because
+   this is where the mechanic is taught. */
+.ask .rem { gap: 8px; margin: 0; padding: 12px 16px 4px; }
+.ask .rem button {
+  font-size: 14.5px; font-weight: 600; min-height: 42px; padding: 11px 15px;
+  background: rgba(255, 247, 238, .06); color: #FFF7EE; border-color: rgba(255, 247, 238, .18);
+}
+.ask .rem button:hover { border-color: var(--day-soft, #C6B0F5); background: rgba(198, 176, 245, .14); }
+.ask .rres { padding: 0 16px; }
+.ask .undo { padding: 0 16px; }
+.askrule { margin: 0; padding: 6px 16px 14px; font-size: 12.5px; color: #827B75; line-height: 1.45; }
+/* The row the ask was taken from, where it sits in the feed. Hidden by
+   today.css on the three open dates, so a row is on the page once: at the top
+   while the date is open, in its place once it has sealed. */
+.alsolab { margin: 30px 0 10px; font-size: 10.5px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: #7A7385; }
 /* Drawn only on a date that is open, by today.css, which is generated per
    request and is the only thing on this site that knows what day it is. The
    buttons are therefore never shown on a page that would refuse them. */
 .rem { display: none; }
-.openflag {
-  display: none; align-items: center; gap: 6px; font-size: 11px; font-weight: 700;
-  letter-spacing: .1em; text-transform: uppercase; color: #BFD8F5;
-  border: 1px solid rgba(111, 165, 222, .5); border-radius: 999px; padding: 4px 10px;
-}
 
 /* Remembering. Three buttons, no script, no downvote.
 
@@ -272,7 +322,11 @@ img.face {
    designed to be the loudest thing in any frame. Nothing here is set over an
    image any more. The variety comes from what is in the picture, a face, a
    record sleeve, a number, not from three different ways of hiding text. */
-.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 26px 0 0; }
+/* Demoted, September 8, 2026. These were the first screen and are now the
+   second: same three tiles, one row, about a third of the size, under a label
+   saying what they are. A face, a sleeve and a year with no verb near them is
+   a search result, which is what the page read as. */
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 0; }
 .tile {
   display: flex; flex-direction: column; text-decoration: none;
   background: #141020; border: 1px solid #221C30; border-radius: 14px; overflow: hidden;
@@ -312,12 +366,12 @@ a.tile:hover { border-color: var(--day-soft, #C6B0F5); }
 }
 .tsub { display: block; color: #A49BAE; font-size: 13px; margin-top: 5px; }
 @media (max-width: 700px) {
-  .tiles { grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
-  /* The third tile is text and takes the full width underneath, rather than
-     being squeezed into a third of a phone. */
-  .tile:nth-child(3) { grid-column: 1 / -1; }
-  .tile:nth-child(3) .tpic { aspect-ratio: 5 / 2; }
-  .tyr { font-size: 46px; }
+  .tbg.noface { font-size: 26px; }
+  .tyr { font-size: 34px; }
+  .tin { padding: 9px 10px 11px; }
+  .tlab { font-size: 9px; margin-bottom: 4px; white-space: normal; }
+  .tbig { font-size: 14px; }
+  .tsub { font-size: 12px; margin-top: 3px; }
 }
 
 /* What came out, above what happened. */
@@ -341,12 +395,11 @@ a.tile:hover { border-color: var(--day-soft, #C6B0F5); }
 .cul .meta .src a { color: #7A7385; text-decoration: none; font-size: 11px; }
 .cul .meta .src a:hover { color: #A49BAE; }
 @media (min-width: 760px) {
-  .tiles { grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 30px; }
-  .tile { height: 268px; }
-  .tin { padding: 18px 20px 20px; }
-  .tbg.noface { font-size: 92px; }
-  .tbig { font-size: 23px; }
-  .tyr { font-size: 96px; top: 10px; right: 18px; }
+  .tiles { gap: 14px; }
+  .tin { padding: 14px 16px 16px; }
+  .tbg.noface { font-size: 54px; }
+  .tbig { font-size: 18px; }
+  .tyr { font-size: 64px; }
   .cul { gap: 20px; padding-left: 16px; }
   .cul .cyr { width: 68px; font-size: 24px; }
   .cul .ctx { font-size: 18px; }
@@ -364,10 +417,14 @@ a { color: inherit; }
   font-size: 12px; font-weight: 800; letter-spacing: 0.22em;
   color: ${ACCENT}; text-transform: uppercase; margin: 0 0 10px;
 }
+/* Smaller than it was on the date pages. A reader who came here knows what
+   date they asked for, and sixty points of it was the loudest thing on the
+   page saying the least. */
 h1 {
   font-family: Georgia, "Times New Roman", serif; font-weight: 800;
   font-size: clamp(38px, 9vw, 64px); line-height: 1.05; margin: 0 0 10px;
 }
+.day h1 { font-size: clamp(30px, 7.5vw, 48px); line-height: 1.02; margin: 10px 0 6px; letter-spacing: -.01em; }
 .lede { color: #B9B2AD; margin: 0 0 30px; }
 /* The hidden attribute has to beat every display rule below it. A browser
    hides [hidden] with its own stylesheet, and any author rule that sets
@@ -1817,38 +1874,45 @@ function feedSection(
   /// Whether this date has sealed, which is the only thing that earns a row
   /// the front page treatment.
   sealed = false,
+  /// The row the first ask at the top of the page was taken from, as
+  /// "kind:id", or null. That row is drawn here without its form and its
+  /// identifiers, because the ask carries them, and today.css hides it on the
+  /// three open dates so it is on the page once.
+  asked: string | null = null,
 ): string {
   if (picked.length === 0) return "";
+  const isAsked = (row: TimelineRow) => asked !== null && `${row.kind}:${row.id}` === asked;
 
   const cards = picked.map((row, index) => {
     const kind = kindOf(row.category);
     // Only the first few are staggered. The rest are below the fold on every
     // screen, so animating them would move things nobody is looking at.
     const delay = index < 6 ? ` style="--i:${index}"` : "";
-    const lead = index === 0 ? (sealed ? "lead sealedlead" : "lead") : "";
+    const lead = [index === 0 ? (sealed ? "lead sealedlead" : "lead") : "", isAsked(row) ? "asked" : ""]
+      .filter((c) => c !== "").join(" ");
     // Said above the lead rather than left to be inferred, because a row set
     // four times the size of the one under it is a claim, and the reader is
     // owed what the claim rests on.
     const mark = index === 0 && sealed
       ? `<span class="leadmark">Most remembered</span>`
       : "";
-    return `<li class="${lead}" id="r-${row.kind}-${escapeHtml(row.id)}"${delay}>
+    return `<li class="${lead}"${isAsked(row) ? "" : ` id="r-${row.kind}-${escapeHtml(row.id)}"`}${delay}>
 <span class="head"><span class="tag ${kind.klass}">${kind.label}</span><span class="yr">${row.year === null ? "" : row.year}</span></span>
 ${mark}
 <p class="said">${escapeHtml(row.text)}</p>
 ${whenOf(row.dateKind) ? `<p class="datenote">${whenOf(row.dateKind)}</p>` : ""}
 ${row.sourceUrl ? `<p class="src"><a href="${escapeHtml(row.sourceUrl)}" rel="nofollow noopener">${escapeHtml(hostOf(row.sourceUrl))}</a></p>` : ""}
-${rememberForm(row.kind, row.id, month, day)}
+${isAsked(row) ? "" : rememberForm(row.kind, row.id, month, day)}
 </li>`;
   }).join("\n");
 
-  const others = rest.map((row) => `<li id="r-${row.kind}-${escapeHtml(row.id)}">
+  const others = rest.map((row) => `<li${isAsked(row) ? ` class="asked"` : ` id="r-${row.kind}-${escapeHtml(row.id)}"`}>
 <span class="y">${row.year === null ? "&nbsp;" : row.year}</span>
 <span>
 <p class="x">${escapeHtml(row.text)}</p>
 ${whenOf(row.dateKind) ? `<p class="datenote">${whenOf(row.dateKind)}</p>` : ""}
 ${row.sourceUrl ? `<p class="src"><a href="${escapeHtml(row.sourceUrl)}" rel="nofollow noopener">${escapeHtml(hostOf(row.sourceUrl))}</a></p>` : ""}
-${rememberForm(row.kind, row.id, month, day)}
+${isAsked(row) ? "" : rememberForm(row.kind, row.id, month, day)}
 </span>
 </li>`).join("\n");
 
@@ -2182,6 +2246,73 @@ const AFTER = `<p class="afterword" id="kept">Kept. It counts towards what this 
 <p class="afterword" id="undone">Taken back. Nothing was recorded and you can answer it again.</p>
 <p class="afterword" id="toolate">That one is in. It counts from here. An answer can be taken back for half a minute and then it stands.</p>`;
 
+/**
+ * How far back the first ask looks. The lead row should be one a large share
+ * of living adults can answer with more than "never heard of it", and twenty
+ * five years back is a year most adults today were somewhere between five and
+ * sixty. One number, in one place, stable across builds so the card for a
+ * date does not change every deploy.
+ */
+const ASK_YEARS_BACK = 25;
+
+/**
+ * The row the page opens on, or null.
+ *
+ * A dull rule, so it can be checked on 366 pages: every row that passes both
+ * card screens and the length in highlight.ts, from 1958 on so a record can
+ * sit beside it, and of those the one nearest ASK_YEARS_BACK, shorter sentence
+ * winning a tie. Nothing passing means no ask, and the state line and the
+ * mechanic under the date still do their jobs.
+ */
+export function firstAsk(rows: TimelineRow[], now: number = new Date().getUTCFullYear()): TimelineRow | null {
+  const target = now - ASK_YEARS_BACK;
+  const passing = rows.filter((row) => row.year !== null && row.year >= 1958 && mayLead(row.text));
+  // Rows with a source of their own first, for the reason pickHighlights
+  // gives: each was kept because the page it cites answered, and the
+  // researcher was choosing what mattered about the date. Wikipedia's list is
+  // everything anybody ever added, and on September 8 it puts a shuttle
+  // resupply flight ahead of McGwire's 62nd home run.
+  const sourced = passing.filter((row) => row.sourceUrl !== null);
+  const pool = sourced.length > 0 ? sourced : passing;
+  let best: TimelineRow | null = null;
+  for (const row of pool) {
+    if (best === null) { best = row; continue; }
+    const gap = Math.abs((row.year ?? 0) - target);
+    const bestGap = Math.abs((best.year ?? 0) - target);
+    if (gap < bestGap || (gap === bestGap && row.text.length < best.text.length)) best = row;
+  }
+  return best;
+}
+
+/**
+ * The first ask, drawn only on the three open dates by today.css.
+ *
+ * It carries the row's real identifiers, r-kind-id and rr-kind-id, so the
+ * redirect after an answer lands here and the server writes the result here.
+ * The same row in the feed is drawn without them; feedSection does that.
+ */
+function askSection(row: TimelineRow | null, songs: SongOfTheYear[], month: number, day: number): string {
+  if (row === null) return "";
+  const song = songs.find((s) => s.year === row.year && s.hasArtwork === true);
+  const art = song === undefined
+    ? ""
+    : `<span class="askart"><img src="/covers/${coverName(song.song, song.artist)}.jpg" alt="" width="64" height="64" decoding="async"></span>`;
+  const caption = [
+    song === undefined ? "" : `Number one that week: <b>${escapeHtml(song.song)}</b>, ${escapeHtml(song.artist)}.`,
+    row.sourceUrl ? `Source: <a href="${escapeHtml(row.sourceUrl)}" rel="nofollow noopener">${escapeHtml(hostOf(row.sourceUrl))}</a>` : "",
+  ].filter((part) => part !== "").join(" &nbsp;");
+  return `<section class="ask" id="r-${row.kind}-${escapeHtml(row.id)}">
+<div class="askhead"><span class="asklab">Do you remember this one?</span><span class="askyr">${row.year}</span></div>
+<div class="askbody${art === "" ? " noart" : ""}">
+${art}
+<p class="asksaid">${escapeHtml(row.text)}</p>
+${caption === "" ? "" : `<p class="askcap">${caption}</p>`}
+</div>
+${rememberForm(row.kind, row.id, month, day)}
+<p class="askrule">One tap, no account. Ten answers per date, no score, and "never heard of it" counts the same as the others.</p>
+</section>`;
+}
+
 function openingBand(
   page: DayPage,
   songs: SongOfTheYear[],
@@ -2222,7 +2353,8 @@ function openingBand(
 
   const tiles = [faceTile, artTile, momentTile].filter((t) => t !== "");
   if (tiles.length === 0) return "";
-  return `<section class="tiles">\n${tiles.join("\n")}\n</section>`;
+  return `<p class="alsolab">Also on this date</p>
+<section class="tiles">\n${tiles.join("\n")}\n</section>`;
 }
 
 /**
@@ -2267,7 +2399,10 @@ ${rememberForm("cultural_event", event.id, event.month, event.day)}</div>
     imported > 0 ? `<p class="credit">${written > 0 ? `The other ${imported}` : imported === 1 ? "This one" : `All ${imported}`} came out of Wikidata, which records an exact release date for ${imported === 1 ? "it" : "each of them"}. Nothing here was written by a model.</p>` : "",
   ].filter((line) => line !== "").join("\n");
 
-  return `<div class="hrow"><h2 class="section">What came out</h2><span class="openflag">Open today</span></div>
+  // No "Open today" flag beside this heading any more. The state line at the
+  // top of the page says open or sealed for the whole page, and a flag that
+  // appeared beside one section read as if only that section was open.
+  return `<div class="hrow"><h2 class="section">What came out</h2></div>
 <p class="lede">Games, records and releases dated to ${escapeHtml(name)} itself, newest first.</p>
 <ul class="culture">
 ${rows}
@@ -2398,6 +2533,10 @@ export function renderDayPage(
 
   const picked = pickHighlights(timeline);
   const rest = theRest(timeline, picked);
+  // The row the page opens on. Chosen from the chronological list rather than
+  // the remembered order, because a sealed page never draws it.
+  const asked = firstAsk(chronological);
+  const askedKey = asked === null ? null : `${asked.kind}:${asked.id}`;
   const hue = dayHue(page.month);
   // The index of all 366 sits at the foot of every date page, which is what
   // lets "/" be today's page instead of a separate front door. A reader who
@@ -2423,17 +2562,23 @@ export function renderDayPage(
 </span>
 </div>
 ${AFTER}
-<nav class="trip">
-<a href="/yesterday/">Yesterday</a>
-<a href="/today/">Today</a>
-<a href="/tomorrow/">Tomorrow</a>
-<span class="tripnote">Answering is open on these three, then a date seals until next year.</span>
-</nav>
-<p class="kicker">Born on</p>
+<p class="state"><span class="dot" aria-hidden="true"></span>
+<span class="sen senpast"><b>Open.</b> Closes tonight, then sealed until next year.</span>
+<span class="sen sennow"><b>Open.</b> Closes tomorrow night, then sealed until next year.</span>
+<span class="sen sennext"><b>Just opened.</b> Two more days, then sealed until next year.</span>
+<span class="sen senshut"><b>Sealed.</b> Opens again on ${monthName(previous.month)} ${previous.day}, for three days.</span>
+</p>
+<div class="fuse" aria-hidden="true"><span></span></div>
 <h1>${name}</h1>
+<p class="mechanic">
+<span class="sen senopen">Everything below happened on this date. Say which ones you <b>remember</b>. When it shuts, what people remembered rises to the top and stays there for a year.</span>
+<span class="sen senshut">Everything below happened on this date. For three days a year it takes answers about what people <b>remember</b> of it, and when it shuts, what they remembered rises to the top and stays there for a year.</span>
+</p>
+<p class="also">The three open dates right now: <a href="/yesterday/">yesterday</a> <a href="/today/">today</a> <a href="/tomorrow/">tomorrow</a>.</p>
+${askSection(asked, songs, page.month, page.day)}
 ${openingBand(page, songs, culture, highlight)}
 ${cultureSection(culture, name)}
-${memoryNote}${feedSection(picked, rest, timeline.length, name, searched, timeline.length - searched - curatedCount, curatedCount, page.month, page.day, memory !== null)}
+${memoryNote}${feedSection(picked, rest, timeline.length, name, searched, timeline.length - searched - curatedCount, curatedCount, page.month, page.day, memory !== null, askedKey)}
 ${songSection(songs, name)}
 ${peopleRail(page, name)}
 <nav class="pager cards">
