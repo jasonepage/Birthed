@@ -1246,6 +1246,26 @@ test("several ask cards are baked, and every slot lands on exactly one of them",
 // "Do you remember this one?". Singular forms only was a hole straight through
 // a screen whose entire job is to catch this, and the plural of a word for a
 // killing is still a word for a killing.
+// 326 of 357 published culture rows were an imported title and nothing else,
+// which renders as a game's name followed by "is released". The writing is the
+// bar, because the writing is the thing a reader came for.
+test("a culture row with nothing written about it is not on the page", () => {
+  const page = { month: 9, day: 11, people: [] };
+  const withSentence = {
+    id: "1", month: 9, day: 11, year: 2015, title: "Super Mario Maker is released",
+    context: "Nintendo shipped the level editor and people spent a decade making levels nobody could finish.",
+    sourceUrl: "https://example.com/1", category: "gaming", origin: "imported", dateKind: "happened",
+  };
+  const bare = {
+    id: "2", month: 9, day: 11, year: 2009, title: "Mini Ninjas is released",
+    context: null, sourceUrl: "https://example.com/2", category: "gaming",
+    origin: "imported", dateKind: "happened",
+  };
+  const html = renderDayPage(page, [], [], [], [withSentence, bare]);
+  assert.ok(html.includes("Super Mario Maker"), "a row somebody wrote about stays");
+  assert.equal(html.includes("Mini Ninjas"), false, "a bare title does not");
+});
+
 test("a plural does not walk a heavy row onto the card", () => {
   const rows = [
     { kind: "historical_event" as const, id: "bomb", year: 2007, text: "Russia tests the largest conventional weapon ever, the Father of All Bombs.", sourceUrl: "https://e.com/1", category: null, dateKind: null },

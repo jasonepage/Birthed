@@ -740,9 +740,25 @@ kbd {
   function draw(cultural, facts, events) {
     var html = "";
 
-    var live = cultural.filter(function (r) { return (r.status || "published") === "published"; }).length;
+    // Published and written about. A published row with no sentence is not on
+    // any page: renderDayPage drops it, because a game's name followed by "is
+    // released" is the filler the site exists to replace. Counting it here
+    // would put this panel back to telling the curator something the site does
+    // not agree with, which is the bug that took an evening to find.
+    function onThePage(r) {
+      return (r.status || "published") === "published" &&
+        String(r.context_string || "").trim() !== "";
+    }
+    var live = cultural.filter(onThePage).length;
     html += '<h4 style="margin:22px 0 0;font-size:13px;color:#9C9490">Cultural rows (' + cultural.length + ")</h4>";
-    html += '<p class="note" style="margin:4px 0 0">' + live + " on the page. Everything else here is waiting in the queue at the top or already turned down, and no reader can see it.</p>";
+    var needy = cultural.filter(function (r) {
+      return (r.status || "published") === "published" && String(r.context_string || "").trim() === "";
+    }).length;
+    html += '<p class="note" style="margin:4px 0 0">' + live + " on the page. " +
+      (needy > 0
+        ? needy + " more are a title with nothing written about them, so no reader sees those either. Write one line and it is back."
+        : "Everything else here is waiting in the queue at the top or already turned down, and no reader can see it.") +
+      "</p>";
     if (cultural.length === 0) html += '<p class="note">None yet.</p>';
     // Status on every row. Without it a candidate sitting in the queue and a
     // row that is live on the page looked exactly alike here, which makes the
@@ -750,10 +766,11 @@ kbd {
     // unanswerable by looking at it.
     cultural.forEach(function (row) {
       var status = row.status || "published";
+      var needsWriting = status === "published" && String(row.context_string || "").trim() === "";
       html += '<div class="row"><span class="yr">' + esc(row.event_date.slice(0, 4)) + "</span><div>" +
         '<p class="tx">' + esc(row.context_string || row.event_title) + "</p>" +
         '<p class="meta"><span class="st st-' + esc(status) + '">' +
-        esc(status === "published" ? "on the page" : status) + "</span>" +
+        esc(needsWriting ? "needs a sentence" : (status === "published" ? "on the page" : status)) + "</span>" +
         '<span class="tagpill">' + esc(row.category) + " &middot; " + esc(row.origin) + "</span>" +
         (row.source_url ? ' &middot; <a href="' + esc(row.source_url) + '" rel="noopener">source</a>' : "") +
         "</p></div>" +

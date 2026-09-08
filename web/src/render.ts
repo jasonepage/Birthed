@@ -2586,7 +2586,7 @@ export function renderDayPage(
   songs: SongOfTheYear[] = [],
   facts: Fact[] = [],
   events: DayEvent[] = [],
-  culture: CulturalEvent[] = [],
+  everything: CulturalEvent[] = [],
   /**
    * What this date's own people remembered, when it has sealed.
    *
@@ -2610,6 +2610,28 @@ export function renderDayPage(
    */
   leadLines: Map<string, string> = new Map(),
 ): string {
+  // A row nobody wrote does not go on a page.
+  //
+  // 326 of the 357 published culture rows were an imported title and nothing
+  // else, which renders as a game's name followed by "is released". On
+  // September 11 that section was Guitar Hero 5, Mini Ninjas, Lego Star Wars
+  // II, Super Mario Maker and Android Pay, and it was the loudest thing on a
+  // page that said nothing at all about the date.
+  //
+  // docs/internet-culture.md gives the test: if the sentence could sit on a
+  // Wikipedia date page without looking out of place, it does not belong here.
+  // "Mini Ninjas is released" is that sentence exactly.
+  //
+  // Nothing is deleted and nothing is being said about the game. The row waits
+  // in the panel and it is back the moment somebody writes one line about it,
+  // which is the same bargain as a lead line: the writing is the bar, because
+  // the writing is the thing a reader came for.
+  //
+  // Here rather than in fetchCulturalEvents, so the page and anything else
+  // holding these rows agree about what is on it, and so it can be tested
+  // without a network.
+  const culture = everything.filter((row) => (row.context ?? "").trim() !== "");
+
   const name = `${monthName(page.month)} ${page.day}`;
   const canonical = `${SITE}/${slug(page.month, page.day)}/`;
   const count = page.people.length;
