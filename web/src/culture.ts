@@ -54,6 +54,16 @@ export function textOf(event: CulturalEvent): string {
  * ones it left out, so a single request would quietly return an early slice
  * and every date after it would look empty with no error anywhere.
  */
+/**
+ * Every published row.
+ *
+ * The status filter is belt and braces. The read policy already refuses a
+ * candidate row to an anonymous caller, which is what the build is, so this
+ * query would not see one anyway. It is here because a policy is a thing
+ * somebody edits in a different file six months from now, and a generated row
+ * appearing on a live page is the one failure this whole design exists to
+ * prevent.
+ */
 export async function fetchCulturalEvents(url: string, key: string): Promise<CulturalEvent[]> {
   const pageSize = 1000;
   const events: CulturalEvent[] = [];
@@ -61,6 +71,7 @@ export async function fetchCulturalEvents(url: string, key: string): Promise<Cul
   for (let offset = 0; ; offset += pageSize) {
     const query = new URLSearchParams({
       select: "event_date,category,event_title,context_string,source_url,origin",
+      status: "eq.published",
       order: "event_date.asc,id.asc",
       limit: String(pageSize),
       offset: String(offset),

@@ -66,6 +66,21 @@ export function renderAdmin(api: { url: string; key: string }): string {
 .note.bad { color: #FF9BB6; }
 .note.good { color: #6FBF8A; }
 h3.dh { font-family: Georgia, serif; font-size: 24px; margin: 26px 0 0; }
+.card {
+  border: 1px solid #3A3348; border-radius: 8px; padding: 20px 22px; margin: 16px 0 0;
+  background: #171326;
+}
+.card .when { font-size: 13px; color: #9C9490; font-variant-numeric: tabular-nums; }
+.card .sent { font-family: Georgia, serif; font-size: 21px; line-height: 1.4; margin: 10px 0 0; }
+.card .src { font-size: 13px; margin: 12px 0 0; }
+.card .src a { color: #9C9490; }
+.keys { display: flex; gap: 8px; margin: 16px 0 0; flex-wrap: wrap; align-items: center; }
+kbd {
+  background: #241E36; border: 1px solid #3A3348; border-bottom-width: 2px; border-radius: 4px;
+  padding: 1px 6px; font: inherit; font-size: 12px; color: #B9B2AD;
+}
+.c4 { background: #8A6BBF; color: #FFF7EE; }
+.qcount { font-variant-numeric: tabular-nums; }
 </style>
 
 <div class="panel">
@@ -90,6 +105,11 @@ h3.dh { font-family: Georgia, serif; font-size: 24px; margin: 26px 0 0; }
   <h1>Curation</h1>
   <p class="lede" id="who"></p>
 
+  <h3 class="dh">Queue</h3>
+  <p class="lede" id="q-lede">Loading.</p>
+  <div id="q-card" hidden></div>
+  <p class="note" id="q-note"></p>
+
   <h3 class="dh">Every date</h3>
   <p class="lede" id="cov-lede">Loading.</p>
   <div class="months" id="months"></div>
@@ -98,6 +118,7 @@ h3.dh { font-family: Georgia, serif; font-size: 24px; margin: 26px 0 0; }
     <span><span class="sw c1"></span>imported only</span>
     <span><span class="sw c2"></span>1 to 2 curated</span>
     <span><span class="sw c3"></span>3 or more</span>
+    <span><span class="sw c4"></span>waiting on review</span>
     <button class="act" id="signout" style="margin-left:auto">Sign out</button>
   </p>
 
@@ -227,8 +248,121 @@ h3.dh { font-family: Georgia, serif; font-size: 24px; margin: 26px 0 0; }
   el("signout").addEventListener("click", signOut);
   el("signout2").addEventListener("click", signOut);
 
+  // ---- the queue ---------------------------------------------------------
+  //
+  // One row, one decision, four keys. A curator who has to reach for a
+  // trackpad between decisions does about thirty an hour; one who does not
+  // does several hundred. That difference is the only reason this is a queue
+  // and not the list further down the page.
+  var queue = [];
+  var at = 0;
+  var userId = null;
+
+  function drawQueue() {
+    var card = el("q-card");
+    if (queue.length === 0) {
+      card.hidden = true;
+      el("q-lede").textContent = "Nothing waiting. Anything a generator or an importer proposes lands here first.";
+      return;
+    }
+    if (at >= queue.length) at = queue.length - 1;
+    if (at < 0) at = 0;
+    var row = queue[at];
+    el("q-lede").innerHTML = '<span class="qcount">' + (at + 1) + " of " + queue.length +
+      "</span> waiting. Nothing here is on the site until you say so.";
+    card.hidden = false;
+    card.innerHTML =
+      '<div class="card">' +
+      '<p class="when">' + esc(row.event_date) + " &middot; " + esc(row.category) +
+        " &middot; " + esc(row.origin) + "</p>" +
+      '<p class="sent">' + esc(row.context_string || row.event_title) + "</p>" +
+      (row.context_string ? '<p class="when" style="margin-top:8px">' + esc(row.event_title) + "</p>" : "") +
+      (row.source_url ? '<p class="src"><a href="' + esc(row.source_url) +
+        '" rel="noopener" target="_blank">' + esc(row.source_url.slice(0, 90)) + "</a></p>" : "") +
+      '<p class="keys">' +
+      '<button class="act" data-q="publish">Publish <kbd>a</kbd></button>' +
+      '<button class="act" data-q="reject">Reject <kbd>r</kbd></button>' +
+      '<button class="act" data-q="edit">Edit <kbd>e</kbd></button>' +
+      '<button class="act" data-q="prev"><kbd>k</kbd></button>' +
+      '<button class="act" data-q="next"><kbd>j</kbd></button>' +
+      "</p></div>";
+    Array.prototype.forEach.call(card.querySelectorAll("[data-q]"), function (b) {
+      b.addEventListener("click", function () { act(b.dataset.q); });
+    });
+  }
+
+  function decide(row, status, reason) {
+    // reviewed_by and reviewed_at are written here rather than by a trigger,
+    // because the two things somebody will actually ask later are why a row on
+    // a live page says what it says, and which forty rows went through in one
+    // bad hour.
+    var patch = {
+      status: status,
+      reviewed_by: userId,
+      reviewed_at: new Date().toISOString(),
+    };
+    if (reason) patch.rejected_reason = reason;
+    return rest("cultural_events?id=eq." + row.id, { method: "PATCH", body: patch });
+  }
+
+  function act(what) {
+    if (what === "next") { at += 1; drawQueue(); return; }
+    if (what === "prev") { at -= 1; drawQueue(); return; }
+    var row = queue[at];
+    if (!row) return;
+
+    if (what === "edit") {
+      var next = prompt("The sentence a reader sees:", row.context_string || row.event_title);
+      if (next === null) return;
+      var trimmed = next.trim();
+      if (trimmed.length === 0) return;
+      note("q-note", "Saving.");
+      rest("cultural_events?id=eq." + row.id, {
+        method: "PATCH",
+        body: { context_string: trimmed, status: "published", reviewed_by: userId, reviewed_at: new Date().toISOString() },
+      }).then(function () {
+        // Edit and publish is one action, because the most common thing wrong
+        // with a proposed row is that it is right and badly written.
+        queue.splice(at, 1); note("q-note", "Edited and published.", "good");
+        drawQueue(); loadCoverage();
+      }).catch(function (e) { note("q-note", e.message, "bad"); });
+      return;
+    }
+
+    if (what !== "publish" && what !== "reject") return;
+    var status = what === "publish" ? "published" : "rejected";
+    note("q-note", "Saving.");
+    decide(row, status, null).then(function () {
+      queue.splice(at, 1);
+      note("q-note", status === "published" ? "Published." : "Rejected, and kept.", "good");
+      drawQueue(); loadCoverage();
+    }).catch(function (e) { note("q-note", e.message, "bad"); });
+  }
+
+  document.addEventListener("keydown", function (ev) {
+    if (el("panel").hidden) return;
+    var tag = (ev.target && ev.target.tagName) || "";
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+    if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+    var map = { a: "publish", r: "reject", e: "edit", j: "next", k: "prev" };
+    var what = map[ev.key];
+    if (!what) return;
+    ev.preventDefault();
+    act(what);
+  });
+
+  function loadQueue() {
+    return rest("cultural_events?select=id,event_date,category,event_title,context_string," +
+      "source_url,origin&status=eq.candidate&order=event_date.asc&limit=500")
+      .then(function (rows) { queue = rows; at = 0; drawQueue(); })
+      .catch(function (e) { el("q-lede").textContent = e.message; });
+  }
+
   // ---- coverage ----------------------------------------------------------
   function tierOf(row) {
+    // Waiting beats everything, because a date with something to decide is
+    // where a curator should be looking before a date that merely has little.
+    if (row.pending >= 1) return 4;
     if (row.curated >= 3) return 3;
     if (row.curated >= 1) return 2;
     if (row.cultural >= 1) return 1;
@@ -242,9 +376,10 @@ h3.dh { font-family: Georgia, serif; font-size: 24px; margin: 26px 0 0; }
     for (var m = 1; m <= 12; m++) {
       var cells = "";
       for (var d = 1; d <= lengths[m - 1]; d++) {
-        var row = byKey[m + "-" + d] || { curated: 0, cultural: 0, facts: 0, events: 0 };
+        var row = byKey[m + "-" + d] || { curated: 0, cultural: 0, facts: 0, events: 0, pending: 0 };
         var title = months[m - 1] + " " + d + ": " + row.curated + " curated, " +
-          row.cultural + " cultural, " + row.facts + " facts, " + row.events + " events";
+          row.cultural + " cultural, " + row.facts + " facts, " + row.events + " events" +
+          (row.pending ? ", " + row.pending + " waiting" : "");
         cells += '<button class="cell c' + tierOf(row) + '" data-m="' + m + '" data-d="' + d +
           '" title="' + esc(title) + '">' + d + "</button>";
       }
@@ -370,6 +505,7 @@ h3.dh { font-family: Georgia, serif; font-size: 24px; margin: 26px 0 0; }
   function reload() {
     if (selected) openDate(selected.m, selected.d, null);
     loadCoverage();
+    loadQueue();
   }
 
   el("add").addEventListener("click", function () {
@@ -389,6 +525,9 @@ h3.dh { font-family: Georgia, serif; font-size: 24px; margin: 26px 0 0; }
         context_string: el("f-context").value.trim() || null,
         source_url: src,
         origin: "curated",
+        // Somebody typed this by hand, which is the decision. It does not go
+        // back into their own queue to be approved a second time.
+        status: "published",
       }],
     }).then(function () {
       el("f-title").value = ""; el("f-context").value = ""; el("f-src").value = "";
@@ -426,6 +565,13 @@ h3.dh { font-family: Georgia, serif; font-size: 24px; margin: 26px 0 0; }
           return;
         }
         show("panel", true);
+        fetch(API + "/auth/v1/user", { headers: headers() })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (u) {
+            if (u && u.id) { userId = u.id; el("who").textContent = "Signed in as " + (u.email || u.id); }
+          })
+          .catch(function () { /* the panel still works, the audit column is null */ });
+        loadQueue();
         loadCoverage().catch(function (e) { el("cov-lede").textContent = e.message; });
       })
       .catch(function () { show("signin", true); note("signin-note", "Could not reach the server.", "bad"); });

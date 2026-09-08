@@ -88,6 +88,10 @@ export function toRows(
       context_string: null,
       source_url: `https://www.wikidata.org/wiki/${work.qid}`,
       origin: "imported",
+      // Proposed, not published. The first run of this returned eleven films
+      // dated to festival premieres, which is exactly the kind of thing that
+      // has to be read by somebody before it reaches a page.
+      status: "candidate",
     }));
 }
 

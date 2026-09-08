@@ -242,6 +242,8 @@ export interface CulturalEventRow {
   context_string: string | null;
   source_url: string;
   origin: string;
+  /** candidate, published or rejected. An importer only ever proposes. */
+  status: string;
 }
 
 /**
