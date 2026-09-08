@@ -12,7 +12,14 @@
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { loadConfig, loadDotEnv } from "./config.js";
-import { fetchWorksPublishedOn, titleFor, type DatedWork } from "./culture.js";
+import {
+  fetchEarliestPublications,
+  fetchWorksPublishedOn,
+  isReissue,
+  isUnreleased,
+  titleFor,
+  type DatedWork,
+} from "./culture.js";
 import { monthlyViewsForTitles, titleFromArticleUrl } from "./pageviews.js";
 import { isAdultContent, isViolentNotoriety } from "./notability.js";
 import { upsertCulturalEvents, type CulturalEventRow } from "./upsert.js";
@@ -103,12 +110,23 @@ export async function importCulture(
   const config = loadConfig({ needsWrite: !opts.dryRun });
   const started = Date.now();
 
-  const works = await fetchWorksPublishedOn(month, day, {
+  const found = await fetchWorksPublishedOn(month, day, {
     yearFrom: FIRST_YEAR,
     yearTo: new Date().getUTCFullYear(),
     minSitelinks: config.minSitelinks,
     userAgent: config.userAgent,
   });
+
+  // Two screens, both before ranking, because both remove rows that would
+  // otherwise win their date on borrowed popularity. A re-release inherits the
+  // original's pageviews and goes straight to the top, and an announced date
+  // later this year is a fact that has not happened. See culture.ts.
+  const earliest = await fetchEarliestPublications(
+    [...new Set(found.map((work) => work.qid))],
+    config.userAgent,
+  );
+  const works = found.filter((work) => !isReissue(work, earliest) && !isUnreleased(work));
+  const dropped = found.length - works.length;
 
   const titles = works
     .map((work) => titleFromArticleUrl(work.articleUrl))
@@ -119,7 +137,8 @@ export async function importCulture(
   const elapsed = ((Date.now() - started) / 1000).toFixed(1);
 
   console.log(
-    `${month}/${day}: ${works.length} published with an English article, keeping ${rows.length} (${elapsed}s)`,
+    `${month}/${day}: ${found.length} published with an English article, ` +
+    `${dropped} re-release or unreleased dropped, keeping ${rows.length} (${elapsed}s)`,
   );
 
   if (opts.print) {

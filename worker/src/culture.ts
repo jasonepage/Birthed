@@ -248,3 +248,124 @@ export async function fetchWorksPublishedOn(
 
   return readAnswer((await response.json()) as SparqlAnswer, month, day);
 }
+
+// ---------------------------------------------------------------------------
+// Re-releases, and why the first September run put Super Mario Bros. on four
+// different dates.
+//
+// The query above matches a work when ANY of its P577 values falls on the
+// target day, and Wikidata stores every re-release, port and regional launch
+// as another P577. Super Mario Bros. therefore answers on 13 September 1985,
+// which is real, and on 1 September 2011, 12 September 2013 and 19 September
+// 2018, which are Virtual Console and Switch Online re-releases. The pageview
+// score attaches to the work rather than to the statement, so all four inherit
+// the original's traffic and all four float to the top of their date.
+//
+// That is the worst kind of wrong for this site. A reader born on 1 September
+// 2011 would be told the game came out on their birthday. It did not.
+//
+// The obvious fix, keeping only the earliest date, is wrong in the other
+// direction: it deletes Final Fantasy VII from 7 September 1997, which is the
+// North American release and the best row this importer has ever produced.
+// FF7 shipped in Japan that January.
+//
+// So the test is the GAP, not the order. FF7 is seven months after its first
+// release, which is a regional rollout. Super Mario Bros. on Wii U is twenty
+// eight years after, which is a re-release. Eighteen months is wide enough for
+// the Japan to America to Europe staircase that games of that era actually
+// walked, and far too narrow for a nostalgia reissue.
+//
+// It is not exact. A port eleven months behind still gets through. It removes
+// the decades-late cases, which are all of the ones that made the page lie.
+export const REISSUE_MONTHS = 18;
+
+/** Whole months from a work's first known publication to this one. */
+export function monthsAfterFirst(firstIso: string, work: DatedWork): number {
+  const first = new Date(firstIso);
+  if (Number.isNaN(first.getTime())) return 0;
+  const firstMonths = first.getUTCFullYear() * 12 + first.getUTCMonth();
+  return work.year * 12 + (work.month - 1) - firstMonths;
+}
+
+/**
+ * Whether this date is a reissue of something already released long before.
+ *
+ * A work the earliest lookup knows nothing about is kept. A missing answer
+ * means that query failed, and failing open leaves the old behaviour rather
+ * than silently emptying every date.
+ */
+export function isReissue(work: DatedWork, earliest: Map<string, string>): boolean {
+  const first = earliest.get(work.qid);
+  if (first === undefined) return false;
+  return monthsAfterFirst(first, work) > REISSUE_MONTHS;
+}
+
+/**
+ * Whether this row is dated to something that has not happened yet.
+ *
+ * The year range runs to the current year, so an announced release later this
+ * year comes back as a fact. Announced dates slip constantly, and a page
+ * saying a game "is released" two days from now is wrong today and wrong
+ * differently next month.
+ */
+export function isUnreleased(work: DatedWork, now: Date = new Date()): boolean {
+  const when = Date.UTC(work.year, work.month - 1, work.day);
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return when > today;
+}
+
+export function buildEarliestQuery(qids: string[]): string {
+  const values = qids.map((qid) => `wd:${qid}`).join(" ");
+  // Every precision, deliberately. A work whose first release Wikidata only
+  // knows to the year is stored as January the first of that year, which is
+  // close enough to measure a gap against and much better than treating the
+  // first exact date as the original.
+  return `SELECT ?work (MIN(?d) AS ?first) WHERE {
+  VALUES ?work { ${values} }
+  ?work wdt:P577 ?d .
+}
+GROUP BY ?work`;
+}
+
+interface EarliestAnswer {
+  results?: { bindings?: { work?: { value: string }; first?: { value: string } }[] };
+}
+
+export function readEarliest(answer: EarliestAnswer): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const row of answer.results?.bindings ?? []) {
+    const work = row.work?.value;
+    const first = row.first?.value;
+    if (!work || !first) continue;
+    out.set(qidFrom(work), first);
+  }
+  return out;
+}
+
+/**
+ * The first publication date of each work, in one extra query.
+ *
+ * Cheap on purpose. The date indexed query above has already cut the world
+ * down to a few dozen works, so this asks about those by identifier rather
+ * than asking the service to aggregate over every game it holds, which is the
+ * version that times out.
+ */
+export async function fetchEarliestPublications(
+  qids: string[],
+  userAgent: string,
+): Promise<Map<string, string>> {
+  if (qids.length === 0) return new Map();
+  const response = await fetch(ENDPOINT, {
+    method: "POST",
+    headers: {
+      "User-Agent": userAgent,
+      Accept: "application/sparql-results+json",
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({ query: buildEarliestQuery(qids) }),
+  });
+  // Failing open, for the reason isReissue gives: an empty map keeps every
+  // row, which is the behaviour that existed before this check did.
+  if (!response.ok) return new Map();
+  return readEarliest((await response.json()) as EarliestAnswer);
+}

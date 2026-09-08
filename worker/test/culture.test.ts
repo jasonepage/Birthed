@@ -1,7 +1,18 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 
-import { CLASSES, buildQuery, dateLiterals, readAnswer, titleFor } from "../src/culture.js";
+import {
+  CLASSES,
+  buildQuery,
+  dateLiterals,
+  isReissue,
+  isUnreleased,
+  monthsAfterFirst,
+  readAnswer,
+  readEarliest,
+  titleFor,
+  type DatedWork,
+} from "../src/culture.js";
 import { score, toRows } from "../src/import-culture.js";
 
 const OPTIONS = { yearFrom: 1900, yearTo: 1902, minSitelinks: 10, userAgent: "test" };
@@ -130,4 +141,60 @@ test("a date with no view data ranks on coverage rather than on nothing", () => 
   const rows = toRows(many, new Map(), 12);
   assert.equal(rows[0]?.event_title, "Thing 29 is released");
   assert.ok(score(work({ sitelinks: 40 }), 0) > score(work({ sitelinks: 10 }), 0));
+});
+
+// ---------------------------------------------------------------------------
+// Re-releases.
+//
+// The first full September dry run put Super Mario Bros. on four dates: the
+// real one in 1985 and three Virtual Console and Switch Online reissues. Every
+// one of them scored on the original's pageviews, so every one of them won its
+// date. This is the screen that removes them without removing Final Fantasy
+// VII, whose September date is a genuine regional release seven months behind
+// Japan.
+
+const reissueWork = (over: Partial<DatedWork> = {}): DatedWork => ({
+  qid: "Q1",
+  label: "A game",
+  description: "video game",
+  year: 2013, month: 9, day: 12,
+  sitelinks: 40,
+  category: "gaming",
+  articleUrl: "https://en.wikipedia.org/wiki/A_game",
+  ...over,
+});
+
+test("a re-release decades after the original is dropped", () => {
+  const smb = reissueWork({ qid: "Q2", label: "Super Mario Bros.", year: 2013, month: 9, day: 12 });
+  const earliest = new Map([["Q2", "1985-09-13T00:00:00Z"]]);
+  assert.equal(isReissue(smb, earliest), true);
+});
+
+test("the original itself is kept", () => {
+  const smb = reissueWork({ qid: "Q2", year: 1985, month: 9, day: 13 });
+  const earliest = new Map([["Q2", "1985-09-13T00:00:00Z"]]);
+  assert.equal(isReissue(smb, earliest), false);
+});
+
+test("a regional release months behind the first one is kept", () => {
+  // Final Fantasy VII, Japan 31 January 1997, North America 7 September 1997.
+  // This is the row the naive "keep only the earliest date" rule would delete,
+  // and it is the best row this importer has produced.
+  const ff7 = reissueWork({ qid: "Q3", label: "Final Fantasy VII", year: 1997, month: 9, day: 7 });
+  const earliest = new Map([["Q3", "1997-01-31T00:00:00Z"]]);
+  assert.equal(isReissue(ff7, earliest), false);
+  assert.equal(monthsAfterFirst("1997-01-31T00:00:00Z", ff7), 8);
+});
+
+test("a work the earliest lookup knows nothing about is kept", () => {
+  // Failing open. An empty map means that query failed, and dropping every
+  // row on a failed lookup would empty all 366 dates without saying why.
+  assert.equal(isReissue(reissueWork(), new Map()), false);
+});
+
+test("a release date that has not arrived yet is dropped", () => {
+  const now = new Date("2026-09-07T12:00:00Z");
+  assert.equal(isUnreleased(work({ year: 2026, month: 9, day: 24 }), now), true);
+  assert.equal(isUnreleased(work({ year: 2026, month: 9, day: 7 }), now), false, "today has happened");
+  assert.equal(isUnreleased(work({ year: 2020, month: 9, day: 28 }), now), false);
 });
