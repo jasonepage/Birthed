@@ -552,20 +552,21 @@ test("the privacy page no longer claims the site runs no scripts", () => {
 test("the date page and the about page are signed", () => {
   const html = renderDayPage(page);
   assert.ok(html.includes("Jason Evan Page"), "the date page says who made it");
-  assert.ok(html.includes("no ads on this site and nothing on it is for sale"));
+  assert.ok(html.includes("No ads, nothing for sale."), "shortened with the move to a credit line");
   // Baked into all 366 and drawn on one. A name on every page of an almanac
   // reads as a byline over work somebody else did, and "/" serves today's own
   // built file, so no file can know whether it is today. today.css does.
   const style = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
   assert.match(style, /\.signed \{ display: none;/);
-  // Above the first ask card, which is the last thing on the first screen.
-  // Compared against the markup rather than the word, because the stylesheet
-  // at the top of every page names the same class.
+  // The last line of the page, at the size of a credit. It sat on the first
+  // screen for one morning and that was too loud for the person whose name it
+  // is, which is the only vote that counts on this one.
   const ask = html.indexOf('class="askhead"');
-  const feed = html.indexOf('class="everyday"');
   const mark = html.indexOf("Jason Evan Page");
-  assert.ok(mark > 0 && (ask < 0 || mark < ask) && mark < feed,
-    "the name sits on the first screen, not under the fold");
+  assert.ok(mark > 0 && ask > 0 && mark > ask, "the name is below the ask, not above it");
+  assert.ok(mark > html.indexOf('class="everyday"'), "and below the calendar too");
+  const baked = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
+  assert.match(baked, /\.signed \{ display: none;/, "still today's date only, by today.css");
 
   const about = renderHome(2026, []);
   assert.ok(about.includes("Who made this"));

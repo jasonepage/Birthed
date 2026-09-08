@@ -149,12 +149,17 @@ const STYLE = `
 
    Hidden here and revealed by today.css on today's date only, which is the
    author's call and a reasonable one: a person's name printed on all 366 pages
-   of an almanac reads as a byline over an encyclopedia somebody else wrote,
-   and the name is doing its work on the page a stranger arrives on. The About
-   page carries it in full and is one tap from every page. */
-.signed { display: none; margin: 8px 0 0; font-size: 13px; color: #827B75; }
-.signed a { color: #E8DCCB; text-decoration: none; border-bottom: 1px solid #4A4038; }
-.signed a:hover { color: #FFF7EE; }
+   of an almanac reads as a byline over an encyclopedia somebody else wrote.
+
+   It sat under the mechanic on the first screen for one morning and that was
+   too loud for the person whose name it is, which is the only vote that counts
+   on this one. It is now the last line of the page, above the credits, at the
+   size of a credit, which is where a reader who wants to know who made
+   something goes looking anyway. The About page still carries it in full and
+   is one tap from every page in the bar. */
+.signed { display: none; margin: 30px 0 0; font-size: 11.5px; color: #6B6560; }
+.signed a { color: #8D857E; text-decoration: none; border-bottom: 1px solid #3A3348; }
+.signed a:hover { color: #C6BDB4; }
 .also a { color: #A49BAE; text-decoration: none; border-bottom: 1px solid #3A3348; }
 .also a:hover { color: #FFF7EE; }
 
@@ -2866,7 +2871,6 @@ ${AFTER}
 <span class="sen senshut">Everything below happened on this date. For three days a year it takes answers about what people <b>remember</b> of it, and when it shuts, what they remembered rises to the top and stays there for a year.</span>
 </p>
 <p class="also">The three open dates right now: <a href="/yesterday/">yesterday</a> <a href="/today/">today</a> <a href="/tomorrow/">tomorrow</a>.</p>
-<p class="signed">Made by <a href="/about/">Jason Evan Page</a>, one person. There are no ads on this site and nothing on it is for sale.</p>
 ${askSection(asked, songs, page.month, page.day)}
 ${openingBand(page, songs, culture, highlight)}
 ${cultureSection(culture, name)}
@@ -2889,6 +2893,7 @@ ${peopleRail(page, name)}
 ${calendar(indexYear, { month: page.month, day: page.day })}
 </section>
 </div>
+<p class="signed">Made by <a href="/about/">Jason Evan Page</a>, one person. No ads, nothing for sale.</p>
 ${jsonLd(page, canonical)}
 ${FOOT}`;
 }
