@@ -11,6 +11,7 @@
 // process does not touch the database and does not render anything, so a
 // Supabase outage cannot take the site down and a request costs a file read.
 
+import { randomBytes } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
@@ -63,7 +64,11 @@ const SECURITY: Record<string, string> = {
   // reason for the widening: it is how the calendar can ring today without a
   // script, which this policy still refuses everywhere except /add.
   "Content-Security-Policy":
-    "default-src 'none'; img-src 'self'; style-src 'unsafe-inline' 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    // form-action was 'none' until the remember buttons existed, which would
+    // have refused them silently, the same way default-src silently killed
+    // /add for months. 'self' and nothing else: a form on this site may post
+    // to this site and nowhere on earth besides.
+    "default-src 'none'; img-src 'self'; style-src 'unsafe-inline' 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
   "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
 };
 
@@ -289,18 +294,208 @@ function send(
   createReadStream(file).pipe(response);
 }
 
+
+// ---------------------------------------------------------------------------
+// Remembering.
+//
+// The one thing on this site that writes anything, and it is a plain HTML form
+// that posts and redirects back. No script, on a site that ships none, which
+// means it works with JavaScript turned off entirely. That is not nostalgia:
+// the whole argument this site makes about itself is that it runs nothing, and
+// a voting widget written in JavaScript would have cost that argument for a
+// feature that a 1993 browser could do.
+//
+// The read path is untouched. A GET still costs a file read and nothing else,
+// so a Supabase outage stops people voting and does not stop the site serving,
+// which is the invariant this file was built around.
+
+const TOKEN_COOKIE = "bt";
+const MAX_BODY = 4096;
+
+/** One person's opaque token. Not an account, not an address, not a fingerprint. */
+export function newToken(): string {
+  return randomBytes(24).toString("base64url");
+}
+
+export function tokenFromCookie(header: string | undefined): string | null {
+  for (const part of (header ?? "").split(";")) {
+    const [name, ...rest] = part.trim().split("=");
+    if (name === TOKEN_COOKIE) {
+      const value = rest.join("=").trim();
+      // The database refuses anything under sixteen characters, so a truncated
+      // or hand-edited cookie is treated as no cookie rather than as a vote
+      // that silently fails.
+      if (value.length >= 16 && /^[A-Za-z0-9_-]+$/.test(value)) return value;
+    }
+  }
+  return null;
+}
+
+/**
+ * A crude ceiling, in memory, per address.
+ *
+ * Not security. Somebody who wants to stuff a date can clear a cookie and use
+ * another address, and the design already accepts that: the crowd can only
+ * order rows that passed the evidence gate, there is no downvote, and the
+ * tally is one signal out of four. This exists to stop a script making
+ * thousands of writes in a minute, which is a cost problem rather than a
+ * truth problem.
+ */
+const seen = new Map<string, { count: number; until: number }>();
+const LIMIT = 40;
+const WINDOW_MS = 60_000;
+
+export function underLimit(key: string, now = Date.now()): boolean {
+  const entry = seen.get(key);
+  if (entry === undefined || now > entry.until) {
+    seen.set(key, { count: 1, until: now + WINDOW_MS });
+    // Swept here rather than on a timer, because a timer keeps a process alive
+    // and this map is a few hundred entries on a site with no traffic.
+    if (seen.size > 5000) {
+      for (const [at, value] of seen) if (now > value.until) seen.delete(at);
+    }
+    return true;
+  }
+  entry.count += 1;
+  return entry.count <= LIMIT;
+}
+
+function readBody(request: IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    request.on("data", (chunk: Buffer) => {
+      body += chunk.toString("utf8");
+      if (body.length > MAX_BODY) {
+        reject(new Error("body too large"));
+        request.destroy();
+      }
+    });
+    request.on("end", () => resolve(body));
+    request.on("error", reject);
+  });
+}
+
+const KINDS = new Set(["moment", "cultural_event", "historical_event", "person"]);
+const DEPTHS = new Set(["there", "remember", "heard", "never"]);
+
+export interface Answer {
+  month: number;
+  day: number;
+  kind: string;
+  id: string;
+  depth: string;
+  birthYear: number | null;
+}
+
+/**
+ * A posted form into an answer, or null.
+ *
+ * Every field is checked here rather than trusted and passed on. The database
+ * checks them again, because a client is a thing anybody can write, and this
+ * layer exists so a malformed post is a 400 rather than a round trip.
+ */
+export function readAnswer(body: string): Answer | null {
+  const form = new URLSearchParams(body);
+  const month = Number(form.get("m"));
+  const day = Number(form.get("d"));
+  const kind = form.get("k") ?? "";
+  const id = (form.get("i") ?? "").trim();
+  const depth = form.get("a") ?? "";
+  const rawYear = form.get("y");
+
+  if (!Number.isInteger(month) || month < 1 || month > 12) return null;
+  if (!Number.isInteger(day) || day < 1 || day > 31) return null;
+  if (!KINDS.has(kind) || !DEPTHS.has(depth)) return null;
+  if (id === "" || id.length > 64) return null;
+
+  const year = Number(rawYear);
+  const birthYear = rawYear !== null && Number.isInteger(year) && year >= 1900 && year <= 2100
+    ? year
+    : null;
+
+  return { month, day, kind, id, depth, birthYear };
+}
+
+async function record(answer: Answer, token: string): Promise<boolean> {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_ANON_KEY;
+  if (!url || !key) return false;
+  const response = await fetch(`${url}/rest/v1/rpc/remember`, {
+    method: "POST",
+    headers: {
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      month_in: answer.month,
+      day_in: answer.day,
+      subject_kind_in: answer.kind,
+      subject_id_in: answer.id,
+      voter_token_in: token,
+      depth_in: answer.depth,
+      birth_year_in: answer.birthYear,
+    }),
+  });
+  if (!response.ok) return false;
+  return (await response.json()) === true;
+}
+
 async function handle(
   root: string,
   request: IncomingMessage,
   response: ServerResponse,
 ): Promise<void> {
   const method = request.method ?? "GET";
-  if (method !== "GET" && method !== "HEAD") {
-    response.writeHead(405, { Allow: "GET, HEAD", ...SECURITY }).end();
+  const path = (request.url ?? "/").split("?")[0] ?? "/";
+
+  // POST reaches exactly one address and every other verb on every other path
+  // is still refused. The allow header names the truth per path rather than
+  // advertising POST across a site where it means nothing.
+  if (method !== "GET" && method !== "HEAD" && !(method === "POST" && path === "/remember")) {
+    response.writeHead(405, {
+      Allow: path === "/remember" ? "POST" : "GET, HEAD",
+      ...SECURITY,
+    }).end();
     return;
   }
 
-  const path = (request.url ?? "/").split("?")[0] ?? "/";
+  if (method === "POST") {
+    const address = String(request.headers["x-forwarded-for"] ?? "").split(",")[0]?.trim()
+      || request.socket.remoteAddress || "unknown";
+    const token = tokenFromCookie(request.headers.cookie) ?? newToken();
+    let answer: Answer | null = null;
+    try {
+      answer = readAnswer(await readBody(request));
+    } catch {
+      answer = null;
+    }
+    if (answer === null || !underLimit(address)) {
+      response.writeHead(400, { "Content-Type": "text/plain; charset=utf-8", ...SECURITY });
+      response.end("No.\n");
+      return;
+    }
+    // Awaited, because a reader who taps and is sent back to a page that has
+    // not recorded them has been lied to, and this is one round trip.
+    const kept = await record(answer, token);
+    // The fragment is the whole feedback mechanism. :target reveals one of two
+    // sentences already in the page, so the site says something back without
+    // running a script.
+    response.writeHead(303, {
+      Location: kept
+        ? `/${slug(answer.month, answer.day)}/#kept`
+        : `/${slug(answer.month, answer.day)}/#sealed`,
+      "Cache-Control": "no-store",
+      // A year, because the point of the token is that the same browser is not
+      // counted twice on a date it comes back to next year. HttpOnly because
+      // nothing on this site runs a script that would read it.
+      "Set-Cookie": `${TOKEN_COOKIE}=${token}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax; Secure`,
+      ...SECURITY,
+    });
+    response.end();
+    return;
+  }
 
   // Answered before the disk is touched, because neither of these is a file.
   // Never stored: a cached "today" is wrong by tomorrow morning, and a cached

@@ -96,6 +96,24 @@ function birthYearLabel(person: Person): string {
 
 const STYLE = `
 
+/* Remembering. Four buttons, no script, no downvote. */
+.rem { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; }
+.rem button {
+  font: inherit; font-size: 12.5px; line-height: 1; cursor: pointer;
+  background: none; color: #A49BAE; border: 1px solid #2A2434;
+  border-radius: 999px; padding: 7px 11px;
+}
+.rem button:hover { color: #FFF7EE; border-color: var(--day-soft, #C6B0F5); }
+.rem button[value="there"] { color: var(--day-soft, #C6B0F5); }
+/* Said only after the server has redirected here, revealed by :target, which
+   is how this page says anything back without running a script. */
+.said {
+  display: none; margin: 14px 0 0; padding: 13px 15px; border-radius: 12px;
+  background: #171227; border: 1px solid #2A2434; color: #E9E1DB;
+  font-size: 14px; line-height: 1.5;
+}
+.said:target { display: block; }
+
 .barend { display: flex; align-items: center; gap: 14px; }
 .dice {
   display: inline-flex; align-items: center; gap: 6px; text-decoration: none;
@@ -1716,6 +1734,57 @@ function faceOrInitials(person: Person, className: string): string {
     : `<span class="${className} noface">${escapeHtml(initialsOf(person.name))}</span>`;
 }
 
+/**
+ * Four buttons under a row, and no script anywhere near them.
+ *
+ * A plain form that posts and redirects back. That is not nostalgia. The whole
+ * argument this site makes about itself is that it runs nothing, and a voting
+ * widget written in JavaScript would have spent that argument on a feature a
+ * 1993 browser could already do.
+ *
+ * Four answers and no fifth, and none of them is a downvote. There is no way
+ * to say a thing did not matter, only how close to you it was. A direction is
+ * a weapon, and an up and down score on January 6 or October 7 is a brigading
+ * target inside a week on a site whose whole claim is to be a sourced record.
+ *
+ * "Never heard of it" is an answer rather than an absence, and it is the most
+ * interesting one this can collect: a row that is thoroughly documented and
+ * that nobody has heard of is a fact about the world you cannot get any other
+ * way, and it is invisible if you only count the people who remember.
+ *
+ * The form is drawn on every date, including the ones that are sealed, because
+ * the page is baked ahead of time and cannot know today's date. The server
+ * knows, refuses politely, and sends the reader back to an explanation. The
+ * check that matters is in the database and cannot be reached from a client at
+ * all.
+ */
+function rememberForm(kind: string, id: string, month: number, day: number): string {
+  const answers: Array<[string, string]> = [
+    ["there", "I was there"],
+    ["remember", "I remember it"],
+    ["heard", "Heard of it"],
+    ["never", "Never heard of it"],
+  ];
+  return `<form class="rem" method="post" action="/remember">
+<input type="hidden" name="k" value="${escapeHtml(kind)}">
+<input type="hidden" name="i" value="${escapeHtml(id)}">
+<input type="hidden" name="m" value="${month}">
+<input type="hidden" name="d" value="${day}">
+${answers.map(([value, label]) => `<button type="submit" name="a" value="${value}">${label}</button>`).join("")}
+</form>`;
+}
+
+/**
+ * What happened after you tapped, said without a script.
+ *
+ * The server redirects to one of these two fragments and `:target` reveals the
+ * matching one. The same trick the year dial on this site already runs on, and
+ * the reason it is worth the trouble: the alternative was either a page that
+ * silently swallows an answer or a page that runs JavaScript to say thank you.
+ */
+const AFTER = `<p class="said" id="kept">Kept. It counts towards what this date is remembered for, and it will still be here next year.</p>
+<p class="said" id="sealed">This date is sealed. A day takes answers on the day itself and the day either side, and then it closes until next year. Come back on the day.</p>`;
+
 function openingBand(
   page: DayPage,
   songs: SongOfTheYear[],
@@ -1776,11 +1845,12 @@ function cultureSection(culture: CulturalEvent[], name: string): string {
     .map((event) => {
       const kind = kindOf(event.category);
       const when = whenOf(event.dateKind);
-      return `<li class="cul ${kind.klass}">
+      return `<li class="cul ${kind.klass}" id="r-cultural_event-${escapeHtml(event.id)}">
 <span class="cyr">${event.year}</span>
 <div><p class="ctx">${escapeHtml(textOf(event))}</p>
 <span class="meta"><span class="tag ${kind.klass}">${kind.label}</span><span class="src"><a href="${escapeHtml(event.sourceUrl)}" rel="nofollow noopener">${escapeHtml(hostOf(event.sourceUrl))}</a></span></span>
-${when ? `<p class="datenote">${when}</p>` : ""}</div>
+${when ? `<p class="datenote">${when}</p>` : ""}
+${rememberForm("cultural_event", event.id, event.month, event.day)}</div>
 </li>`;
     })
     .join("\n");
@@ -1932,6 +2002,7 @@ export function renderDayPage(
 <a class="get" href="/about/">About</a>
 </span>
 </div>
+${AFTER}
 <p class="kicker">Born on</p>
 <h1>${name}</h1>
 ${openingBand(page, songs, culture, highlight)}

@@ -382,6 +382,7 @@ test("the oldest thing on the date leads, even when Wikipedia is the one who fou
 // The curated rows.
 
 const curated = (over: Partial<CulturalEvent> = {}): CulturalEvent => ({
+  id: "1",
   month: 9, day: 4, year: 1998,
   title: "Google is founded",
   context: "Two Stanford students filed the paperwork. The search box had one button on it.",

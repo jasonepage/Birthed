@@ -14,6 +14,14 @@
 
 /** One curated row. `year` is split out because the timeline groups by it. */
 export interface CulturalEvent {
+  /**
+   * The row's own identifier, carried so a reader can point at this exact row.
+   *
+   * Not the year and the title slugified, which is what a first pass would
+   * reach for: a curator editing a typo would silently orphan every answer
+   * anybody had given it.
+   */
+  id: string;
   month: number;
   day: number;
   year: number;
@@ -82,7 +90,7 @@ export async function fetchCulturalEvents(url: string, key: string): Promise<Cul
 
   for (let offset = 0; ; offset += pageSize) {
     const query = new URLSearchParams({
-      select: "event_date,category,event_title,context_string,source_url,origin,date_kind",
+      select: "id,event_date,category,event_title,context_string,source_url,origin,date_kind",
       status: "eq.published",
       order: "event_date.asc,id.asc",
       limit: String(pageSize),
@@ -95,6 +103,7 @@ export async function fetchCulturalEvents(url: string, key: string): Promise<Cul
       throw new Error(`cultural events failed with ${response.status}`);
     }
     const rows = (await response.json()) as {
+      id: number;
       event_date: string;
       category: string;
       event_title: string;
@@ -111,6 +120,7 @@ export async function fetchCulturalEvents(url: string, key: string): Promise<Cul
       // recorded already goes and is a bin this must not add to.
       if (parsed === null) continue;
       events.push({
+        id: String(row.id),
         ...parsed,
         title: row.event_title,
         context: row.context_string,
