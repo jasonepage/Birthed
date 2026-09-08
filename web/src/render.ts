@@ -96,7 +96,17 @@ function birthYearLabel(person: Person): string {
 
 const STYLE = `
 
-/* Remembering. Four buttons, no script, no downvote. */
+/* Remembering. Four buttons, no script, no downvote.
+
+   The class below is called afterword and not "said", which is what I called
+   it first. The class "said" has been the event sentence in ul.feed, the line
+   in the year dial, the fact text and the song title since long before this
+   feature, so hiding it blanked every event on the site. docs/handoff.md
+   already says class name collisions have bitten twice, .here in the calendar
+   and .when in the render, and that the rule is to grep before naming a class.
+   This was the third time. The test below now asserts the sentences are
+   present, because both earlier collisions were caught by a test asserting the
+   absence of something and this one reached production instead. */
 .rem { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; }
 .rem button {
   font: inherit; font-size: 12.5px; line-height: 1; cursor: pointer;
@@ -107,12 +117,12 @@ const STYLE = `
 .rem button[value="there"] { color: var(--day-soft, #C6B0F5); }
 /* Said only after the server has redirected here, revealed by :target, which
    is how this page says anything back without running a script. */
-.said {
+.afterword {
   display: none; margin: 14px 0 0; padding: 13px 15px; border-radius: 12px;
   background: #171227; border: 1px solid #2A2434; color: #E9E1DB;
   font-size: 14px; line-height: 1.5;
 }
-.said:target { display: block; }
+.afterword:target { display: block; }
 
 .barend { display: flex; align-items: center; gap: 14px; }
 .dice {
@@ -1782,8 +1792,8 @@ ${answers.map(([value, label]) => `<button type="submit" name="a" value="${value
  * the reason it is worth the trouble: the alternative was either a page that
  * silently swallows an answer or a page that runs JavaScript to say thank you.
  */
-const AFTER = `<p class="said" id="kept">Kept. It counts towards what this date is remembered for, and it will still be here next year.</p>
-<p class="said" id="sealed">This date is sealed. A day takes answers on the day itself and the day either side, and then it closes until next year. Come back on the day.</p>`;
+const AFTER = `<p class="afterword" id="kept">Kept. It counts towards what this date is remembered for, and it will still be here next year.</p>
+<p class="afterword" id="sealed">This date is sealed. A day takes answers on the day itself and the day either side, and then it closes until next year. Come back on the day.</p>`;
 
 function openingBand(
   page: DayPage,

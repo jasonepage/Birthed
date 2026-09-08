@@ -874,3 +874,46 @@ test("a row from before the column existed is not annotated either", () => {
   const html = renderDayPage(page, [], [], [], [cultural({})]);
   assert.ok(!html.includes('class="datenote"'));
 });
+
+// ---------------------------------------------------------------------------
+// The words are on the page.
+//
+// These exist because of a real outage rather than out of thoroughness. A new
+// feature introduced a class called "said" and set display:none on it, and
+// ".said" has been the event sentence, the year dial line, the fact text and
+// the song title since long before that. Every event on birthed.app went blank
+// and the page still looked plausible: cards, years, source lines, no words.
+//
+// docs/handoff.md already recorded two collisions, .here and .when, and both
+// were caught by a test asserting the absence of something. This one reached
+// production because nothing asserted the presence of anything.
+
+test("the event sentence is actually rendered, not just its card", () => {
+  const events = [
+    { month: 9, day: 4, year: 1888, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
+      description: "George Eastman registers the trademark Kodak." },
+  ];
+  const html = renderDayPage(page, [], facts, events);
+  assert.ok(html.includes("George Eastman registers the trademark Kodak."),
+    "the sentence must be in the markup");
+  assert.equal(html.includes(".said {\n  display: none"), false,
+    "and nothing may blanket-hide the class it is rendered in");
+});
+
+test("no class that carries a sentence is hidden by default", () => {
+  const html = renderDayPage(page, [], facts, [
+    { month: 9, day: 4, year: 1888, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
+      description: "George Eastman registers the trademark Kodak." },
+  ], [cultural({})]);
+  const style = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
+
+  // Named rather than derived. A general rule tried first and produced a false
+  // alarm on .pick, which IS hidden and IS revealed, by a generated per-year
+  // selector the pattern could not see. A test that cries wolf gets deleted by
+  // the next person, so this one names the classes that carry words instead.
+  for (const name of ["said", "ctx", "n", "w", "x", "tbig", "tsub", "mtx"]) {
+    const hidden = new RegExp(`\\.${name}\\s*\\{[^}]*display:\\s*none`);
+    assert.equal(hidden.test(style), false,
+      `.${name} carries text on this page and something hides it`);
+  }
+});
