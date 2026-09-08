@@ -565,7 +565,14 @@ details.more > summary .n, .shelfhead .n {
    run fits and the floor never applies. */
 .dial .ticks { overflow-x: auto; scrollbar-width: none; }
 .dial .ticks::-webkit-scrollbar { display: none; }
-.dial .ticks label { flex: 1 0 auto; min-width: 10px; }
+/* position: relative is what keeps the strip on the phone. Each tick carries
+   a hidden span for anything reading the page aloud, positioned absolutely,
+   and without a positioned tick to hang off it hung off .dial instead, which
+   is outside the scrolling strip. Sixty-odd of those spans sat up to 680
+   pixels out, the document was wider than the screen, and iOS Safari drew the
+   whole page at desktop width and shrank it to fit. The viewport tag was
+   there the whole time. */
+.dial .ticks label { flex: 1 0 auto; min-width: 10px; position: relative; }
 @media (pointer: coarse) { .dial .ticks { height: 44px; } .dial .ticks label { min-width: 20px; height: 16px; } .dial .ticks label.dec { height: 30px; } }
 /* The year is on the label for anything reading the page out loud. It is not
    drawn, because sixty-seven printed years is the wall this replaced. */

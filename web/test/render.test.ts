@@ -1182,3 +1182,14 @@ test("only a sealed date gets a front page lead", () => {
   assert.ok(sealed.includes("Most remembered"));
   assert.ok(sealed.includes("In the order the people who were here remembered it"));
 });
+
+test("the year dial's hidden labels stay inside the strip that scrolls", () => {
+  // Without this the page was wider than a phone and iOS drew it at desktop
+  // size and shrank it, viewport tag and all. See the comment on the rule.
+  const html = renderDayPage(page, [
+    { year: 1998, chartDate: "1998-09-04", song: "One", artist: "Somebody", hasArtwork: false },
+    { year: 1999, chartDate: "1999-09-04", song: "Two", artist: "Somebody", hasArtwork: false },
+  ]);
+  const style = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
+  assert.match(style, /\.dial \.ticks label \{[^}]*position: relative/);
+});
