@@ -357,14 +357,21 @@ final class RememberService {
         ]
         if let birthYear { body["birth_year_in"] = birthYear }
 
-        let reply = await callRaw("remember", body: body)
-        let kept = reply
+        // `remember_status` rather than `remember`, because the boolean could
+        // not say which of four things happened and the page ended up calling
+        // all of them a sealed date. See the migration.
+        let reply = await callRaw("remember_status", body: body)
+        let reason = reply
             .flatMap { String(data: $0, encoding: .utf8) }?
-            .trimmingCharacters(in: .whitespacesAndNewlines) == "true"
-        guard kept else {
-            // False means the date is sealed, the window does not cover it, or
-            // this token already answered this row. The first is the one worth
-            // saying out loud, and the page says it rather than doing nothing.
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            // PostgREST hands a text result back as a JSON string, quotes and
+            // all.
+            .trimmingCharacters(in: CharacterSet(charactersIn: "\"")) ?? ""
+
+        guard reason == "kept" || reason == "already" else {
+            // Sealed, out of window, or a token the database will not take.
+            // Only the first two are facts about the date and the row says so
+            // rather than doing nothing.
             refusedAsSealed = true
             await loadEdition(month: month, day: day)
             return false
@@ -379,7 +386,12 @@ final class RememberService {
         // of the number is as of when the page loaded, which on one date over
         // three days is the same number. A second round trip to move a figure
         // by one is not worth the wait in front of it.
-        counts[subject.key] = (counts[subject.key] ?? RemembranceCounts()).adding(depth)
+        // Only a new row moves the number. "Already" means this install had
+        // answered it before, and counting it again would show the reader a
+        // total with themselves in it twice.
+        if reason == "kept" {
+            counts[subject.key] = (counts[subject.key] ?? RemembranceCounts()).adding(depth)
+        }
         return true
     }
 
