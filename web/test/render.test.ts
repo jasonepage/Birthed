@@ -543,6 +543,29 @@ test("the privacy page no longer claims the site runs no scripts", () => {
 // the page set no cookies while the answer route was setting a one year one.
 // These two assertions exist so that the next thing stored about a reader
 // either appears in the sentence or fails the build.
+// A polished free site with no owner named on it is read as a business that
+// has not shown its hand. The name goes above the fold on the date page, which
+// is where the doubt happens, and the About page carries the reason. Both, or
+// the line is a signature with nothing behind it.
+test("the date page and the about page are signed", () => {
+  const html = renderDayPage(page);
+  assert.ok(html.includes("Jason Evan Page"), "the date page says who made it");
+  assert.ok(html.includes("no ads on this site and nothing on it is for sale"));
+  // Above the first ask card, which is the last thing on the first screen.
+  // Compared against the markup rather than the word, because the stylesheet
+  // at the top of every page names the same class.
+  const ask = html.indexOf('class="askhead"');
+  const feed = html.indexOf('class="everyday"');
+  const mark = html.indexOf("Jason Evan Page");
+  assert.ok(mark > 0 && (ask < 0 || mark < ask) && mark < feed,
+    "the name sits on the first screen, not under the fold");
+
+  const about = renderHome(2026, []);
+  assert.ok(about.includes("Who made this"));
+  assert.ok(about.includes("Jason Evan Page"));
+  assert.ok(about.includes("It costs me money to run and it does not make any."));
+});
+
 test("the footer names the cookie instead of denying it", () => {
   const html = renderPrivacy();
   assert.ok(!html.includes("sets no cookies"), "answering sets one, so the line may not deny it");

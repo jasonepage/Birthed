@@ -256,6 +256,12 @@ ${bornInStrip()}
 <p class="fine">Nothing to sign up for and nothing to install. Every answer is one tap and it is anonymous.</p>
 </section>
 
+<section class="col how">
+<h2 class="plain">Who made this</h2>
+<p class="lede">My name is Jason Evan Page and I built Birthed on my own. I made it because I wanted to know what people actually remember of a day, which is a different thing from what got written down about it, and nowhere kept that.</p>
+<p class="lede">It costs me money to run and it does not make any. There are no ads on it, there is nothing on it to buy, and there is no company behind it. I am not collecting birthdays to sell, and the <a href="/privacy/">privacy page</a> lists every single thing that is kept, down to the two cookies and what each one is for. If you find something on this site that does not match what that page says, write to me and I will fix it the same day.</p>
+</section>
+
 ${highlightStrip(highlights)}
 
 <section class="col">

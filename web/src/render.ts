@@ -136,6 +136,17 @@ const STYLE = `
 /* The other open dates, as one quiet line. today.css hides the link to the
    page you are on, so the sentence names the other two. */
 .also { margin: 0; font-size: 13px; color: #827B75; }
+/* The name. A polished site with no owner, no price and no advertising is read
+   by a suspicious stranger as a business that has not shown its hand yet, and
+   silence is taken as the answer rather than as the absence of one. The top
+   comment on the September 6 Reddit post said the site existed to sell
+   birthdays to advertisers. A name is the cheapest thing that accusation
+   cannot survive contact with, so it is above the fold and not on a policy
+   page. Set at the size of the line above it, because a signature that shouts
+   is a claim and a signature that sits there is a fact. */
+.signed { margin: 8px 0 0; font-size: 13px; color: #827B75; }
+.signed a { color: #E8DCCB; text-decoration: none; border-bottom: 1px solid #4A4038; }
+.signed a:hover { color: #FFF7EE; }
 .also a { color: #A49BAE; text-decoration: none; border-bottom: 1px solid #3A3348; }
 .also a:hover { color: #FFF7EE; }
 
@@ -2587,6 +2598,7 @@ ${AFTER}
 <span class="sen senshut">Everything below happened on this date. For three days a year it takes answers about what people <b>remember</b> of it, and when it shuts, what they remembered rises to the top and stays there for a year.</span>
 </p>
 <p class="also">The three open dates right now: <a href="/yesterday/">yesterday</a> <a href="/today/">today</a> <a href="/tomorrow/">tomorrow</a>.</p>
+<p class="signed">Made by <a href="/about/">Jason Evan Page</a>, one person. There are no ads on this site and nothing on it is for sale.</p>
 ${askSection(asked, songs, page.month, page.day)}
 ${openingBand(page, songs, culture, highlight)}
 ${cultureSection(culture, name)}
