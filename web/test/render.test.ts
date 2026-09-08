@@ -1222,6 +1222,57 @@ test("several ask cards are baked, and every slot lands on exactly one of them",
 
 // Two candidates from the same decade are one candidate as far as a reader is
 // concerned, because the question the card asks is about a time in their life.
+// Real sentences off the live September 8 page, pasted rather than invented,
+// because this is the bug they found. Fourteen rows on that date are from 1958
+// on and exactly one became a candidate, so that one card carried all five
+// rotation slots and the page never changed however many times anybody
+// reloaded it. Thirteen of them died on a 110 character limit written for the
+// share image, not on the word screens: Star Trek's first broadcast is 139
+// characters and McGwire's 62nd home run is 168. The survivor, at 94, was a
+// routine space station resupply flight. The shortest sentence on a date is
+// not the most memorable thing that happened on it, and a limit that admits
+// only the shortest admits only the dullest.
+test("the real September 8 rows fill the rotation instead of starving it", () => {
+  const rows = [
+    { kind: "historical_event" as const, id: "s0", year: 1966, text: "UNESCO proclaimed International Literacy Day to highlight the importance of literacy for people and communities globally.", sourceUrl: "https://en.wikipedia.org/wiki/September_8", category: null, dateKind: null },
+    { kind: "historical_event" as const, id: "s1", year: 2016, text: "NASA launched the OSIRIS-REx spacecraft on a mission to travel to asteroid Bennu and collect sample material to return to Earth.", sourceUrl: "https://en.wikipedia.org/wiki/September_8", category: null, dateKind: null },
+    { kind: "historical_event" as const, id: "s2", year: 1960, text: "In Huntsville, Alabama, US President Dwight D. Eisenhower formally dedicates the Marshall Space Flight Center (NASA had already activated the facility on July 1).", sourceUrl: "https://en.wikipedia.org/wiki/September_8", category: null, dateKind: null },
+    { kind: "historical_event" as const, id: "s3", year: 1966, text: "The science fiction television series Star Trek made its broadcast television debut in the United States on NBC with the episode The Man Trap.", sourceUrl: "https://en.wikipedia.org/wiki/September_8", category: null, dateKind: null },
+    { kind: "historical_event" as const, id: "s4", year: 1971, text: "In Washington, D.C., the John F. Kennedy Center for the Performing Arts is inaugurated, with the opening feature being the premiere of Leonard Bernstein's Mass.", sourceUrl: "https://en.wikipedia.org/wiki/September_8", category: null, dateKind: null },
+    { kind: "historical_event" as const, id: "s5", year: 1974, text: "Watergate scandal: US President Gerald Ford signs the pardon of Richard Nixon for any crimes Nixon may have committed while in office.", sourceUrl: "https://en.wikipedia.org/wiki/September_8", category: null, dateKind: null },
+    { kind: "historical_event" as const, id: "s6", year: 1986, text: "Nicholas Daniloff, a correspondent for U.S. News & World Report, is indicted on charges of espionage by the Soviet Union.", sourceUrl: "https://en.wikipedia.org/wiki/September_8", category: null, dateKind: null },
+    { kind: "historical_event" as const, id: "s7", year: 1998, text: "Mark McGwire of the St. Louis Cardinals hit his 62nd home run of the season, breaking the Major League Baseball single-season home run record set by Roger Maris in 1961.", sourceUrl: "https://en.wikipedia.org/wiki/September_8", category: null, dateKind: null },
+    { kind: "historical_event" as const, id: "s8", year: 2000, text: "NASA launches Space Shuttle Atlantis on STS-106 to resupply the International Space Station.", sourceUrl: "https://en.wikipedia.org/wiki/September_8", category: null, dateKind: null },
+    { kind: "historical_event" as const, id: "s9", year: 2017, text: "Syrian civil war: The Syrian Democratic Forces (SDF) announce the beginning of the Deir ez-Zor campaign, with the stated aim of eliminating the Islamic State (IS) from all areas north and east of the Euphrates.", sourceUrl: "https://en.wikipedia.org/wiki/September_8", category: null, dateKind: null },
+  ];
+  const picked = askCandidates(rows);
+  assert.equal(picked.length, ASK_SLOTS, "every slot has its own card");
+
+  const texts = picked.map((row) => row.text);
+  assert.ok(texts.some((t) => t.includes("McGwire")), "the row the proposal assumed would lead is one now");
+
+  // And here is the limit of doing this with arithmetic, written down rather
+  // than tuned away. The best row on this date, by any reader's judgement, is
+  // Star Trek going out for the first time in 1966. It is not here. It is
+  // outside the 1985 to 2015 window, so it scores below five in-window rows,
+  // and inside its own decade the scorer prefers International Literacy Day
+  // anyway because that sentence is eighteen characters shorter.
+  //
+  // Nothing measurable about those two sentences says which one people
+  // remember. No constant added here fixes it, and one tuned until Star Trek
+  // won would be fitted to this one date. That is the argument for a person
+  // writing the lead line, not for another number.
+  assert.ok(!texts.some((t) => t.includes("Star Trek")), "recorded, not endorsed");
+
+  // The word screens are untouched. A civil war is still never a candidate,
+  // whatever room the card has.
+  assert.ok(!texts.some((t) => t.includes("Syrian")), "a war is not a card, at any length");
+
+  // And no two from the same ten years while there is anything else left.
+  const decades = picked.map((row) => Math.floor((row.year ?? 0) / 10));
+  assert.equal(new Set(decades).size, decades.length, "one per decade");
+});
+
 test("the candidates are spread across decades before the list is filled up", () => {
   const rows = [
     { kind: "historical_event" as const, id: "1", year: 1996, text: "One.", sourceUrl: "https://e.com/1", category: null, dateKind: null },

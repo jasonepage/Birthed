@@ -7,7 +7,7 @@ import { calendar } from "./calendar.js";
 import { type CulturalEvent, textOf } from "./culture.js";
 import { Fact, hostOf } from "./facts.js";
 import { buildTimeline, byMemory, pickHighlights, theRest, type DayEvent, type MemoryCount, type TimelineRow } from "./timeline.js";
-import { cardHighlight, mayLead, type Highlight } from "./highlight.js";
+import { cardHighlight, mayAsk, mayLead, type Highlight } from "./highlight.js";
 
 /**
  * How many people a date page needs before it is worth putting in front of a
@@ -2343,7 +2343,7 @@ function askScore(row: TimelineRow): number {
  * there is anything left to take, and only then does the list fill up.
  */
 export function askCandidates(rows: TimelineRow[], limit: number = ASK_SLOTS): TimelineRow[] {
-  const passing = rows.filter((row) => row.year !== null && row.year >= 1958 && mayLead(row.text));
+  const passing = rows.filter((row) => row.year !== null && row.year >= 1958 && mayAsk(row.text));
   const ranked = [...passing].sort((a, b) => {
     const gap = askScore(b) - askScore(a);
     // Year descending on a tie, so the order is stable across builds rather

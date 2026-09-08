@@ -62,6 +62,29 @@ const NOT_FROM_AN_ENCYCLOPEDIA =
 const LONGEST_LINE = 110;
 
 /**
+ * The same limit for the ask card, which has more room than the share image.
+ *
+ * 110 was written for cardHighlight, which paints one line into a picture and
+ * genuinely has one line of room. The ask card is a serif block inside a box
+ * that already wraps to two lines, and it inherited the number because both
+ * called mayLead.
+ *
+ * What that cost, measured on the live September 8 page rather than guessed:
+ * fourteen rows on that date are from 1958 on, and exactly one became a
+ * candidate. Thirteen died here, not on the word screens. Star Trek's first
+ * broadcast is 139 characters. Mark McGwire's 62nd home run is 168. The Nixon
+ * pardon is 133. The one survivor, at 94, was a routine space station resupply
+ * flight, and it carried all five rotation slots because it was alone. A limit
+ * that admits only the shortest sentence admits only the dullest one, because
+ * a memorable thing usually needs a clause to say what it was.
+ *
+ * 190 is two comfortable lines at the card's size on a 375 wide phone. It is
+ * not a licence to print a paragraph: askScore still pays for shortness, so a
+ * tight row beats a long one whenever both are there.
+ */
+const LONGEST_ASK = 190;
+
+/**
  * Whether a sentence may lead a page.
  *
  * Both screens and the length, in one place, for the first ask on a date
@@ -72,6 +95,19 @@ const LONGEST_LINE = 110;
  */
 export function mayLead(text: string): boolean {
   return text.length <= LONGEST_LINE &&
+    !NOT_ON_A_BIRTHDAY_CARD.test(text) &&
+    !NOT_FROM_AN_ENCYCLOPEDIA.test(text);
+}
+
+/**
+ * Whether a sentence may be an ask card.
+ *
+ * Both word screens, unchanged, because a killing must never be set in the
+ * type reserved for a question and that has nothing to do with how much room
+ * the card has. Only the length differs. See LONGEST_ASK.
+ */
+export function mayAsk(text: string): boolean {
+  return text.length <= LONGEST_ASK &&
     !NOT_ON_A_BIRTHDAY_CARD.test(text) &&
     !NOT_FROM_AN_ENCYCLOPEDIA.test(text);
 }
