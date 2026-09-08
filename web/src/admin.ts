@@ -80,6 +80,11 @@ kbd {
   padding: 1px 6px; font: inherit; font-size: 12px; color: #B9B2AD;
 }
 .c4 { background: #8A6BBF; color: #FFF7EE; }
+.st { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; padding: 1px 6px;
+  border-radius: 3px; margin-right: 6px; }
+.st-published { background: #1F4633; color: #8FE0B4; }
+.st-candidate { background: #332A4D; color: #C0A9F0; }
+.st-rejected { background: #2A2434; color: #7A736D; }
 .qcount { font-variant-numeric: tabular-nums; }
 .ask { margin: 14px 0 0; }
 .asklede { font-size: 13px; color: #9C9490; margin: 0 0 10px; line-height: 1.5; }
@@ -443,7 +448,7 @@ kbd {
     el("rows").innerHTML = "<p class=\\"lede\\">Loading.</p>";
 
     Promise.all([
-      rest("cultural_events?select=id,event_date,category,event_title,context_string,source_url,origin" +
+      rest("cultural_events?select=id,event_date,category,event_title,context_string,source_url,origin,status" +
         "&event_date=gte." + "1000-" + pad(m) + "-" + pad(d) +
         "&order=event_date.desc&limit=200"),
       // birth_year 0 and an empty region are what fetchFacts() asks for when
@@ -474,12 +479,21 @@ kbd {
   function draw(cultural, facts, events) {
     var html = "";
 
+    var live = cultural.filter(function (r) { return (r.status || "published") === "published"; }).length;
     html += '<h4 style="margin:22px 0 0;font-size:13px;color:#9C9490">Cultural rows (' + cultural.length + ")</h4>";
+    html += '<p class="note" style="margin:4px 0 0">' + live + " on the page. Everything else here is waiting in the queue at the top or already turned down, and no reader can see it.</p>";
     if (cultural.length === 0) html += '<p class="note">None yet.</p>';
+    // Status on every row. Without it a candidate sitting in the queue and a
+    // row that is live on the page looked exactly alike here, which makes the
+    // one question this list exists to answer, what is actually on the page,
+    // unanswerable by looking at it.
     cultural.forEach(function (row) {
+      var status = row.status || "published";
       html += '<div class="row"><span class="yr">' + esc(row.event_date.slice(0, 4)) + "</span><div>" +
         '<p class="tx">' + esc(row.context_string || row.event_title) + "</p>" +
-        '<p class="meta"><span class="tagpill">' + esc(row.category) + " &middot; " + esc(row.origin) + "</span>" +
+        '<p class="meta"><span class="st st-' + esc(status) + '">' +
+        esc(status === "published" ? "on the page" : status) + "</span>" +
+        '<span class="tagpill">' + esc(row.category) + " &middot; " + esc(row.origin) + "</span>" +
         (row.source_url ? ' &middot; <a href="' + esc(row.source_url) + '" rel="noopener">source</a>' : "") +
         "</p></div>" +
         '<button class="act" data-del="' + esc(row.id) + '">Delete</button></div>';
