@@ -1000,7 +1000,12 @@ test("the site asks for a birth year once, and says what it does with it", () =>
       sourceUrl: "https://example.org/september-4" },
   ]);
   assert.ok(html.includes('action="/year"'));
-  assert.ok(html.includes('name="y"'));
+  // One submit per year rather than a select and a Save. A select needs a
+  // second tap, and this site runs no script so an increment button would be a
+  // round trip per year.
+  assert.ok(html.includes('name="y" value="1994"'));
+  assert.equal(html.includes("<select"), false, "the default select is gone");
+  assert.ok(html.includes("yearstrip"));
   assert.ok(html.includes("never shown to anybody"));
   // Once on the page, not once per row. A picker repeated 150 times is what
   // the cookie exists to avoid.
@@ -1009,7 +1014,9 @@ test("the site asks for a birth year once, and says what it does with it", () =>
 
 test("the year control is hidden until a date is open, like the buttons", () => {
   const html = renderDayPage(page);
-  assert.ok(html.includes(".yearask { display: none; }"));
+  // Matched loosely on purpose: the rule gained spacing and this test is
+  // about the control being hidden until a date is open, not about its margins.
+  assert.match(html, /\.yearask \{[^}]*display: none/);
 });
 
 test("a failure on our side does not tell the reader the date is sealed", () => {

@@ -184,21 +184,60 @@ const STYLE = `
 }
 .undo button:hover { color: #FFF7EE; }
 
-/* Asked once, kept in a cookie, never drawn on a sealed date. Hidden by
-   default and revealed by today.css the same way the buttons are. */
-.yearask { display: none; }
-.yearask form { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0; }
-.yearask label { font-size: 12.5px; color: ${QUIET}; }
-.yearask select {
-  font: inherit; font-size: 12.5px; background: #17121F; color: #E8E2F0;
-  border: 1px solid #2A2434; border-radius: 8px; padding: 6px 8px;
+/* The one thing this site asks a reader about themselves.
+
+   A strip of years, each one its own submit button, because this site runs no
+   script: a select needs a second tap on Save, and an increment button would
+   need thirty round trips to get from 2026 to 1994. One button per year is one
+   tap and it is the same mechanism the answer buttons already use.
+
+   Coloured by the last digit rather than left grey. A hundred identical pills
+   is a wall, and the repeating ten colour cycle gives the eye something to
+   count by while it scans, which is the job the decade markers only half do.
+
+   Hidden by default and revealed by today.css, the same way the buttons are:
+   asking somebody their birth year on a page that would refuse their answer is
+   a personal question for nothing. */
+.yearask { display: none; margin: 26px 0 30px; }
+.yearlede { margin: 0 0 10px; font-size: 14px; color: #C9C2D4; }
+.yearlede b { color: #FFF7EE; font-weight: 700; }
+.yearask form { margin: 0; }
+.yearstrip {
+  display: flex; align-items: center; gap: 6px; overflow-x: auto;
+  padding: 12px 14px; scroll-padding: 14px;
+  background: linear-gradient(100deg, #1B1526 0%, #17121F 55%, #1A1428 100%);
+  border: 1px solid #2A2434; border-radius: 16px;
+  scrollbar-width: thin; scrollbar-color: #3A3348 transparent;
+  -webkit-overflow-scrolling: touch;
 }
-.yearask button {
-  font: inherit; font-size: 12.5px; cursor: pointer; background: none; color: #A49BAE;
-  border: 1px solid #2A2434; border-radius: 999px; padding: 6px 12px;
+.yearstrip::-webkit-scrollbar { height: 8px; }
+.yearstrip::-webkit-scrollbar-thumb { background: #3A3348; border-radius: 999px; }
+.yearstrip button {
+  font: inherit; font-size: 14px; font-weight: 700; line-height: 1; cursor: pointer;
+  flex: 0 0 auto; padding: 11px 13px; border-radius: 11px;
+  background: #221B30; color: #C9C2D4; border: 1px solid transparent;
+  font-variant-numeric: tabular-nums; transition: transform .09s ease;
 }
-.yearask button:hover { color: #FFF7EE; border-color: var(--day-soft, #C6B0F5); }
-.yearnote { font-size: 11.5px; color: ${QUIET}; margin: 6px 0 0; }
+.yearstrip button:hover { color: #FFF7EE; transform: translateY(-2px); }
+.yearstrip button:focus-visible { outline: 2px solid ${ACCENT}; outline-offset: 2px; }
+/* Ten colours on a loop. Not decoration: it is what lets somebody find 1994 in
+   a strip of ninety numbers without reading every one of them. */
+.yearstrip .yr0 { background: #2B1B2E; color: #F3B8CF; }
+.yearstrip .yr1 { background: #2A1C33; color: #E2B6EC; }
+.yearstrip .yr2 { background: #251D38; color: #C6B0F5; }
+.yearstrip .yr3 { background: #1F1F3A; color: #AFC0FA; }
+.yearstrip .yr4 { background: #1B2338; color: #A6D2F2; }
+.yearstrip .yr5 { background: #182734; color: #9BD9DC; }
+.yearstrip .yr6 { background: #18291F; color: #A6DEB4; }
+.yearstrip .yr7 { background: #232917; color: #CBDD9A; }
+.yearstrip .yr8 { background: #2C2618; color: #EBCB94; }
+.yearstrip .yr9 { background: #2E1F1B; color: #F0B49C; }
+.yearstrip button:hover { border-color: currentColor; }
+.yeardec {
+  flex: 0 0 auto; padding: 0 6px 0 10px; font-size: 10.5px; font-weight: 800;
+  letter-spacing: 0.12em; color: #6E6680; font-variant-numeric: tabular-nums;
+}
+.yearnote { font-size: 11.5px; color: ${QUIET}; margin: 8px 0 0; }
 /* Said only after the server has redirected here, revealed by :target, which
    is how this page says anything back without running a script. */
 .afterword {
@@ -1966,19 +2005,30 @@ function faceOrInitials(person: Person, className: string): string {
  */
 function yearAsk(month: number, day: number): string {
   const now = new Date().getUTCFullYear();
-  const years: string[] = [];
-  for (let year = now; year >= 1900; year--) {
-    years.push(`<option value="${year}">${year}</option>`);
+  const chips: string[] = [];
+  for (let year = now; year >= 1935; year--) {
+    // A decade marker every ten, so somebody scanning for 1994 has something
+    // to aim at rather than ninety identical pills.
+    if (year % 10 === 9 && year !== now) {
+      chips.push(`<span class="yeardec">${Math.floor(year / 10) * 10}s</span>`);
+    }
+    // Each year is its own submit, and that is the whole design. A select
+    // needs a second tap on Save, and a plus and minus button would need
+    // thirty round trips to get from 2026 to 1994 on a site that runs no
+    // script. One button per year is one tap, and it is exactly the mechanism
+    // the three answer buttons already use.
+    chips.push(
+      `<button type="submit" name="y" value="${year}" class="yr${year % 10}">${year}</button>`,
+    );
   }
   return `<div class="yearask">
+<p class="yearlede">Answers are more useful with a year on them. <b>Born in?</b></p>
 <form method="post" action="/year">
 <input type="hidden" name="m" value="${month}">
 <input type="hidden" name="d" value="${day}">
-<label for="by">Answers are more useful with a year on them. Born in</label>
-<select id="by" name="y"><option value="">choose</option>${years.join("")}</select>
-<button type="submit">Save</button>
+<div class="yearstrip">${chips.join("")}</div>
 </form>
-<p class="yearnote">Kept in a cookie on this browser, sent with your answers, and never shown to anybody. Set it once.</p>
+<p class="yearnote">One tap. Kept in a cookie on this browser, sent with your answers, and never shown to anybody.</p>
 </div>`;
 }
 
