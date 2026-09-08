@@ -194,7 +194,11 @@ export function renderHome(
   const canonical = `${SITE}/about/`;
   return `${head(
     "About Birthed",
-    "Who shares your birthday, what happened on it, what was number one the week you were born, how many days you have been here, and whose birthdays you keep forgetting.",
+    // What a link preview says, which for most people is the whole of what
+    // they read before deciding. It said what is on a page. It now says what
+    // the site does, because the page itself no longer leads with the feature
+    // list either and the two should not disagree.
+    "Every date on the calendar opens for three days a year. Whoever turns up says what they remember of it, and then the date seals until next year. Wikipedia records what happened. Birthed records what stuck.",
     canonical,
     // The card. Every date page has had one since it was built and the home
     // page never did, so this was the one page on the site that shared as a
@@ -216,19 +220,41 @@ export function renderHome(
 ${topBar()}
 <div class="col">
 <section class="hero">
-  <span class="heroart"><img src="/icon-192.png" alt="" width="104" height="104"></span>
   <div class="herotext">
-    <h1>The day you were born, <span class="glow">and everything that was true about it.</span></h1>
-    <p class="lede">Who shares it. What happened on it. What was number one that week. How many days you have been here. And whose birthdays you keep forgetting.</p>
+    <h1>Wikipedia records what happened. <span class="glow">Birthed records what stuck.</span></h1>
+    <p class="lede">Every date on the calendar opens for three days a year. Whoever turns up says what they actually remember of it, and then the date seals until next year.</p>
     <p class="actions">
       ${storeButton()}
       <a class="btn ghost" href="/random/">${ICON_DICE}<span>Surprise me</span></a>
     </p>
-    <p class="fine">iPhone only for now. TestFlight is Apple's free app for trying apps before they are on the store.</p>
+    <p class="fine">iPhone only for now. TestFlight is Apple's free app for trying apps before they are on the store. The website works without it.</p>
   </div>
 </section>
 ${bornInStrip()}
 </div>
+
+<section class="col how">
+<h2 class="plain">How a date gets decided</h2>
+<ol class="beats">
+  <li>
+    <h3>A date opens for three days</h3>
+    <p>The day itself, and the day either side. That is the whole window, and it is the same three days for everybody. The other 363 pages are shut.</p>
+  </li>
+  <li>
+    <h3>Everybody answers at once</h3>
+    <p>The people who care most about September 8 are the people born on September 8, and they all turn up on September 8. Every row on the page asks one question: do you remember this. Three answers, no score, and no way to say a thing did not matter.</p>
+  </li>
+  <li>
+    <h3>Then it seals</h3>
+    <p>What a date is remembered for is whatever the people who were there that week said it was. It is written down with the day it closed and the number of people who answered, and it stays that way.</p>
+  </li>
+  <li>
+    <h3>Next year it opens on top</h3>
+    <p>The same three days come round again and the date takes a second set of answers. The difference between the two is the part nobody else has: a measurement of what everybody quietly stopped remembering.</p>
+  </li>
+</ol>
+<p class="fine">Nothing to sign up for and nothing to install. Every answer is one tap and it is anonymous.</p>
+</section>
 
 ${highlightStrip(highlights)}
 

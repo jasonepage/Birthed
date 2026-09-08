@@ -1076,3 +1076,38 @@ test("the three open dates are filled in, and today is the one that is blue", ()
   // calendar ring and the open flag use.
   assert.ok(html.includes("border-color: #6FA5DE"));
 });
+
+test("the about page explains what the site does before what is on a page", () => {
+  const html = renderHome(2026, []);
+  // The thesis, in the headline rather than four screens down.
+  assert.ok(html.includes("Birthed records what stuck"));
+  assert.ok(html.includes("opens for three days a year"));
+  // The four beats, in order, because the thing this site does is a sequence
+  // and a reader who does not know it needs the order more than the detail.
+  for (const beat of [
+    "A date opens for three days",
+    "Everybody answers at once",
+    "Then it seals",
+    "Next year it opens on top",
+  ]) {
+    assert.ok(html.includes(beat), `the page lost the beat: ${beat}`);
+  }
+  // The rule that everything else rests on, said to a stranger in one clause.
+  assert.ok(html.includes("no way to say a thing did not matter"));
+});
+
+test("the about page no longer floats an app icon above the headline", () => {
+  const html = renderHome(2026, []);
+  assert.equal(html.includes("heroart"), false);
+  assert.equal(html.includes("icon-192.png"), false, "the hero image is gone");
+  // And the animation that only it used went with it, rather than being left
+  // in the stylesheet for something that no longer exists.
+  assert.equal(html.includes("@keyframes bob"), false);
+});
+
+test("the link preview says what the site does, not what is on a page", () => {
+  const html = renderHome(2026, []);
+  // A description that disagreed with the page would be the one thing most
+  // people read before deciding whether to open it.
+  assert.match(html, /<meta name="description" content="Every date on the calendar opens for three days a year\./);
+});

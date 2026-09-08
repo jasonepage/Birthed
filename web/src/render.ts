@@ -756,7 +756,10 @@ body.home {
 .quick a:hover .ic { opacity: 1; }
 @media (max-width: 430px) { .quick a span { display: none; } .quick a { padding: 10px; } }
 
-.home .hero { display: flex; gap: 26px; align-items: flex-start; margin: 8px 0 0; }
+/* One column. The app icon that used to float here is gone: it bobbed up and
+   down beside a headline that now has a job to do, and an icon is what a page
+   leads with when it has nothing to say yet. */
+.home .hero { margin: 8px 0 0; max-width: 760px; }
 .home .hero h1 { font-size: clamp(35px, 6.6vw, 60px); letter-spacing: -0.012em; }
 .herotext { min-width: 0; }
 /* The second half of the sentence, lit. Guarded, because the fallback for an
@@ -770,18 +773,24 @@ body.home {
     color: transparent;
   }
 }
-.heroart { position: relative; flex: none; display: block; line-height: 0; }
-.heroart::before {
-  content: ""; position: absolute; inset: -22px; border-radius: 44px;
-  background: radial-gradient(closest-side, rgba(239, 86, 128, 0.45), transparent 72%);
-  filter: blur(12px);
+
+/* Four beats, numbered, because the thing this site does is a sequence and a
+   reader who does not already know it needs the order more than they need the
+   detail. Numbered by the list rather than by hand, so a beat cannot be added
+   in the middle and leave the numbers lying. */
+.how { margin: 40px 0 0; }
+.beats { list-style: none; counter-reset: beat; margin: 18px 0 0; padding: 0; display: grid; gap: 18px; }
+@media (min-width: 760px) { .beats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 30px; } }
+.beats li {
+  counter-increment: beat; position: relative; padding: 18px 20px 20px 20px;
+  background: #17121F; border: 1px solid #2A2434; border-radius: 18px;
 }
-.heroart img {
-  position: relative; width: 104px; height: 104px; border-radius: 26px; display: block;
-  box-shadow: 0 20px 46px rgba(239, 86, 128, 0.30), 0 0 0 1px rgba(255, 247, 238, 0.10);
-  animation: bob 6s ease-in-out infinite;
+.beats li::before {
+  content: counter(beat); display: block; font-size: 12px; font-weight: 800;
+  letter-spacing: 0.14em; color: ${ACCENT}; margin: 0 0 8px;
 }
-@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+.beats h3 { margin: 0 0 7px; font-size: 17px; }
+.beats p { margin: 0; color: #A49BAE; font-size: 14.5px; line-height: 1.55; }
 
 .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 22px 0 0; }
 .actions .btn { margin: 0; }
@@ -1007,7 +1016,7 @@ p.calkey .sw.today { background: none; box-shadow: inset 0 0 0 2px ${TODAY}; }
 @media (max-width: 600px) {
   .months { grid-template-columns: 1fr; gap: 10px; }
   .cal .days a { font-size: 16px; border-radius: 12px; }
-  .home .hero { flex-direction: column; gap: 16px; }
+  .home .hero { margin-top: 4px; }
   .wrap.home { padding-left: 16px; padding-right: 16px; }
   .picker { padding: 16px 15px 17px; }
 }
@@ -1015,7 +1024,6 @@ p.calkey .sw.today { background: none; box-shadow: inset 0 0 0 2px ${TODAY}; }
 /* Nothing on this page needs to move for it to work. */
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
-  .heroart img { animation: none; }
   /* Nothing moves on its own, so the rail becomes one the reader pushes, and
      the second copy of the track is dropped rather than left sitting there as
      twelve cards nobody asked for twice. */
