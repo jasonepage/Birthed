@@ -1087,7 +1087,11 @@ test("the three open dates are filled in, and today is the one that is blue", ()
 test("the about page explains what the site does before what is on a page", () => {
   const html = renderHome(2026, []);
   // The thesis, in the headline rather than four screens down.
-  assert.ok(html.includes("Birthed records what stuck"));
+  assert.ok(html.includes("Birthed</span> records what stuck"));
+  // The underline needs its own colour named. The headline is painted with a
+  // gradient and its text colour is transparent, so an underline left on
+  // currentColor is drawn in transparent and nothing appears under the word.
+  assert.match(html, /\.brandword \{[^}]*text-decoration-color: #EF5680/);
   assert.ok(html.includes("opens for three days a year"));
   // The four beats, in order, because the thing this site does is a sequence
   // and a reader who does not know it needs the order more than the detail.

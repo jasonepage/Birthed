@@ -221,7 +221,7 @@ ${topBar()}
 <div class="col">
 <section class="hero">
   <div class="herotext">
-    <h1>Wikipedia records what happened. <span class="glow">Birthed records what stuck.</span></h1>
+    <h1>Wikipedia records what happened. <span class="glow"><span class="brandword">Birthed</span> records what stuck.</span></h1>
     <p class="lede">Every date on the calendar opens for three days a year. Whoever turns up says what they actually remember of it, and then the date seals until next year.</p>
     <p class="actions">
       ${storeButton()}

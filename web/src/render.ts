@@ -818,6 +818,21 @@ body.home {
     color: transparent;
   }
 }
+/* The name, underlined rather than emboldened. The headline is Georgia at 800
+   and Georgia ships one bold, so there is no weight left to reach for and
+   asking for more only gets a browser's synthetic smear.
+
+   text-decoration-color is set explicitly and that is not tidiness. The rule
+   above paints this text with a gradient and sets color to transparent, and an
+   underline defaults to currentColor, so without naming a colour here the line
+   is drawn in transparent and there is simply nothing under the word. It would
+   have looked like the underline had not been applied at all. */
+.brandword {
+  text-decoration: underline;
+  text-decoration-color: ${ACCENT};
+  text-decoration-thickness: 0.055em;
+  text-underline-offset: 0.085em;
+}
 
 /* Four beats, numbered, because what this site does is a sequence and a reader
    who does not already know it needs the order more than the detail.
