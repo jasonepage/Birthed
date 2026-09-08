@@ -28,9 +28,10 @@
 //
 // What is different here, and it is the hard part: this asks for a DATE, not
 // for a fact about a date. docs/internet-culture.md is the whole specification
-// for what may be proposed, and the two rules that do the work are that a row
-// is a thing that happened at a timestamp rather than a meme, and that a row
-// with no defensible day does not exist.
+// for what may be proposed, and the three rules that do the work are that a row
+// is a thing that happened at a timestamp rather than a meme, that a row with
+// no defensible day does not exist, and that being datable is not the same as
+// belonging here.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -82,7 +83,12 @@ const RESEARCH_ATTEMPTS = 2;
 /** Internet culture barely predates this, and padding earlier years is lying. */
 const EARLIEST = 1980;
 
-const CATEGORIES = ["meme", "gaming", "tech", "music", "cinema"];
+// music and cinema are deliberately absent. They were in this list, and every
+// run filled up with album and film releases, which is a release calendar and
+// not internet culture. The Wikidata importer lost the same two categories for
+// the same reason. A music or film thing can still be proposed, as meme, when
+// the row is about what the internet did with it rather than about the release.
+const CATEGORIES = ["meme", "gaming", "tech"];
 const DATE_KINDS = ["posted", "happened", "went_viral", "ended"];
 
 interface Candidate {
@@ -129,9 +135,27 @@ function researchPrompt(month: number, day: number, already: string, focus: stri
 
 Run web searches and use what you find. Do not answer from memory.
 
-Find up to ${MAX_ROWS} things that happened on ${date} in some year and that somebody in their teens or twenties would recognise. A video being uploaded, a tweet being posted, a game or console or phone or app arriving, a platform launching or changing or shutting down, a real world event that became a meme, an album or a film that mattered to that audience.
-
 Why this matters, because it decides what is worth returning: people date their own lives by this stuff. Not by treaties and summits, by the version of a game that came out when they were fourteen, the console they got, the app everybody moved to, the video everybody had seen that week. "I was eleven when that came out" is the sentence this whole timeline exists to let somebody say. Prefer a thing that lets a reader place themselves against it over a thing that is merely notable.${lens}
+
+Find up to ${MAX_ROWS} things that happened on ${date} in some year. What you are looking for:
+
+The internet's own artifacts. A specific video going up, a YouTube upload, a Vine, a TikTok, a Twitch clip. A tweet or a post, which carries its own timestamp. A subreddit, a server, a forum or a channel starting, dying or going dark.
+
+Games as people actually lived them. A named Minecraft version, a Fortnite season or live event, a Roblox moment, a patch that changed how a game felt. Give the version number when there is one.
+
+Things arriving and things dying. A console launch in a named region, a phone, an app launching, an app shutting down, a redesign everybody hated, a feature that disappeared overnight.
+
+Drama and incidents. A ban, a leak, a datamine, a hack, an outage everybody noticed, a prank at scale, a falling out that the whole internet watched.
+
+A real world event that the internet turned into something, when the turn itself can be dated.
+
+WHAT DOES NOT BELONG, and this is where these searches go wrong almost every time:
+
+An album coming out is not internet culture. Neither is a film opening, a single, a tour, a trailer or an awards show. Every date has several of those, they are what a Wikipedia date page is already full of, and they are the exact filler this timeline exists to replace. Do not return them even when they were commercially huge, and do not return them because you could not find enough of anything else.
+
+There is one way such a thing gets in, and it changes what the row is about. If the internet itself did something with it, the row is about what the internet did, and it is dated to that. "OK Go released a single" is a release calendar entry. "The OK Go treadmill video was the thing everybody was sending each other" is internet culture, and its date is the upload, not the single.
+
+The test, applied to every row before you write it: if this exact sentence could sit on a Wikipedia date page without looking out of place, throw it out.
 
 The single hardest rule, and the one that decides whether this is worth doing:
 
@@ -147,7 +171,7 @@ Say it honestly. "This is when it spread, not when it was posted" is a better se
 
 Write your findings as a numbered list. For each one write six lines and nothing else:
 the full date, as YYYY-MM-DD, with the real year;
-one of: meme, gaming, tech, music, cinema;
+one of: meme, gaming, tech;
 one of: posted, happened, went_viral, ended;
 a short title naming the thing, under 100 characters, for example "Vine shuts down";
 one or two plain sentences a reader sees. Name the thing, say what happened, stop. Do not explain the joke: somebody who was there does not need it explained and somebody who was not is better served by the link. No em dashes;
@@ -167,7 +191,7 @@ function shapePrompt(notes: string): string {
   return `Turn the research notes at the end into JSON.
 Answer with a JSON array only, no prose before or after. Each object has exactly these fields:
 "event_date": the full date as YYYY-MM-DD, copied from the notes.
-"category": one of meme, gaming, tech, music, cinema.
+"category": one of meme, gaming, tech.
 "date_kind": one of posted, happened, went_viral, ended.
 "event_title": the short title, copied from the notes.
 "context_string": the sentences a reader sees, copied from the notes.

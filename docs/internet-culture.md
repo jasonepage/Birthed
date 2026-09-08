@@ -39,13 +39,39 @@ Things that have a real date:
 - a platform launching, changing or shutting down
 - a real world event that became a meme, like a dress photograph or a death
   at a zoo
-- a game, album, film or app release
+- a game, console or app release
 
 Things that do not, and are therefore not rows:
 
 - "the year everyone said bruh"
 - a format, a template, a reaction image with no traceable first post
 - anything whose only date is a Know Your Meme "circa"
+
+### Datable is not the same as relevant
+
+This rule used to end at the list above, and it listed album and film releases
+among the things with real dates. They do have real dates. That was never the
+question, and reading the two tests as one is what put three album releases and
+two film releases on a single date the first time a generator was pointed at
+this specification.
+
+An album coming out is not internet culture. Nor is a film opening, a single, a
+tour, a trailer or an awards show. Every date has several, they are what a
+Wikipedia date page is already full of, and they are the filler this site
+exists to replace. A row that clears rule one can still fail here.
+
+One way such a thing gets in, and it changes what the row is about: if the
+internet itself did something with it, the row is about what the internet did
+and is dated to that.
+
+- "OK Go released a single" is a release calendar entry.
+- "The OK Go treadmill video was the thing everybody was sending each other" is
+  internet culture, and its date is the upload, not the single.
+
+The test, applied to every row: **if this exact sentence could sit on a
+Wikipedia date page without looking out of place, it does not belong here.**
+That is the whole differentiator. A row that fails it is not a small loss of
+quality, it is the site being the thing it was built not to be.
 
 ## Rule two: say which kind of date it is
 

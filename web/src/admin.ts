@@ -446,8 +446,15 @@ kbd {
       rest("cultural_events?select=id,event_date,category,event_title,context_string,source_url,origin" +
         "&event_date=gte." + "1000-" + pad(m) + "-" + pad(d) +
         "&order=event_date.desc&limit=200"),
+      // birth_year 0 and an empty region are what fetchFacts() asks for when
+      // it builds the site, so this list is exactly what the date page shows.
+      // Without those two filters the panel also lists facts generated for one
+      // app user's own birthday, in the second person and scoped to their
+      // town, which never reach any page and read as errors when they appear
+      // beside rows that do.
       rest("birth_facts?select=id,birth_year,fact,category,source_url,verified" +
-        "&birth_month=eq." + m + "&birth_day=eq." + d + "&order=birth_year.desc&limit=100"),
+        "&birth_month=eq." + m + "&birth_day=eq." + d +
+        "&birth_year=eq.0&region_key=eq.&order=id.asc&limit=100"),
       rest("historical_events?select=id,event_year,description,suppressed" +
         "&event_month=eq." + m + "&event_day=eq." + d + "&order=event_year.desc&limit=200"),
     ]).then(function (r) {
@@ -478,7 +485,7 @@ kbd {
         '<button class="act" data-del="' + esc(row.id) + '">Delete</button></div>';
     });
 
-    html += '<h4 style="margin:26px 0 0;font-size:13px;color:#9C9490">Found facts (' + facts.length + ")</h4>";
+    html += '<h4 style="margin:26px 0 0;font-size:13px;color:#9C9490">Facts on the page (' + facts.length + ")</h4>";
     facts.forEach(function (row) {
       html += '<div class="row"><span class="yr">' + (row.birth_year || "") + "</span><div>" +
         '<p class="tx">' + esc(row.fact) + "</p>" +
