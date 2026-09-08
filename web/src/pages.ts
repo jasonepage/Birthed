@@ -242,11 +242,11 @@ ${bornInStrip()}
   </li>
   <li>
     <h3>Everybody answers at once</h3>
-    <p>The people who care most about September 8 are the people born on September 8, and they all turn up on September 8. Every row on the page asks one question: do you remember this. Three answers, no score, and no way to say a thing did not matter.</p>
+    <p>The people who care most about a date are the ones born on it, and they all arrive on the same day. Every row asks one question: do you remember this. Three answers, no score, and no way to say a thing did not matter.</p>
   </li>
   <li>
     <h3>Then it seals</h3>
-    <p>What a date is remembered for is whatever the people who were there that week said it was. It is written down with the day it closed and the number of people who answered, and it stays that way.</p>
+    <p>What the date is remembered for is whatever the people there that week said. It closes with the day it sealed and the number of people who answered on it, and it stays that way.</p>
   </li>
   <li>
     <h3>Next year it opens on top</h3>

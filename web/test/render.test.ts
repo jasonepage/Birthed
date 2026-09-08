@@ -1105,6 +1105,16 @@ test("the about page no longer floats an app icon above the headline", () => {
   assert.equal(html.includes("@keyframes bob"), false);
 });
 
+test("the four beats stack, rather than inheriting the flex row every list gets", () => {
+  // There is a bare `li { display: flex }` in the stylesheet, written for the
+  // lists where a year sits beside a name. It applies to every list item on
+  // the site, so a card that does not override it turns its number, heading
+  // and paragraph into three columns and wraps the heading one word to a line.
+  // Nothing fails and nothing logs. It just looks like nobody designed it.
+  const html = renderHome(2026, []);
+  assert.match(html, /\.beats li \{[^}]*display: block/);
+});
+
 test("the link preview says what the site does, not what is on a page", () => {
   const html = renderHome(2026, []);
   // A description that disagreed with the page would be the one thing most

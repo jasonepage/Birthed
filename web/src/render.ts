@@ -774,23 +774,41 @@ body.home {
   }
 }
 
-/* Four beats, numbered, because the thing this site does is a sequence and a
-   reader who does not already know it needs the order more than they need the
-   detail. Numbered by the list rather than by hand, so a beat cannot be added
-   in the middle and leave the numbers lying. */
-.how { margin: 40px 0 0; }
-.beats { list-style: none; counter-reset: beat; margin: 18px 0 0; padding: 0; display: grid; gap: 18px; }
-@media (min-width: 760px) { .beats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 30px; } }
+/* Four beats, numbered, because what this site does is a sequence and a reader
+   who does not already know it needs the order more than the detail.
+
+   "display: block" is not tidiness here, it is the whole rule. There is a
+   bare "li" rule a few hundred lines up that sets display to flex, written
+   for the people and song lists where a year sits beside a name, and it
+   applies to every list item on the site. Without the override the number,
+   the heading and the
+   paragraph became three flex columns, so every heading wrapped one word to a
+   line down a narrow gutter. Nothing failed and nothing logged. It simply
+   looked like it had not been designed.
+
+   Numbered by the list rather than by hand, so a beat cannot be added in the
+   middle and leave the numbers lying. */
+.how { margin: 44px 0 0; }
+.beats {
+  list-style: none; counter-reset: beat; margin: 20px 0 0; padding: 0;
+  display: grid; gap: 14px;
+}
+@media (min-width: 720px) { .beats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; } }
 .beats li {
-  counter-increment: beat; position: relative; padding: 18px 20px 20px 20px;
+  display: block; counter-increment: beat;
   background: #17121F; border: 1px solid #2A2434; border-radius: 18px;
+  padding: 20px 22px 22px;
 }
 .beats li::before {
-  content: counter(beat); display: block; font-size: 12px; font-weight: 800;
-  letter-spacing: 0.14em; color: ${ACCENT}; margin: 0 0 8px;
+  content: counter(beat);
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; margin: 0 0 13px;
+  border-radius: 999px; background: rgba(239, 86, 128, 0.14);
+  color: ${ACCENT}; font-size: 12.5px; font-weight: 800;
+  font-variant-numeric: tabular-nums;
 }
-.beats h3 { margin: 0 0 7px; font-size: 17px; }
-.beats p { margin: 0; color: #A49BAE; font-size: 14.5px; line-height: 1.55; }
+.beats h3 { margin: 0 0 8px; font-size: 17px; line-height: 1.3; letter-spacing: -0.005em; }
+.beats p { margin: 0; color: #A49BAE; font-size: 14.5px; line-height: 1.62; }
 
 .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 22px 0 0; }
 .actions .btn { margin: 0; }
