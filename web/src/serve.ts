@@ -320,6 +320,10 @@ export function todayStylesheet(now: Date = new Date(), random: () => number = M
         // .state .dot, not .dot: today.css is linked before the inline stylesheet,
         // so a rule of equal specificity here loses to the baked grey.
         `.on-${date} .state .dot{background:${TODAY};box-shadow:0 0 0 4px rgba(111,165,222,.18)}` +
+        // The dot breathes only here, on an open date, where it is true. The
+        // keyframes are baked; the trigger is not, because a grey dot
+        // breathing on a sealed page would say the page is live.
+        `@media (prefers-reduced-motion:no-preference){.on-${date} .state .dot{animation:breathe 4s ease-in-out infinite}}` +
         `.on-${date} .fuse{display:block}` +
         `.on-${date} .fuse span{--gone:${gone.toFixed(4)}}` +
         `.on-${date} .asks${askSlot(random)}{display:block}` +

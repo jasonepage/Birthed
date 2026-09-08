@@ -1623,13 +1623,16 @@ test("no animation on a date page plays when the reader asked for reduced motion
   assert.deepEqual(stray, [], "an animation sits outside the motion block");
   // The four the motion work added are present, by name, so this test cannot
   // pass by the block being empty.
-  for (const name of ["burn", "rise", "rail", "draw"]) {
+  for (const name of ["burn", "rise", "rail", "draw", "breathe"]) {
     assert.ok(style.includes(`@keyframes ${name}`), `${name} keyframes are baked`);
   }
   assert.ok(style.includes(".rres:not(:empty) { animation: rise"), "the result lands");
   assert.ok(style.includes(":target .mine { animation: rise"), "the reader's own mark lands after it");
   assert.ok(style.includes(".afterword:target { animation: rise"), "the sentence at the top lands");
   assert.ok(style.includes(".ask .rem button:nth-child(7) { animation-delay: 315ms; }"), "the three buttons arrive one beat apart");
+  // Nothing breathes in the baked sheet. Only today.css may start that, on an
+  // open date.
+  assert.equal(style.includes("animation: breathe"), false, "the dot only breathes when today.css says the date is open");
 });
 
 test("the result bars carry their place in the list so they can land one beat apart", () => {

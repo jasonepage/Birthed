@@ -290,3 +290,14 @@ test("today.css opens the year question on the same three dates as the buttons",
   assert.equal(css.includes(".on-september-10 .yearask"), false, "and neither does one not yet open");
   assert.equal((css.match(/\.yearask\{display:block\}/g) ?? []).length, 3);
 });
+
+test("the dot breathes only on an open date, and only for readers who allow motion", () => {
+  const css = todayStylesheet(new Date("2026-09-08T18:00:00Z"));
+  for (const date of ["september-7", "september-8", "september-9"]) {
+    assert.ok(css.includes(`@media (prefers-reduced-motion:no-preference){.on-${date} .state .dot{animation:breathe 4s ease-in-out infinite}}`), date);
+  }
+  assert.equal(css.includes(".on-september-10 .state .dot"), false, "a sealed date gets no breath");
+  // A four second breath, not a pulse. Anything under two seconds reads as
+  // an alarm on a page that carries September 11.
+  assert.equal(/breathe [01](\.\d+)?s/.test(css), false);
+});

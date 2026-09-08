@@ -1529,7 +1529,13 @@ nav.pager.cards .after { text-align: right; }
   .ask .rem button:nth-child(7) { animation-delay: 315ms; }
   .askrule { animation-delay: 360ms; }
 
+  /* 3. The dot. Baked here is only the shape of the breath; today.css
+     starts it, and only on the three open dates, because a grey dot
+     breathing on a sealed page would say the page is live when it is not.
+     Four seconds. A fast pulse is an alarm. */
 }
+@keyframes breathe {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(111, 165, 222, .18); }
   50% { box-shadow: 0 0 0 7px rgba(111, 165, 222, .08); }
 }
 `;
