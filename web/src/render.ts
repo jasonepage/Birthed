@@ -1512,6 +1512,23 @@ nav.pager.cards .after { text-align: right; }
   :target .mine { animation: rise 460ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards; animation-delay: 270ms; }
   .afterword:target { animation: rise 460ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards; }
 
+  /* 2. The ask card, on the three open dates. Its parts arrive in reading
+     order, label, year, sleeve, sentence, then the three buttons one beat
+     apart, so the eye is led to the thing to do. The card itself does not
+     move: it is the page, not a visitor to it. The ask never carries a heavy
+     row, because mayLead in highlight.ts chose it. */
+  .asklab, .askyr, .askart, .asksaid, .askcap, .ask .rem button, .askrule {
+    animation: rise 460ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
+  }
+  .askyr { animation-delay: 45ms; }
+  .askart { animation-delay: 90ms; }
+  .asksaid { animation-delay: 135ms; }
+  .askcap { animation-delay: 180ms; }
+  .ask .rem button:nth-child(5) { animation-delay: 225ms; }
+  .ask .rem button:nth-child(6) { animation-delay: 270ms; }
+  .ask .rem button:nth-child(7) { animation-delay: 315ms; }
+  .askrule { animation-delay: 360ms; }
+
 }
   50% { box-shadow: 0 0 0 7px rgba(111, 165, 222, .08); }
 }

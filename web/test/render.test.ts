@@ -1629,6 +1629,7 @@ test("no animation on a date page plays when the reader asked for reduced motion
   assert.ok(style.includes(".rres:not(:empty) { animation: rise"), "the result lands");
   assert.ok(style.includes(":target .mine { animation: rise"), "the reader's own mark lands after it");
   assert.ok(style.includes(".afterword:target { animation: rise"), "the sentence at the top lands");
+  assert.ok(style.includes(".ask .rem button:nth-child(7) { animation-delay: 315ms; }"), "the three buttons arrive one beat apart");
 });
 
 test("the result bars carry their place in the list so they can land one beat apart", () => {
