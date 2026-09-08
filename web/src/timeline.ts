@@ -472,16 +472,24 @@ export async function fetchSealedMemory(
   const headers = { apikey: key, Authorization: `Bearer ${key}`, Accept: "application/json" };
   const thisYear = new Date().getUTCFullYear();
 
-  let sealed: Array<{ event_month: number; event_day: number }>;
+  let sealed: Array<{ event_month: number; event_day: number }> = [];
   try {
+    // Not "sealed_at is not null". Nothing ever stamps that column: a date is
+    // sealed when its window has passed, which is a fact about the clock, and
+    // sealed_at is only ever set when somebody shuts a date early by hand. A
+    // query on the column alone found nothing and always would have.
     const query = new URLSearchParams({
-      select: "event_month,event_day,edition_year",
-      sealed_at: "not.is.null",
+      select: "event_month,event_day,edition_year,closes_at,sealed_at",
       edition_year: `eq.${thisYear}`,
     });
     const response = await fetch(`${url}/rest/v1/day_editions?${query}`, { headers });
     if (!response.ok) return out;
-    sealed = (await response.json()) as Array<{ event_month: number; event_day: number }>;
+    const editions = (await response.json()) as Array<{
+      event_month: number; event_day: number; closes_at: string; sealed_at: string | null;
+    }>;
+    const now = Date.now();
+    sealed = editions.filter((e) =>
+      e.sealed_at !== null || Date.parse(e.closes_at) <= now);
   } catch {
     return out;
   }
