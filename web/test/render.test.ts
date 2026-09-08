@@ -1319,7 +1319,7 @@ test("the day's biggest lead the cards, and the rest still read newest first", (
     { id: "mid", month: 9, day: 8, year: 1975, sourceUrl: "https://e.com/3", description: "Something in 1975." },
     { id: "old", month: 9, day: 8, year: 1400, sourceUrl: "https://e.com/4", description: "Something in 1400." },
   ];
-  const big = new Map([["9-8", new Set([1664])]]);
+  const big = new Map([["9-8", new Map([[1664, "New Amsterdam was renamed New York in honour of the Duke of York"]])]]);
   const html = renderDayPage({ month: 9, day: 8, people: [] }, [], [], events, [], null, new Map(), big);
 
   const feed = html.slice(html.indexOf('<ul class="feed">'));

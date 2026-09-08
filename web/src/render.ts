@@ -9,7 +9,7 @@ import { Fact, hostOf } from "./facts.js";
 import { buildTimeline, byMemory, pickHighlights, theRest, type DayEvent, type MemoryCount, type TimelineRow } from "./timeline.js";
 import { cardHighlight, mayAsk, mayLead, mayLeadWords, type Highlight } from "./highlight.js";
 import { leadKey } from "./lead.js";
-import { selectedKey, type Selected } from "./selected.js";
+import { bestMatch, selectedKey, type Selected } from "./selected.js";
 
 /**
  * How many people a date page needs before it is worth putting in front of a
@@ -2439,7 +2439,13 @@ export function askCandidates(rows: TimelineRow[], limit: number = ASK_SLOTS): T
   // row. The word screens still read the row's own sentence as well, because a
   // gentle line over a killing is exactly the thing they exist to refuse.
   const passing = rows.filter((row) =>
-    row.year !== null && row.year >= 1958 &&
+    // 1958 is where the chart data starts, so a record can sit beside the card.
+    // A selected row does not need one: it is the day's biggest, and refusing
+    // it for being old is why September 8 could ask about a resupply flight and
+    // never about Michelangelo's David, New Amsterdam becoming New York, or the
+    // first season of the Football League. On most dates the biggest things are
+    // older than the charts, and a sleeve is decoration.
+    row.year !== null && (row.year >= 1958 || row.selected === true) &&
     // Length, on what the card would actually show.
     mayAsk(row.leadLine ?? row.text) &&
     // Subject, on the row's own sentence as well, always. A written line is
@@ -2711,7 +2717,7 @@ export function renderDayPage(
   // without a network.
   const culture = everything.filter((row) => (row.context ?? "").trim() !== "");
 
-  const bigYears = selected.get(selectedKey(page.month, page.day)) ?? new Set<number>();
+  const bigLines = selected.get(selectedKey(page.month, page.day)) ?? new Map<number, string>();
 
   const name = `${monthName(page.month)} ${page.day}`;
   const canonical = `${SITE}/${slug(page.month, page.day)}/`;
@@ -2762,18 +2768,27 @@ export function renderDayPage(
   const chronological = buildTimeline(facts, events, monthName(page.month), page.day)
     .map((row) => {
       const written = leadLines.get(leadKey(row.kind, row.id));
-      const big = row.year !== null && bigYears.has(row.year);
-      if (written === undefined && !big) return row;
-      return {
-        ...row,
-        ...(written === undefined ? {} : { leadLine: written }),
-        ...(big ? { selected: true } : {}),
-      };
+      return written === undefined ? row : { ...row, leadLine: written };
     });
+
+  // One row per selection, not every row that happens to share its year.
+  //
+  // Year alone put three 1888 rows in the top six on September 8: the Football
+  // League's first season, which Wikipedia selected, plus a submarine test and
+  // the Great Herding, which it did not. Half the cards on the page became one
+  // year. So each selection claims the row it is actually about and nothing
+  // else, and a selection matching nothing claims nothing.
+  const big = new Set<TimelineRow>();
+  for (const [year, line] of bigLines) {
+    const match = bestMatch(line, year, chronological);
+    if (match !== null) big.add(match);
+  }
+  const timelineRows = chronological.map((row) =>
+    big.has(row) ? { ...row, selected: true } : row);
   // The one place on this site where what readers did changes what a page
   // looks like, and deliberately the last place: only after a date can never
   // take another answer.
-  const timeline = memory === null ? chronological : byMemory(chronological, memory);
+  const timeline = memory === null ? timelineRows : byMemory(timelineRows, memory);
   // Said once, because the page has visibly rearranged and nothing else on it
   // explains why.
   const memoryNote = memory === null
@@ -2811,7 +2826,7 @@ export function renderDayPage(
   const rest = theRest(timeline, picked);
   // The row the page opens on. Chosen from the chronological list rather than
   // the remembered order, because a sealed page never draws it.
-  const asked = askCandidates(chronological);
+  const asked = askCandidates(timelineRows);
   const askedKeys = asked.map((row) => `${row.kind}:${row.id}`);
   const hue = dayHue(page.month);
   // The index of all 366 sits at the foot of every date page, which is what

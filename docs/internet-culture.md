@@ -114,6 +114,19 @@ milestone in the history of internet virality."
 
 Better: "David went to the dentist. His dad filmed the drive home."
 
+## Rule four and a half: the sentence stands alone
+
+The page prints `context_string`, not `event_title`. A reader never sees the
+title, so a sentence that leans on it is a sentence with nothing behind it.
+
+> Bad: "She died at Balmoral, aged 96."
+>
+> Good: "Queen Elizabeth II died at Balmoral, aged 96."
+
+That row went into the queue on 8 September 2026 written the first way, by the
+model drafting it, and it took a person about two seconds to ask who "she" was.
+Read the sentence with the title covered up before writing it down.
+
 ## Rule five: thin years stay thin
 
 Vine ran 2013 to 2016. TikTok arrived outside the United States in 2017 and

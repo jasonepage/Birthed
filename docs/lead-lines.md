@@ -69,6 +69,12 @@ get "never heard of it" from somebody who did remember.
 **Five. No dates in the line.** The card already prints the year in
 thirty point type beside it.
 
+**Six. Name the subject in the first sentence.** The page prints the sentence,
+not the title, so a sentence starting with a pronoun has nothing behind it. A
+row written on 8 September 2026 opened "She died at Balmoral, aged 96" and the
+only place the word Queen appeared was a title no reader ever sees. Whoever the
+row is about has to be in it.
+
 ## 4. What may never have one
 
 The word screens read the row's own sentence, always, and a line cannot walk a

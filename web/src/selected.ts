@@ -25,7 +25,7 @@
  * marginal gain, and two rows sharing a year on one date is rare enough that
  * marking both is the cheaper mistake.
  */
-export type Selected = Map<string, Set<number>>;
+export type Selected = Map<string, Map<number, string>>;
 
 export function selectedKey(month: number, day: number): string {
   return `${month}-${day}`;
@@ -37,7 +37,7 @@ export async function fetchSelected(url: string, key: string): Promise<Selected>
 
   for (let offset = 0; ; offset += pageSize) {
     const query = new URLSearchParams({
-      select: "event_month,event_day,event_year",
+      select: "event_month,event_day,event_year,text",
       order: "id.asc",
       limit: String(pageSize),
       offset: String(offset),
@@ -47,12 +47,16 @@ export async function fetchSelected(url: string, key: string): Promise<Selected>
     });
     if (!response.ok) throw new Error(`selected anniversaries failed with ${response.status}`);
     const rows = (await response.json()) as
-      { event_month: number; event_day: number; event_year: number }[];
+      { event_month: number; event_day: number; event_year: number; text: string }[];
 
     for (const row of rows) {
       const at = selectedKey(row.event_month, row.event_day);
-      const years = out.get(at) ?? new Set<number>();
-      years.add(row.event_year);
+      const years = out.get(at) ?? new Map<number, string>();
+      // The line is carried as well as the year, because a year alone cannot
+      // tell three rows from 1888 apart and September 8 has exactly that: the
+      // Football League's first season, Isaac Peral's submarine and the Great
+      // Herding. Marking all three put one year in half the cards on the page.
+      years.set(row.event_year, row.text);
       out.set(at, years);
     }
 
@@ -60,4 +64,45 @@ export async function fetchSelected(url: string, key: string): Promise<Selected>
   }
 
   return out;
+}
+
+/**
+ * Which of our rows a selection is actually about, when several share its year.
+ *
+ * Wikipedia's line and ours are written differently and always will be, so this
+ * counts the words they have in common and takes the best. Not clever, and it
+ * does not need to be: the job is only to tell the Football League's first
+ * season from a submarine test, and any two sentences about the same event
+ * share several long words while two sentences about different ones share
+ * almost none.
+ *
+ * Ties and near misses go to nobody. A selection that matches nothing on the
+ * page is a gap somebody should fill, and promoting the wrong row is worse than
+ * promoting none: the whole point of the signal is that the top of the page is
+ * the top of the day.
+ */
+export function bestMatch<T extends { year: number | null; text: string }>(
+  line: string,
+  year: number,
+  rows: T[],
+): T | null {
+  const words = (text: string) =>
+    new Set(
+      text.toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/)
+        .filter((word) => word.length > 3),
+    );
+  const theirs = words(line);
+  if (theirs.size === 0) return null;
+
+  let best: T | null = null;
+  let bestShared = 0;
+  for (const row of rows) {
+    if (row.year !== year) continue;
+    let shared = 0;
+    for (const word of words(row.text)) if (theirs.has(word)) shared += 1;
+    if (shared > bestShared) { best = row; bestShared = shared; }
+  }
+  // Two long words in common is the floor. One is a coincidence: "September"
+  // and "first" appear in half the rows on any date.
+  return bestShared >= 2 ? best : null;
 }
