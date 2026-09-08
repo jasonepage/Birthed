@@ -291,6 +291,12 @@ export function todayStylesheet(now: Date = new Date(), random: () => number = M
   const self = ["/yesterday/", "/today/", "/tomorrow/"];
   return `.cal .days a[href="/${todaySlug(now)}/"]{outline:2px solid ${TODAY};` +
     `outline-offset:2px;color:#BFD8F5}\n` +
+    // The signature, on today's date and nowhere else. Baked hidden into all
+    // 366 pages and revealed here, because "/" serves today's own built file
+    // and no file knows which day it is. Today's date rather than all three
+    // open ones: it is the page a stranger arrives on, and a name repeated
+    // across an almanac reads as a byline over work somebody else did.
+    `.on-${todaySlug(now)} .signed{display:block}\n` +
     open.map((date, i) => {
       // A date is open from the start of the day before it to the end of the
       // day after it. Yesterday's date opened two days ago, today's opened

@@ -112,6 +112,16 @@ test("today.css names the date it is asked for, and turns over", () => {
 // the slot it names is the whole of what makes the ask card change under a
 // reader who reloads. Injected rather than left to Math.random, because a test
 // that rolls dice reports a bug once every few hundred runs and gets muted.
+// The author's name is baked hidden into every date page and drawn on one.
+test("today.css signs today's date and no other", () => {
+  const css = todayStylesheet(new Date("2026-09-08T18:00:00Z"), () => 0.5);
+  assert.match(css, /\.on-september-8 \.signed\{display:block\}/);
+  // Not the other two open dates, and not the 363 shut ones.
+  assert.equal(css.includes(".on-september-7 .signed"), false);
+  assert.equal(css.includes(".on-september-9 .signed"), false);
+  assert.equal(css.split(".signed{display:block}").length, 2, "one page, once");
+});
+
 test("today.css deals a different ask card per request, and gives back the one just answered", () => {
   const when = new Date("2026-09-08T18:00:00Z");
 

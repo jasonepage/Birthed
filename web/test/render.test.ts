@@ -553,6 +553,11 @@ test("the date page and the about page are signed", () => {
   const html = renderDayPage(page);
   assert.ok(html.includes("Jason Evan Page"), "the date page says who made it");
   assert.ok(html.includes("no ads on this site and nothing on it is for sale"));
+  // Baked into all 366 and drawn on one. A name on every page of an almanac
+  // reads as a byline over work somebody else did, and "/" serves today's own
+  // built file, so no file can know whether it is today. today.css does.
+  const style = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
+  assert.match(style, /\.signed \{ display: none;/);
   // Above the first ask card, which is the last thing on the first screen.
   // Compared against the markup rather than the word, because the stylesheet
   // at the top of every page names the same class.

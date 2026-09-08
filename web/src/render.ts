@@ -144,8 +144,14 @@ const STYLE = `
    birthdays to advertisers. A name is the cheapest thing that accusation
    cannot survive contact with, so it is above the fold and not on a policy
    page. Set at the size of the line above it, because a signature that shouts
-   is a claim and a signature that sits there is a fact. */
-.signed { margin: 8px 0 0; font-size: 13px; color: #827B75; }
+   is a claim and a signature that sits there is a fact.
+
+   Hidden here and revealed by today.css on today's date only, which is the
+   author's call and a reasonable one: a person's name printed on all 366 pages
+   of an almanac reads as a byline over an encyclopedia somebody else wrote,
+   and the name is doing its work on the page a stranger arrives on. The About
+   page carries it in full and is one tap from every page. */
+.signed { display: none; margin: 8px 0 0; font-size: 13px; color: #827B75; }
 .signed a { color: #E8DCCB; text-decoration: none; border-bottom: 1px solid #4A4038; }
 .signed a:hover { color: #FFF7EE; }
 .also a { color: #A49BAE; text-decoration: none; border-bottom: 1px solid #3A3348; }
