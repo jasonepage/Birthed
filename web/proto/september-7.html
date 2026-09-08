@@ -37,6 +37,25 @@ a{color:inherit}
 .hooksub{margin:16px 0 0;font-size:clamp(15px,1.8vw,19px);line-height:1.55;color:var(--dim);max-width:54ch}
 .hooksub b{color:var(--tx);font-weight:600}
 
+.tiles{display:grid;grid-template-columns:1fr;gap:11px;margin:22px 0 0}
+.tile{display:block;text-decoration:none;background:var(--card);border:1px solid var(--line);
+ border-radius:16px;padding:16px;position:relative;overflow:hidden}
+.tile.person{border-left:3px solid var(--pink)}
+.tile.music{border-left:3px solid var(--vi)}
+.tile.moment{border-left:3px solid var(--grave);background:var(--gravebg)}
+.tlab{display:block;font-size:10px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;
+ color:var(--dim2);margin-bottom:6px}
+.tbig{font-family:var(--ser);font-size:clamp(19px,2.4vw,23px);line-height:1.16;display:block}
+.tsub{display:block;color:var(--dim);font-size:13.5px;line-height:1.45;margin-top:7px}
+.tface{float:right;margin:0 0 8px 14px;width:78px;height:78px;border-radius:12px;display:grid;
+ place-items:center;font-family:var(--ser);font-size:29px;font-weight:700;color:#fff;
+ background:linear-gradient(150deg,hsl(var(--h) 58% 46%),hsl(calc(var(--h) + 40) 62% 20%));
+ text-shadow:0 2px 12px rgba(0,0,0,.45)}
+.mosaic{float:right;margin:0 0 8px 14px;width:86px;display:grid;grid-template-columns:1fr 1fr;gap:3px}
+.mosaic img{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:5px;display:block;background:#000}
+.tyr{float:right;margin-left:12px;font-family:var(--ser);font-size:34px;line-height:1;color:var(--grave)}
+.tile.moment .tlab{color:var(--grave)}
+
 .picker{margin:20px -16px 0;padding:13px 0 11px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);
  background:hsl(265 38% 12% / .55)}
 .picker h2{font-size:14px;margin:0 0 9px;padding:0 16px;font-weight:650}
@@ -166,6 +185,10 @@ h2.st{font-family:var(--ser);font-size:clamp(22px,3vw,30px);margin:0;font-weight
 @media(min-width:780px){
  .page{padding:0 24px 90px}
  .bar{padding:20px 0 28px;font-size:13px}
+ .tiles{grid-template-columns:repeat(3,1fr);gap:14px;margin-top:30px}
+ .tile{padding:20px}
+ .tface{width:64px;height:64px;font-size:24px}
+ .mosaic{width:74px}
  .picker{margin:32px 0 0;border:1px solid var(--line);border-radius:18px;padding:18px 0 14px}
  .picker h2{font-size:19px;font-family:var(--ser);padding:0 22px;margin-bottom:13px}
  .years{flex-wrap:wrap;overflow:visible;padding:0 22px 12px;gap:7px}
@@ -536,10 +559,31 @@ h2.st{font-family:var(--ser);font-size:clamp(22px,3vw,30px);margin:0;font-weight
 
 <header>
   <p class="kick">September 7</p>
-  <h1 class="hook">Brazil&#x27;s independence, the night the Blitz began and the first television picture.</h1>
-  <p class="hooksub">Two countries hold an annual observance on this date, for opposite reasons.
-  <b>Brazil celebrates. Australia mourns an extinction.</b></p>
+  <h1 class="hook">The day <em>television</em> first worked.</h1>
+  <p class="hooksub">Philo Farnsworth, a laboratory in San Francisco, <b>1927</b>. It is also the
+  day Brazil stopped being Portuguese, and the day Buddy Holly was born.</p>
 </header>
+
+<section class="tiles">
+  <a class="tile person" href="https://en.wikipedia.org/wiki/Buddy_Holly" rel="nofollow noopener">
+    <span class="tface" style="--h:272">BH</span>
+    <span class="tlab">Born on this day</span>
+    <b class="tbig">Buddy Holly</b>
+    <span class="tsub">1936. Dead at twenty two, and everything after him copied him.</span>
+  </a>
+  <div class="tile music">
+    <div class="mosaic"><a href="https://music.apple.com/us/album/my-sharona/716268020?i=716268684&amp;uo=4" rel="nofollow noopener"><img src="https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/d2/8c/a9/d28ca97f-f577-4bee-fb12-716570d076da/05099922669056.rgb.jpg/300x300bb.jpg" alt="My Sharona" loading="lazy" decoding="async"></a><a href="https://music.apple.com/us/album/sweet-child-o-mine/1377826053?i=1377826892&amp;uo=4" rel="nofollow noopener"><img src="https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/56/47/b7/5647b700-6b9d-9e72-ec9f-51140b6d4492/00602567673781.rgb.jpg/300x300bb.jpg" alt="Sweet Child o&#x27; Mine" loading="lazy" decoding="async"></a><a href="https://music.apple.com/us/album/macarena-original-version/258646894?i=258647542&amp;uo=4" rel="nofollow noopener"><img src="https://is1-ssl.mzstatic.com/image/thumb/Music114/v4/a1/2d/6a/a12d6a7b-6173-ed2e-9682-a30d245ed7fe/mzi.ndplymif.jpg/300x300bb.jpg" alt="Macarena (Bayside Boys Mix)" loading="lazy" decoding="async"></a><a href="https://music.apple.com/us/album/shake-it-off/1440933512?i=1440933651&amp;uo=4" rel="nofollow noopener"><img src="https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/a7/98/d8/a798d867-344d-2bf2-fbfe-d2d1412dcef8/14UMDIM03793.rgb.jpg/300x300bb.jpg" alt="Shake It Off" loading="lazy" decoding="async"></a></div>
+    <span class="tlab">Number one on this date</span>
+    <b class="tbig">67 songs, one a year</b>
+    <span class="tsub">Every year the chart has existed. Pick your year and hear yours.</span>
+  </div>
+  <div class="tile moment g-grave">
+    <span class="tyr">1940</span>
+    <span class="tlab">The heaviest thing on this date</span>
+    <b class="tbig">The night the Blitz began</b>
+    <span class="tsub">London bombed for more than fifty consecutive nights.</span>
+  </div>
+</section>
 
 <section class="picker">
   <h2>Born on September 7? Tap your year.</h2>
