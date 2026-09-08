@@ -43,7 +43,7 @@ export interface Highlight {
  * extra line, and the card is complete without it.
  */
 const NOT_ON_A_BIRTHDAY_CARD =
-  /\b(kill|killed|kills|killing|massacre|shooting|shoots|shot|murder|murdered|bomb|bombing|bombed|attack|attacked|dies|died|death|deaths|dead|crash|crashed|crashes|earthquake|hurricane|tsunami|famine|war|battle|siege|executed|execution|assassinat\w*|rape|raped|slaughter|genocide|terror\w*|hostage|riot|riots|invasion|invades|invaded|disaster|sank|sinking|sunk|explosion|exploded|epidemic|pandemic|plague|suicide|abduct\w*|torture\w*)\b/i;
+  /\b(kill|killed|kills|killing|killings|massacre|massacres|massacred|shooting|shootings|shoots|shot|murder|murders|murdered|bomb|bombs|bombing|bombings|bombed|attack|attacks|attacked|dies|died|death|deaths|dead|crash|crashed|crashes|earthquake|earthquakes|hurricane|hurricanes|tsunami|tsunamis|famine|famines|war|wars|warfare|battle|battles|siege|sieges|executed|execution|executions|assassinat\w*|rape|rapes|raped|slaughter|slaughtered|genocide|terror\w*|hostage|hostages|riot|riots|invasion|invasions|invades|invaded|disaster|disasters|sank|sinking|sunk|explosion|explosions|exploded|epidemic|epidemics|pandemic|plague|plagues|suicide|abduct\w*|torture\w*|weapon|weapons|munition\w*|warhead\w*|casualt\w*|atrocit\w*)\b/i;
 
 /**
  * The same refusal, stricter, for Wikipedia's own lines.

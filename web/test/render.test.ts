@@ -1239,6 +1239,28 @@ test("several ask cards are baked, and every slot lands on exactly one of them",
 // routine space station resupply flight. The shortest sentence on a date is
 // not the most memorable thing that happened on it, and a limit that admits
 // only the shortest admits only the dullest.
+// Every one of these is a real row from the live September 11 page. The screen
+// matched "bomb" and not "bombs", and "attack" and not "attacks", so on the
+// anniversary of the attacks one reload in five dealt "Russia tests the
+// largest conventional weapon ever, the Father of All Bombs" under the words
+// "Do you remember this one?". Singular forms only was a hole straight through
+// a screen whose entire job is to catch this, and the plural of a word for a
+// killing is still a word for a killing.
+test("a plural does not walk a heavy row onto the card", () => {
+  const rows = [
+    { kind: "historical_event" as const, id: "bomb", year: 2007, text: "Russia tests the largest conventional weapon ever, the Father of All Bombs.", sourceUrl: "https://e.com/1", category: null, dateKind: null },
+    { kind: "historical_event" as const, id: "att", year: 2001, text: "Nineteen members of al-Qaeda execute the September 11 attacks, a series of coordinated terrorist attacks.", sourceUrl: "https://e.com/2", category: null, dateKind: null },
+    { kind: "historical_event" as const, id: "fire", year: 2012, text: "A total of 315 people are killed in two garment factory fires in Pakistan.", sourceUrl: "https://e.com/3", category: null, dateKind: null },
+    { kind: "historical_event" as const, id: "ok", year: 1997, text: "NASA's Mars Global Surveyor reaches Mars.", sourceUrl: "https://e.com/4", category: null, dateKind: null },
+  ];
+  const texts = askCandidates(rows).map((r) => r.text);
+  assert.ok(texts.some((t) => t.includes("Mars Global Surveyor")), "the one row that may lead does");
+  assert.equal(texts.length, 1, "and it is the only candidate on the date");
+  for (const word of ["Bombs", "attacks", "killed"]) {
+    assert.ok(!texts.some((t) => t.includes(word)), word + " never leads a birthday page");
+  }
+});
+
 test("the real September 8 rows fill the rotation instead of starving it", () => {
   const rows = [
     { kind: "historical_event" as const, id: "s0", year: 1966, text: "UNESCO proclaimed International Literacy Day to highlight the importance of literacy for people and communities globally.", sourceUrl: "https://en.wikipedia.org/wiki/September_8", category: null, dateKind: null },
