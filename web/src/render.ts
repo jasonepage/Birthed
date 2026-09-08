@@ -7,7 +7,8 @@ import { calendar } from "./calendar.js";
 import { type CulturalEvent, textOf } from "./culture.js";
 import { Fact, hostOf } from "./facts.js";
 import { buildTimeline, byMemory, pickHighlights, theRest, type DayEvent, type MemoryCount, type TimelineRow } from "./timeline.js";
-import { cardHighlight, mayAsk, mayLead, type Highlight } from "./highlight.js";
+import { cardHighlight, mayAsk, mayLead, mayLeadWords, type Highlight } from "./highlight.js";
+import { leadKey } from "./lead.js";
 
 /**
  * How many people a date page needs before it is worth putting in front of a
@@ -176,6 +177,11 @@ const STYLE = `
 }
 .askcap { grid-column: 1 / -1; font-size: 11.5px; color: #827B75; line-height: 1.35; margin: 4px 0 0; }
 .askcap b { color: #A49BAE; font-weight: 600; }
+/* The row's own sentence, under a line somebody wrote for it. Its own block
+   rather than a run of the caption, because it is a different kind of thing
+   from the record sleeve note beside it: that is context, this is the source
+   text the question was written from. */
+.askrec { display: block; margin: 0 0 3px; color: #948C86; }
 .askcap a { color: #827B75; text-decoration: none; }
 .askcap a:hover { color: ${ACCENT}; text-decoration: underline; }
 /* Same three words every row further down uses, bigger here, once, because
@@ -2319,6 +2325,11 @@ const ASK_TO = 2015;
 function askScore(row: TimelineRow): number {
   const year = row.year ?? 0;
   let score = 0;
+  // A person wrote a card for this row, so a person already made the judgement
+  // this function is a poor substitute for. It wins outright, and it wins by
+  // more than any combination of the rest, so a date with five written lines
+  // fills its rotation with them and nothing else.
+  if (row.leadLine !== undefined) score += 5_000;
   if (row.curated === true) score += 400;
   else if (row.sourceUrl !== null) score += 200;
   if (year >= ASK_FROM && year <= ASK_TO) score += 120;
@@ -2343,7 +2354,20 @@ function askScore(row: TimelineRow): number {
  * there is anything left to take, and only then does the list fill up.
  */
 export function askCandidates(rows: TimelineRow[], limit: number = ASK_SLOTS): TimelineRow[] {
-  const passing = rows.filter((row) => row.year !== null && row.year >= 1958 && mayAsk(row.text));
+  // Screened on what the card would actually show. A row whose own sentence is
+  // three lines of encyclopedia becomes a candidate the moment somebody writes
+  // eight words for it, which is the entire point of writing one: the length
+  // limit exists because the card has a size, not because a long row is a bad
+  // row. The word screens still read the row's own sentence as well, because a
+  // gentle line over a killing is exactly the thing they exist to refuse.
+  const passing = rows.filter((row) =>
+    row.year !== null && row.year >= 1958 &&
+    // Length, on what the card would actually show.
+    mayAsk(row.leadLine ?? row.text) &&
+    // Subject, on the row's own sentence as well, always. A written line is
+    // eight words and could be gentle about anything; the record underneath it
+    // is what says what the card is really about.
+    mayLeadWords(row.text));
   const ranked = [...passing].sort((a, b) => {
     const gap = askScore(b) - askScore(a);
     // Year descending on a tie, so the order is stable across builds rather
@@ -2406,7 +2430,19 @@ function askCard(
   const art = song === undefined
     ? ""
     : `<span class="askart"><img src="/covers/${coverName(song.song, song.artist)}.jpg" alt="" width="64" height="64" decoding="async"></span>`;
+  // What the card asks, and what it rests on.
+  //
+  // When somebody has written a line for this row, the card sets that as the
+  // question and prints the row's own sentence under it, next to the link. It
+  // is not decoration and it is not a hedge. The whole argument of this site is
+  // that it says what a person would say and can be checked, and a card that
+  // showed only the written line would be the first place on it where a
+  // sentence appeared with nothing behind it.
+  const record = row.leadLine === undefined
+    ? ""
+    : `<span class="askrec">${escapeHtml(row.text)}</span>`;
   const caption = [
+    record,
     song === undefined ? "" : `Number one that week: <b>${escapeHtml(song.song)}</b>, ${escapeHtml(song.artist)}.`,
     row.sourceUrl ? `Source: <a href="${escapeHtml(row.sourceUrl)}" rel="nofollow noopener">${escapeHtml(hostOf(row.sourceUrl))}</a>` : "",
   ].filter((part) => part !== "").join(" &nbsp;");
@@ -2418,7 +2454,7 @@ function askCard(
 <div class="askhead"><span class="asklab">Do you remember this one?</span><span class="askyr">${row.year}</span></div>
 <div class="askbody${art === "" ? " noart" : ""}">
 ${art}
-<p class="asksaid">${escapeHtml(row.text)}</p>
+<p class="asksaid">${escapeHtml(row.leadLine ?? row.text)}</p>
 ${caption === "" ? "" : `<p class="askcap">${caption}</p>`}
 </div>
 ${rememberForm(row.kind, row.id, month, day)}
@@ -2559,6 +2595,14 @@ export function renderDayPage(
    * ordinary page view calls nothing.
    */
   memory: Map<string, MemoryCount> | null = null,
+  /**
+   * Every lead line on the site, by "kind:id". Passed whole rather than per
+   * date because the build reads the table once, the same as the facts and the
+   * events, and a map lookup is cheaper than 366 filters.
+   *
+   * Empty is the normal state and every page is exactly the page it was.
+   */
+  leadLines: Map<string, string> = new Map(),
 ): string {
   const name = `${monthName(page.month)} ${page.day}`;
   const canonical = `${SITE}/${slug(page.month, page.day)}/`;
@@ -2606,7 +2650,11 @@ export function renderDayPage(
   // Culture is no longer merged into the history feed. It was being sorted by
   // year in among Wikipedia's crusades and treaties, which is how a page about
   // a birthday ended up opening on 878. It gets its own section, above.
-  const chronological = buildTimeline(facts, events, monthName(page.month), page.day);
+  const chronological = buildTimeline(facts, events, monthName(page.month), page.day)
+    .map((row) => {
+      const written = leadLines.get(leadKey(row.kind, row.id));
+      return written === undefined ? row : { ...row, leadLine: written };
+    });
   // The one place on this site where what readers did changes what a page
   // looks like, and deliberately the last place: only after a date can never
   // take another answer.

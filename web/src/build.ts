@@ -18,6 +18,7 @@ import { buildSeed, factsByDay, factsForDate, fetchFacts, pickHighlights } from 
 import { isReady, renderDayPage, renderNotFound, renderRobots, renderSitemap } from "./render.js";
 import { eventsByDay, eventsForDate, fetchEvents, fetchSealedMemory } from "./timeline.js";
 import { culturalByDate, culturalForDate, fetchCulturalEvents } from "./culture.js";
+import { fetchLeadLines } from "./lead.js";
 import { renderAdd, renderHome, renderPrivacy, renderSupport } from "./pages.js";
 import { renderAdmin } from "./admin.js";
 
@@ -151,6 +152,16 @@ async function main(): Promise<void> {
   // take another answer, so its order can never change again. A fixed thing
   // belongs in the file, and it keeps the promise the server makes: an
   // ordinary page view calls nothing.
+  // The card wording somebody has written. A few hundred rows at most, read
+  // whole for the same reason the rest are, and an empty table is the normal
+  // state on the day this ships.
+  const leadLines = await fetchLeadLines(url, key);
+  console.log(
+    leadLines.size === 0
+      ? "no lead lines written yet, so every card prints the row's own sentence"
+      : `${leadLines.size} lead lines written, and those rows lead their dates`,
+  );
+
   const memory = await fetchSealedMemory(url, key);
   console.log(
     memory.size === 0
@@ -171,7 +182,7 @@ async function main(): Promise<void> {
     await writeFile(
       join(directory, "index.html"),
       renderDayPage(page, songs, found, happened, curated,
-                    memory.get(`${date.month}-${date.day}`) ?? null),
+                    memory.get(`${date.month}-${date.day}`) ?? null, leadLines),
       "utf8",
     );
     written++;

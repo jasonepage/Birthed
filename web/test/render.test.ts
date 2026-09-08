@@ -1275,6 +1275,53 @@ test("the real September 8 rows fill the rotation instead of starving it", () =>
   assert.equal(new Set(decades).size, decades.length, "one per decade");
 });
 
+// The judgement the scorer cannot make, kept where a person can put it. The
+// row keeps its own sentence and its own source; this is the card's wording.
+test("a written lead line leads its date, and the record stays under it", () => {
+  const events = [
+    { id: "trek", month: 9, day: 4, year: 1966, sourceUrl: "https://en.wikipedia.org/wiki/September_8",
+      description: "The science fiction television series Star Trek made its broadcast television debut in the United States on NBC with the episode The Man Trap." },
+    { id: "dull", month: 9, day: 4, year: 2000, sourceUrl: "https://en.wikipedia.org/wiki/September_8",
+      description: "NASA launches Space Shuttle Atlantis on STS-106 to resupply the International Space Station." },
+  ];
+  const lines = new Map([["historical_event:trek", "Star Trek went out for the first time."]]);
+  const html = renderDayPage(page, [], [], events, [], null, lines);
+
+  // Without a line, Star Trek is 139 characters and out of the window, and the
+  // resupply flight leads. With one, it leads, and by more than any
+  // combination of the rest could overturn.
+  const first = html.indexOf('<section class="ask ');
+  const card = html.slice(first, html.indexOf("</section>", first));
+  assert.ok(card.includes('<p class="asksaid">Star Trek went out for the first time.</p>'),
+    "the card asks the question in the words a person wrote");
+  assert.ok(card.includes("made its broadcast television debut"),
+    "and prints the row's own sentence underneath, so nothing on the card is unbacked");
+  // No per row link here, because a Wikipedia event carries none by design and
+  // is credited once at the foot. That is exactly why printing its sentence on
+  // the card matters: it is the only thing on the card a reader can check the
+  // written line against.
+  assert.ok(card.includes('id="r-historical_event-trek"'), "and it is still that row being answered");
+
+  // The feed is untouched. A lead line is the card's wording, not a rewrite.
+  assert.equal(html.includes("Star Trek went out for the first time."),
+    true);
+  assert.equal(html.split("Star Trek went out for the first time.").length, 2,
+    "the written line is on the page once, on the card");
+});
+
+// A written line is eight words and could be gentle about anything. What the
+// card is really about is the row underneath it, so the word screens read that
+// and not the line.
+test("a lead line cannot walk a heavy row onto the card", () => {
+  const events = [
+    { id: "grim", month: 9, day: 4, year: 1999, sourceUrl: "https://en.wikipedia.org/wiki/September_8",
+      description: "A bombing at a school killed forty people." },
+  ];
+  const lines = new Map([["historical_event:grim", "A day people still talk about."]]);
+  const html = renderDayPage(page, [], [], events, [], null, lines);
+  assert.equal(html.includes('<section class="ask '), false, "no card, however the line is worded");
+});
+
 test("the candidates are spread across decades before the list is filled up", () => {
   const rows = [
     { kind: "historical_event" as const, id: "1", year: 1996, text: "One.", sourceUrl: "https://e.com/1", category: null, dateKind: null },

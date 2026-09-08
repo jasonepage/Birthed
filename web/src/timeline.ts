@@ -42,6 +42,14 @@ export interface TimelineRow {
   /** Null for a Wikipedia event, which is credited once at the foot instead. */
   sourceUrl: string | null;
   /**
+   * A short sentence a person wrote for the ask card, or undefined.
+   *
+   * Never replaces `text`. The feed prints the row's own sentence and the card
+   * prints both, the person's line as the question and the record under it.
+   * See src/lead.ts.
+   */
+  leadLine?: string;
+  /**
    * Whether a person wrote this row and checked it, rather than a model
    * finding it or Wikipedia holding it. Carried on the row because the credit
    * at the foot of the section names who found what, and a curated row that

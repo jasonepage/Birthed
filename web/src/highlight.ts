@@ -100,6 +100,18 @@ export function mayLead(text: string): boolean {
 }
 
 /**
+ * Whether a sentence is one a birthday page may put a question mark over.
+ *
+ * The two word screens with no length on them, because how heavy a sentence is
+ * has nothing to do with how much room the card has. Split out so a lead line
+ * can be screened by length while the row it is written for is still screened
+ * by subject: a gentle line over a killing is exactly what these refuse.
+ */
+export function mayLeadWords(text: string): boolean {
+  return !NOT_ON_A_BIRTHDAY_CARD.test(text) && !NOT_FROM_AN_ENCYCLOPEDIA.test(text);
+}
+
+/**
  * Whether a sentence may be an ask card.
  *
  * Both word screens, unchanged, because a killing must never be set in the
@@ -107,9 +119,7 @@ export function mayLead(text: string): boolean {
  * the card has. Only the length differs. See LONGEST_ASK.
  */
 export function mayAsk(text: string): boolean {
-  return text.length <= LONGEST_ASK &&
-    !NOT_ON_A_BIRTHDAY_CARD.test(text) &&
-    !NOT_FROM_AN_ENCYCLOPEDIA.test(text);
+  return text.length <= LONGEST_ASK && mayLeadWords(text);
 }
 
 /**
