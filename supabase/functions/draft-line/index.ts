@@ -165,35 +165,62 @@ Make the three genuinely different: one as short as it can be, one with the one 
 The row: ${row.text}${subject}${year}${page}`;
 }
 
-async function draft(key: string, text: string): Promise<string[]> {
+async function draft(key: string, text: string): Promise<{ lines: string[]; raw: string }> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
   const response = await fetch(url, {
     method: "POST",
     headers: { ...JSON_HEADERS, "x-goog-api-key": key.trim() },
     body: JSON.stringify({
       contents: [{ role: "user", parts: [{ text }] }],
-      generationConfig: { temperature: 0.7, maxOutputTokens: 800 },
+      // Not 800. The model thinks before it answers and thinking spends this
+      // budget too, so at 800 it came back with nothing three times in a row
+      // and the panel said "no usable lines". find-culture gives it 24000.
+      generationConfig: { temperature: 0.7, maxOutputTokens: 8000 },
     }),
   });
   if (!response.ok) {
     throw new Error(`Gemini answered ${response.status}: ${(await response.text()).slice(0, 300)}`);
   }
   const body = await response.json();
-  const parts: Array<{ text?: string }> = body?.candidates?.[0]?.content?.parts ?? [];
-  const out = parts.map((part) => part.text ?? "").join("");
+  const parts: Array<{ text?: string; thought?: boolean }> = body?.candidates?.[0]?.content?.parts ?? [];
+  const out = parts.filter((part) => part.thought !== true).map((part) => part.text ?? "").join("");
+  return { lines: pickLines(out), raw: out.slice(0, 300) };
+}
+
+/**
+ * Three lines out of whatever came back. A JSON array of strings is what was
+ * asked for; an array of objects with a string in them, or three lines of
+ * prose with bullets, are what models also send, and a curator waiting on a
+ * draft does not care which.
+ */
+export function pickLines(out: string): string[] {
+  const found: string[] = [];
   const start = out.indexOf("[");
   const end = out.lastIndexOf("]");
-  if (start < 0 || end <= start) return [];
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(out.slice(start, end + 1));
-  } catch {
-    return [];
+  if (start >= 0 && end > start) {
+    try {
+      const parsed = JSON.parse(out.slice(start, end + 1));
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) {
+          if (typeof item === "string") found.push(item);
+          else if (item && typeof item === "object") {
+            const first = Object.values(item as Record<string, unknown>).find((v) => typeof v === "string");
+            if (typeof first === "string") found.push(first);
+          }
+        }
+      }
+    } catch {
+      // fall through to the lines
+    }
   }
-  if (!Array.isArray(parsed)) return [];
+  if (found.length === 0) {
+    for (const line of out.split(/\r?\n/)) {
+      const cleaned = line.replace(/^\s*(?:[-*\u2022]|\d+[.)])\s*/, "").replace(/^["\u201c]|["\u201d],?$/g, "").trim();
+      if (cleaned.length >= 8 && !/^```/.test(cleaned)) found.push(cleaned);
+    }
+  }
   const lines: string[] = [];
-  for (const item of parsed) {
-    if (typeof item !== "string") continue;
+  for (const item of found) {
     // The database refuses a line outside 8 to 190 characters and the site
     // refuses a dash, so neither reaches the curator as a choice.
     const line = item.replace(/[–—]/g, ",").replace(/\s+/g, " ").trim();
@@ -243,8 +270,11 @@ Deno.serve(async (request: Request) => {
 
   const source = await sourceText(row.sourceUrl);
   try {
-    const candidates = await draft(geminiKey, prompt(row, source));
-    if (candidates.length === 0) return json({ status: "failed", error: "no usable lines came back" }, 200, request);
+    const { lines: candidates, raw } = await draft(geminiKey, prompt(row, source));
+    if (candidates.length === 0) {
+      // Say what came back, so the next person to see this is not guessing.
+      return json({ status: "failed", error: "No usable lines came back. It said: " + (raw || "nothing at all") }, 200, request);
+    }
     return json({
       status: "done",
       candidates,
