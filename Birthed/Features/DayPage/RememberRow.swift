@@ -26,12 +26,13 @@ import SwiftUI
 /// and the case itself stays in the type because the website still offers it
 /// and its answers still have to be read.
 ///
-/// **No number is shown while the date is open.** Answering is the whole of
-/// what happens: you press one, it says it kept it, and it tells you nothing
-/// about what anybody else pressed. A count on screen during the window would
-/// tell every reader who has not answered yet what the popular answer is, and
-/// an answer given after reading that is not a memory, it is agreement. The
-/// counts appear when the date has sealed and the answering is over.
+/// **Nothing is shown before you answer. The result is shown the instant you
+/// do.** A count in front of a reader who has not answered tells them what the
+/// popular answer is, and an answer given after reading that is agreement
+/// rather than memory. A reader who has answered cannot be biased any more,
+/// and showing them nothing was the mistake in the first version of this: a
+/// page that takes an answer and says nothing back is a form. The result is
+/// the payoff and it is the only thing here that anybody would screenshot.
 ///
 /// **No points, no streaks, no badges, no reputation and no leaderboard.** An
 /// answer earns nothing at all. The only pressure on it is that the date
@@ -81,7 +82,12 @@ struct RememberRow: View {
             note(RememberCopy.sealed)
         } else if isOpen {
             asking
-        } else if let counts = remember.tally(for: subject), let summary = counts.summary() {
+        } else if let counts = remember.tally(for: subject, month: month, day: day),
+                  let summary = counts.summary() {
+            // A sealed date the reader did not answer gets the one line
+            // version. The full result on a hundred and fifty rows they took
+            // no part in is the wallpaper problem again, and the breakdown is
+            // meant to be what answering buys.
             note(summary)
         }
     }
@@ -208,7 +214,7 @@ struct RememberRow: View {
     /// in the whole feature. r/place had no points either. It had a cooldown
     /// and a canvas that locked.
     private func given(_ depth: RememberDepth) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 Image(systemName: "checkmark")
                     .font(.system(size: 10, weight: .bold))
@@ -217,15 +223,75 @@ struct RememberRow: View {
             }
             .foregroundStyle(palette.type.opacity(0.6))
 
-            if let counts = remember.tally(for: subject), let summary = counts.summary() {
-                Text(summary)
-                    .font(.system(size: 12))
-                    .foregroundStyle(palette.type.opacity(0.45))
+            if let counts = remember.tally(for: subject, month: month, day: day) {
+                result(counts, mine: depth)
             }
         }
         .padding(.top, 10)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(depth.spokenAfter)
+        .accessibilityLabel(accessibleResult(depth))
+    }
+
+    /// The result: one thin bar per answer, the reader's own set solid.
+    ///
+    /// A bar rather than the sentence that was here before, because the
+    /// sentence said which answer won and this says how the room split, and
+    /// how the room split is the whole point. "Forty of forty three had never
+    /// heard of it, and you are one of them" is a fact about a date that
+    /// exists nowhere else, and a reader can see it in the shape without
+    /// reading a number.
+    ///
+    /// Still no colour. Every date has at least one row where a coloured chart
+    /// under a killing would be grotesque, so the reader's own answer is
+    /// marked by weight rather than by hue.
+    private func result(_ counts: RemembranceCounts, mine: RememberDepth) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            ForEach(counts.breakdown, id: \.depth) { slice in
+                HStack(spacing: 8) {
+                    Text(slice.depth.label)
+                        .font(.system(size: 11, weight: slice.depth == mine ? .bold : .regular))
+                        .foregroundStyle(palette.type.opacity(slice.depth == mine ? 0.7 : 0.42))
+                        .frame(width: 104, alignment: .leading)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+
+                    GeometryReader { space in
+                        ZStack(alignment: .leading) {
+                            Capsule()
+                                .fill(palette.type.opacity(0.07))
+                            Capsule()
+                                .fill(palette.type.opacity(slice.depth == mine ? 0.45 : 0.2))
+                                // A row with answers in it never draws as
+                                // nothing, because a bar of zero width and a
+                                // bar that failed to draw look identical.
+                                .frame(width: max(slice.count > 0 ? 3 : 0,
+                                                  space.size.width * slice.share))
+                        }
+                    }
+                    .frame(height: 5)
+
+                    Text(slice.count.formatted())
+                        .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(palette.type.opacity(slice.depth == mine ? 0.7 : 0.42))
+                        .frame(width: 26, alignment: .trailing)
+                }
+            }
+
+            Text(RememberCopy.answers(counts.total))
+                .font(.system(size: 11))
+                .foregroundStyle(palette.type.opacity(0.33))
+        }
+    }
+
+    /// The result as one sentence, for somebody who is not looking at it.
+    private func accessibleResult(_ depth: RememberDepth) -> String {
+        guard let counts = remember.tally(for: subject, month: month, day: day) else {
+            return depth.spokenAfter
+        }
+        let split = counts.breakdown
+            .map { "\($0.depth.label), \($0.count)" }
+            .joined(separator: ". ")
+        return "\(depth.spokenAfter) \(split). \(RememberCopy.answers(counts.total))."
     }
 
     private func note(_ text: String) -> some View {
