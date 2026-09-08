@@ -11,6 +11,15 @@ export interface Person {
    * between ten people who were ranked and ten who were not.
    */
   monthlyViews: number;
+  /**
+   * Whether a photograph of this person has been downloaded to /faces.
+   *
+   * A boolean rather than a URL, because the renderer works the path out from
+   * the identifier and a URL carried through three files is a URL that goes
+   * stale in one of them. Undefined on a page built before the column existed,
+   * which renders the monogram, which is the old behaviour.
+   */
+  hasImage?: boolean;
 }
 
 export interface DayPage {

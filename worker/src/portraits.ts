@@ -123,14 +123,117 @@ async function peopleOn(month: number, day: number, url: string, key: string): P
   return (await response.json()) as PersonRow[];
 }
 
+
+// ---------------------------------------------------------------------------
+// Every date, written back.
+//
+//   npm run portraits -- --all --write
+//
+// 25,741 people at two hundred identifiers a query is about a hundred and
+// thirty queries, with a courtesy pause, which is a couple of minutes against
+// a volunteer funded service. Free, no key, nothing metered.
+//
+// Written in batches through set_person_images rather than one request per
+// person, because 25,741 requests is twenty minutes and a run that stops
+// halfway leaves nobody able to say which half landed.
+
+const QIDS_PER_QUERY = 200;
+const WRITE_BATCH = 500;
+const PAUSE_MS = 900;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function everyPerson(url: string, key: string): Promise<PersonRow[]> {
+  const rows: PersonRow[] = [];
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const query = new URLSearchParams({
+      select: "wikidata_qid,name",
+      order: "id.asc",
+      limit: String(pageSize),
+      offset: String(offset),
+    });
+    const response = await fetch(`${url}/rest/v1/notable_people?${query}`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: "application/json" },
+    });
+    // Paged for the reason every other reader here is paged: PostgREST answers
+    // at most a thousand rows and says nothing at all about the ones it left
+    // out, so a single request would quietly return the first slice and every
+    // person after it would silently have no face.
+    if (!response.ok) throw new Error(`people failed with ${response.status}`);
+    const page = (await response.json()) as PersonRow[];
+    rows.push(...page);
+    if (page.length < pageSize) break;
+  }
+  return rows;
+}
+
+async function writeImages(
+  url: string,
+  key: string,
+  rows: Array<{ qid: string; file: string | null }>,
+): Promise<number> {
+  let changed = 0;
+  for (let start = 0; start < rows.length; start += WRITE_BATCH) {
+    const batch = rows.slice(start, start + WRITE_BATCH);
+    const response = await fetch(`${url}/rest/v1/rpc/set_person_images`, {
+      method: "POST",
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ rows: batch }),
+    });
+    if (!response.ok) {
+      throw new Error(`write failed with ${response.status}: ${(await response.text()).slice(0, 200)}`);
+    }
+    changed += Number(await response.json()) || 0;
+  }
+  return changed;
+}
+
+async function everyone(url: string, key: string, userAgent: string, write: boolean): Promise<void> {
+  const people = await everyPerson(url, key);
+  console.log(`${people.length} people to look up`);
+
+  const found: Array<{ qid: string; file: string | null }> = [];
+  for (let start = 0; start < people.length; start += QIDS_PER_QUERY) {
+    const batch = people.slice(start, start + QIDS_PER_QUERY);
+    const files = await fetchPortraits(batch.map((p) => p.wikidata_qid), userAgent);
+    for (const person of batch) {
+      found.push({ qid: person.wikidata_qid, file: files.get(person.wikidata_qid) ?? null });
+    }
+    const done = Math.min(start + QIDS_PER_QUERY, people.length);
+    if (done % 2000 < QIDS_PER_QUERY) {
+      console.log(`  ${done} of ${people.length}, ${found.filter((f) => f.file).length} with a picture`);
+    }
+    await sleep(PAUSE_MS);
+  }
+
+  const have = found.filter((f) => f.file !== null).length;
+  console.log(`\n${have} of ${people.length} have a picture on Wikidata (${Math.round((have / people.length) * 100)} percent)`);
+
+  if (!write) {
+    console.log("Nothing written. Add --write to store them.");
+    return;
+  }
+  const changed = await writeImages(url, key, found);
+  console.log(`${changed} rows updated`);
+}
+
 async function main(): Promise<void> {
   await loadDotEnv();
   const args = process.argv.slice(2);
+  const all = args.includes("--all");
+  const write = args.includes("--write");
   const nums = args.filter((a) => /^\d+$/.test(a)).map(Number);
   const month = nums[0];
   const day = nums[1];
-  if (month === undefined || day === undefined) {
+  if (!all && (month === undefined || day === undefined)) {
     console.error("usage: npm run portraits -- <month> <day> [--out path.json]");
+    console.error("       npm run portraits -- --all --write");
     process.exit(1);
   }
   const outAt = args.indexOf("--out");
@@ -140,7 +243,12 @@ async function main(): Promise<void> {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || process.env.SUPABASE_ANON_KEY?.trim();
   if (!key) throw new Error("Set SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY in worker/.env");
 
-  const people = await peopleOn(month, day, config.supabaseUrl, key);
+  if (all) {
+    await everyone(config.supabaseUrl, key, config.userAgent, write);
+    return;
+  }
+
+  const people = await peopleOn(month!, day!, config.supabaseUrl, key);
   const files = await fetchPortraits(people.map((p) => p.wikidata_qid), config.userAgent);
 
   const portraits: Portrait[] = people.map((p) => {

@@ -104,67 +104,73 @@ const STYLE = `
 }
 .dice:hover { color: #FFF7EE; border-color: var(--day-soft, #C6B0F5); }
 .dice .ic { display: block; }
+/* A photograph is not square. A head sits in the top third of almost every one
+   of these, so a square crop takes foreheads off. */
+img.face {
+  width: 100%; aspect-ratio: 4 / 5; object-fit: cover; object-position: 50% 16%;
+  border-radius: 10px; margin-bottom: 11px; display: block; background: #1A1526;
+}
 @media (max-width: 520px) { .dice span { display: none; } .dice { padding: 6px 8px; } }
 
-/* The opening band. Three tiles that are deliberately not the same object: a
-   face, a grid of album art, and a slab of type. The first screen used to be
-   three counts and three identical event cards, which read as an archive in
-   about two seconds. */
-.tiles {
-  display: grid; grid-template-columns: 1fr; gap: 11px; margin: 22px 0 0;
-}
+/* The opening band.
+   Three tiles, each a picture with its caption UNDERNEATH it on solid ground.
+   The first version laid the words over the image with a gradient veil, which
+   is fine over a portrait and unreadable over album art, because a cover is
+   designed to be the loudest thing in any frame. Nothing here is set over an
+   image any more. The variety comes from what is in the picture, a face, a
+   record sleeve, a number, not from three different ways of hiding text. */
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 26px 0 0; }
 .tile {
-  position: relative; display: block; text-decoration: none; height: 190px;
-  overflow: hidden; border-radius: 16px; background: #141020;
+  display: flex; flex-direction: column; text-decoration: none;
+  background: #141020; border: 1px solid #221C30; border-radius: 14px; overflow: hidden;
 }
-.tbg {
-  position: absolute; inset: 0; width: 100%; height: 100%;
-  object-fit: cover; object-position: 50% 20%; display: block;
-}
+a.tile:hover { border-color: var(--day-soft, #C6B0F5); }
+.tpic { display: block; position: relative; aspect-ratio: 1 / 1; overflow: hidden; }
+.tpic img, .tpic .tbg { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tpic .tbg { object-position: 50% 18%; }
+/* The monogram is a placeholder and should read as one. It was set at ninety
+   points in the most valuable slot on the page, which made the least
+   interesting thing on it the loudest. */
 .tbg.noface {
   display: grid; place-items: center;
-  font-family: Georgia, "Times New Roman", serif; font-size: 68px; font-weight: 800;
-  color: rgba(255, 247, 238, .92);
-  background: linear-gradient(150deg, var(--day, #8A6BE0), #201A2E);
+  font-family: Georgia, "Times New Roman", serif; font-size: 34px; font-weight: 700;
+  letter-spacing: .04em; color: rgba(255, 247, 238, .5);
+  background: linear-gradient(160deg, #241E36, #16121F);
 }
-.tveil {
-  position: absolute; inset: 0;
-  background: linear-gradient(transparent 26%, rgba(6, 4, 12, .58) 58%, rgba(6, 4, 12, .95));
+.t-person { border-bottom: 2px solid #EF5680; }
+.t-music { border-bottom: 2px solid var(--day, #8A6BE0); }
+.t-moment {
+  border-bottom: 2px solid #9FB6C9; background: #07060C;
+  display: grid; place-items: center;
 }
-.tin { position: absolute; inset: auto 0 0; padding: 14px 15px 15px; }
+.tyr {
+  font-family: Georgia, serif; font-size: 54px; line-height: 1;
+  color: rgba(159, 182, 201, .5); letter-spacing: -.02em;
+}
+.tin { display: block; padding: 12px 13px 14px; }
 .tlab {
-  display: block; font-size: 9.5px; letter-spacing: .18em; text-transform: uppercase;
-  font-weight: 700; margin-bottom: 5px; color: #A49BAE;
+  display: block; font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase;
+  font-weight: 700; margin-bottom: 6px; color: #7A7385;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .tbig {
-  font-family: Georgia, "Times New Roman", serif; font-size: 21px; line-height: 1.14;
-  display: block; color: #FFF7EE;
+  display: block; font-family: Georgia, "Times New Roman", serif;
+  font-size: 17px; line-height: 1.22; color: #FFF7EE;
 }
-.tsub { display: block; color: #A49BAE; font-size: 13px; margin-top: 6px; }
-.t-person { box-shadow: inset 0 0 0 1px rgba(239, 86, 128, .45); }
-.t-person .tlab { color: #EF5680; }
-.t-music { box-shadow: inset 0 0 0 1px rgba(160, 110, 240, .38); }
-.t-music .tlab { color: var(--day-soft, #C6B0F5); }
-.mosaic { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
-.mosaic img { width: 100%; height: 100%; object-fit: cover; display: block; }
-/* Not a card. Square, cold, outside the system on purpose, so the heaviest
-   thing on a date does not look like a channel launching. */
-.t-moment {
-  background: #06050A; border-radius: 2px; box-shadow: none;
-  border-top: 1px solid #9FB6C9; border-bottom: 1px solid rgba(159, 182, 201, .22);
-}
-.t-moment .tlab { color: #9FB6C9; letter-spacing: .24em; }
-.t-moment .tbig { font-weight: 400; }
-.tyr {
-  position: absolute; top: 6px; right: 14px;
-  font-family: Georgia, serif; font-size: 72px; line-height: 1;
-  color: rgba(159, 182, 201, .32); letter-spacing: -.03em;
+.tsub { display: block; color: #A49BAE; font-size: 13px; margin-top: 5px; }
+@media (max-width: 700px) {
+  .tiles { grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+  /* The third tile is text and takes the full width underneath, rather than
+     being squeezed into a third of a phone. */
+  .tile:nth-child(3) { grid-column: 1 / -1; }
+  .tile:nth-child(3) .tpic { aspect-ratio: 5 / 2; }
+  .tyr { font-size: 46px; }
 }
 
 /* What came out, above what happened. */
 .culture { list-style: none; margin: 0; padding: 0; }
 .cul {
-  display: flex; gap: 16px; padding: 15px 0 15px 14px;
+  display: flex; gap: 14px; align-items: baseline; padding: 11px 0 11px 14px;
   border-bottom: 1px solid #221C30; border-left: 2px solid var(--day, #8A6BE0);
 }
 .cul .cyr {
@@ -172,9 +178,15 @@ const STYLE = `
   width: 58px; flex: none; font-variant-numeric: tabular-nums; line-height: 1.3;
 }
 .cul .ctx {
-  margin: 0 0 8px; font-family: Georgia, "Times New Roman", serif;
-  font-size: 17px; line-height: 1.45; color: #FFF7EE;
+  margin: 0; font-family: Georgia, "Times New Roman", serif;
+  font-size: 17px; line-height: 1.4; color: #FFF7EE;
 }
+/* The tag and the source belong on one quiet line under the sentence, not
+   stacked as two more paragraphs with a link underlined like a footnote. */
+.cul .meta { display: flex; gap: 10px; align-items: center; margin-top: 5px; }
+.cul .meta .src { margin: 0; }
+.cul .meta .src a { color: #7A7385; text-decoration: none; font-size: 11px; }
+.cul .meta .src a:hover { color: #A49BAE; }
 @media (min-width: 760px) {
   .tiles { grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 30px; }
   .tile { height: 268px; }
@@ -1646,7 +1658,7 @@ function peopleRail(page: DayPage, name: string): string {
   if (page.people.length === 0) return `<p class="lede">Nobody imported for this date yet.</p>`;
 
   const cards = page.people.map((person) => `<a class="who" href="https://www.wikidata.org/wiki/${escapeHtml(person.qid)}" rel="nofollow noopener">
-<span class="face">${escapeHtml(initialsOf(person.name))}</span>
+${faceOrInitials(person, "face")}
 <p class="n">${escapeHtml(person.name)}</p>
 ${person.description && tidyDescription(person.description) ? `<p class="w">${escapeHtml(tidyDescription(person.description))}</p>` : ""}
 <p class="b">${escapeHtml(birthYearLabel(person)) || "&nbsp;"}</p>
@@ -1680,6 +1692,30 @@ ${cards}
  * events match that filter and every date has at least one. Without it, 134 of
  * the 366 pages would open on somebody's worst day.
  */
+/**
+ * Where a person's photograph lives on birthed.app.
+ *
+ * Named from the Wikidata identifier rather than from the person's name,
+ * because a name is not unique, changes spelling between sources, and contains
+ * characters a filesystem argues about. The identifier is stable forever.
+ *
+ * Copied onto this domain rather than pointed at Commons, for exactly the
+ * reason download-covers.ts gives about Apple: the site sends `img-src 'self'`
+ * and the privacy page names Supabase and Render as the only companies that
+ * see anything about a reader. Hotlinking would mean widening that header and
+ * announcing every visitor to the Wikimedia Foundation in exchange for a
+ * thumbnail.
+ */
+export function faceName(qid: string): string {
+  return qid.replace(/[^A-Za-z0-9]/g, "");
+}
+
+function faceOrInitials(person: Person, className: string): string {
+  return person.hasImage === true
+    ? `<img class="${className}" src="/faces/${faceName(person.qid)}.jpg" alt="" loading="lazy" decoding="async">`
+    : `<span class="${className} noface">${escapeHtml(initialsOf(person.name))}</span>`;
+}
+
 function openingBand(
   page: DayPage,
   songs: SongOfTheYear[],
@@ -1688,34 +1724,35 @@ function openingBand(
 ): string {
   const person = page.people[0];
   const withArt = songs.filter((song) => song.hasArtwork === true);
-  // Spread across the run rather than taken off the top, so the four covers are
-  // four decades and not four years of the same chart era.
-  const four = withArt.length <= 4
-    ? withArt
-    : [0, 1, 2, 3].map((i) => withArt[Math.round((i * (withArt.length - 1)) / 3)]!);
+  // One cover, not four.
+  //
+  // Four of them tiled behind a caption was the wrong idea twice over. Album
+  // covers are designed to be the loudest thing in any frame, so four
+  // unrelated ones fight each other, and putting words on top of that made the
+  // words unreadable whatever the veil did. One cover, at a size somebody
+  // chose the artwork for, with the caption underneath on a solid background.
+  const cover = withArt[0];
 
-  const faceTile = person === undefined ? "" : `<a class="tile t-person" href="https://www.wikidata.org/wiki/${escapeHtml(person.qid)}" rel="nofollow noopener">
-<span class="tbg noface">${escapeHtml(initialsOf(person.name))}</span>
-<span class="tveil"></span>
+  const faceTile = person === undefined ? "" : `<a class="tile" href="https://www.wikidata.org/wiki/${escapeHtml(person.qid)}" rel="nofollow noopener">
+<span class="tpic t-person">${faceOrInitials(person, "tbg")}</span>
 <span class="tin"><span class="tlab">Born on this day</span><b class="tbig">${escapeHtml(person.name)}</b><span class="tsub">${escapeHtml(birthYearLabel(person))}</span></span>
 </a>`;
 
-  const artTile = four.length === 0 ? "" : `<div class="tile t-music">
-<span class="tbg mosaic">${four.map((song) => `<img src="/covers/${coverName(song.song, song.artist)}.jpg" alt="" loading="lazy" decoding="async">`).join("")}</span>
-<span class="tveil"></span>
-<span class="tin"><span class="tlab">Number one on this date</span><b class="tbig">${songs.length} songs, one a year</b><span class="tsub">Every year the chart has existed.</span></span>
+  const artTile = cover === undefined ? "" : `<div class="tile">
+<span class="tpic t-music"><img src="/covers/${coverName(cover.song, cover.artist)}.jpg" alt="" loading="lazy" decoding="async"></span>
+<span class="tin"><span class="tlab">Number one, ${cover.year}</span><b class="tbig">${escapeHtml(cover.song)}</b><span class="tsub">${escapeHtml(cover.artist)}</span></span>
 </div>`;
 
-  // Culture wins the third tile when there is any, because a game somebody
-  // played beats a treaty somebody signed for the reader this page is for.
   const newest = [...culture].sort((a, b) => b.year - a.year)[0];
-  const momentTile = newest !== undefined
-    ? `<div class="tile t-moment"><span class="tyr">${newest.year}</span>
-<span class="tin"><span class="tlab">Out on this date</span><b class="tbig">${escapeHtml(newest.title)}</b></span></div>`
+  const moment = newest !== undefined
+    ? { year: newest.year, text: newest.title, label: "Out on this date" }
     : highlight !== null
-      ? `<div class="tile t-moment"><span class="tyr">${highlight.year}</span>
-<span class="tin"><span class="tlab">On this date</span><b class="tbig">${escapeHtml(highlight.text)}</b></span></div>`
-      : "";
+      ? { year: highlight.year, text: highlight.text, label: "On this date" }
+      : null;
+  const momentTile = moment === null ? "" : `<div class="tile">
+<span class="tpic t-moment"><span class="tyr">${moment.year}</span></span>
+<span class="tin"><span class="tlab">${moment.label}</span><b class="tbig">${escapeHtml(moment.text)}</b></span>
+</div>`;
 
   const tiles = [faceTile, artTile, momentTile].filter((t) => t !== "");
   if (tiles.length === 0) return "";
@@ -1742,9 +1779,8 @@ function cultureSection(culture: CulturalEvent[], name: string): string {
       return `<li class="cul ${kind.klass}">
 <span class="cyr">${event.year}</span>
 <div><p class="ctx">${escapeHtml(textOf(event))}</p>
-<span class="tag ${kind.klass}">${kind.label}</span>
-${when ? `<p class="datenote">${when}</p>` : ""}
-<p class="src"><a href="${escapeHtml(event.sourceUrl)}" rel="nofollow noopener">${escapeHtml(hostOf(event.sourceUrl))}</a></p></div>
+<span class="meta"><span class="tag ${kind.klass}">${kind.label}</span><span class="src"><a href="${escapeHtml(event.sourceUrl)}" rel="nofollow noopener">${escapeHtml(hostOf(event.sourceUrl))}</a></span></span>
+${when ? `<p class="datenote">${when}</p>` : ""}</div>
 </li>`;
     })
     .join("\n");
@@ -1761,7 +1797,7 @@ ${when ? `<p class="datenote">${when}</p>` : ""}
   const imported = culture.length - written;
   const credit = [
     written > 0 ? `<p class="credit">${written === 1 ? "One of these was" : `${written} of these were`} written and checked by hand, against the page ${written === 1 ? "it links" : "each one links"}.</p>` : "",
-    imported > 0 ? `<p class="credit">The other ${imported} came out of Wikidata, which records a release date for each of them. Nothing here was written by a model.</p>` : "",
+    imported > 0 ? `<p class="credit">${written > 0 ? `The other ${imported}` : imported === 1 ? "This one" : `All ${imported}`} came out of Wikidata, which records an exact release date for ${imported === 1 ? "it" : "each of them"}. Nothing here was written by a model.</p>` : "",
   ].filter((line) => line !== "").join("\n");
 
   return `<div class="hrow"><h2 class="section">What came out</h2></div>
