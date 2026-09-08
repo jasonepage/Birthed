@@ -1275,6 +1275,37 @@ test("a culture row with nothing written about it is not on the page", () => {
 // September 8 that meant a space station resupply flight led while New
 // Amsterdam becoming New York sat in a drawer. Wikipedia's editors have picked
 // the top of each day for years and the signal was sitting unused.
+// A count is not a rating, and the difference is the whole argument. A model
+// calling a row an eight out of ten is an opinion wearing a number. "Eleven of
+// the fourteen people who answered this remembered it" is a fact about a room
+// that says nothing about whether the event was good, which is why it is safe
+// beside things a rating would not be.
+test("a sealed row counts its own people, and only once there are enough of them", () => {
+  const events = [
+    { id: "big", month: 9, day: 4, year: 1999, sourceUrl: "https://e.com/1", description: "A thing many people saw." },
+    { id: "quiet", month: 9, day: 4, year: 1998, sourceUrl: "https://e.com/2", description: "A thing hardly anybody answered." },
+  ];
+  const memory = new Map([
+    ["historical_event:big", { there: 2, remembers: 9, heard: 2, never: 1 }],
+    ["historical_event:quiet", { there: 0, remembers: 1, heard: 1, never: 0 }],
+  ]);
+  const html = renderDayPage({ month: 9, day: 4, people: [] }, [], [], events, [], memory);
+
+  assert.ok(html.includes("eleven of the fourteen people who answered this remembered it"),
+    "the counted row says what its own people said, in words");
+  // Two answers is not a finding, and printing it tells a stranger the site is
+  // empty in a way that saying nothing does not.
+  assert.equal(html.includes("one of the two people"), false, "below the floor a row says nothing");
+
+  // Nothing anywhere is a rating or a direction. Checked as shapes rather than
+  // as words, because the card's own copy says "no score" and a bare search for
+  // that string fails on the page promising the opposite of it.
+  for (const shape of [/\b\d+(\.\d+)?\s*(out of|\/)\s*(10|5|100)\b/i, /\bupvote|downvote\b/i, /\brated?\s+\d/i]) {
+    assert.equal(shape.test(html), false, shape + " never appears");
+  }
+  assert.ok(html.includes("no score"), "and the card still promises there is not one");
+});
+
 test("the day's biggest lead the cards, and the rest still read newest first", () => {
   const events = [
     { id: "ny", month: 9, day: 8, year: 1664, sourceUrl: "https://e.com/1", description: "New Amsterdam was renamed New York." },

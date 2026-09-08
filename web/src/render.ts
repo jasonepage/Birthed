@@ -222,6 +222,9 @@ const STYLE = `
    about anybody else is ever in that block: no counts, no totals, no score.
    See myMarks in serve.ts. */
 .mine { display: none; margin: 6px 0 0; font-size: 12.5px; color: #6FA5DE; }
+/* A count of a room, on a sealed date, once there are enough people in it to
+   be worth counting. Not a rating: see rememberedLine. */
+.tally { margin: 8px 0 0; font-size: 12.5px; color: var(--day-soft, #C6B0F5); }
 
 /* Remembering. Three buttons, no script, no downvote.
 
@@ -1909,6 +1912,51 @@ function whenOf(dateKind: string | null | undefined): string | null {
  * them at once. That is the entire idea: nothing is thrown away, one thing is
  * put in front.
  */
+/**
+ * How many people who answered this row remembered it, on a sealed date.
+ *
+ * **This is a count and not a rating.** The difference matters more than any
+ * other line in this file. A model saying a row is an eight out of ten is an
+ * opinion wearing a number, and it is the exact thing that makes a site read
+ * as generated. "Eleven of the fourteen people who answered this remembered
+ * it" is a fact about a room. Nobody can argue with it, it says nothing about
+ * whether the event was good or important, and it is the only measurement this
+ * project exists to produce.
+ *
+ * So it is safe beside the things a rating would not be. The September 11
+ * attacks carry no judgement here, only how many of the people who came said
+ * they remembered, which is true of them rather than of the day.
+ *
+ * It is not a direction. There are three answers, "never heard of it" counts
+ * the same as the others, and nothing here subtracts, so no crowd can push a
+ * row off a page by arriving. That is what `docs/first-impression-brief.md`
+ * forbids, and this is not it.
+ *
+ * **The floor is the whole safety.** A number is powerful at nine hundred
+ * answers and embarrassing at nine, and printing "one of the two people who
+ * answered this" tells a stranger the site is empty in a way no absence would.
+ * Below the floor a sealed row says nothing at all, which is the same bargain
+ * the front page already makes.
+ */
+const ENOUGH_TO_COUNT = 10;
+
+function inWords(n: number): string {
+  const words = [
+    "no", "one", "two", "three", "four", "five", "six", "seven", "eight",
+    "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen",
+    "sixteen", "seventeen", "eighteen", "nineteen", "twenty",
+  ];
+  return words[n] ?? String(n);
+}
+
+function rememberedLine(count: MemoryCount | undefined): string {
+  if (count === undefined) return "";
+  const answered = count.there + count.remembers + count.heard + count.never;
+  if (answered < ENOUGH_TO_COUNT) return "";
+  const remembered = count.there + count.remembers;
+  return `<p class="tally">${inWords(remembered)} of the ${inWords(answered)} people who answered this remembered it</p>`;
+}
+
 function feedSection(
   picked: TimelineRow[],
   rest: TimelineRow[],
@@ -1937,8 +1985,12 @@ function feedSection(
   /// an identifier in two places is the bug this class exists to prevent. Four
   /// missing rows out of a hundred and fifty is a price worth paying for that.
   asked: string[] = [],
+  /// What each row's own people said, on a sealed date. Empty everywhere else.
+  memory: Map<string, MemoryCount> | null = null,
 ): string {
   if (picked.length === 0) return "";
+  const tallyFor = (row: TimelineRow) =>
+    memory === null ? "" : rememberedLine(memory.get(`${row.kind}:${row.id}`));
   const askedSet = new Set(asked);
   const isAsked = (row: TimelineRow) => askedSet.has(`${row.kind}:${row.id}`);
 
@@ -1961,7 +2013,7 @@ ${mark}
 <p class="said">${escapeHtml(row.text)}</p>
 ${whenOf(row.dateKind) ? `<p class="datenote">${whenOf(row.dateKind)}</p>` : ""}
 ${row.sourceUrl ? `<p class="src"><a href="${escapeHtml(row.sourceUrl)}" rel="nofollow noopener">${escapeHtml(hostOf(row.sourceUrl))}</a></p>` : ""}
-${isAsked(row) ? "" : rememberForm(row.kind, row.id, month, day)}
+${tallyFor(row)}${isAsked(row) ? "" : rememberForm(row.kind, row.id, month, day)}
 ${isAsked(row) ? "" : `<p class="mine"></p>`}
 </li>`;
   }).join("\n");
@@ -1972,7 +2024,7 @@ ${isAsked(row) ? "" : `<p class="mine"></p>`}
 <p class="x">${escapeHtml(row.text)}</p>
 ${whenOf(row.dateKind) ? `<p class="datenote">${whenOf(row.dateKind)}</p>` : ""}
 ${row.sourceUrl ? `<p class="src"><a href="${escapeHtml(row.sourceUrl)}" rel="nofollow noopener">${escapeHtml(hostOf(row.sourceUrl))}</a></p>` : ""}
-${isAsked(row) ? "" : rememberForm(row.kind, row.id, month, day)}
+${tallyFor(row)}${isAsked(row) ? "" : rememberForm(row.kind, row.id, month, day)}
 ${isAsked(row) ? "" : `<p class="mine"></p>`}
 </span>
 </li>`).join("\n");
@@ -2803,7 +2855,7 @@ ${AFTER}
 ${askSection(asked, songs, page.month, page.day)}
 ${openingBand(page, songs, culture, highlight)}
 ${cultureSection(culture, name)}
-${memoryNote}${feedSection(picked, rest, timeline.length, name, searched, timeline.length - searched - curatedCount, curatedCount, page.month, page.day, memory !== null, askedKeys)}
+${memoryNote}${feedSection(picked, rest, timeline.length, name, searched, timeline.length - searched - curatedCount, curatedCount, page.month, page.day, memory !== null, askedKeys, memory)}
 ${songSection(songs, name)}
 ${peopleRail(page, name)}
 <nav class="pager cards">
