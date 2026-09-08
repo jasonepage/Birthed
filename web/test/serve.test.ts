@@ -3,7 +3,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
 
-import { openDates, redirectFor, resolvePath, securityFor, start, todaySlug, todayStylesheet } from "../src/serve.js";
+import { openDates, redirectFor, resolvePath, securityFor, start, todaySlug, todayStylesheet, yearMarks } from "../src/serve.js";
 
 const ROOT = resolve("out");
 
@@ -113,6 +113,25 @@ test("today.css names the date it is asked for, and turns over", () => {
 // reader who reloads. Injected rather than left to Math.random, because a test
 // that rolls dice reports a bug once every few hundred runs and gets muted.
 // The author's name is baked hidden into every date page and drawn on one.
+// The site asked "born in?" on every date page and kept asking after it had
+// been told, which is the site not listening. It knows: it set that cookie and
+// it reads it on the way back in.
+test("a known birth year puts the picker away, with a way back to it", () => {
+  const marks = yearMarks("september-8", 1994);
+  assert.match(marks, /\.on-september-8 \.yearask\{display:none\}/, "the question stops being asked");
+  assert.match(marks, /\.on-september-8 \.yearset\{display:block\}/, "and a line says what it is now");
+  assert.match(marks, /content:"the 1990s"/, "the decade, not the year, which is nobody's business on a page");
+
+  // Hidden and not removed, because hiding it is the only route back to it.
+  assert.match(marks, /\.yearask:target\{display:block\}/, "the link brings it out again");
+
+  // Prefixed the way today.css prefixes, since that is what revealed the
+  // picker and an unprefixed rule loses to it on specificity.
+  assert.equal(marks.includes(".yearask{display:none}") && !marks.includes(".on-september-8 .yearask{display:none}"), false);
+
+  assert.equal(yearMarks("september-8", null), "", "and nothing at all for somebody who never said");
+});
+
 test("today.css signs today's date and no other", () => {
   const css = todayStylesheet(new Date("2026-09-08T18:00:00Z"), () => 0.5);
   assert.match(css, /\.on-september-8 \.signed\{display:block\}/);

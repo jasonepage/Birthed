@@ -959,12 +959,18 @@ async function handle(
     // said nothing about this date, marks is "" and the page is served exactly
     // as it was built. That is the same bargain the result path makes: an
     // outage costs a mark, never a site.
-    const token = method === "GET" && file.endsWith(".html")
-      ? tokenFromCookie(request.headers.cookie)
-      : null;
-    const marked = token === null ? null : dateFor(path);
-    if (marked !== null && token !== null) {
-      const marks = await myMarks(marked.month, marked.day, token);
+    // Either cookie is a reason to write something into the page: the token
+    // brings a reader's own answers back, and the birth year puts the picker
+    // away. Gating both on the token was wrong, because somebody can tell the
+    // site their year before they ever answer anything, and then be asked for
+    // it again on every page.
+    const readable = method === "GET" && file.endsWith(".html");
+    const token = readable ? tokenFromCookie(request.headers.cookie) : null;
+    const born = readable ? yearFromCookie(request.headers.cookie) : null;
+    const marked = token === null && born === null ? null : dateFor(path);
+    if (marked !== null) {
+      const marks = (token === null ? "" : await myMarks(marked.month, marked.day, token))
+        + yearMarks(slug(marked.month, marked.day), born);
       if (marks !== "") {
         let html: string | null = null;
         try {
@@ -1021,6 +1027,32 @@ async function handle(
  * ever see, and because a page that fails to get an answer here is exactly the
  * page it was built as.
  */
+/**
+ * The year picker, put away once the year is in a cookie.
+ *
+ * The site asks "born in?" on every date page, and kept asking after it had
+ * been told, which is the site not listening. It knows: it set that cookie on
+ * /year and reads it on the way back in.
+ *
+ * The picker is hidden rather than removed, and the line that replaces it links
+ * to it, so `:target` brings it back out. That is the whole way to change your
+ * mind and it needs no script and no second page.
+ *
+ * Written with the same `.on-<date>` prefix today.css uses, because today.css
+ * is what revealed the picker in the first place and an unprefixed rule loses
+ * to it on specificity. This block is later in the document, so an equal rule
+ * wins.
+ */
+export function yearMarks(slug: string, year: number | null): string {
+  if (year === null) return "";
+  const decade = `${Math.floor(year / 10) * 10}s`;
+  return `.on-${slug} .yearask{display:none}` +
+    `.on-${slug} .yearask:target{display:block}` +
+    `.on-${slug} .yearset{display:block}` +
+    `.on-${slug} .yearask:target ~ .yearset,.on-${slug} .yearset:has(~ .yearask:target){display:none}` +
+    `.on-${slug} .yearsetv::after{content:"the ${decade}"}`;
+}
+
 async function myMarks(month: number, day: number, token: string): Promise<string> {
   const key = process.env.SUPABASE_ANON_KEY;
   if (!key) return "";

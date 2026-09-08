@@ -297,6 +297,19 @@ const STYLE = `
    sibling selector. That is the same mechanism the song year dial already
    runs on. */
 .yearask { display: none; margin: 26px 0 30px; }
+/* Once the year is in a cookie, the question is answered and asking it again
+   on every date page is the site not listening. The server knows: it set that
+   cookie and it reads it on the way back, so it hides the picker and shows this
+   line instead, with the decade written in by the same style block that carries
+   a reader's own marks.
+
+   Not simply hidden, because hiding it is the only way back to it. The link
+   targets the picker and :target brings it out again, which is a way to change
+   your mind that needs no script and no second page. */
+.yearset { display: none; margin: 26px 0 30px; font-size: 13px; color: #827B75; }
+.yearset a { color: #A49BAE; text-decoration: none; border-bottom: 1px solid #3A3348; }
+.yearset a:hover { color: #FFF7EE; }
+.yearsetv { color: #E8DCCB; }
 .yearlede { margin: 0 0 12px; font-size: 14px; color: #C9C2D4; }
 .yearlede b { color: #FFF7EE; font-weight: 700; }
 .yearask form { margin: 0; }
@@ -2235,7 +2248,8 @@ function yearAsk(month: number, day: number): string {
     return `<div class="yg yg${d}">${years.join("")}</div>`;
   }).join("");
 
-  return `<div class="yearask">
+  return `<p class="yearset" id="yearset">Your answers carry <span class="yearsetv"></span>. <a href="#yearask">Change it</a></p>
+<div class="yearask" id="yearask">
 <p class="yearlede">Answers are more useful with a year on them. <b>Born in?</b></p>
 <form method="post" action="/year">
 <input type="hidden" name="m" value="${month}">
