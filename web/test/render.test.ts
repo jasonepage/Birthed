@@ -1630,6 +1630,11 @@ test("no animation on a date page plays when the reader asked for reduced motion
   assert.ok(style.includes(":target .mine { animation: rise"), "the reader's own mark lands after it");
   assert.ok(style.includes(".afterword:target { animation: rise"), "the sentence at the top lands");
   assert.ok(style.includes(".ask .rem button:nth-child(7) { animation-delay: 315ms; }"), "the three buttons arrive one beat apart");
+  // The press state is a transform on :active and the transition that
+  // softens it is switched off for reduced motion, in the reduce block.
+  assert.ok(style.includes(".rem button:active, .yeardecs label:active, .yg button:active { transform: scale(.96); }"));
+  const reduce = style.slice(style.indexOf("@media (prefers-reduced-motion: reduce)"));
+  assert.ok(reduce.includes(".rem button, .yeardecs label, .yg button { transition: none; }"));
   // Nothing breathes in the baked sheet. Only today.css may start that, on an
   // open date.
   assert.equal(style.includes("animation: breathe"), false, "the dot only breathes when today.css says the date is open");

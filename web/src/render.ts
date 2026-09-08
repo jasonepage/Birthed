@@ -1243,6 +1243,8 @@ p.calkey .sw.today { background: none; box-shadow: inset 0 0 0 2px ${TODAY}; }
     transition: none;
   }
   .btn.brand:hover, .btn.ghost:hover, .bornin a:hover, .cal .days a:hover { transform: none; }
+  .rem button, .yeardecs label, .yg button { transition: none; }
+  .rem button:active, .yeardecs label:active, .yg button:active { transform: none; }
 }
 
 /* ---- The date page as a feed ---------------------------------------------
@@ -1533,11 +1535,21 @@ nav.pager.cards .after { text-align: right; }
      starts it, and only on the three open dates, because a grey dot
      breathing on a sealed page would say the page is live when it is not.
      Four seconds. A fast pulse is an alarm. */
+  .rem button, .yeardecs label, .yg button { transition: transform 120ms ease, color 140ms ease, border-color 140ms ease, background 140ms ease; }
+
+  /* 5. The year picker and the line that replaces it. :target brings the
+     picker back and a checked decade reveals its years; both arrive rather
+     than appear. The line that gives way cannot fade, because :target is a
+     cut, so the thing arriving is what carries the transition. */
+  .yearask:target, .yg { animation: rise 460ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards; }
 }
 @keyframes breathe {
   0%, 100% { box-shadow: 0 0 0 4px rgba(111, 165, 222, .18); }
   50% { box-shadow: 0 0 0 7px rgba(111, 165, 222, .08); }
 }
+/* A press, felt. Not in the media query: a transform on :active is a state,
+   not a motion, and the transition that softens it is switched off below. */
+.rem button:active, .yeardecs label:active, .yg button:active { transform: scale(.96); }
 `;
 
 /**
