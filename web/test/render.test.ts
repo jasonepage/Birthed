@@ -954,3 +954,29 @@ test("the form posts the page's own date, not one parsed back out of the heading
   assert.ok(html.includes('name="m" value="9"'));
   assert.ok(html.includes('name="d" value="4"'));
 });
+
+test("a row offers three answers and the presence claim is not one of them", () => {
+  // Asserting the three are PRESENT, not just that the fourth is absent.
+  // Both earlier class name collisions on this site were caught by tests that
+  // asserted an absence, and the one that reached production was caught by
+  // nothing, because nothing checked that the sentences were still there.
+  const html = renderDayPage(page, [], [
+    { id: "t", month: 9, day: 4, fact: "Something sourced happened.", category: "event",
+      sourceUrl: "https://example.org/september-4" },
+  ]);
+
+  assert.ok(html.includes('value="remember">I remember it</button>'));
+  assert.ok(html.includes('value="heard">Heard of it</button>'));
+  assert.ok(html.includes('value="never">Never heard of it</button>'));
+
+  // "I was there" asks about presence and this measures transmission, which is
+  // a different question. Nobody was there for a diplomatic announcement and
+  // nobody was there for a song being number one, so it was answerable on a
+  // small minority of rows and was noise near the top of the scale rather than
+  // a rung of it. The iOS app dropped it first and this matches it.
+  assert.equal(html.includes("I was there"), false);
+  assert.equal(html.includes('value="there"'), false);
+
+  // Still no direction, which is the rule that has never moved.
+  assert.equal(html.includes('value="downvote"'), false);
+});

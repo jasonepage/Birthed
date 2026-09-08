@@ -118,7 +118,7 @@ const STYLE = `
   border: 1px solid rgba(111, 165, 222, .5); border-radius: 999px; padding: 4px 10px;
 }
 
-/* Remembering. Four buttons, no script, no downvote.
+/* Remembering. Three buttons, no script, no downvote.
 
    The class below is called afterword and not "said", which is what I called
    it first. The class "said" has been the event sentence in ul.feed, the line
@@ -136,7 +136,6 @@ const STYLE = `
   border-radius: 999px; padding: 7px 11px;
 }
 .rem button:hover { color: #FFF7EE; border-color: var(--day-soft, #C6B0F5); }
-.rem button[value="there"] { color: var(--day-soft, #C6B0F5); }
 /* Said only after the server has redirected here, revealed by :target, which
    is how this page says anything back without running a script. */
 .afterword {
@@ -1774,17 +1773,29 @@ function faceOrInitials(person: Person, className: string): string {
 }
 
 /**
- * Four buttons under a row, and no script anywhere near them.
+ * Three buttons under a row, and no script anywhere near them.
  *
  * A plain form that posts and redirects back. That is not nostalgia. The whole
  * argument this site makes about itself is that it runs nothing, and a voting
  * widget written in JavaScript would have spent that argument on a feature a
  * 1993 browser could already do.
  *
- * Four answers and no fifth, and none of them is a downvote. There is no way
- * to say a thing did not matter, only how close to you it was. A direction is
- * a weapon, and an up and down score on January 6 or October 7 is a brigading
+ * Three answers and no fourth, and none of them is a downvote. There is no way
+ * to say a thing did not matter, only whether it reached you. A direction is a
+ * weapon, and an up and down score on January 6 or October 7 is a brigading
  * target inside a week on a site whose whole claim is to be a sourced record.
+ *
+ * "I was there" was the fourth and is gone from both clients. It asks about
+ * presence, and this measures transmission, which is a different question:
+ * nobody was there for a diplomatic announcement and nobody was there for a
+ * song being number one. It was answerable on a small minority of rows, which
+ * made it noise near the top of the scale rather than a rung of it. The three
+ * that are left ask the same question of every row on the page.
+ *
+ * `there` stays in DEPTHS and in the check constraint even so, because this
+ * form offered it from the day it shipped and those answers are already in the
+ * table. A value that is no longer offered still has to be readable, or every
+ * row that collected one quietly reports a smaller total than it has.
  *
  * "Never heard of it" is an answer rather than an absence, and it is the most
  * interesting one this can collect: a row that is thoroughly documented and
@@ -1799,7 +1810,6 @@ function faceOrInitials(person: Person, className: string): string {
  */
 function rememberForm(kind: string, id: string, month: number, day: number): string {
   const answers: Array<[string, string]> = [
-    ["there", "I was there"],
     ["remember", "I remember it"],
     ["heard", "Heard of it"],
     ["never", "Never heard of it"],
