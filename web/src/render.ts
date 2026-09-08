@@ -153,6 +153,14 @@ const STYLE = `
   color: #A49BAE; font-variant-numeric: tabular-nums;
 }
 .rtot { display: block; margin: 7px 0 0; font-size: 11.5px; color: ${QUIET}; }
+/* Quiet, because an undo that shouts is one people press by accident, which is
+   the problem it exists to solve arriving from the other direction. */
+.undo { margin: 4px 0 0; }
+.undo button {
+  font: inherit; font-size: 11.5px; cursor: pointer; background: none;
+  color: ${QUIET}; border: 0; padding: 4px 0; text-decoration: underline;
+}
+.undo button:hover { color: #FFF7EE; }
 
 /* Asked once, kept in a cookie, never drawn on a sealed date. Hidden by
    default and revealed by today.css the same way the buttons are. */
@@ -1958,6 +1966,30 @@ export function resultMarkup(counts: Remembered): string {
   return `${bars}<span class="rtot">${said}</span>`;
 }
 
+/**
+ * Taking one answer back, for half a minute.
+ *
+ * Drawn only beside a result, which is only drawn on the request that follows
+ * an answer, so it is never on a page somebody is merely reading. The window
+ * is enforced in the database, in forget(), which also matches on the token so
+ * it can only ever reach an answer this browser gave. A button pressed too
+ * late is refused there and the page says so.
+ *
+ * An undo rather than a way to change your mind. A misclick is noticed at
+ * once; second thoughts about your place in the room take longer than that,
+ * and by then the result is on screen, so a longer window is a window to
+ * switch to whatever the majority said.
+ */
+export function undoForm(kind: string, id: string, month: number, day: number): string {
+  return `<form class="undo" method="post" action="/forget">
+<input type="hidden" name="k" value="${escapeHtml(kind)}">
+<input type="hidden" name="i" value="${escapeHtml(id)}">
+<input type="hidden" name="m" value="${month}">
+<input type="hidden" name="d" value="${day}">
+<button type="submit">Undo</button>
+</form>`;
+}
+
 export interface Remembered {
   there: number;
   remembers: number;
@@ -1975,7 +2007,9 @@ export interface Remembered {
  */
 const AFTER = `<p class="afterword" id="kept">Kept. It counts towards what this date is remembered for, and it will still be here next year.</p>
 <p class="afterword" id="sealed">This date is sealed. A day takes answers on the day itself and the day either side, and then it closes until next year. Come back on the day.</p>
-<p class="afterword" id="failed">That did not save, and it was this end rather than yours. The date is fine and nothing is closed. Try it again.</p>`;
+<p class="afterword" id="failed">That did not save, and it was this end rather than yours. The date is fine and nothing is closed. Try it again.</p>
+<p class="afterword" id="undone">Taken back. Nothing was recorded and you can answer it again.</p>
+<p class="afterword" id="toolate">That one is in. It counts from here. An answer can be taken back for half a minute and then it stands.</p>`;
 
 function openingBand(
   page: DayPage,

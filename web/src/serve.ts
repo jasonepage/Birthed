@@ -25,7 +25,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { extname, join, normalize, resolve, sep } from "node:path";
 
 import { everyDate, slug } from "./model.js";
-import { TODAY, resultId, resultMarkup, type Remembered } from "./render.js";
+import { TODAY, resultId, resultMarkup, undoForm, type Remembered } from "./render.js";
 
 
 const TYPES: Record<string, string> = {
@@ -620,6 +620,42 @@ export function keptFrom(query: string | undefined): { kind: string; id: string 
   return { kind, id };
 }
 
+/**
+ * Ask the database to take one answer back.
+ *
+ * It decides. The window, the token match and the sealed check all live in
+ * forget(), so there is nothing here to get out of step with them.
+ */
+async function unrecord(
+  what: { month: number; day: number; kind: string; id: string },
+  token: string,
+): Promise<boolean> {
+  const key = process.env.SUPABASE_ANON_KEY;
+  if (!key) return false;
+  try {
+    const response = await fetch(`${projectBase()}/rest/v1/rpc/forget`, {
+      method: "POST",
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        month_in: what.month,
+        day_in: what.day,
+        subject_kind_in: what.kind,
+        subject_id_in: what.id,
+        voter_token_in: token,
+      }),
+    });
+    if (!response.ok) return false;
+    return (await response.json()) === true;
+  } catch {
+    return false;
+  }
+}
+
 async function handle(
   root: string,
   request: IncomingMessage,
@@ -631,12 +667,47 @@ async function handle(
   // POST reaches exactly one address and every other verb on every other path
   // is still refused. The allow header names the truth per path rather than
   // advertising POST across a site where it means nothing.
-  const posts = path === "/remember" || path === "/year";
+  const posts = path === "/remember" || path === "/year" || path === "/forget";
   if (method !== "GET" && method !== "HEAD" && !(method === "POST" && posts)) {
     response.writeHead(405, {
       Allow: posts ? "POST" : "GET, HEAD",
       ...SECURITY,
     }).end();
+    return;
+  }
+
+  // Taking one answer back, for half a minute after giving it.
+  //
+  // The window is not checked here. forget() checks it, and it matches on the
+  // token as well as the row, so this cannot reach an answer somebody else
+  // gave however the form is edited. A refusal and a success are two different
+  // sentences and neither of them is the sealed one.
+  if (method === "POST" && path === "/forget") {
+    const address = String(request.headers["x-forwarded-for"] ?? "").split(",")[0]?.trim()
+      || request.socket.remoteAddress || "unknown";
+    const token = tokenFromCookie(request.headers.cookie);
+    const form = new URLSearchParams(await readBody(request));
+    const month = Number(form.get("m"));
+    const day = Number(form.get("d"));
+    const kind = form.get("k") ?? "";
+    const id = (form.get("i") ?? "").trim();
+
+    const sane = Number.isInteger(month) && month >= 1 && month <= 12
+      && Number.isInteger(day) && day >= 1 && day <= 31
+      && KINDS.has(kind) && id !== "" && id.length <= 64;
+    if (!sane || token === null || !underLimit(address)) {
+      response.writeHead(400, { "Content-Type": "text/plain; charset=utf-8", ...SECURITY });
+      response.end("No.\n");
+      return;
+    }
+
+    const gone = await unrecord({ month, day, kind, id }, token);
+    response.writeHead(303, {
+      Location: `/${slug(month, day)}/${gone ? "#undone" : "#toolate"}`,
+      "Cache-Control": "no-store",
+      ...SECURITY,
+    });
+    response.end();
     return;
   }
 
@@ -841,7 +912,8 @@ async function withResult(
     return null;
   }
   if (!html.includes(anchor)) return null;
-  return html.replace(anchor, () => `id="${marked}">${resultMarkup(counts)}</p>`);
+  const inside = resultMarkup(counts) + undoForm(kept.kind, kept.id, date.month, date.day);
+  return html.replace(anchor, () => `id="${marked}">${inside}</p>`);
 }
 
 /**

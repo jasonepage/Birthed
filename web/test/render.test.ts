@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { renderDayPage, renderRobots, renderSitemap, escapeHtml, isReady } from "../src/render.js";
+import { renderDayPage, renderRobots, renderSitemap, escapeHtml, isReady, undoForm } from "../src/render.js";
 import { everyDate, neighbours, slug } from "../src/model.js";
 
 const page = {
@@ -1021,4 +1021,32 @@ test("a failure on our side does not tell the reader the date is sealed", () => 
   assert.ok(html.includes("it was this end rather than yours"));
   assert.ok(html.includes('id="sealed"'), "and the real sealed sentence is still there");
   assert.ok(html.includes('id="kept"'));
+});
+
+test("an undo is offered beside a result and never on a page being read", () => {
+  const bare = renderDayPage(page, [], [
+    { id: "t", month: 9, day: 4, fact: "Something sourced happened.", category: "event",
+      sourceUrl: "https://example.org/september-4" },
+  ]);
+  // A baked page has no undo anywhere in it. The server adds one next to the
+  // result, on the one request that follows an answer.
+  assert.equal(bare.includes('action="/forget"'), false);
+
+  const beside = undoForm("historical_event", "7214", 9, 4);
+  assert.ok(beside.includes('action="/forget"'));
+  assert.ok(beside.includes('value="historical_event"'));
+  assert.ok(beside.includes('value="7214"'));
+  assert.ok(beside.includes("Undo"));
+});
+
+test("the page can say taken back, and can say too late, without saying sealed", () => {
+  const html = renderDayPage(page);
+  assert.ok(html.includes('id="undone"'));
+  assert.ok(html.includes('id="toolate"'));
+  assert.ok(html.includes("can be taken back for half a minute"));
+  // Four different outcomes, four different sentences. Collapsing any two of
+  // them is what let a duplicate answer report itself as a sealed date.
+  for (const id of ["kept", "sealed", "failed", "undone", "toolate"]) {
+    assert.ok(html.includes(`id="${id}"`), `${id} has nothing to say`);
+  }
 });
