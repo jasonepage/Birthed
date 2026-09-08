@@ -93,23 +93,52 @@ async function articleFor(url: string): Promise<{ article: string | null; error:
   return { article: null, error: "not a Wikipedia or Wikidata source" };
 }
 
-/** Views over the last twelve complete months. */
-async function yearlyViews(article: string): Promise<{ views: number | null; error: string | null }> {
+interface Views { views: number | null; onDate: number | null; medianDay: number | null; error: string | null }
+
+/**
+ * Two years of daily views, read three ways.
+ *
+ * views: the last twelve months added up, which is reach.
+ *
+ * onDate and medianDay: the views on this date in the last two years,
+ * averaged, against the median day. That ratio is the signal this site
+ * exists for and nothing else measures: a thing people bring up ON THE DAY.
+ * Pizza Rat's article spikes every September 21. A coronation in 1831 does
+ * not spike on anything. Wikipedia's editors picking a row for the day says
+ * what editors value; the spike says what people do.
+ */
+async function dailyViews(article: string, month: number, day: number): Promise<Views> {
   const now = new Date();
-  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  const start = new Date(Date.UTC(end.getUTCFullYear() - 1, end.getUTCMonth(), 1));
-  const stamp = (d: Date) => `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}01`;
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1));
+  const start = new Date(Date.UTC(end.getUTCFullYear() - 2, end.getUTCMonth(), end.getUTCDate()));
+  const stamp = (d: Date) => `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}${String(d.getUTCDate()).padStart(2, "0")}`;
   const title = encodeURIComponent(article);
-  const url = `https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/${title}/monthly/${stamp(start)}/${stamp(end)}`;
+  const url = `https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/${title}/daily/${stamp(start)}/${stamp(end)}`;
   try {
     const response = await fetch(url, { headers: { "User-Agent": AGENT, Accept: "application/json" }, signal: AbortSignal.timeout(FETCH_MS) });
-    if (response.status === 404) return { views: 0, error: null };
-    if (!response.ok) return { views: null, error: `pageviews answered ${response.status}` };
+    if (response.status === 404) return { views: 0, onDate: 0, medianDay: 0, error: null };
+    if (!response.ok) return { views: null, onDate: null, medianDay: null, error: `pageviews answered ${response.status}` };
     const body = await response.json();
-    const items: Array<{ views?: number }> = Array.isArray(body?.items) ? body.items : [];
-    return { views: items.reduce((n, item) => n + (Number(item.views) || 0), 0), error: null };
+    const items: Array<{ timestamp?: string; views?: number }> = Array.isArray(body?.items) ? body.items : [];
+    if (items.length === 0) return { views: 0, onDate: 0, medianDay: 0, error: null };
+    const yearAgo = stamp(new Date(Date.UTC(end.getUTCFullYear() - 1, end.getUTCMonth(), end.getUTCDate())));
+    let views = 0;
+    const all: number[] = [];
+    const onDates: number[] = [];
+    const mmdd = `${String(month).padStart(2, "0")}${String(day).padStart(2, "0")}`;
+    for (const item of items) {
+      const v = Number(item.views) || 0;
+      const ts = String(item.timestamp ?? "");
+      all.push(v);
+      if (ts.slice(0, 8) >= yearAgo) views += v;
+      if (ts.slice(4, 8) === mmdd) onDates.push(v);
+    }
+    all.sort((x, y) => x - y);
+    const medianDay = all[Math.floor(all.length / 2)] ?? 0;
+    const onDate = onDates.length === 0 ? null : Math.round(onDates.reduce((n, v) => n + v, 0) / onDates.length);
+    return { views, onDate, medianDay, error: null };
   } catch {
-    return { views: null, error: "pageviews did not answer" };
+    return { views: null, onDate: null, medianDay: null, error: "pageviews did not answer" };
   }
 }
 
@@ -144,11 +173,13 @@ Deno.serve(async (request: Request) => {
 
   const admin = createClient(url, serviceRoleKey);
   const sources = await sourcesOf(admin, month, day);
-  const { data: known } = await admin.from("article_reach").select("source_url,measured_at").in("source_url", sources);
+  const { data: known } = await admin.from("article_reach").select("source_url,measured_at,article,views_on_date").in("source_url", sources);
   const fresh = new Set<string>();
   const cutoff = Date.now() - FRESH_DAYS * 24 * 60 * 60 * 1000;
   for (const row of known ?? []) {
-    if (Date.parse(String(row.measured_at)) > cutoff) fresh.add(String(row.source_url));
+    // A row measured before the anniversary columns existed is not fresh.
+    const complete = row.article === null || row.views_on_date !== null;
+    if (complete && Date.parse(String(row.measured_at)) > cutoff) fresh.add(String(row.source_url));
   }
   const todo = sources.filter((s) => !fresh.has(s));
 
@@ -164,9 +195,12 @@ Deno.serve(async (request: Request) => {
       rows.push({ source_url: source, article: null, views_year: null, error, measured_at: new Date().toISOString() });
       continue;
     }
-    const { views, error: viewError } = await yearlyViews(article);
+    const { views, onDate, medianDay, error: viewError } = await dailyViews(article, month, day);
     if (views === null) unmeasurable += 1; else measured += 1;
-    rows.push({ source_url: source, article, views_year: views, error: viewError, measured_at: new Date().toISOString() });
+    rows.push({
+      source_url: source, article, views_year: views, views_on_date: onDate, views_median_day: medianDay,
+      error: viewError, measured_at: new Date().toISOString(),
+    });
   }
   if (rows.length > 0) {
     const { error } = await admin.from("article_reach").upsert(rows, { onConflict: "source_url" });

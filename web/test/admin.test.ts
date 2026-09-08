@@ -67,15 +67,27 @@ function points(): { rowPoints: (input: unknown) => { total: number; measured: b
 
 test("a row's points are computed from stored inputs and shown in parts", () => {
   const { rowPoints } = points();
-  const strong = rowPoints({ selected: true, views: 1_000_000, year: 1998, written: true, sourceUrl: "https://en.wikipedia.org/wiki/Mark_McGwire", dateKind: null, flags: [], answers: null });
-  assert.equal(strong.total, 40 + 30 + 20 + 10 + 4);
-  assert.deepEqual(strong.parts.map((p) => p[0]), ["selected", "reach", "memory", "written", "sourcing"]);
+  const strong = rowPoints({ selected: true, views: 1_000_000, viewsOnDate: 8000, viewsMedianDay: 500, year: 1998, written: true, sourceUrl: "https://en.wikipedia.org/wiki/Mark_McGwire", dateKind: null, flags: [], answers: null });
+  assert.equal(strong.total, 35 + 25 + 10 + 25 + 15 + 4);
+  assert.deepEqual(strong.parts.map((p) => p[0]), ["spike", "reach", "selected", "memory", "written", "sourcing"]);
   const dull = rowPoints({ selected: false, views: 0, year: 2026, written: false, sourceUrl: "https://www.wikidata.org/wiki/Q1", dateKind: null, flags: ["release calendar", "thin"], answers: null });
   assert.equal(dull.total, 0, "a bare release from this year with nothing written is worth nothing");
   // Unmeasured reach is zero points and says so, never a guessed number.
   const unmeasured = rowPoints({ selected: false, views: null, year: 2000, written: true, sourceUrl: "https://example.com/x", dateKind: null, flags: [], answers: null });
   assert.equal(unmeasured.parts[1]?.[1], 0);
   assert.equal(unmeasured.parts[1]?.[2], "unmeasured");
+});
+
+test("Wikipedia's pick cannot outrank a thing people look up on the day", () => {
+  const { rowPoints } = points();
+  // An 1888 editors' pick with nothing else: what the top of September 8 was.
+  const pick = rowPoints({ selected: true, views: null, year: 1888, written: false, sourceUrl: "https://en.wikipedia.org/wiki/September_8", dateKind: null, flags: [], answers: null });
+  // A 2015 row nobody selected whose article spikes eight times on the date.
+  const spiky = rowPoints({ selected: false, views: 200_000, viewsOnDate: 4000, viewsMedianDay: 500, year: 2015, written: true, sourceUrl: "https://en.wikipedia.org/wiki/Pizza_Rat", dateKind: null, flags: [], answers: null });
+  assert.ok(spiky.total > pick.total * 3, `${spiky.total} against ${pick.total}`);
+  // A spike under fifty views on the day is noise and earns nothing.
+  const noise = rowPoints({ selected: false, views: 1000, viewsOnDate: 30, viewsMedianDay: 2, year: 2015, written: false, sourceUrl: null, dateKind: null, flags: [], answers: null });
+  assert.equal(noise.parts[0]?.[1], 0);
 });
 
 test("a reader answer replaces the estimate and does not average with it", () => {
@@ -90,7 +102,7 @@ test("a reader answer replaces the estimate and does not average with it", () =>
   // Under the floor of ten the estimate stands.
   const few = rowPoints({ ...base, answers: { there: 0, remembers: 0, heard: 0, never: 9 } });
   assert.equal(few.measured, false);
-  assert.equal(few.total, 104);
+  assert.equal(few.total, 25 + 10 + 25 + 15 + 4, "no spike measured, the rest stands");
 });
 
 test("a date's points are top heavy: three excellent rows beat forty mediocre ones", () => {

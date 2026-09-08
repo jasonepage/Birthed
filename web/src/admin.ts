@@ -31,7 +31,11 @@ export const POINTS_JS = `
   // Each component is a column or a count, and each is worth points. The
   // parts are returned as well as the total so a curator can argue with
   // "reach 12", which is a conversation, instead of with "58", which is not.
-  var WEIGHTS = { selected: 40, reach: 30, memory: 20, written: 10, sourcing: 10 };
+  // Wikipedia's pick is worth ten, not forty. At forty the top of September 8
+  // was five editors' picks from 1888, which is the filler this site exists
+  // to replace. The big component is the spike: what the cited article does
+  // on the date itself, which is people bringing the thing up on the day.
+  var WEIGHTS = { spike: 35, reach: 25, memory: 25, selected: 10, written: 15, sourcing: 10 };
   var FLAG_COST = {
     "release calendar": 20, "explains the joke": 10, "thin": 15,
     "unsourced": 10, "source did not answer": 10, "circa source": 5,
@@ -53,11 +57,25 @@ export const POINTS_JS = `
     if (year < 1985) return Math.max(0, Math.round(WEIGHTS.memory * (1 - (1985 - year) / 40)));
     return Math.max(0, Math.round(WEIGHTS.memory * (1 - (year - 2015) / 12)));
   }
-  /** Reach: log scaled yearly pageviews, a million a year is the full thirty. */
+  /** Reach: log scaled yearly pageviews, a million a year is the full score. */
   function reachOf(views) {
     if (views === null || views === undefined) return null;
     var v = Math.max(0, Number(views) || 0);
     return Math.round(WEIGHTS.reach * Math.min(1, Math.log10(v + 1) / 6));
+  }
+  /**
+   * The anniversary spike: views on the date against the median day. Twice
+   * the median earns a little, sixteen times earns the full score. Under a
+   * floor of fifty views on the day it is noise and earns nothing.
+   */
+  function spikeOf(onDate, medianDay) {
+    if (onDate === null || onDate === undefined || medianDay === null || medianDay === undefined) return null;
+    var on = Number(onDate) || 0;
+    var med = Math.max(1, Number(medianDay) || 0);
+    if (on < 50) return 0;
+    var ratio = on / med;
+    if (ratio < 1.5) return 0;
+    return Math.round(WEIGHTS.spike * Math.min(1, Math.log2(ratio) / 4));
   }
   /**
    * One row's points. Input fields: selected (bool), views (number, or null
@@ -82,9 +100,12 @@ export const POINTS_JS = `
       }
     }
     var parts = [];
-    parts.push(["selected", input.selected ? WEIGHTS.selected : 0, input.selected ? "Wikipedia's editors chose it for the day" : "not among Wikipedia's picks for the day"]);
+    var spike = spikeOf(input.viewsOnDate, input.viewsMedianDay);
+    parts.push(["spike", spike === null ? 0 : spike, spike === null ? "unmeasured"
+      : (Number(input.viewsOnDate) || 0).toLocaleString() + " views on the day against " + (Number(input.viewsMedianDay) || 0).toLocaleString() + " on an ordinary day"]);
     var reach = reachOf(input.views);
     parts.push(["reach", reach === null ? 0 : reach, reach === null ? "unmeasured" : (Number(input.views) || 0).toLocaleString() + " views a year on the cited article"]);
+    parts.push(["selected", input.selected ? WEIGHTS.selected : 0, input.selected ? "Wikipedia's editors chose it for the day" : "not among Wikipedia's picks for the day"]);
     parts.push(["memory", memoryOf(input.year), input.year ? "the year " + input.year : "no year"]);
     parts.push(["written", input.written ? WEIGHTS.written : 0, input.written ? "somebody wrote it" : "a bare title or nobody wrote a line"]);
     var ladder = sourcingOf(input.sourceUrl, input.dateKind);
@@ -938,7 +959,7 @@ ${POINTS_JS}
   var tally = {};      // "kind:id" -> counts, for the open date
 
   function loadReach() {
-    return pageAll("article_reach?select=source_url,views_year,error&order=source_url.asc")
+    return pageAll("article_reach?select=source_url,views_year,views_on_date,views_median_day,error&order=source_url.asc")
       .then(function (rows) { reach = {}; rows.forEach(function (r) { reach[r.source_url] = r; }); })
       .catch(function () { reach = {}; });
   }
@@ -1043,8 +1064,10 @@ ${POINTS_JS}
       });
     });
     items.forEach(function (it) {
+      var r = it.sourceUrl ? reach[it.sourceUrl] : null;
       it.points = rowPoints({
         selected: it.selected, views: viewsFor(it.sourceUrl), year: it.year, written: it.written,
+        viewsOnDate: r ? r.views_on_date : null, viewsMedianDay: r ? r.views_median_day : null,
         sourceUrl: it.sourceUrl, dateKind: it.dateKind, flags: it.flags,
         answers: tally[it.kind + ":" + it.id] || null,
       });
@@ -1060,7 +1083,7 @@ ${POINTS_JS}
    * for where they came from, and the full sum is behind "why", for a curator
    * who wants to argue with a part.
    */
-  var PART_WORDS = { selected: "Wikipedia picked it", reach: "people look it up", memory: "recent enough to remember",
+  var PART_WORDS = { spike: "people look it up on the day", selected: "Wikipedia picked it", reach: "people look it up", memory: "recent enough to remember",
     written: "somebody wrote it", sourcing: "sourced", remembered: "readers remembered it" };
   function partsMarkup(it) {
     var p = it.points;
@@ -1140,7 +1163,7 @@ ${POINTS_JS}
     var needy = off.filter(function (it) { return it.off === "needs a sentence"; }).length;
 
     html += '<h4 class="sh">Everything on the page, ranked (' + on.length + ")</h4>" +
-      '<p class="note" style="margin:4px 0 0">Points are a guess at how likely a reader is to remember a row, added up from five things a person can check: Wikipedia picked it for the day, how many people look it up, how recent it is, whether somebody wrote a sentence, and how good the source is. No model is asked. Once ten readers have answered a row, what they said replaces the guess. ' +
+      '<p class="note" style="margin:4px 0 0">Points are a guess at how likely a reader is to remember a row, added up from things a person can check. The big one: whether people look the thing up on this date every year, which is what remembering looks like from outside. Then how many look it up at all, how recent it is, whether somebody wrote a sentence, how good the source is, and a little for Wikipedia having picked it. No model is asked. Once ten readers have answered a row, what they said replaces the guess. ' +
       'This date scores <b class="dp">' + date + "</b>: the best row counts in full, the next at 95 percent, then 90, so fixing the top row moves it and adding a dull one does not. " +
       (measured > 0 ? measured + (measured === 1 ? " row is" : " rows are") + " measured by readers and that number replaces the estimate. " : "") +
       (needy > 0 ? needy + " published " + (needy === 1 ? "row is" : "rows are") + " a title with nothing written, so no reader sees " + (needy === 1 ? "it" : "them") + ". " : "") +
