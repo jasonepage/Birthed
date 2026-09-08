@@ -1974,7 +1974,8 @@ export interface Remembered {
  * silently swallows an answer or a page that runs JavaScript to say thank you.
  */
 const AFTER = `<p class="afterword" id="kept">Kept. It counts towards what this date is remembered for, and it will still be here next year.</p>
-<p class="afterword" id="sealed">This date is sealed. A day takes answers on the day itself and the day either side, and then it closes until next year. Come back on the day.</p>`;
+<p class="afterword" id="sealed">This date is sealed. A day takes answers on the day itself and the day either side, and then it closes until next year. Come back on the day.</p>
+<p class="afterword" id="failed">That did not save, and it was this end rather than yours. The date is fine and nothing is closed. Try it again.</p>`;
 
 function openingBand(
   page: DayPage,

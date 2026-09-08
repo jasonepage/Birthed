@@ -86,8 +86,28 @@ const SECURITY: Record<string, string> = {
 /// forgotten this value should still be able to send a birthday. Neither the
 /// project reference nor its address is a secret; the key that goes with it
 /// is the anonymous one that already ships inside the app.
+/**
+ * Where the project is, with the fallback every other file here already had.
+ *
+ * **This is the bug that made the whole feature do nothing.** build.ts, og.ts
+ * and apiOrigin all read SUPABASE_URL with `?? the project address`, because
+ * neither the reference nor the address is a secret. record() read it with no
+ * fallback and returned false when it was missing. render.yaml sets
+ * SUPABASE_ANON_KEY and does not set SUPABASE_URL, because nothing had ever
+ * needed it to, so on the live site every answer returned false before the
+ * database was ever called, and every reader who answered anything was
+ * redirected to a sentence saying the date was sealed. It was not sealed. The
+ * table had nothing in it because nothing was ever sent.
+ *
+ * So there is now one function and everything that talks to the project uses
+ * it. Two copies of a fallback is how one of them ends up missing.
+ */
+export function projectBase(): string {
+  return (process.env.SUPABASE_URL ?? "https://lunqqhjwqrpbujwxwdzk.supabase.co").replace(/\/+$/, "");
+}
+
 function apiOrigin(): string {
-  const raw = process.env.SUPABASE_URL ?? "https://lunqqhjwqrpbujwxwdzk.supabase.co";
+  const raw = projectBase();
   try {
     return new URL(raw).origin;
   } catch {
@@ -493,10 +513,24 @@ export function readAnswer(body: string): Answer | null {
   return { month, day, kind, id, depth, birthYear };
 }
 
-async function record(answer: Answer, token: string): Promise<boolean> {
-  const url = process.env.SUPABASE_URL;
+/**
+ * What happened to one answer, and why this is three values and not a boolean.
+ *
+ * A boolean said "kept" or "not kept", and the page turned "not kept" into
+ * "this date is sealed", which is only one of the reasons it can happen. The
+ * others are that the window does not cover the date, that this browser has
+ * already answered this row, and that we never reached the database at all.
+ * The last one is not the reader's business and is certainly not a fact about
+ * the date, and telling somebody a date had sealed when the truth was a
+ * missing environment variable is how that fault survived from the day the
+ * feature shipped.
+ */
+type Recorded = "kept" | "refused" | "unreachable";
+
+async function record(answer: Answer, token: string): Promise<Recorded> {
   const key = process.env.SUPABASE_ANON_KEY;
-  if (!url || !key) return false;
+  if (!key) return "unreachable";
+  const url = projectBase();
   const response = await fetch(`${url}/rest/v1/rpc/remember`, {
     method: "POST",
     headers: {
@@ -515,8 +549,8 @@ async function record(answer: Answer, token: string): Promise<boolean> {
       birth_year_in: answer.birthYear,
     }),
   });
-  if (!response.ok) return false;
-  return (await response.json()) === true;
+  if (!response.ok) return "unreachable";
+  return (await response.json()) === true ? "kept" : "refused";
 }
 
 /**
@@ -531,9 +565,9 @@ async function record(answer: Answer, token: string): Promise<boolean> {
  */
 async function tallyFor(month: number, day: number): Promise<Map<string, Remembered>> {
   const out = new Map<string, Remembered>();
-  const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_ANON_KEY;
-  if (!url || !key) return out;
+  if (!key) return out;
+  const url = projectBase();
 
   try {
     const response = await fetch(`${url}/rest/v1/rpc/remembrance_tally`, {
@@ -676,10 +710,15 @@ async function handle(
     // keptFrom and the note at the top of this file.
     const where = `/${slug(answer.month, answer.day)}/`;
     const row = `${answer.kind}-${answer.id}`;
+    const back = kept === "kept"
+      ? `${where}?kept=${encodeURIComponent(`${answer.kind}:${answer.id}`)}#r-${row}`
+      : kept === "refused"
+        ? `${where}#sealed`
+        // Our fault, said as our fault. It must not borrow the sealed sentence:
+        // that sentence is a claim about the date and this is a claim about us.
+        : `${where}#failed`;
     response.writeHead(303, {
-      Location: kept
-        ? `${where}?kept=${encodeURIComponent(`${answer.kind}:${answer.id}`)}#r-${row}`
-        : `${where}#sealed`,
+      Location: back,
       "Cache-Control": "no-store",
       // A year, because the point of the token is that the same browser is not
       // counted twice on a date it comes back to next year. HttpOnly because

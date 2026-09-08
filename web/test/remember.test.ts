@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { keptFrom, newToken, readAnswer, tokenFromCookie, underLimit, yearFromCookie } from "../src/serve.js";
+import { keptFrom, newToken, projectBase, readAnswer, tokenFromCookie, underLimit, yearFromCookie } from "../src/serve.js";
 import { resultId, resultMarkup } from "../src/render.js";
 
 test("a token is long enough for the database to accept it", () => {
@@ -135,4 +135,31 @@ test("a result identifier is safe to put in an id attribute", () => {
   assert.equal(resultId("person", "Q42"), "rr-person-Q42");
   // Cultural rows carry identifiers this site did not choose.
   assert.match(resultId("cultural_event", "a b\"c<d"), /^[A-Za-z0-9_-]+$/);
+});
+
+test("the project is reachable without SUPABASE_URL being set anywhere", () => {
+  // The bug this guards is the whole feature having done nothing on the live
+  // site. render.yaml sets SUPABASE_ANON_KEY and does not set SUPABASE_URL,
+  // because build.ts, og.ts and apiOrigin all carry the project address as a
+  // fallback and never needed it. record() did not, so it returned false
+  // before calling anything, and every reader who answered was told the date
+  // was sealed. It was not sealed. Nothing was ever sent.
+  const had = process.env.SUPABASE_URL;
+  delete process.env.SUPABASE_URL;
+  try {
+    assert.equal(projectBase(), "https://lunqqhjwqrpbujwxwdzk.supabase.co");
+  } finally {
+    if (had !== undefined) process.env.SUPABASE_URL = had;
+  }
+});
+
+test("a set project address wins and loses its trailing slashes", () => {
+  const had = process.env.SUPABASE_URL;
+  process.env.SUPABASE_URL = "https://example.supabase.co//";
+  try {
+    assert.equal(projectBase(), "https://example.supabase.co");
+  } finally {
+    if (had === undefined) delete process.env.SUPABASE_URL;
+    else process.env.SUPABASE_URL = had;
+  }
 });

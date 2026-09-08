@@ -1011,3 +1011,14 @@ test("the year control is hidden until a date is open, like the buttons", () => 
   const html = renderDayPage(page);
   assert.ok(html.includes(".yearask { display: none; }"));
 });
+
+test("a failure on our side does not tell the reader the date is sealed", () => {
+  // "Sealed" is a claim about the date. A missing environment variable is a
+  // claim about us, and dressing one as the other is what hid a dead feature
+  // for three days.
+  const html = renderDayPage(page);
+  assert.ok(html.includes('id="failed"'));
+  assert.ok(html.includes("it was this end rather than yours"));
+  assert.ok(html.includes('id="sealed"'), "and the real sealed sentence is still there");
+  assert.ok(html.includes('id="kept"'));
+});
