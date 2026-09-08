@@ -980,3 +980,34 @@ test("a row offers three answers and the presence claim is not one of them", () 
   // Still no direction, which is the rule that has never moved.
   assert.equal(html.includes('value="downvote"'), false);
 });
+
+test("every row carries an empty result the server can write into", () => {
+  // A presence assertion, not an absence one. The paragraph is baked in empty
+  // and the server fills exactly one of them on the request after an answer,
+  // so if it ever stops being rendered the reveal goes quiet with nothing on
+  // screen and no test failing.
+  const html = renderDayPage(page, [], [
+    { id: "t", month: 9, day: 4, fact: "Something sourced happened.", category: "event",
+      sourceUrl: "https://example.org/september-4" },
+  ]);
+  assert.ok(html.includes('<p class="rres" id="rr-birth_fact-t"></p>'));
+  assert.ok(html.includes(".rres:empty { display: none; }"), "and it draws as nothing until filled");
+});
+
+test("the site asks for a birth year once, and says what it does with it", () => {
+  const html = renderDayPage(page, [], [
+    { id: "t", month: 9, day: 4, fact: "Something sourced happened.", category: "event",
+      sourceUrl: "https://example.org/september-4" },
+  ]);
+  assert.ok(html.includes('action="/year"'));
+  assert.ok(html.includes('name="y"'));
+  assert.ok(html.includes("never shown to anybody"));
+  // Once on the page, not once per row. A picker repeated 150 times is what
+  // the cookie exists to avoid.
+  assert.equal((html.match(/action="\/year"/g) ?? []).length, 1);
+});
+
+test("the year control is hidden until a date is open, like the buttons", () => {
+  const html = renderDayPage(page);
+  assert.ok(html.includes(".yearask { display: none; }"));
+});

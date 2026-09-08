@@ -136,6 +136,39 @@ const STYLE = `
   border-radius: 999px; padding: 7px 11px;
 }
 .rem button:hover { color: #FFF7EE; border-color: var(--day-soft, #C6B0F5); }
+
+/* The result, written in by the server on the request after an answer. Baked
+   in empty on every row, so a page that nobody has answered draws none of
+   them. No colour on any of it: every date has at least one row where a
+   coloured chart under a killing would be grotesque, so the reader's own
+   answer is not singled out here at all and the shape does the talking. */
+.rres:empty { display: none; }
+.rres { display: block; margin: 10px 0 0; max-width: 420px; }
+.rrow { display: flex; align-items: center; gap: 10px; margin: 0 0 4px; }
+.rlab { flex: 0 0 118px; font-size: 11.5px; color: #A49BAE; }
+.rbar { flex: 1 1 auto; height: 5px; border-radius: 999px; background: #241E2E; overflow: hidden; }
+.rbar span { display: block; height: 100%; border-radius: 999px; background: #6E6680; }
+.rnum {
+  flex: 0 0 28px; text-align: right; font-size: 11.5px; font-weight: 700;
+  color: #A49BAE; font-variant-numeric: tabular-nums;
+}
+.rtot { display: block; margin: 7px 0 0; font-size: 11.5px; color: ${QUIET}; }
+
+/* Asked once, kept in a cookie, never drawn on a sealed date. Hidden by
+   default and revealed by today.css the same way the buttons are. */
+.yearask { display: none; }
+.yearask form { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0; }
+.yearask label { font-size: 12.5px; color: ${QUIET}; }
+.yearask select {
+  font: inherit; font-size: 12.5px; background: #17121F; color: #E8E2F0;
+  border: 1px solid #2A2434; border-radius: 8px; padding: 6px 8px;
+}
+.yearask button {
+  font: inherit; font-size: 12.5px; cursor: pointer; background: none; color: #A49BAE;
+  border: 1px solid #2A2434; border-radius: 999px; padding: 6px 12px;
+}
+.yearask button:hover { color: #FFF7EE; border-color: var(--day-soft, #C6B0F5); }
+.yearnote { font-size: 11.5px; color: ${QUIET}; margin: 6px 0 0; }
 /* Said only after the server has redirected here, revealed by :target, which
    is how this page says anything back without running a script. */
 .afterword {
@@ -1694,6 +1727,7 @@ ${others}
 
   return `<div class="hrow"><h2 class="section">What happened</h2></div>
 <p class="lede">${rest.length === 0 ? `${total} things, oldest first.` : `${picked.length} worth stopping on, out of ${total}.`}</p>
+${yearAsk(month, day)}
 <ul class="feed">
 ${cards}
 </ul>
@@ -1808,6 +1842,53 @@ function faceOrInitials(person: Person, className: string): string {
  * check that matters is in the database and cannot be reached from a client at
  * all.
  */
+/**
+ * The one thing this site asks a reader about themselves.
+ *
+ * Crossed with the answers below it, a birth year produces the thing none of
+ * this is worth doing without: a map of what each generation remembers.
+ * Everybody born before 1985 remembering something that nobody born after
+ * 2000 has heard of is a fact about the world that cannot be scraped from
+ * anywhere, because nobody has ever collected it. Until this control existed
+ * every answer this site took stored a null year, so none of that was
+ * possible.
+ *
+ * **Asked once and kept in a cookie, not carried by the forms.** A radio group
+ * or a select outside a form cannot reach into one without a script, and this
+ * site runs none, so the alternative was repeating the picker inside all 150
+ * forms on the page. Instead it posts to its own address, the year joins the
+ * token in a cookie, and every answer after it carries the year server side
+ * without any form knowing about it.
+ *
+ * **A returning reader is asked again, and that is a real cost.** The page is
+ * baked ahead of time and cannot know what is in anybody's cookie, so this
+ * control looks the same to somebody who set it a month ago. Posting it twice
+ * is harmless, it just writes the same cookie. The alternative is reading the
+ * database or the cookie on every page view, and not doing that on an ordinary
+ * page view is the property that keeps this site up when Supabase is not.
+ *
+ * The year is never shown to anybody, never joined to a name, and lives in the
+ * same place the token does. `remembrances.birth_year` is the only column it
+ * reaches.
+ */
+function yearAsk(month: number, day: number): string {
+  const now = new Date().getUTCFullYear();
+  const years: string[] = [];
+  for (let year = now; year >= 1900; year--) {
+    years.push(`<option value="${year}">${year}</option>`);
+  }
+  return `<div class="yearask">
+<form method="post" action="/year">
+<input type="hidden" name="m" value="${month}">
+<input type="hidden" name="d" value="${day}">
+<label for="by">Answers are more useful with a year on them. Born in</label>
+<select id="by" name="y"><option value="">choose</option>${years.join("")}</select>
+<button type="submit">Save</button>
+</form>
+<p class="yearnote">Kept in a cookie on this browser, sent with your answers, and never shown to anybody. Set it once.</p>
+</div>`;
+}
+
 function rememberForm(kind: string, id: string, month: number, day: number): string {
   const answers: Array<[string, string]> = [
     ["remember", "I remember it"],
@@ -1820,7 +1901,68 @@ function rememberForm(kind: string, id: string, month: number, day: number): str
 <input type="hidden" name="m" value="${month}">
 <input type="hidden" name="d" value="${day}">
 ${answers.map(([value, label]) => `<button type="submit" name="a" value="${value}">${label}</button>`).join("")}
-</form>`;
+</form>
+<p class="rres" id="${resultId(kind, id)}"></p>`;
+}
+
+/**
+ * Where the server writes a result, and why it is baked in empty.
+ *
+ * The pages are built ahead of time and cannot know what anybody has answered,
+ * so the row carries an empty paragraph and the server fills exactly one of
+ * them on the request that follows an answer. Empty paragraphs draw as nothing
+ * because of `.rres:empty`, and this is the same trick the two afterword
+ * sentences already use: the shape is in the page and the server decides which
+ * one the reader sees.
+ */
+export function resultId(kind: string, id: string): string {
+  return `rr-${kind}-${id}`.replace(/[^A-Za-z0-9_-]/g, "_");
+}
+
+/**
+ * What a row looked like to everybody, drawn after the reader has answered it.
+ *
+ * Shown to somebody who has answered and to nobody else. A count in front of a
+ * reader who has not answered tells them what the popular answer is, and an
+ * answer given after reading that is agreement rather than memory, which is
+ * the one measurement this whole thing exists to take. A reader who has
+ * already committed cannot be biased, and showing them nothing is why this
+ * site was write only for its first three days: it took an answer and said
+ * "Kept", which is a form rather than a thing worth coming back to.
+ *
+ * The bars are a span with an inline width and no script anywhere near them.
+ * style-src carries 'unsafe-inline' already, for the one inline stylesheet
+ * every page on this site has.
+ */
+export function resultMarkup(counts: Remembered): string {
+  const total = counts.there + counts.remembers + counts.heard + counts.never;
+  if (total === 0) return "";
+
+  const rows: Array<[string, number]> = [];
+  // "I was there" is no longer offered by either client, and rows that
+  // collected one before it went are still drawn, or the numbers under a row
+  // would not add up to the total printed beside them.
+  if (counts.there > 0) rows.push(["I was there", counts.there]);
+  rows.push(["I remember it", counts.remembers]);
+  rows.push(["Heard of it", counts.heard]);
+  rows.push(["Never heard of it", counts.never]);
+
+  const bars = rows.map(([label, count]) => {
+    const share = Math.round((count / total) * 100);
+    return `<span class="rrow"><span class="rlab">${escapeHtml(label)}</span>` +
+      `<span class="rbar"><span style="width:${count > 0 ? Math.max(share, 2) : 0}%"></span></span>` +
+      `<span class="rnum">${count}</span></span>`;
+  }).join("");
+
+  const said = total === 1 ? "1 answer so far" : `${total} answers so far`;
+  return `${bars}<span class="rtot">${said}</span>`;
+}
+
+export interface Remembered {
+  there: number;
+  remembers: number;
+  heard: number;
+  never: number;
 }
 
 /**
