@@ -666,10 +666,17 @@ kbd {
         // Written and dropped are both worth saying. A run that proposes
         // nothing because everything it found was already here, or because no
         // cited page answered, is a working run and not a broken one.
-        note("gen-note",
-          b.written + " proposed" + (b.dropped ? ", " + b.dropped + " dropped" : "") +
-          ". They are in the queue at the top, not on the site.",
-          b.written > 0 ? "good" : "");
+        // Zero and zero is now a real answer rather than a disappointment. A
+        // narrowed run is told to come back empty rather than substitute
+        // something adjacent, so this is the shape of it obeying.
+        if (b.written === 0 && b.dropped === 0) {
+          note("gen-note", "Nothing on this date matched. That is an answer, not a failure.");
+        } else {
+          note("gen-note",
+            b.written + " proposed" + (b.dropped ? ", " + b.dropped + " dropped" : "") +
+            ". They are in the queue at the top, not on the site.",
+            b.written > 0 ? "good" : "");
+        }
         reload();
       })
       .catch(function (e) { note("gen-note", String(e.message || e), "bad"); })

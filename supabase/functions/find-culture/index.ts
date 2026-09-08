@@ -125,17 +125,25 @@ function monthName(month: number): string {
  */
 function researchPrompt(month: number, day: number, already: string, focus: string): string {
   const date = `${monthName(month)} ${day}`;
-  // The curator's steer goes here, near the top, where it shapes what gets
-  // looked for. The rules below it are the ones it must not be able to soften,
-  // which is why they come after: dating and sourcing are not preferences.
+  // The curator's steer replaces the target list above it and cannot touch the
+  // evidence rules below it. That ordering is the whole design. Placed before
+  // the targets, it lost to them: a run asking for meme origins came back with
+  // three software end-of-life notices, all correctly dated, none of them what
+  // was asked for. Placed after, it overrides them. Placed before the dating
+  // and sourcing rules, it still cannot argue a row past needing a real day.
+  //
+  // It is also written as a rule rather than a preference, and it says out loud
+  // that returning nothing is a correct answer, because the failure being
+  // guarded against is substitution: the model would rather hand back something
+  // adjacent than come back empty.
   const lens = focus
-    ? `\n\nThis run is looking for something specific. Spend your searches on this and return fewer things rather than drifting off it:\n${focus}\n`
+    ? `\n\nTHIS RUN IS NARROWED, and this overrides the list above. The curator has asked for one specific kind of thing:\n\n${focus}\n\nReturn only things that match that. Something interesting, correctly dated and well sourced that does NOT match it is not wanted on this run. Substituting the nearest adjacent thing is the specific failure to avoid here, and it is worse than coming back with less.\n\nIf this date genuinely has nothing of that kind, return an empty list. Zero is a correct and useful answer: it tells the curator this date has none, which is worth knowing. Do not pad the gap.\n`
     : "";
   return `You are building a dated timeline of internet and popular culture for one calendar date: ${date}, in any year from ${EARLIEST} onward.
 
 Run web searches and use what you find. Do not answer from memory.
 
-Why this matters, because it decides what is worth returning: people date their own lives by this stuff. Not by treaties and summits, by the version of a game that came out when they were fourteen, the console they got, the app everybody moved to, the video everybody had seen that week. "I was eleven when that came out" is the sentence this whole timeline exists to let somebody say. Prefer a thing that lets a reader place themselves against it over a thing that is merely notable.${lens}
+Why this matters, because it decides what is worth returning: people date their own lives by this stuff. Not by treaties and summits, by the version of a game that came out when they were fourteen, the console they got, the app everybody moved to, the video everybody had seen that week. "I was eleven when that came out" is the sentence this whole timeline exists to let somebody say. Prefer a thing that lets a reader place themselves against it over a thing that is merely notable.
 
 Find up to ${MAX_ROWS} things that happened on ${date} in some year. What you are looking for:
 
@@ -147,7 +155,7 @@ Things arriving and things dying. A console launch in a named region, a phone, a
 
 Drama and incidents. A ban, a leak, a datamine, a hack, an outage everybody noticed, a prank at scale, a falling out that the whole internet watched.
 
-A real world event that the internet turned into something, when the turn itself can be dated.
+A real world event that the internet turned into something, when the turn itself can be dated.${lens}
 
 WHAT DOES NOT BELONG, and this is where these searches go wrong almost every time:
 
@@ -181,7 +189,7 @@ Sourcing, in order of preference: the post itself if it still exists and shows i
 
 Do not write an address you did not open and do not assemble one that looks plausible. Leave out anything no page you opened supports.
 
-Internet culture clusters into about fifteen years, so a date will have few of these and some will have almost none. That is correct. Returning four real things is a good answer. Returning four real things and four invented ones is a dead site. Do not pad.
+Internet culture clusters into about fifteen years, so a date will have few of these and some will have almost none. That is correct. Returning four real things is a good answer. Returning four real things and four invented ones is a dead site. Do not pad. If this run was narrowed and the date has nothing matching, returning nothing at all is the right answer, not a reason to reach for something else.
 
 No astrology, no numerology, no politics, no brand promotions, and nothing about anybody's death.${already}`;
 }
@@ -197,7 +205,7 @@ Answer with a JSON array only, no prose before or after. Each object has exactly
 "context_string": the sentences a reader sees, copied from the notes.
 "source_url": the page address for that finding, copied exactly. Never invent one, never correct one, never substitute a different page.
 "quote": the quotation, copied exactly.
-Drop any finding with no page address or no full date in the notes. Do not add anything that is not in the notes.
+Drop any finding with no page address or no full date in the notes. Do not add anything that is not in the notes. If the notes contain no findings, answer with an empty array.
 
 Research notes:
 ${notes}`;
