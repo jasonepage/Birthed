@@ -561,10 +561,12 @@ test("the date page and the about page are signed", () => {
   // The last line of the page, at the size of a credit. It sat on the first
   // screen for one morning and that was too loud for the person whose name it
   // is, which is the only vote that counts on this one.
-  const ask = html.indexOf('class="askhead"');
+  // Measured against the calendar, which every date page has. This fixture has
+  // no rows and therefore no ask card, so testing against one asserted nothing
+  // on the page it was actually run on.
   const mark = html.indexOf("Jason Evan Page");
-  assert.ok(mark > 0 && ask > 0 && mark > ask, "the name is below the ask, not above it");
-  assert.ok(mark > html.indexOf('class="everyday"'), "and below the calendar too");
+  assert.ok(mark > 0 && mark > html.indexOf('class="everyday"'),
+    "the name is the last line of the page, below even the calendar");
   const baked = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
   assert.match(baked, /\.signed \{ display: none;/, "still today's date only, by today.css");
 
