@@ -121,6 +121,14 @@ struct SupabaseRestDayPageRepository: DayPageRepository {
     // MARK: What happened
 
     private struct EventRow: Decodable {
+        /// Selected because an answer has to be about something.
+        ///
+        /// The remembering loop keys every answer to a row's own id, and this
+        /// select did not ask for one, so the feed had been identifying events
+        /// by a hash of their wording. The website sends this id. Both must
+        /// send the same thing or one event collects two piles of answers, and
+        /// a copyedit to a sentence would orphan every answer given on it.
+        let id: Int
         let event_year: Int?
         let description: String
         let source_url: String
@@ -130,7 +138,7 @@ struct SupabaseRestDayPageRepository: DayPageRepository {
         let rows: [EventRow] = try await fetch(
             from: "historical_events",
             query: [
-                URLQueryItem(name: "select", value: "event_year,description,source_url"),
+                URLQueryItem(name: "select", value: "id,event_year,description,source_url"),
                 URLQueryItem(name: "event_month", value: "eq.\(date.month)"),
                 URLQueryItem(name: "event_day", value: "eq.\(date.day)"),
                 URLQueryItem(name: "order", value: "event_year.desc.nullslast"),
@@ -138,7 +146,8 @@ struct SupabaseRestDayPageRepository: DayPageRepository {
             ]
         )
         return rows.map { row in
-            DayFeed.Event(year: row.event_year, description: row.description, sourceURL: URL(string: row.source_url))
+            DayFeed.Event(year: row.event_year, description: row.description,
+                          sourceURL: URL(string: row.source_url), id: row.id)
         }
     }
 

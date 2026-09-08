@@ -41,6 +41,15 @@ struct DayFeed {
         let sourceURL: URL?
         /// The `BirthFact` this came from, for likes and shares.
         let fact: BirthFact?
+        /// The stable handle this row is remembered by, or nil when the row
+        /// has no identity the database would recognise.
+        ///
+        /// Nil rather than a guess, and the interface draws no answer buttons
+        /// on a row that has none. Missing buttons on one row is a small loss.
+        /// A guessed handle is a large one, because two different rows sharing
+        /// a handle merge their answers into one wrong number that nothing on
+        /// screen would ever reveal. See `RememberSubject`.
+        var subject: RememberSubject? = nil
         /// The cover, for a chart row that has one. A var with a default so
         /// the four other kinds of row keep constructing exactly as they did.
         var artworkURL: URL? = nil
@@ -55,6 +64,14 @@ struct DayFeed {
         let year: Int?
         let description: String
         let sourceURL: URL?
+        /// The row's own id in `historical_events`.
+        ///
+        /// Optional and last so that a caller which does not have one still
+        /// compiles, and because a row without one simply cannot be
+        /// remembered: `RememberSubject` explains why a hash of the wording is
+        /// not a substitute. The website sends this same id, and the two must
+        /// agree or the same event collects two separate piles of answers.
+        var id: Int? = nil
     }
 
     // MARK: Ranking
@@ -122,7 +139,8 @@ struct DayFeed {
                 text: fact.fact,
                 detail: fact.sourceURL?.host(),
                 sourceURL: fact.sourceURL,
-                fact: fact
+                fact: fact,
+                subject: RememberSubject(kind: .birthFact, id: String(fact.id))
             )
             // Facts rank with the reader's memorable years, because they are
             // the one kind somebody went looking for. Older-than is the
@@ -141,7 +159,8 @@ struct DayFeed {
                 text: event.description,
                 detail: event.year.map(String.init),
                 sourceURL: event.sourceURL,
-                fact: nil
+                fact: nil,
+                subject: event.id.map { RememberSubject(kind: .historicalEvent, id: String($0)) }
             )
             items.append((score(year: event.year, readerBirthYear: readerBirthYear), index, item))
         }
@@ -156,7 +175,8 @@ struct DayFeed {
                 text: person.name,
                 detail: person.shortDescription,
                 sourceURL: person.sourceURL,
-                fact: nil
+                fact: nil,
+                subject: RememberSubject(kind: .person, id: person.id)
             )
             // People keep their popularity order inside a rank, and a person
             // born in the reader's memorable years ranks like an event from
@@ -200,6 +220,7 @@ struct DayFeed {
             detail: week.artist.isEmpty ? String(week.year) : "\(week.artist), \(week.year)",
             sourceURL: nil,
             fact: nil,
+            subject: week.subjectID.map { RememberSubject(kind: .chartNumberOne, id: $0) },
             artworkURL: week.artworkURL,
             storeURL: week.storeURL,
             previewURL: week.previewURL

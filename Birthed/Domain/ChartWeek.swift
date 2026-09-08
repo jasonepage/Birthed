@@ -62,6 +62,23 @@ struct ChartWeek: Equatable, Hashable {
 }
 
 extension ChartWeek {
+
+    /// The handle this chart week is remembered by: a chart and a year.
+    ///
+    /// A chart week has no row id a client can see, and it does not need one.
+    /// The pair is already its identity everywhere else in this app, it is
+    /// stable against every edit anybody could make to a title or an artist,
+    /// and putting the chart inside it means "hot100-1985" and
+    /// "boxoffice-1985" never collide and a third chart needs no migration.
+    ///
+    /// Nil when the chart name is one this type does not know, which can only
+    /// happen if a row arrives naming a chart that has not been added here. An
+    /// unknown chart draws no answer buttons rather than inventing a handle.
+    var subjectID: String? {
+        guard let known = Chart(rawValue: chart) else { return nil }
+        return "\(known.key)-\(year)"
+    }
+
     /// The fixed calendar this type reasons in.
     ///
     /// Coordinated universal time on purpose, and never the reader's own zone.
@@ -173,6 +190,20 @@ extension ChartWeek {
         }
 
         var hasCredit: Bool { self != .boxOffice }
+
+        /// A short name with no spaces in it, for use inside an identifier.
+        ///
+        /// Deliberately not the raw value. The raw value is the chart's
+        /// printed name and it is allowed to be reworded, and an identifier
+        /// that changed when somebody tidied a label would orphan every answer
+        /// already given on it.
+        var key: String {
+            switch self {
+            case .hot100: return "hot100"
+            case .billboard200: return "billboard200"
+            case .boxOffice: return "boxoffice"
+            }
+        }
 
         /// How the issue date should be read out. A Billboard issue date is
         /// the date printed on the cover; a box office date is the end of
