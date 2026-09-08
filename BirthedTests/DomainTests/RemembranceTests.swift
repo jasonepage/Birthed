@@ -384,6 +384,24 @@ final class RemembranceTests: XCTestCase {
         XCTAssertEqual(RememberCopy.answers(43), "43 answers so far")
     }
 
+    /// An undo puts the number back where it was.
+    func testTakingAnAnswerBackPutsTheCountBack() {
+        let before = RemembranceCounts(there: 0, remembers: 2, heard: 1, never: 5)
+        XCTAssertEqual(before.adding(.never).removing(.never), before)
+        XCTAssertEqual(before.removing(.remember).remembers, 1)
+        XCTAssertEqual(before.adding(.heard).removing(.heard).total, before.total)
+    }
+
+    /// A row cannot go below nothing. The count came off the server before the
+    /// answer was given, so in the ordinary case the number is certainly there
+    /// to remove, and in the case where it is not, minus one is a worse thing
+    /// to put on a screen than zero.
+    func testAnUndoNeverDrivesACountBelowZero() {
+        let empty = RemembranceCounts()
+        XCTAssertEqual(empty.removing(.never), empty)
+        XCTAssertEqual(empty.removing(.never).total, 0)
+    }
+
     // MARK: The seal
 
     func testASealedDateSaysWhatItDecidedAndWhen() {
@@ -442,6 +460,8 @@ final class RemembranceTests: XCTestCase {
         lines.append(RemembranceCounts(there: 9, remembers: 1, heard: 1, never: 1).summary() ?? "")
         lines.append(RememberCopy.answers(1))
         lines.append(RememberCopy.answers(43))
+        lines.append(RememberCopy.undo)
+        lines.append(RememberCopy.tooLateToUndo)
         for line in lines {
             XCTAssertFalse(line.contains("\u{2014}"), "an em dash got into: \(line)")
             XCTAssertFalse(line.contains("\u{2013}"), "an en dash got into: \(line)")

@@ -61,6 +61,15 @@ struct RememberRow: View {
     /// for anything else on the page to reload.
     @State private var justAnswered: RememberDepth?
     @State private var sending = false
+    /// Whether the answer just given can still be taken back.
+    ///
+    /// Only ever true for an answer given in this session, which is exactly
+    /// the case an undo is for: a misclick is noticed at once. An answer from
+    /// a previous launch is older than the window by definition, so nothing
+    /// needs storing and no clock needs reading. The database decides anyway.
+    @State private var canUndo = false
+    /// Said once, when the window has closed under somebody's finger.
+    @State private var tooLate = false
     /// This row's own refusal, so one sealed row does not put the message
     /// under every other row on the page.
     @State private var refused = false
@@ -197,6 +206,14 @@ struct RememberRow: View {
             if expanded == subject.key { expanded = nil }
             if kept {
                 justAnswered = depth
+                canUndo = true
+                // Half a minute, and then the offer goes quietly. The real
+                // limit is in the database; this only stops the interface
+                // offering something that would be refused.
+                Task {
+                    try? await Task.sleep(for: .seconds(30))
+                    canUndo = false
+                }
             } else {
                 // Refused means the date sealed, the window moved, or this
                 // phone has already answered this row. Saying so is better
@@ -225,6 +242,14 @@ struct RememberRow: View {
 
             if let counts = remember.tally(for: subject, month: month, day: day) {
                 result(counts, mine: depth)
+            }
+
+            if canUndo {
+                undoButton(depth)
+            } else if tooLate {
+                Text(RememberCopy.tooLateToUndo)
+                    .font(.system(size: 11))
+                    .foregroundStyle(palette.type.opacity(0.33))
             }
         }
         .padding(.top, 10)
@@ -281,6 +306,38 @@ struct RememberRow: View {
                 .font(.system(size: 11))
                 .foregroundStyle(palette.type.opacity(0.33))
         }
+    }
+
+    /// Taking it back, for half a minute.
+    ///
+    /// Set as quietly as everything else on this row. An undo that shouts is
+    /// an undo people press by accident, which is the problem it was added to
+    /// solve, arriving from the other direction.
+    private func undoButton(_ depth: RememberDepth) -> some View {
+        Button {
+            Task {
+                let gone = await remember.forget(depth, for: subject, month: month, day: day)
+                canUndo = false
+                if gone {
+                    justAnswered = nil
+                    tooLate = false
+                } else {
+                    // The window closed while they were reaching for it, or
+                    // the date sealed. Either way the answer stands and the
+                    // row says so once rather than doing nothing.
+                    tooLate = true
+                }
+            }
+        } label: {
+            Text(RememberCopy.undo)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(palette.type.opacity(0.45))
+                .padding(.vertical, 4)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Undo this answer")
+        .accessibilityHint("Available for half a minute after answering.")
     }
 
     /// The result as one sentence, for somebody who is not looking at it.

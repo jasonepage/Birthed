@@ -280,6 +280,22 @@ struct RemembranceCounts: Equatable, Sendable {
     /// is as of when the page loaded, which for one date over three days is
     /// the same number, and the alternative is a second round trip to move a
     /// figure by one.
+    /// The same answer taken back out again, for an undo.
+    ///
+    /// Floored at zero rather than allowed to go negative. The count this is
+    /// applied to came off the server before the answer was given, so in the
+    /// ordinary case the number is certainly there to remove. In the case
+    /// where it is not, a row reading minus one is a worse thing to put on a
+    /// screen than a row reading zero.
+    func removing(_ depth: RememberDepth) -> RemembranceCounts {
+        RemembranceCounts(
+            there: max(0, there - (depth == .there ? 1 : 0)),
+            remembers: max(0, remembers - (depth == .remember ? 1 : 0)),
+            heard: max(0, heard - (depth == .heard ? 1 : 0)),
+            never: max(0, never - (depth == .never ? 1 : 0))
+        )
+    }
+
     func adding(_ depth: RememberDepth) -> RemembranceCounts {
         RemembranceCounts(
             there: there + (depth == .there ? 1 : 0),
@@ -347,6 +363,20 @@ enum RememberCopy {
         total == 1 ? "1 answer so far" : "\(total) answers so far"
     }
 
+    /// Taking one back, offered for half a minute and then gone.
+    ///
+    /// Called undo rather than change, because that is what it is for. A
+    /// misclick is noticed at once. Second thoughts about your place in the
+    /// room take longer than that, and the result is on screen by now, so a
+    /// window long enough to reconsider is a window long enough to switch to
+    /// whatever the majority said. The database enforces the limit, in
+    /// `forget`, where a device cannot argue with it.
+    static let undo = "Undo"
+
+    /// Said when the window has closed, or when the answer was never there.
+    /// One sentence for both, because they are the same thing to a reader.
+    static let tooLateToUndo = "That one is in. It counts from here."
+
     /// What a row says when the answer arrived too late.
     static let sealed = "This date has sealed. It reopens next year."
 }
@@ -411,26 +441,42 @@ enum SealText {
     ///
     /// Words up to a hundred and digits above, because "one thousand two
     /// hundred and six" is not a sentence anybody reads, it is one they skip.
+    ///
+    /// **Written out by hand rather than handed to a formatter.** The spell
+    /// out style reads its rules from the locale, and this file already had to
+    /// pin one to stop the answer depending on which machine it ran on.
+    /// Pinning it to `en_US_POSIX` is worse than it looks: that locale exists
+    /// to be free of language, which is the opposite of what spelling a number
+    /// in English needs, and what comes back is a fact about a version of a
+    /// library rather than about English. Ninety nine words is less code than
+    /// the comment explaining why the library was safe, and it cannot drift.
     static func spelled(_ number: Int) -> String {
         guard number > 0, number < 100 else { return grouped(number) }
-        let formatter = NumberFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.numberStyle = .spellOut
-        guard let words = formatter.string(from: NSNumber(value: number)) else {
-            return grouped(number)
-        }
-        let plain = words.replacingOccurrences(of: "-", with: " ")
-        return plain.prefix(1).uppercased() + plain.dropFirst()
+
+        let ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
+                    "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen",
+                    "Seventeen", "Eighteen", "Nineteen"]
+        if number < 20 { return ones[number] }
+
+        let tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"]
+        let ten = tens[number / 10]
+        let unit = number % 10
+        // A space and not a hyphen, which is the whole reason this exists.
+        return unit == 0 ? ten : "\(ten) \(ones[unit].lowercased())"
     }
 
-    /// "1,206". A fixed locale rather than the reader's, for the same reason
-    /// the date above uses one: this sentence is a record and it should read
-    /// the same everywhere, and a test that depended on where the machine
-    /// running it was would pass on one desk and fail on another.
-    private static func grouped(_ number: Int) -> String {
-        let formatter = NumberFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.numberStyle = .decimal
-        return formatter.string(from: NSNumber(value: number)) ?? String(number)
+    /// "1,206", grouped the same way on every machine.
+    ///
+    /// Written out for the same reason as the words above. This sentence is a
+    /// record and it should read the same everywhere, and a test that depended
+    /// on where it ran would pass on one desk and fail on another.
+    static func grouped(_ number: Int) -> String {
+        let digits = String(abs(number))
+        var out = ""
+        for (index, digit) in digits.enumerated() {
+            if index > 0, (digits.count - index) % 3 == 0 { out.append(",") }
+            out.append(digit)
+        }
+        return number < 0 ? "-" + out : out
     }
 }

@@ -383,6 +383,38 @@ final class RememberService {
         return true
     }
 
+    /// Take one answer back, if it was given in the last half minute.
+    ///
+    /// The window lives in the database and is checked there, in `forget`,
+    /// which also matches on the token so it can only ever reach an answer
+    /// this install gave. Nothing here decides whether it is allowed; this
+    /// asks, and believes the answer.
+    ///
+    /// False means the window has closed, or the date has sealed, or there was
+    /// nothing to remove. All three are the same thing to a reader and the
+    /// screen says so in one sentence.
+    @discardableResult
+    func forget(_ depth: RememberDepth, for subject: RememberSubject,
+                month: Int, day: Int) async -> Bool {
+        let reply = await callRaw("forget", body: [
+            "month_in": month,
+            "day_in": day,
+            "subject_kind_in": subject.kind.rawValue,
+            "subject_id_in": subject.id,
+            "voter_token_in": voterToken,
+        ])
+        let gone = reply
+            .flatMap { String(data: $0, encoding: .utf8) }?
+            .trimmingCharacters(in: .whitespacesAndNewlines) == "true"
+        guard gone else { return false }
+
+        let year = edition?.year ?? RememberWindow.editionYear()
+        mine.removeValue(forKey: localKey(subject, month: month, day: day, year: year))
+        writeMine()
+        counts[subject.key] = (counts[subject.key] ?? RemembranceCounts()).removing(depth)
+        return true
+    }
+
     // MARK: Plumbing
 
     /// One remote procedure call, signed with the anonymous key only.
