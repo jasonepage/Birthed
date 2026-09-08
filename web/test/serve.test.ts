@@ -184,3 +184,13 @@ test("yesterday and tomorrow are redirects, so a link to them is never stale", (
   assert.equal(redirectFor("/tomorrow/", now), "/september-9/");
   assert.equal(redirectFor("/today/", now), "/september-8/");
 });
+
+test("today.css opens the year question on the same three dates as the buttons", () => {
+  const css = todayStylesheet(new Date(Date.UTC(2026, 8, 8, 12)));
+  for (const date of ["september-7", "september-8", "september-9"]) {
+    assert.ok(css.includes(`.on-${date} .yearask{display:block}`), `${date} should ask`);
+  }
+  assert.equal(css.includes(".on-september-6 .yearask"), false, "a sealed date does not ask");
+  assert.equal(css.includes(".on-september-10 .yearask"), false, "and neither does one not yet open");
+  assert.equal((css.match(/\.yearask\{display:block\}/g) ?? []).length, 3);
+});
