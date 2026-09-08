@@ -563,8 +563,12 @@ kbd {
   // able to put themselves next to the thing and say how old they were.
   var PRESETS = [
     {
+      label: "Since 2018",
+      text: "Only things from 2018 onward, nothing older. TikTok, Discord, Twitch, YouTube Shorts, Fortnite and Roblox seasons and live events, game patches, app changes, and things that happened on phones rather than on desktops. If this date has nothing from 2018 on, say so and return nothing rather than reaching further back.",
+    },
+    {
       label: "Game updates",
-      text: "Version releases and major updates for games people kept playing for years: Minecraft, Fortnite, Roblox, Grand Theft Auto Online, Team Fortress 2, League of Legends, Old School RuneScape. Name the version number where there is one, and say what it added that people noticed.",
+      text: "Version releases and major updates for games people kept playing for years: Minecraft, Fortnite, Roblox, Grand Theft Auto Online, League of Legends, Valorant, Old School RuneScape. Read the version histories and patch notes directly, the Minecraft Wiki version history and the Fortnite season and live event dates especially, because those carry exact days and stay online. Name the version or season number and say what it added that people noticed.",
     },
     {
       label: "Pokemon",

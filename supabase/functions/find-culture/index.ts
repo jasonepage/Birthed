@@ -32,6 +32,14 @@
 // is a thing that happened at a timestamp rather than a meme, that a row with
 // no defensible day does not exist, and that being datable is not the same as
 // belonging here.
+//
+// The standing tension, worth knowing before touching the prompt: the evidence
+// rules reward findability, and the most findable thing on the internet is
+// technology industry news. Left alone this function drifts toward sunset
+// notices and end-of-life announcements, which are perfectly sourced and which
+// nobody has ever dated their life by. Games are the one place where the
+// evidence bar and the audience agree, because version histories carry exact
+// days and stay online, which is why the prompt names them.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -145,11 +153,13 @@ Run web searches and use what you find. Do not answer from memory.
 
 Why this matters, because it decides what is worth returning: people date their own lives by this stuff. Not by treaties and summits, by the version of a game that came out when they were fourteen, the console they got, the app everybody moved to, the video everybody had seen that week. "I was eleven when that came out" is the sentence this whole timeline exists to let somebody say. Prefer a thing that lets a reader place themselves against it over a thing that is merely notable.
 
+Who is reading this: somebody who just looked up their own birthday. Most of them are under thirty. Write for a person who was THERE, not for a person who needs internet history explained to them. A row about something they lived through beats a row about something they would have to be told about, even when the second is more historically important.
+
 Find up to ${MAX_ROWS} things that happened on ${date} in some year. What you are looking for:
 
 The internet's own artifacts. A specific video going up, a YouTube upload, a Vine, a TikTok, a Twitch clip. A tweet or a post, which carries its own timestamp. A subreddit, a server, a forum or a channel starting, dying or going dark.
 
-Games as people actually lived them. A named Minecraft version, a Fortnite season or live event, a Roblox moment, a patch that changed how a game felt. Give the version number when there is one.
+Games as people actually lived them, and this is the richest vein on almost any date, because games are the best dated thing in this entire timeline. Version histories carry exact days and they stay online. Go and read them: the Minecraft Wiki version history, Fortnite chapter and season start dates and live events, Pokemon releases by region, patch notes for League of Legends, Valorant, Overwatch, Genshin Impact versions, Call of Duty seasons, Roblox events, Among Us updates, official Steam news posts, Old School RuneScape updates. Name the version or the season. "Minecraft 1.9, the Combat Update" is a better row than nearly anything else on the date.
 
 Things arriving and things dying. A console launch in a named region, a phone, an app launching, an app shutting down, a redesign everybody hated, a feature that disappeared overnight.
 
@@ -164,6 +174,8 @@ An album coming out is not internet culture. Neither is a film opening, a single
 There is one way such a thing gets in, and it changes what the row is about. If the internet itself did something with it, the row is about what the internet did, and it is dated to that. "OK Go released a single" is a release calendar entry. "The OK Go treadmill video was the thing everybody was sending each other" is internet culture, and its date is the upload, not the single.
 
 The test, applied to every row before you write it: if this exact sentence could sit on a Wikipedia date page without looking out of place, throw it out.
+
+There is a second way to go wrong, and it is the one you will fall into once release calendars are ruled out. The easiest things to find are the ones journalists wrote about, and that skews hard toward technology industry news: a company ending support for something, a plugin being retired, a browser dropping a standard, a service being sunset. These are beautifully documented and almost nobody dates their life by them. Findable is not the same as memorable. Prefer the thing somebody was inside of over the thing somebody reported on.
 
 The single hardest rule, and the one that decides whether this is worth doing:
 
@@ -185,7 +197,7 @@ a short title naming the thing, under 100 characters, for example "Vine shuts do
 one or two plain sentences a reader sees. Name the thing, say what happened, stop. Do not explain the joke: somebody who was there does not need it explained and somebody who was not is better served by the link. No em dashes;
 then the full address of the page you opened, then a short verbatim quotation from it, under 30 words, that supports the date.
 
-Sourcing, in order of preference: the post itself if it still exists and shows its timestamp; an archive of it showing the timestamp; a news report published within days, which dates the spread even when the posting is gone; Know Your Meme, but only for a finding whose kind is went_viral and never for one claiming an exact posting date.
+Sourcing, in order of preference: the post itself if it still exists and shows its timestamp; an official version history, changelog or patch notes page, which is the best source this timeline has; an archive of the post showing the timestamp; a news report published within days, which dates the spread even when the posting is gone; Know Your Meme, but only for a finding whose kind is went_viral and never for one claiming an exact posting date.
 
 Do not write an address you did not open and do not assemble one that looks plausible. Leave out anything no page you opened supports.
 
