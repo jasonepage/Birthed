@@ -26,11 +26,15 @@
 
 create table if not exists remember_settings (
   only_row boolean primary key default true check (only_row),
-  -- Days either side of the date that accept an answer. Three is the target.
-  -- It starts wider because scarcity with nobody in the room is just an empty
-  -- room, and it lives in a column rather than in code for the same reason the
-  -- daily fact ceiling does: it was needed once without a redeploy.
-  window_days smallint not null default 7 check (window_days between 0 and 182)
+  -- Days either side of the date that accept an answer. One, so a date takes
+  -- yesterday, today and tomorrow and then seals.
+  --
+  -- I argued for starting wider, on the grounds that scarcity with nobody in
+  -- the room is just an empty room, and was overruled, which is the right call
+  -- to be made by the person whose site it is. The number lives in a column
+  -- rather than in code for exactly that reason: widening it later is an
+  -- update, not a redeploy, the same way the daily fact ceiling was.
+  window_days smallint not null default 1 check (window_days between 0 and 182)
 );
 
 insert into remember_settings (only_row) values (true) on conflict do nothing;

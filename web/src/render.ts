@@ -96,6 +96,16 @@ function birthYearLabel(person: Person): string {
 
 const STYLE = `
 
+.barend { display: flex; align-items: center; gap: 14px; }
+.dice {
+  display: inline-flex; align-items: center; gap: 6px; text-decoration: none;
+  color: #A49BAE; border: 1px solid #2A2434; border-radius: 999px;
+  padding: 5px 11px 5px 9px;
+}
+.dice:hover { color: #FFF7EE; border-color: var(--day-soft, #C6B0F5); }
+.dice .ic { display: block; }
+@media (max-width: 520px) { .dice span { display: none; } .dice { padding: 6px 8px; } }
+
 /* The opening band. Three tiles that are deliberately not the same object: a
    face, a grid of album art, and a slab of type. The first screen used to be
    three counts and three identical event cards, which read as an archive in
@@ -1763,6 +1773,21 @@ ${note}
 ${credit}`;
 }
 
+/**
+ * The dice, on every date page.
+ *
+ * /random/ has existed in serve.ts since the beginning and was linked from
+ * exactly one place, the about page, which is the page nobody lands on. A
+ * reader who arrives on a date from a search result had no way to see a second
+ * one without typing a URL, which is a strange thing to be true of a site made
+ * of 366 pages that are fun to flick through.
+ *
+ * A server redirect rather than anything on the page, so it costs no script on
+ * a site that ships none, and robots.txt already refuses it so no crawler
+ * wanders 366 pages of duplicates.
+ */
+const DICE = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="4.6"/><circle cx="8.4" cy="8.4" r="1.35" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.35" fill="currentColor" stroke="none"/><circle cx="15.6" cy="15.6" r="1.35" fill="currentColor" stroke="none"/></svg>`;
+
 export function renderDayPage(
   page: DayPage,
   songs: SongOfTheYear[] = [],
@@ -1866,7 +1891,10 @@ export function renderDayPage(
 <span class="here">${shortName}</span>
 <a class="arrow" href="/${slug(next.month, next.day)}/" title="${monthName(next.month)} ${next.day}" aria-label="${monthName(next.month)} ${next.day}">&rsaquo;</a>
 </span>
+<span class="barend">
+<a class="dice" href="/random/" title="A random day of the year" aria-label="A random day of the year">${DICE}<span>Random</span></a>
 <a class="get" href="/about/">About</a>
+</span>
 </div>
 <p class="kicker">Born on</p>
 <h1>${name}</h1>
