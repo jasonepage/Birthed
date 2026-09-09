@@ -39,9 +39,18 @@ test("the wall tables exist and the boosts table refuses changes", {
   assert.ok(triggers.includes("wall_boosts_immutable"));
   const policies = query("select cmd from pg_policies where schemaname = 'public' and tablename like 'wall\\_%' and cmd <> 'SELECT'");
   assert.deepEqual(policies, [], "no wall table may carry a client write policy");
-  // The two ways in are functions, granted to authenticated and to nobody else.
-  const grants = query("select routine_name || ':' || grantee from information_schema.routine_privileges where specific_schema = 'public' and routine_name in ('wall_submit_story', 'wall_cast_boost') and privilege_type = 'EXECUTE' order by 1");
-  assert.deepEqual(grants.filter((g) => !g.endsWith(":postgres") && !g.endsWith(":service_role")), ["wall_cast_boost:authenticated", "wall_submit_story:authenticated"]);
+  // The ways in are functions. The app's two are granted to authenticated
+  // and to nobody else; the web's boost and its standing are granted to anon
+  // and to nobody else, because the web server holds the anonymous key and
+  // an app caller has the attested path. docs/the-wall.md section 13.
+  const grants = query("select routine_name || ':' || grantee from information_schema.routine_privileges where specific_schema = 'public' and routine_name in ('wall_submit_story', 'wall_cast_boost', 'wall_cast_web_boost', 'wall_web_standing', 'wall_web_booster_id') and privilege_type = 'EXECUTE' order by 1");
+  assert.deepEqual(grants.filter((g) => !g.endsWith(":postgres") && !g.endsWith(":service_role")), [
+    "wall_cast_boost:authenticated", "wall_cast_web_boost:anon", "wall_submit_story:authenticated", "wall_web_standing:anon",
+  ]);
+  // How a boost was authenticated is a column the trigger fills and nothing
+  // else may write; it is there on every row.
+  const authColumn = query("select is_nullable || ':' || coalesce(column_default, 'none') from information_schema.columns where table_name = 'wall_boosts' and column_name = 'authenticated_by'");
+  assert.deepEqual(authColumn, ["NO:none"]);
   // booster_id is recorded and is not published.
   const boostColumns = query("select column_name from information_schema.column_privileges where table_name = 'wall_boosts' and grantee = 'anon' and privilege_type = 'SELECT' order by 1");
   assert.ok(boostColumns.length > 0 && !boostColumns.includes("booster_id"), `anon reads ${boostColumns.join(", ")}`);
