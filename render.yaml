@@ -20,6 +20,14 @@
 #
 # The pages are baked into each deploy. After the importer adds people, redeploy
 # to pick them up.
+#
+# The second service is the worker's clock. docs/the-wall.md section 11 found
+# that two documents assumed a scheduled worker that was never created, and
+# section 12 records this as the answer: one cron job, every fifteen minutes,
+# that seeds each open wall from the public news feeds and then runs the
+# checker. It builds from the worker's own Dockerfile and carries the service
+# role key, which the web service never does. Nothing on birthed.app depends
+# on it running: a tick that fails leaves the wall as it was.
 
 services:
   - type: web
@@ -65,3 +73,29 @@ services:
         sync: false
       - key: NODE_VERSION
         value: "22"
+
+  - type: cron
+    name: birthed-wall
+    runtime: docker
+    plan: starter
+    region: oregon
+    dockerfilePath: ./worker/Dockerfile
+    dockerContext: ./worker
+    # Every quarter hour. The checker fetches every source on every open
+    # wall and the seeder reads six feeds, which is a minute or two of work.
+    schedule: "*/15 * * * *"
+    dockerCommand: node dist/src/wall/tick.js
+
+    buildFilter:
+      paths:
+        - worker/**
+      ignoredPaths:
+        - worker/test/**
+
+    envVars:
+      - key: SUPABASE_URL
+        value: https://lunqqhjwqrpbujwxwdzk.supabase.co
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: WIKIDATA_CONTACT
+        value: contact@birthed.app

@@ -22,7 +22,10 @@
     "import:culture:all": "npm run build && node dist/src/import-culture-all.js",
     "rank:day": "npm run build && node dist/src/rank-day.js",
     "portraits": "npm run build && node dist/src/portraits.js",
-    "wall:seed": "npm run build && node dist/src/wall/seed.js"
+    "wall:seed": "npm run build && node dist/src/wall/seed.js",
+    "wall:check": "npm run build && node dist/src/wall/check.js",
+    "wall:news": "npm run build && node dist/src/wall/news.js",
+    "wall:tick": "npm run build && node dist/src/wall/tick.js"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
