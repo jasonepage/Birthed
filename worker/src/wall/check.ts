@@ -52,6 +52,7 @@ export interface StoryRow {
   id: string;
   wall_date: string;
   submitted_at: string;
+  submitted_by: string | null;
   status: Status;
   tier: Tier;
   support: number;
@@ -237,7 +238,7 @@ export function settle(
       // page is not a source that waited long enough, it is no source. So a
       // story that never verifies never leaves the pool. Section 12.
       if (!its.some((s) => s.verified)) continue;
-      if (!eligibleForWall({ support: story.support, submittedAt: story.submitted_at }, its, now)) continue;
+      if (!eligibleForWall({ support: story.support, submittedAt: story.submitted_at, submittedBy: story.submitted_by }, its, now)) continue;
       touch(story.id).placed_at = now;
       input.push({ id: story.id, tier, support: story.support, placedAt: now, anchor: null });
       continue;
@@ -330,7 +331,7 @@ export async function run(db: Db, options: { now?: Date; date?: string; dry?: bo
 
   for (const day of days) {
     const stories = await rows<StoryRow>(db,
-      `wall_stories?select=id,wall_date,submitted_at,status,tier,support,placed_at,anchor_mx,anchor_my,w_modules,h_modules&wall_date=eq.${day.wall_date}&order=submitted_at.asc,id.asc`);
+      `wall_stories?select=id,wall_date,submitted_at,submitted_by,status,tier,support,placed_at,anchor_mx,anchor_my,w_modules,h_modules&wall_date=eq.${day.wall_date}&order=submitted_at.asc,id.asc`);
     const live = stories.filter((s) => s.status !== "false");
     const sources: SourceRow[] = [];
     for (const ids of chunk(live.map((s) => s.id), 80)) {

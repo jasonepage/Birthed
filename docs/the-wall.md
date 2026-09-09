@@ -348,6 +348,18 @@ choice. What is somebody's choice is every tile's size, which is the part the
 product actually measures. A seeded story with no boosts stays one module and
 falls off the bottom of what anybody looks at.
 
+**A seeded story is placed on evidence alone.** The support rule in section 3.1,
+at least one boost unit before a story leaves the pool, does not apply to it.
+That rule exists to stop the board filling with modules nobody asked for, and a
+curated news feed is the asking. Applied to seeded stories it deadlocks the
+wall before it opens: on September 9, 2026 the first live run put 72 stories in
+the pool where every one of them waited for a boost, on a product with nobody
+able to cast one. A story a person submitted still needs somebody other than
+the submitter to agree it belongs. `isSeeded` in `worker/src/wall/pool.ts`, and
+it means an explicitly null `submitted_by` and nothing else, so a caller that
+forgets to read the column gets the stricter answer rather than the looser
+one.
+
 This does not change the pool, the tiers, the receipts or the budget. A seeded
 story is a submitted story whose submitter is the importer.
 

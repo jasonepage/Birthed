@@ -54,12 +54,34 @@ export function hasEnoughSupport(support: number): boolean {
   return support >= 1;
 }
 
+/**
+ * A story the news importer put there, rather than a person. news.ts leaves
+ * submitted_by null, and nothing else can: wall_submit_story always writes the
+ * caller's own id.
+ */
+export function isSeeded(story: { submittedBy?: string | null }): boolean {
+  // Explicitly null and nothing else. An absent field must never waive a rule
+  // by accident: a caller that forgot to read the column gets the stricter
+  // answer, which is the one that keeps a story off the board.
+  return story.submittedBy === null;
+}
+
 export function eligibleForWall(
-  story: { support: number; submittedAt: number | string },
+  story: { support: number; submittedAt: number | string; submittedBy?: string | null },
   sources: SourceLike[],
   now: number | string,
 ): boolean {
-  return hasEnoughSupport(story.support) && hasEnoughEvidence(sources, story.submittedAt, now);
+  if (!hasEnoughEvidence(sources, story.submittedAt, now)) return false;
+  // The support rule exists to stop the board filling with modules nobody
+  // asked for, and a curated news feed is the asking. A seeded story is placed
+  // on evidence alone and stays at one module until somebody boosts it, so
+  // what people think still decides every size on the wall. Without this the
+  // wall is deadlocked before it opens: a seeded story waits for a boost, and
+  // on a day one product there is nobody to cast one. A story a person
+  // submitted still needs someone other than the submitter to agree it
+  // belongs. docs/the-wall.md section 11.
+  if (isSeeded(story)) return true;
+  return hasEnoughSupport(story.support);
 }
 
 /**
