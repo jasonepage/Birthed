@@ -13,9 +13,10 @@
 import { cp, mkdir, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DayPage, Person, everyDate, slug } from "./model.js";
+import { fetchWall, newestByDate, storyPath, wallKey } from "./wall.js";
 import { coverageByDay, fetchChartWeeks, songsForDate, withDownloadedCovers } from "./songs.js";
 import { buildSeed, factsByDay, factsForDate, fetchFacts, pickHighlights } from "./facts.js";
-import { isReady, renderDayPage, renderNotFound, renderRobots, renderSitemap } from "./render.js";
+import { isReady, renderDayPage, renderNotFound, renderRobots, renderSitemap, renderStoryPage } from "./render.js";
 import { eventsByDay, eventsForDate, fetchEvents, fetchSealedMemory } from "./timeline.js";
 import { culturalByDate, culturalForDate, fetchCulturalEvents } from "./culture.js";
 import { fetchLeadLines } from "./lead.js";
@@ -173,6 +174,18 @@ async function main(): Promise<void> {
       : `${selected.size} dates carry a selection of the day's biggest events`,
   );
 
+  // The wall. Empty is the normal state until the migration has run and the
+  // first date has stories, and an empty table leaves every page as it was.
+  // Read whole like the rest: the rectangles are stored, so the page only
+  // draws them.
+  const walls = await fetchWall(url, key);
+  const wallFor = newestByDate(walls);
+  console.log(
+    walls.length === 0
+      ? "no wall days yet, so no page carries a wall"
+      : `${walls.length} wall days loaded, ${walls.reduce((n, d) => n + d.stories.length, 0)} stories, covering ${wallFor.size} dates`,
+  );
+
   const memory = await fetchSealedMemory(url, key);
   console.log(
     memory.size === 0
@@ -193,11 +206,26 @@ async function main(): Promise<void> {
     await writeFile(
       join(directory, "index.html"),
       renderDayPage(page, songs, found, happened, curated,
-                    memory.get(`${date.month}-${date.day}`) ?? null, leadLines, selected),
+                    memory.get(`${date.month}-${date.day}`) ?? null, leadLines, selected,
+                    wallFor.get(wallKey(date.month, date.day)) ?? null),
       "utf8",
     );
     written++;
   });
+
+  // One receipt page per story on every year's wall, under its date. A
+  // story from an earlier year keeps its page after a newer wall takes the
+  // square on the date page.
+  let receipts = 0;
+  for (const day of walls) {
+    for (const story of day.stories) {
+      const directory = join(OUT, storyPath(story).slice(1));
+      await mkdir(directory, { recursive: true });
+      await writeFile(join(directory, "index.html"), renderStoryPage(story, day), "utf8");
+      receipts++;
+    }
+  }
+  if (receipts > 0) console.log(`wrote ${receipts} wall story pages`);
 
   // The front door shows six real facts off six real date pages, because a
   // landing page for a site whose value is 366 pages of content that shows

@@ -2,6 +2,7 @@
 // without a network and without a browser.
 
 import { DayPage, Person, monthName, neighbours, slug, everyDate } from "./model.js";
+import { WALL_STYLE, storyBody, wallSection, type WallDay, type WallStory } from "./wall.js";
 import { CHART_NAME, coverName, SongOfTheYear } from "./songs.js";
 import { calendar } from "./calendar.js";
 import { type CulturalEvent, textOf } from "./culture.js";
@@ -1600,7 +1601,7 @@ ${image ? `<meta property="og:image" content="${image}">
 <meta property="og:image:height" content="630">
 <meta name="twitter:image" content="${image}">` : ""}
 <meta name="twitter:card" content="summary_large_image">
-${extraHead}<style>${STYLE}</style>
+${extraHead}<style>${STYLE}${WALL_STYLE}</style>
 </head>
 <body${bodyClass ? ` class="${bodyClass}"` : ""}><div class="wrap${bodyClass ? ` ${bodyClass}` : ""}">`;
 }
@@ -2788,6 +2789,14 @@ export function renderDayPage(
    * exactly the page it was.
    */
   selected: Selected = new Map(),
+  /**
+   * The wall for this month and day, the newest year that has one, or null
+   * when no wall exists yet, which leaves the page exactly the page it was.
+   * Baked in like everything else: the rectangles are stored by the server
+   * side allocator and an ordinary page view calls nothing.
+   * docs/the-wall.md.
+   */
+  wall: WallDay | null = null,
 ): string {
   // A row nobody wrote does not go on a page.
   //
@@ -2960,6 +2969,7 @@ ${AFTER}
 <span class="sen senshut">Everything below happened on this date. For three days a year it takes answers about what people <b>remember</b> of it, and when it shuts, what they remembered rises to the top and stays there for a year.</span>
 </p>
 <p class="also">The three open dates right now: <a href="/yesterday/">yesterday</a> <a href="/today/">today</a> <a href="/tomorrow/">tomorrow</a>.</p>
+${wallSection(wall, name)}
 ${askSection(asked, songs, page.month, page.day)}
 ${openingBand(page, songs, culture, highlight)}
 ${cultureSection(culture, name)}
@@ -2984,6 +2994,29 @@ ${calendar(indexYear, { month: page.month, day: page.day })}
 </div>
 <p class="signed">Made by <a href="/about/">Jason Evan Page</a>, one person. No ads, nothing for sale.</p>
 ${jsonLd(page, canonical)}
+${FOOT}`;
+}
+
+/**
+ * The receipt page for one story on the wall. docs/the-wall.md section 5:
+ * every source, every quotation, every check, kept and visible. It is plain
+ * on purpose, and it carries noindex because a receipt is for a reader who
+ * followed a tile, not for a search result.
+ */
+export function renderStoryPage(story: WallStory, day: WallDay): string {
+  const name = `${monthName(day.month)} ${day.day}`;
+  const canonical = `${SITE}/${slug(day.month, day.day)}/wall/${story.id}/`;
+  const hue = dayHue(day.month);
+  return `${head(`${story.headline}, on the wall for ${name}, ${day.year}`,
+    `A story on the Birthed wall for ${name}, ${day.year}, with its sources, quotations and every check run on them.`,
+    canonical, undefined, true)}
+<div class="day wstory" style="--day:${hue.day};--day-soft:${hue.soft}">
+<div class="daybar">
+<a class="mark" href="/">Birthed</a>
+<span class="barend"><a class="get" href="/about/">About</a></span>
+</div>
+${storyBody(story, day)}
+</div>
 ${FOOT}`;
 }
 
