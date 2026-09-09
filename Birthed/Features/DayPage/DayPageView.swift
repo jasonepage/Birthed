@@ -14,6 +14,9 @@ struct DayPageView: View {
     /// What this date is remembered for, and whether it is still taking
     /// answers. See `RememberService`.
     @Environment(RememberService.self) private var remember
+    /// The wall for this date, the live layer above the feed. See
+    /// `WallService` and docs/the-wall.md section 2.
+    @Environment(WallService.self) private var wall
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.openURL) private var openURL
 
@@ -67,6 +70,11 @@ struct DayPageView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     header
+                    // The wall, above the feed. docs/the-wall.md section 2:
+                    // the wall is the live layer, the feed underneath it is
+                    // that date's history. One surface, one date, two
+                    // layers. Nothing below this line changes because of it.
+                    WallView(date: model.date, palette: palette)
                     content
                     attribution
                 }
@@ -486,6 +494,7 @@ struct DayPageView: View {
         await model.load(readerBirthYear: readerBirthYear)
         await factsService.readDay(month: model.date.month, day: model.date.day)
         await remember.load(month: model.date.month, day: model.date.day)
+        await wall.load(date: model.date)
         shareImage = renderShareCard()
     }
 
@@ -499,6 +508,7 @@ struct DayPageView: View {
         await model.move(byDays: days, readerBirthYear: readerBirthYear)
         await factsService.readDay(month: model.date.month, day: model.date.day)
         await remember.load(month: model.date.month, day: model.date.day)
+        await wall.load(date: model.date)
         shareImage = renderShareCard()
     }
 

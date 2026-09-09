@@ -1,0 +1,416 @@
+import CryptoKit
+import DeviceCheck
+import Foundation
+import Observation
+
+/// The wall, as the app reads and writes it. docs/the-wall.md, and section
+/// 12 for what this session decided.
+///
+/// **Reading needs nothing.** The square, the pool, the receipts and every
+/// check are public rows, read through the automatic interface with the
+/// publishable key, the same way the website reads them. No account, no
+/// attestation, nothing in front of it.
+///
+/// **Writing rides the silent anonymous account** Birthed already creates on
+/// first launch, `FR-010`, and never a sign in screen. Nothing ever sits in
+/// front of reading, and the wall hangs off `profiles` through
+/// `wall_joined_at`, which the database fills on the first write.
+///
+/// **App Attest guards writes only.** Once per install the device attests a
+/// key; on every write it asserts. Both are checked by the `wall-write` Edge
+/// Function, which then calls the database function as this account, and
+/// the database consumes the grant the function wrote. A write that did not
+/// come this way is refused by the database. The service role key is not in
+/// this target and never will be; CLAUDE.md section 9 calls that an
+/// incident.
+///
+/// **Server time decides.** `wall_clock` is asked before anything is drawn,
+/// and the three open dates come from its answer. A boost cast in the same
+/// second a date closes is decided by the database's clock, never this
+/// phone's.
+@Observable
+final class WallService {
+
+    // MARK: What the screen reads
+
+    /// The wall for the date the Today tab is showing. Nil while loading, and
+    /// nil for a date that has no wall at all.
+    private(set) var day: WallDay?
+
+    /// Which calendar date `day` belongs to, so a slow answer for one date
+    /// is not drawn under the next.
+    private var loadedFor: CalendarDate?
+
+    /// Units this account may still spend on `day`, by the server, or nil
+    /// until the server has said. The only number the wall shows anybody
+    /// before a date closes, and it is the reader's own.
+    private(set) var unitsLeft: Int?
+
+    /// Server time at the last read, and the phone's time then, so the phase
+    /// can be worked out without asking again: server now is server-then plus
+    /// however long has passed here.
+    private var serverNow: Date?
+    private var readAt: Date?
+
+    /// Set when the wall could not be read at all.
+    private(set) var failed = false
+
+    /// Boosts in flight, so a double tap is one request.
+    private var ledger = WallBoostLedger()
+
+    /// The last refusal, in the reader's terms, for the sheet to show.
+    private(set) var lastRefusal: String?
+
+    // MARK: Setting up
+
+    private let baseURL: URL
+    private let anonKey: String
+    private let session: URLSession
+    private let account: AccountService
+    private let attestor: WallAttestor
+
+    init(account: AccountService,
+         baseURL: URL = Secrets.supabaseURL,
+         anonKey: String = Secrets.supabaseAnonKey,
+         session: URLSession = .shared) {
+        self.account = account
+        self.baseURL = baseURL
+        self.anonKey = anonKey
+        self.session = session
+        self.attestor = WallAttestor()
+    }
+
+    /// Server time now, as best this phone can say.
+    var now: Date {
+        guard let serverNow, let readAt else { return Date() }
+        return serverNow.addingTimeInterval(Date().timeIntervalSince(readAt))
+    }
+
+    var phase: WallDay.Phase? {
+        day?.phase(now: now)
+    }
+
+    // MARK: Reading
+
+    /// Everything the wall for a date holds, and this account's units left.
+    func load(date: CalendarDate) async {
+        failed = false
+        let clock = await readClock()
+        if let clock {
+            serverNow = clock
+            readAt = Date()
+        }
+        let reference = clock ?? Date()
+
+        // The open wall for this month and day, or the newest closed one.
+        let wallDate: WallDate?
+        if let open = WallClock.openWall(for: date, now: reference) {
+            wallDate = open
+        } else {
+            wallDate = await newestWall(for: date)
+        }
+        guard let wallDate else {
+            loadedFor = date
+            day = nil
+            unitsLeft = nil
+            return
+        }
+
+        // Two awaits in a row rather than two child tasks: both callees live
+        // on the main actor, so children would carry nothing Sendable and
+        // buy no time. The same reasoning DayPageView gives for its reload.
+        let loaded = await readDay(wallDate)
+        let left = await readUnitsLeft(wallDate)
+        loadedFor = date
+        failed = loaded == nil && !tableIsMissing
+        day = loaded
+        unitsLeft = left
+    }
+
+    /// True after a read answered 404, which is the project before the wall
+    /// migration ran: an empty wall, not an error.
+    private var tableIsMissing = false
+
+    private func readClock() async -> Date? {
+        var request = URLRequest(url: baseURL.appending(path: "rest/v1/rpc/wall_clock"))
+        request.httpMethod = "POST"
+        request.setValue(anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = Data("{}".utf8)
+        request.timeoutInterval = 10
+        guard let (data, response) = try? await session.data(for: request),
+              let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return nil }
+        return WallRows.date(object["now"])
+    }
+
+    private func rows(_ path: String) async -> [[String: Any]]? {
+        // The path carries its own query, which `appending(path:)` would
+        // escape, so it is set on the components instead.
+        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
+        let parts = path.split(separator: "?", maxSplits: 1).map(String.init)
+        components?.path = "/rest/v1/" + (parts.first ?? "")
+        components?.percentEncodedQuery = parts.count > 1 ? parts[1] : nil
+        guard let url = components?.url else { return nil }
+        var request = URLRequest(url: url)
+        request.setValue(anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.timeoutInterval = 15
+        guard let (data, response) = try? await session.data(for: request),
+              let http = response as? HTTPURLResponse
+        else { return nil }
+        if http.statusCode == 404 {
+            tableIsMissing = true
+            return []
+        }
+        guard (200..<300).contains(http.statusCode),
+              let list = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+        else { return nil }
+        return list
+    }
+
+    /// The newest wall for a month and day that is not open right now: the
+    /// year drawn on a closed date, the way the website draws it.
+    private func newestWall(for date: CalendarDate) async -> WallDate? {
+        guard let list = await rows("wall_days?select=wall_date&order=wall_date.desc&limit=2000") else { return nil }
+        return list
+            .compactMap { ($0["wall_date"] as? String).flatMap(WallDate.init(key:)) }
+            .first { $0.month == date.month && $0.day == date.day }
+    }
+
+    private func readDay(_ wallDate: WallDate) async -> WallDay? {
+        guard let days = await rows("wall_days?select=wall_date,opens_at,live_at,closes_at,closed_at&wall_date=eq.\(wallDate.key)"),
+              let dayRow = days.first
+        else { return nil }
+        let select = "id,wall_date,submitted_at,headline,url,outlet,status,tier,support,placed_at,anchor_mx,anchor_my,w_modules,h_modules,false_at,false_note,"
+            + "wall_sources(id,story_id,url,outlet,owner,headline,quotation,verified_at,added_at,is_primary_doc,wall_checks(source_id,checked_at,kind,passed,http_status,detail))"
+        guard let storyRows = await rows("wall_stories?select=\(select)&wall_date=eq.\(wallDate.key)&order=submitted_at.asc,id.asc&wall_sources.order=added_at.asc&wall_sources.wall_checks.order=checked_at.asc")
+        else { return nil }
+        return WallRows.day(dayRow, stories: storyRows.compactMap(WallRows.story))
+    }
+
+    private func readUnitsLeft(_ wallDate: WallDate) async -> Int? {
+        guard let token = await account.freshAccessToken() else { return nil }
+        var request = URLRequest(url: baseURL.appending(path: "rest/v1/rpc/wall_units_left"))
+        request.httpMethod = "POST"
+        request.setValue(anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["wall_date_in": wallDate.key])
+        request.timeoutInterval = 10
+        guard let (data, response) = try? await session.data(for: request),
+              let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+              let text = String(data: data, encoding: .utf8), let value = Int(text.trimmingCharacters(in: .whitespacesAndNewlines))
+        else { return nil }
+        return value
+    }
+
+    /// One story, read again, for the sheet after a boost or a submission.
+    func story(_ id: String) -> WallStory? {
+        day?.stories.first { $0.id == id }
+    }
+
+    // MARK: Writing
+
+    enum WriteError: LocalizedError {
+        case refused(String)
+        case notReady
+
+        var errorDescription: String? {
+            switch self {
+            case let .refused(line): return line
+            case .notReady: return "The account is not ready yet. Try again in a moment."
+            }
+        }
+    }
+
+    /// Submits a pasted link to the wall for a date. What comes back is what
+    /// the server extracted, and the headline in it cannot be edited.
+    func submit(url: URL, wallDate: WallDate) async throws -> WallSubmitPreview {
+        let payload: [String: Any] = ["action": "submit", "url": url.absoluteString, "wall_date": wallDate.key]
+        let result = try await write(payload)
+        guard let storyRow = result["story"] as? [String: Any], let story = WallRows.story(storyRow) else {
+            throw WriteError.refused(WallCopy.refusal("unreadable answer"))
+        }
+        let existing = (result["existing"] as? Bool) ?? false
+        return WallSubmitPreview(story: story, existing: existing)
+    }
+
+    /// Spends units on a story. Idempotent: a second tap while the first is
+    /// in flight sends the same request identifier, and the database returns
+    /// the first boost for it rather than making a second.
+    @discardableResult
+    func boost(story: WallStory, units: Int) async throws -> Int {
+        if let left = unitsLeft, !WallBudget.canSpend(units, left: left) {
+            let line = WallCopy.unitsLeft(left, phase: phase ?? .live)
+            lastRefusal = line
+            throw WriteError.refused(line)
+        }
+        let requestID = ledger.begin(storyID: story.id)
+        defer { ledger.finish(storyID: story.id) }
+        let payload: [String: Any] = [
+            "action": "boost", "story_id": story.id, "units": units, "request_id": requestID.uuidString.lowercased(),
+        ]
+        let result = try await write(payload)
+        if let left = result["units_left"] as? Int { unitsLeft = left }
+        return (result["support"] as? Int) ?? story.support
+    }
+
+    func isBoosting(_ story: WallStory) -> Bool {
+        ledger.isInFlight(storyID: story.id)
+    }
+
+    /// The whole write path: a challenge, an attestation if the device has
+    /// none yet, an assertion over the challenge and the request, and the
+    /// Edge Function's answer.
+    private func write(_ action: [String: Any]) async throws -> [String: Any] {
+        lastRefusal = nil
+        guard let token = await account.freshAccessToken() else { throw WriteError.notReady }
+
+        // The payload is hashed byte for byte with the challenge, and the
+        // server hashes the exact string it receives, so it is serialised
+        // once and sent as that string.
+        let payloadData = try JSONSerialization.data(withJSONObject: action, options: [.sortedKeys])
+        guard let payloadText = String(data: payloadData, encoding: .utf8) else { throw refuse("could not be verified") }
+
+        do {
+            // Once per install. A challenge of its own, used by the attestation.
+            try await attestor.ensureAttested(challengeIssuer: { [self] in
+                let fresh = try await self.call(["kind": "challenge"], token: token)
+                guard let text = fresh["challenge"] as? String, let bytes = Data(base64Encoded: text) else { throw self.refuse("could not be verified") }
+                return (text, bytes)
+            }, register: { [self] keyID, attestation, challengeText in
+                _ = try await self.call(["kind": "attest", "key_id": keyID, "attestation": attestation, "challenge": challengeText], token: token)
+            })
+
+            // Then a challenge for this write, used once, within two minutes.
+            let challenge = try await call(["kind": "challenge"], token: token)
+            guard let challengeText = challenge["challenge"] as? String, let challengeBytes = Data(base64Encoded: challengeText) else {
+                throw refuse("could not be verified")
+            }
+            let assertion = try await attestor.assert(challenge: challengeBytes, payload: Data(payloadText.utf8))
+            return try await call([
+                "kind": "write", "key_id": assertion.keyID, "assertion": assertion.assertion,
+                "challenge": challengeText, "payload": payloadText,
+            ], token: token)
+        } catch let error as WallAttestor.Failure {
+            let line = WallCopy.refusal(error.message)
+            lastRefusal = line
+            throw WriteError.refused(line)
+        }
+    }
+
+    private func refuse(_ message: String) -> WriteError {
+        let line = WallCopy.refusal(message)
+        lastRefusal = line
+        return .refused(line)
+    }
+
+    /// One call to the Edge Function. A refusal comes back as the server's
+    /// own sentence, turned into the reader's.
+    private func call(_ body: [String: Any], token: String) async throws -> [String: Any] {
+        var request = URLRequest(url: baseURL.appending(path: "functions/v1/wall-write"))
+        request.httpMethod = "POST"
+        request.setValue(anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        request.timeoutInterval = 30
+        let (data, response) = try await session.data(for: request)
+        let object = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            let message = (object["error"] as? String) ?? "refused"
+            throw refuse(message)
+        }
+        return object
+    }
+}
+
+// MARK: - App Attest on the device
+
+/// The device's half of App Attest. One key per install, kept by identifier
+/// in the keychain, attested once, asserting on every write.
+///
+/// The Secure Enclave holds the private key; this type only ever sees its
+/// identifier. Not supported on the simulator, in which case every write
+/// fails with one plain sentence and reading is unaffected.
+final class WallAttestor {
+    struct Failure: Error {
+        let message: String
+    }
+
+    struct Assertion {
+        let keyID: String
+        /// The CBOR assertion, base64.
+        let assertion: String
+    }
+
+    private static let keyIDKey = "wall_attest_key_id"
+    private static let attestedKey = "wall_attest_done"
+
+    private let service = DCAppAttestService.shared
+
+    /// Makes and attests a key when this install has none. `challengeIssuer`
+    /// fetches a challenge from the server; `register` sends the attestation.
+    func ensureAttested(
+        challengeIssuer: () async throws -> (text: String, bytes: Data),
+        register: (String, String, String) async throws -> Void
+    ) async throws {
+        guard service.isSupported else {
+            throw Failure(message: "could not be verified: App Attest is not supported on this device")
+        }
+        if let existing = Keychain.get(Self.keyIDKey), Keychain.get(Self.attestedKey) == existing {
+            return
+        }
+        let keyID = try await generateKey()
+        let challenge = try await challengeIssuer()
+        let clientDataHash = Data(SHA256.hash(data: challenge.bytes))
+        let attestation: Data
+        do {
+            attestation = try await service.attestKey(keyID, clientDataHash: clientDataHash)
+        } catch {
+            throw Failure(message: "could not be verified: \(error.localizedDescription)")
+        }
+        try await register(keyID, attestation.base64EncodedString(), challenge.text)
+        Keychain.set(keyID, for: Self.keyIDKey)
+        Keychain.set(keyID, for: Self.attestedKey)
+    }
+
+    private func generateKey() async throws -> String {
+        do {
+            let keyID = try await service.generateKey()
+            Keychain.set(keyID, for: Self.keyIDKey)
+            Keychain.remove(Self.attestedKey)
+            return keyID
+        } catch {
+            throw Failure(message: "could not be verified: \(error.localizedDescription)")
+        }
+    }
+
+    /// An assertion over the challenge followed by the payload, which is
+    /// exactly what the server hashes.
+    func assert(challenge: Data, payload: Data) async throws -> Assertion {
+        guard let keyID = Keychain.get(Self.keyIDKey), Keychain.get(Self.attestedKey) == keyID else {
+            throw Failure(message: "not been attested")
+        }
+        var clientData = Data()
+        clientData.append(challenge)
+        clientData.append(payload)
+        let clientDataHash = Data(SHA256.hash(data: clientData))
+        do {
+            let assertion = try await service.generateAssertion(keyID, clientDataHash: clientDataHash)
+            return Assertion(keyID: keyID, assertion: assertion.base64EncodedString())
+        } catch let error as DCError where error.code == .invalidKey {
+            // The key is gone, which happens after a restore to a new phone.
+            // Forget it so the next write attests afresh.
+            Keychain.remove(Self.keyIDKey)
+            Keychain.remove(Self.attestedKey)
+            throw Failure(message: "could not be verified: the key is no longer valid, try again")
+        } catch {
+            throw Failure(message: "could not be verified: \(error.localizedDescription)")
+        }
+    }
+}

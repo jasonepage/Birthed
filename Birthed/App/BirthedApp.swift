@@ -32,6 +32,10 @@ struct BirthedApp: App {
     /// whose silent account has not been created yet, and its token is its own
     /// random value rather than the user id. See `RememberService`.
     @State private var remember = RememberService()
+    /// The wall. Reads with the publishable key like the website does, and
+    /// writes as the silent account through the wall-write Edge Function,
+    /// which checks App Attest. docs/the-wall.md sections 6 and 12.
+    @State private var wall: WallService
 
     private let repository = SupabaseRestDayPageRepository()
 
@@ -42,6 +46,7 @@ struct BirthedApp: App {
         _worldLikes = State(initialValue: WorldLikesService(account: account))
         _yearCharts = State(initialValue: YearChartService(account: account))
         _inbox = State(initialValue: BirthdayInbox(account: account))
+        _wall = State(initialValue: WallService(account: account))
     }
 
     var body: some Scene {
@@ -56,6 +61,7 @@ struct BirthedApp: App {
                 .environment(yearCharts)
                 .environment(inbox)
                 .environment(remember)
+                .environment(wall)
         }
     }
 }
