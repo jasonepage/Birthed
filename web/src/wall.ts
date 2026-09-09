@@ -4,9 +4,21 @@
 //
 // Read only. Nothing here submits or boosts. The pages are baked at build
 // time like every other section, from the rectangles the server side
-// allocator stored, so every reader sees the same wall and the page view
-// calls nothing. A date page shows the newest wall its month and day have;
-// every story on every year's wall gets a receipt page under the date.
+// allocator stored, so every reader sees the same wall. A date page shows
+// the newest wall its month and day have; every story on every year's wall
+// gets a receipt page under the date.
+//
+// The three open dates are the exception, decided September 9, 2026 in the
+// second build session, docs/the-wall.md section 12. While a date is open its
+// wall changes by the quarter hour, and section 7 promises a reader watches
+// the day take shape, so for those three pages serve.ts reads the wall at
+// request time through fetchWallDay below and swaps it into the baked page
+// between the markers wallSection writes. When anything about that read
+// fails the baked wall is served untouched, and a closed date calls nothing.
+//
+// Nothing in this module may cost anything at import. serve.ts imports
+// render.ts which imports this, and a module that builds a formatter or
+// reads a clock at load runs before the server has listened.
 
 import { monthName, slug } from "./model.js";
 
@@ -186,6 +198,95 @@ export async function fetchWall(url: string, key: string): Promise<WallDay[]> {
   }));
 }
 
+interface EmbeddedStoryRow extends StoryRow {
+  wall_sources: Array<SourceRow & { wall_checks: CheckRow[] }>;
+}
+
+function storyFrom(s: StoryRow, sources: WallSource[]): WallStory {
+  return {
+    id: s.id, wallDate: s.wall_date, submittedAt: s.submitted_at, headline: s.headline, url: s.url, outlet: s.outlet,
+    status: s.status, tier: s.tier, support: s.support, placedAt: s.placed_at,
+    rect: s.anchor_mx === null || s.anchor_my === null || s.w_modules === null || s.h_modules === null
+      ? null
+      : { mx: s.anchor_mx, my: s.anchor_my, w: s.w_modules, h: s.h_modules },
+    falseAt: s.false_at, falseNote: s.false_note,
+    sources,
+  };
+}
+
+/**
+ * One date's wall, read at request time. Two requests, the day and its
+ * stories with their sources and checks embedded, each under a deadline,
+ * because this runs inside a page view and a slow answer is worse than the
+ * baked wall. Throws on anything but a clean read; the caller catches and
+ * serves the page as built. Null when the date has no wall row, which is
+ * also a reason to serve the page as built.
+ */
+export async function fetchWallDay(url: string, key: string, wallDate: string, timeoutMs: number = 3000): Promise<WallDay | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const headers = { apikey: key, Authorization: `Bearer ${key}`, Accept: "application/json" };
+    const dayResponse = await fetch(
+      `${url}/rest/v1/wall_days?select=wall_date,opens_at,live_at,closes_at,closed_at&wall_date=eq.${wallDate}`,
+      { headers, signal: controller.signal },
+    );
+    if (!dayResponse.ok) throw new Error(`wall: wall_days answered ${dayResponse.status}`);
+    const days = (await dayResponse.json()) as DayRow[];
+    const d = days[0];
+    if (d === undefined) return null;
+
+    const storiesResponse = await fetch(
+      `${url}/rest/v1/wall_stories?select=id,wall_date,submitted_at,headline,url,outlet,status,tier,support,placed_at,anchor_mx,anchor_my,w_modules,h_modules,false_at,false_note,`
+      + `wall_sources(id,story_id,url,outlet,owner,headline,quotation,verified_at,added_at,wall_checks(source_id,checked_at,kind,passed,http_status,detail))`
+      + `&wall_date=eq.${wallDate}&order=submitted_at.asc,id.asc&wall_sources.order=added_at.asc&wall_sources.wall_checks.order=checked_at.asc`,
+      { headers, signal: controller.signal },
+    );
+    if (!storiesResponse.ok) throw new Error(`wall: wall_stories answered ${storiesResponse.status}`);
+    const stories = (await storiesResponse.json()) as EmbeddedStoryRow[];
+
+    return {
+      wallDate: d.wall_date, ...parts(d.wall_date),
+      opensAt: d.opens_at, liveAt: d.live_at, closesAt: d.closes_at, closedAt: d.closed_at,
+      stories: stories.map((s) => storyFrom(s, (s.wall_sources ?? []).map((src) => ({
+        id: src.id, url: src.url, outlet: src.outlet, owner: src.owner, headline: src.headline, quotation: src.quotation,
+        verifiedAt: src.verified_at, addedAt: src.added_at,
+        checks: (src.wall_checks ?? []).map((c) => ({ checkedAt: c.checked_at, kind: c.kind, passed: c.passed, httpStatus: c.http_status, detail: c.detail })),
+      })))),
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+let easternDate: Intl.DateTimeFormat | null = null;
+
+/** The Eastern calendar date an instant falls on, as yyyy-mm-dd. Built on first use, never at import. */
+export function easternDateOf(millis: number): string {
+  if (easternDate === null) {
+    easternDate = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" });
+  }
+  const p = Object.fromEntries(easternDate.formatToParts(new Date(millis)).map((x) => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day}`;
+}
+
+/**
+ * The three wall dates open at an instant: yesterday, today and tomorrow in
+ * Eastern time, docs/the-wall.md section 3, keyed by month and day. These are
+ * the only pages that read the wall at request time. December 31 opens
+ * January 1 of the next year, and February 28 opens February 29 only in a
+ * leap year, because the arithmetic is done on real dates.
+ */
+export function openWallDates(now: number = Date.now()): Map<string, string> {
+  const [y, m, d] = easternDateOf(now).split("-").map(Number) as [number, number, number];
+  const out = new Map<string, string>();
+  for (const offset of [-1, 0, 1]) {
+    const date = new Date(Date.UTC(y, m - 1, d + offset));
+    out.set(wallKey(date.getUTCMonth() + 1, date.getUTCDate()), date.toISOString().slice(0, 10));
+  }
+  return out;
+}
+
 /**
  * The wall a date page shows: the newest year that has one. Decided on
  * September 9, 2026, docs/the-wall.md section 10. Older years' stories keep
@@ -311,7 +412,28 @@ function stateLine(day: WallDay, now: number): string {
  * and never a layout that reflows. Every tile sits at the anchor the server
  * stored, at the size it stored, and links to its receipt.
  */
+/** The comments a live wall is swapped in between. Present on every date page, wall or no wall. */
+export const WALL_START = "<!--wall:start-->";
+export const WALL_END = "<!--wall:end-->";
+
+/**
+ * The baked page with a fresh wall section in place of the baked one, or
+ * null when the page carries no markers, in which case it is served as it
+ * was. Written with a function so a dollar sign in a headline cannot be
+ * read as a capture group.
+ */
+export function replaceWall(html: string, section: string): string | null {
+  const start = html.indexOf(WALL_START);
+  const end = html.indexOf(WALL_END, start);
+  if (start < 0 || end < 0) return null;
+  return html.slice(0, start) + section + html.slice(end + WALL_END.length);
+}
+
 export function wallSection(day: WallDay | null, name: string, now: number = Date.now()): string {
+  return `${WALL_START}${wallBody(day, name, now)}${WALL_END}`;
+}
+
+function wallBody(day: WallDay | null, name: string, now: number): string {
   if (day === null) return "";
   const onWall = day.stories.filter((s) => s.rect !== null && (s.status === "placed" || s.status === "false"));
   const pool = day.stories.filter((s) => s.status === "pool");

@@ -301,3 +301,133 @@ test("the dot breathes only on an open date, and only for readers who allow moti
   // an alarm on a page that carries September 11.
   assert.equal(/breathe [01](\.\d+)?s/.test(css), false);
 });
+
+// ---------------------------------------------------------------------------
+// The wall, fresh while its date is open. docs/the-wall.md section 12.
+// ---------------------------------------------------------------------------
+
+import { forgetWalls, withWall } from "../src/serve.js";
+import { WALL_END, WALL_START, openWallDates, replaceWall } from "../src/wall.js";
+
+/** A date page as build.ts writes it: markers, with a baked wall between them. */
+const BAKED = `<html><body><h1>A day</h1>${WALL_START}<section class="wall">baked</section>${WALL_END}<p>feed</p></body></html>`;
+
+function wallRows(wallDate: string): { day: unknown[]; stories: unknown[] } {
+  return {
+    day: [{ wall_date: wallDate, opens_at: "2026-01-01T05:00:00Z", live_at: "2026-01-02T05:00:00Z", closes_at: "2099-01-01T05:00:00Z", closed_at: null }],
+    stories: [{
+      id: "11111111-1111-1111-1111-111111111111", wall_date: wallDate, submitted_at: "2026-01-02T12:00:00Z",
+      headline: "Fresh headline from the live read", url: "https://example.org/fresh", outlet: "example.org",
+      status: "placed", tier: "reported", support: 12, placed_at: "2026-01-02T13:00:00Z",
+      anchor_mx: 8, anchor_my: 7, w_modules: 2, h_modules: 1, false_at: null, false_note: null,
+      wall_sources: [],
+    }],
+  };
+}
+
+test("the wall is swapped in between its markers and nowhere else", () => {
+  assert.equal(replaceWall(BAKED, "<section>fresh</section>"), `<html><body><h1>A day</h1><section>fresh</section><p>feed</p></body></html>`);
+  assert.equal(replaceWall("<html>no markers</html>", "<section>fresh</section>"), null);
+  assert.equal(withWall(BAKED, null), BAKED);
+  assert.equal(withWall("<html>no markers</html>", "<section>fresh</section>"), "<html>no markers</html>");
+  // A dollar sign in a headline is text, not a capture group.
+  assert.ok(replaceWall(BAKED, "<section>$1 $& $'</section>")!.includes("$1 $& $'"));
+});
+
+test("the open wall dates are yesterday, today and tomorrow, Eastern, keyed by month and day", () => {
+  const open = openWallDates(Date.parse("2026-12-31T20:00:00Z"));
+  assert.deepEqual([...open.entries()], [["12-30", "2026-12-30"], ["12-31", "2026-12-31"], ["1-1", "2027-01-01"]]);
+  // 03:30 Coordinated Universal Time is still the previous evening in New York.
+  assert.deepEqual([...openWallDates(Date.parse("2026-09-10T03:30:00Z")).values()], ["2026-09-08", "2026-09-09", "2026-09-10"]);
+  assert.deepEqual([...openWallDates(Date.parse("2028-02-28T20:00:00Z")).values()], ["2028-02-27", "2028-02-28", "2028-02-29"]);
+});
+
+test("an open date page reads the wall at request time, falls back to the baked wall when the read fails, and a closed date calls nothing", async (t) => {
+  const root = resolve("test-site-wall");
+  await rm(root, { recursive: true, force: true });
+  const open = openWallDates();
+  const [openKey, openDate] = [...open.entries()][1]!;
+  const [openMonth, openDay] = openKey.split("-").map(Number) as [number, number];
+  // A date that is never within a day of today: six months away.
+  const closedMonth = ((openMonth + 5) % 12) + 1;
+  const closedSlug = `${["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"][closedMonth - 1]}-1`;
+  const openSlug = `${["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"][openMonth - 1]}-${openDay}`;
+  for (const s of [openSlug, closedSlug]) {
+    await mkdir(join(root, s), { recursive: true });
+    await writeFile(join(root, s, "index.html"), BAKED, "utf8");
+  }
+
+  const realFetch = globalThis.fetch;
+  const previousKey = process.env.SUPABASE_ANON_KEY;
+  process.env.SUPABASE_ANON_KEY = "test-key";
+  const calls: string[] = [];
+  let mode: "ok" | "down" | "slow" = "ok";
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    if (!url.includes("supabase")) return realFetch(input, init);
+    calls.push(url);
+    if (mode === "down") return new Response("nope", { status: 503 });
+    if (mode === "slow") {
+      await new Promise((_, reject) => init?.signal?.addEventListener("abort", () => reject(new Error("aborted"))));
+    }
+    const rows = wallRows(openDate);
+    return new Response(JSON.stringify(url.includes("wall_days") ? rows.day : rows.stories), {
+      status: 200, headers: { "Content-Type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  const server = start({ root, port: 0 });
+  await new Promise((done) => server.once("listening", done));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const base = `http://127.0.0.1:${address.port}`;
+
+  t.after(async () => {
+    server.close();
+    globalThis.fetch = realFetch;
+    if (previousKey === undefined) delete process.env.SUPABASE_ANON_KEY; else process.env.SUPABASE_ANON_KEY = previousKey;
+    forgetWalls();
+    await rm(root, { recursive: true, force: true });
+  });
+
+  // Fresh.
+  forgetWalls();
+  const fresh = await (await realFetch(`${base}/${openSlug}/`)).text();
+  assert.ok(fresh.includes("Fresh headline from the live read"), "the live wall is on the page");
+  assert.ok(!fresh.includes(">baked<"), "the baked wall is gone");
+  assert.ok(fresh.includes("<p>feed</p>"), "the rest of the page is untouched");
+  assert.equal(calls.filter((c) => c.includes("wall_days")).length, 1);
+
+  // Within twenty seconds the read is not repeated.
+  await realFetch(`${base}/${openSlug}/`);
+  assert.equal(calls.filter((c) => c.includes("wall_days")).length, 1, "one read per open date per twenty seconds");
+
+  // Down: the baked page, exactly.
+  forgetWalls();
+  mode = "down";
+  const down = await realFetch(`${base}/${openSlug}/`);
+  assert.equal(down.status, 200);
+  assert.equal(await down.text(), BAKED);
+
+  // Slow: the deadline passes and the baked page is served.
+  forgetWalls();
+  mode = "slow";
+  const started = Date.now();
+  const slow = await realFetch(`${base}/${openSlug}/`);
+  assert.equal(await slow.text(), BAKED);
+  assert.ok(Date.now() - started < 10_000);
+
+  // A closed date never asks.
+  forgetWalls();
+  mode = "ok";
+  calls.length = 0;
+  const closed = await realFetch(`${base}/${closedSlug}/`);
+  assert.equal(await closed.text(), BAKED);
+  assert.deepEqual(calls, []);
+
+  // No key, no read, the page as built.
+  forgetWalls();
+  delete process.env.SUPABASE_ANON_KEY;
+  assert.equal(await (await realFetch(`${base}/${openSlug}/`)).text(), BAKED);
+  assert.deepEqual(calls, []);
+});

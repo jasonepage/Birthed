@@ -24,8 +24,9 @@ import { readFile, stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { extname, join, normalize, resolve, sep } from "node:path";
 
-import { everyDate, slug } from "./model.js";
+import { everyDate, monthName, slug } from "./model.js";
 import { ASK_SLOTS, TODAY, resultId, resultMarkup, undoForm, type Remembered } from "./render.js";
+import { fetchWallDay, openWallDates, replaceWall, wallKey, wallSection } from "./wall.js";
 
 
 const TYPES: Record<string, string> = {
@@ -955,6 +956,8 @@ async function handle(
         || request.socket.remoteAddress || "unknown";
       const shown = underLimit(address) ? await withResult(file, path, kept) : null;
       if (shown !== null) {
+        const date = dateFor(path);
+        const wall = date === null ? null : await liveWallSection(date.month, date.day);
         response.writeHead(200, {
           "Content-Type": "text/html; charset=utf-8",
           // Never stored. It is one reader's own result on one row and it is
@@ -962,7 +965,7 @@ async function handle(
           "Cache-Control": "no-store",
           ...securityFor(path),
         });
-        response.end(shown);
+        response.end(withWall(shown, wall));
         return;
       }
     }
@@ -994,6 +997,7 @@ async function handle(
           html = null;
         }
         if (html !== null) {
+          const wall = await liveWallSection(marked.month, marked.day);
           response.writeHead(200, {
             "Content-Type": "text/html; charset=utf-8",
             // Never stored. It is one reader's own answers and it is wrong for
@@ -1001,7 +1005,33 @@ async function handle(
             "Cache-Control": "no-store",
             ...securityFor(path),
           });
-          response.end(method === "HEAD" ? undefined : html + marks);
+          response.end(method === "HEAD" ? undefined : withWall(html, wall) + marks);
+          return;
+        }
+      }
+    }
+    // An open date, for everybody: the page off disk with the wall as it is
+    // right now swapped in. Only when the read succeeded; otherwise the file
+    // is streamed exactly as built, below.
+    const open = readable ? dateFor(path) : null;
+    if (open !== null) {
+      const wall = await liveWallSection(open.month, open.day);
+      if (wall !== null) {
+        let html: string | null = null;
+        try {
+          html = await readFile(file, "utf8");
+        } catch {
+          html = null;
+        }
+        if (html !== null) {
+          response.writeHead(200, {
+            "Content-Type": "text/html; charset=utf-8",
+            // Briefly. The wall moves by the quarter hour and this is the
+            // same for every reader, so a short shared cache is right.
+            "Cache-Control": "public, max-age=20, must-revalidate",
+            ...securityFor(path),
+          });
+          response.end(method === "HEAD" ? undefined : withWall(html, wall));
           return;
         }
       }
@@ -1126,6 +1156,62 @@ async function myMarks(month: number, day: number, token: string): Promise<strin
  * result containing a dollar sign cannot be read as a capture group, which is
  * the kind of thing that works for a year and then meets one row.
  */
+// ---------------------------------------------------------------------------
+// The wall, fresh while its date is open.
+//
+// docs/the-wall.md section 12. Pages bake at build time, so a baked wall for
+// an open date is the wall the build saw, and section 7 promises a reader
+// watches the day take shape. For the three open dates, and only those, the
+// page reads the wall at request time and the fresh section replaces the
+// baked one between the markers wallSection writes. Every other date calls
+// nothing, exactly as before.
+//
+// The bargain is the one withResult makes: when anything about the read
+// fails, a slow answer, an outage, a missing key, the baked page is served
+// untouched. A Supabase outage costs a stale wall for a quarter hour and
+// never a site. One read per open date per twenty seconds, whatever the
+// traffic, so a busy day on the wall is not a busy day for the database.
+// ---------------------------------------------------------------------------
+
+const WALL_FRESH_MS = 20_000;
+const WALL_TIMEOUT_MS = 3000;
+
+const wallCache = new Map<string, { at: number; section: string | null }>();
+
+/** The fresh wall section for a date page, or null to serve the page as built. */
+async function liveWallSection(month: number, day: number, now: number = Date.now()): Promise<string | null> {
+  const key = process.env.SUPABASE_ANON_KEY;
+  if (!key) return null;
+  const wallDate = openWallDates(now).get(wallKey(month, day));
+  if (wallDate === undefined) return null;
+
+  const cached = wallCache.get(wallDate);
+  if (cached !== undefined && now - cached.at < WALL_FRESH_MS) return cached.section;
+
+  let section: string | null = null;
+  try {
+    const wall = await fetchWallDay(projectBase(), key, wallDate, WALL_TIMEOUT_MS);
+    section = wall === null ? null : wallSection(wall, `${monthName(month)} ${day}`, now);
+  } catch {
+    section = null;
+  }
+  // A failure is remembered too, so an outage is asked about once every
+  // twenty seconds rather than on every page view.
+  wallCache.set(wallDate, { at: now, section });
+  return section;
+}
+
+/** The page with the fresh wall in it, or the page as it was. */
+export function withWall(html: string, section: string | null): string {
+  if (section === null) return html;
+  return replaceWall(html, section) ?? html;
+}
+
+/** For tests: forget every fresh wall. */
+export function forgetWalls(): void {
+  wallCache.clear();
+}
+
 /** The date a request path names, or null. */
 function dateFor(requestPath: string): { month: number; day: number } | null {
   const found = everyDate().find((d) => {
