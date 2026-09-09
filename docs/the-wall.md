@@ -125,9 +125,19 @@ else can open, and no way to point at a tile and say that one is mine. That
 matches the decision already made about answers.
 
 Behind it, a persistent private account, so behaviour can be measured over
-years. Reading needs no account and never asks for one. Signing in is requested
-only at the moment somebody first submits or boosts, which is the
-"plus Sign in with Apple later" already written into the stack.
+years. Reading needs no account and never asks for one. **Writing rides the
+silent anonymous account Birthed already creates on first launch, and there
+is no sign in screen, at any point, for any reason.** Decided September 9,
+2026 in the second build session, superseding the earlier sentence here that
+had Sign in with Apple requested at the first submission or boost. Birthed's
+shipped rule is that nothing ever sits in front of reading, and the first
+session already hung the wall off `profiles` through `wall_joined_at`, which
+the database fills on the first write. The anonymous account is the account.
+
+What stands in front of writing instead is App Attest, Apple's proof that a
+request came from a genuine copy of the app on a real device. It guards
+writes only, it is checked on the server and never trusted from the client,
+and reading needs nothing. Section 12.
 
 **What is recorded, permanently and immutably, for every boost:** who, which
 story, how many units, when, the evidence tier at that moment, and how much
@@ -352,3 +362,157 @@ one web service and nothing else. The checker, the seeding and the close job
 all need to run on a clock, and two documents assume a worker cron service that
 was never created. Either add one to `render.yaml` or decide the wall runs
 another way, but it cannot stay unanswered past the next session.
+
+---
+
+## 12. Decided in the second build session, September 9, 2026
+
+The write path, the checker, the news seeding, the fresh open date pages
+and the wall on the Today tab were built in one session, in two sittings.
+These are the calls that session made that the sections above do not
+settle, recorded the way section 10 is.
+
+**Identity is the anonymous account, and App Attest guards writes.** Section
+6 now says so. The `wall-write` Edge Function issues a challenge, checks the
+device's attestation once per install against Apple's App Attest root, and
+checks an assertion over the challenge and the exact request on every write.
+Apple's checks cannot be made in SQL, so after a good assertion the function
+writes one short lived grant in `wall_attest_grants` with the service role
+and calls the database function with the caller's own token. Both database
+functions consume a grant first and refuse without one, so a call that
+skipped the function is refused by the database rather than by anything a
+client could argue with. The simulator does not support App Attest, so on a
+simulator reading works and every write says so in one sentence.
+
+**The database fetches the page, not the caller.** `wall_submit_story` takes
+an address and nothing else. It normalizes it with the worker's key, written
+again in SQL and held to the worker's answers by a test, returns the existing
+story when that key is already on the date, and otherwise reads the page
+itself through the `http` extension and takes the headline and outlet from
+the Open Graph tags, falling back to the title element and the host. There is
+no argument through which wording could arrive. The first source's quotation
+is the page's own description, or its headline when the description is
+shorter than twenty characters. A headline longer than the column is cut at
+a word, fewer of the source's words and never different ones.
+
+**Exact match means exact match, with whitespace folded.** The quotation
+rule is written twice, in `wall_page_contains` for submission and in
+`worker/src/wall/page.ts` for the checker, and `worker/test/wall-page.test.ts`
+runs both on the same fixtures. The page is read as its visible text with
+scripts, styles, comments and tags gone and entities decoded, and as its
+markup with the same things gone, so a description carried in a meta tag
+counts. Runs of whitespace fold to one space on both sides. Nothing else
+about the quotation is changed and it is stored as extracted. Case differs,
+a word differs, a paraphrase: fail.
+
+**A story with no verified source never leaves the pool.** Section 5 says
+evidence is two independently owned sources or a set number of hours, and
+the hold in `pool.ts` would let a single source story through after twelve
+hours whether or not its quotation was ever found. The checker requires at
+least one verified source before the hold counts. A 404, a timeout, a
+paywall or a rewritten page is not a source that waited long enough; it is
+no source. `pool.ts` itself is unchanged.
+
+**Every check is a row and verified_at follows the latest one.** The checker
+writes a resolves row on every run, including runs that change nothing, then
+a quotation row. A pass sets `verified_at` to that check; a fail clears it. A
+page that changes after a pass gets a new failing row and the old row is never
+edited. A page that could not be read is a failed quotation check too, so an
+outage at the source clears the verification until the next run finds it
+again.
+
+**Owners come from a table, and an unknown domain is its own owner.**
+`wall_outlet_owners` maps about a hundred and thirty news domains to their
+owning group as of September 2026. `wall_owner_of` and `ownerOf` walk from
+the host up through its parent domains, so `edition.cnn.com` resolves through
+`cnn.com`. A host that matches nothing is its owner, never silently grouped
+with anything and never silently separated from anything. The checker writes
+the resolved owner back onto the source when it differs, so an edit to the
+table reaches the receipts on the next run.
+
+**Seen directly reaches the tier only through `is_primary_doc` with a
+verified quotation.** Section 11's column, read by the checker and never
+written by it.
+
+**Ten submissions per account per Eastern day, and one to three units per
+boost, both in the database.** The submission count is taken under an
+advisory lock per account, so ten means ten under a burst. The boost budget
+is still the first session's trigger, untouched; `wall_cast_boost` checks
+units left first only to give a plainer sentence, and the trigger is the
+authority.
+
+**A boost carries a request identifier the app made for that tap.**
+`wall_boost_requests` keys the first boost by it, and the same identifier
+arriving again returns that boost and spends nothing, before a grant is
+consumed and before the budget is asked. The app holds one identifier per
+story while its request is in flight, `WallBoostLedger`, so a double tap is
+one request and a retry after a lost answer is the same request.
+
+**`booster_id` is recorded and not published.** A column grant on
+`wall_boosts` leaves every other column readable by anybody and takes that
+one away from the anonymous and authenticated roles. The row is exactly what
+it was and the service role sees all of it. A client asking for every column
+is refused and asks for the ones it may read; nothing in this repository
+reads `wall_boosts` from a client.
+
+**The helper functions are revoked from anon and authenticated by name.**
+The project grants execute on every new function to both roles by default,
+and revoking from public leaves those grants standing. `wall_fetch` in
+particular must not be callable by a client. The first session's trigger and
+window helpers are still granted by default; they are harmless and were left.
+
+**Open date pages read the wall at request time, and only those.** Section 10
+handed this to this session and named `withResult` as the precedent. For
+yesterday, today and tomorrow in Eastern time, `serve.ts` reads the day's
+wall with its sources and checks in two requests under a three second
+deadline and swaps the fresh section in between markers `wallSection` now
+writes on every date page. One read per open date per twenty seconds
+whatever the traffic, a failure remembered for the same twenty seconds, and
+when anything about the read fails the page is served exactly as built. A
+closed date calls nothing. A Supabase outage costs a stale wall for a quarter
+hour and never a site, which keeps the promise `serve.ts` makes.
+
+**Growth in four directions.** Section 9 records it. The rectangle out of a
+run always contains the one that went in; only the top left corner may move
+outward. On the seeded September 5 the 71 and 62 unit stories now hold eight
+and twelve modules.
+
+**The worker has a clock.** `render.yaml` gains `birthed-wall`, a Render cron
+service built from `worker/Dockerfile`, every fifteen minutes, running
+`worker/src/wall/tick.ts`: the news seeder and then the checker. It carries
+the service role key; the web service still does not. Section 11's open item
+is closed. The close job, session three, runs there too.
+
+**The news seeder is not the test seed.** `worker/src/wall/news.ts` reads six
+public feeds, NPR, Al Jazeera, BBC World, The Guardian World, NASA news
+releases and ScienceDaily, and files each item on the wall of the Eastern
+date it was published, in the pool at the claimed tier, with the feed's own
+headline, link and description and no boost, no check and no rectangle.
+Eight items per feed per date. Its submitter is the importer, `submitted_by`
+null. `seed.ts` still invents boosts and still must never run against the
+live project.
+
+**The wall on the Today tab sits between the date and the feed.** One square,
+sixteen by sixteen, drawn from the stored anchors and sizes by `WallBoard` in
+the domain and scaled to the width of the phone; never a layout that reflows.
+Tapping a tile opens the receipt: every source, its quotation, every check
+ever run. The boost control shows the server's count of units left, offers
+one, two or three, and says plainly when the budget is spent, when boosts
+start tomorrow, and when the date has closed. The submit flow takes a pasted
+link and shows what the server extracted, with the headline drawn as text and
+no field to edit it through. `WallClock`, `WallBudget`, `WallBoard`,
+`WallBoostLedger`, `WallCopy` and `WallRows` are pure and tested under
+`swift test`. Server time, from `wall_clock`, decides which three dates are
+open and what phase a wall is in; the phone's clock is the fallback while the
+answer is on its way.
+
+**Found, not built: nobody can add a second source to a story.** Submitting
+the same event from another outlet makes a different story under a different
+address key, so the reported tier is reachable today only through source
+rows a curator adds, or the test seed's two source stories. A "this is the
+same story" flow belongs with the curation work and is not in this session.
+
+**Found, not settled: the feeds were not fetched from here.** The session's
+network could not reach the public feeds or any news page, so the six feed
+addresses in `news.ts` and the fetch path in `check.ts` were tested on
+fixtures and not against the live sites. The first tick on Render will say.
