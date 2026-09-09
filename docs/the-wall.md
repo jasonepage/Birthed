@@ -323,3 +323,32 @@ units holds four. The rules in section 5 produce this exactly as written,
 so nothing was changed. It belongs in section 9 with the solemn dates. Options not yet
 chosen: growth in all four directions, placing a new story at the nearest
 module that leaves a margin, or a tile reserving room when it is placed.
+
+## 11. Decided September 9, 2026, after the second build session stalled
+
+**A wall opens already carrying the day's news.** A square of sixteen tiles on
+a day with four submissions is an empty room, and the thing this feature is
+copying worked because the canvas was full. So each date's wall is seeded from
+public news feeds when it opens, at the claimed or reported tier like any other
+story, with the same receipts and the same checks. People then boost what they
+think will last, and add what the feeds missed.
+
+The cost is honest and worth stating: not every tile on the wall was somebody's
+choice. What is somebody's choice is every tile's size, which is the part the
+product actually measures. A seeded story with no boosts stays one module and
+falls off the bottom of what anybody looks at.
+
+This does not change the pool, the tiers, the receipts or the budget. A seeded
+story is a submitted story whose submitter is the importer.
+
+**`wall_sources.is_primary_doc` exists because the highest tier could not be
+reached.** `tierFor` in `worker/src/wall/pool.ts` has always taken a
+`seenDirect` argument and nothing in the schema recorded it, so it was always
+false. The column is set by a person, never inferred from a host name, and a
+primary document still has to verify its quotation like any other source.
+
+**Open, and now urgent: the worker has no schedule.** `render.yaml` describes
+one web service and nothing else. The checker, the seeding and the close job
+all need to run on a clock, and two documents assume a worker cron service that
+was never created. Either add one to `render.yaml` or decide the wall runs
+another way, but it cannot stay unanswered past the next session.
