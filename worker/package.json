@@ -21,7 +21,8 @@
     "import:culture": "npm run build && node dist/src/import-culture.js",
     "import:culture:all": "npm run build && node dist/src/import-culture-all.js",
     "rank:day": "npm run build && node dist/src/rank-day.js",
-    "portraits": "npm run build && node dist/src/portraits.js"
+    "portraits": "npm run build && node dist/src/portraits.js",
+    "wall:seed": "npm run build && node dist/src/wall/seed.js"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
