@@ -192,6 +192,23 @@ about the ordinary case and does not settle this one. Options considered and not
 yet chosen: a curated list of dates that render static, or a rule based on the
 history already attached to a date.
 
+**Early tiles boxed in, settled September 9, 2026 in the second build
+session.** Section 10 found that growth went only right and down, so the
+first stories on a busy day were surrounded by one module tiles within the
+hour and could never grow whatever support they gathered. Growth now
+considers all four directions: a whole free column on the right or the left,
+a whole free row below or above, width still preferred while the tile is at
+most one and a half times as wide as it is tall, right before left and down
+before up. A tile still never shrinks and never gives up a module it holds;
+the rectangle that comes out of a run always contains the one that went in,
+and only its top left corner may move outward. Pixels, when they arrive, are
+stored in board coordinates rather than tile coordinates, so a corner moving
+outward changes nothing anybody drew. On the seeded September 5 the two seen
+directly stories with 71 and 62 units now hold eight and twelve modules and
+the claimed story with 38 still holds its four. The other two options section
+10 listed, a placement margin and a reservation, were not taken: both spend
+board on stories that may never earn it.
+
 **The anniversary outcome job.** The table exists and stays empty. What counts
 as a story surviving to its anniversary is undecided on purpose, because it
 reaches into the reputation question that is deliberately deferred, and the

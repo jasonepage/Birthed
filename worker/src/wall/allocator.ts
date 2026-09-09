@@ -12,16 +12,23 @@
 //
 // The rules, in order:
 //
-//   An anchor is assigned once and never changes.
-//   A tile may grow and may never move or shrink.
+//   A tile is placed once, may grow, and may never shrink or give up a module
+//   it holds. Its stored rectangle is the top left corner and a size, and
+//   growing up or left moves that corner outward: the new rectangle always
+//   contains the old one whole. Pixels are stored in board coordinates, not
+//   tile coordinates, so a corner moving outward changes nothing anybody drew.
 //   New stories take the free module nearest the board centre point
 //   (7.5, 7.5), ranked by distance, then clockwise angle from straight up,
 //   then mx, then my. Stories are considered in order of placement time,
 //   then id.
 //   Target size is clamp(1, tier ceiling, floor(support / 5)).
-//   Growth adds one whole free column to the right or one whole free row
-//   below, preferring width while w is at most h times 1.5, and does not
-//   grow at all if both are blocked.
+//   Growth adds one whole free column, to the right or to the left, or one
+//   whole free row, below or above, preferring width while w is at most h
+//   times 1.5, right before left and down before up, and does not grow at
+//   all when every side is blocked. Decided on September 9, 2026: with only
+//   right and down, the first stories on a busy day were boxed in by one
+//   module tiles within the hour and could never grow whatever support they
+//   gathered. docs/the-wall.md section 9.
 //   A claimed tile is capped at 4 modules and a confirmed one at 24.
 //   A story with no free module comes back as overflow rather than throwing.
 
@@ -172,6 +179,11 @@ class Board {
  * and returns the rectangle it ended with. A step that would overshoot the
  * target is not taken, so a tile of six modules with a target of eight adds
  * the row that makes eight rather than the column that makes nine.
+ *
+ * Four directions. A column can be added on the right or on the left, a row
+ * below or above. The rectangle that comes back always contains the one that
+ * went in, so a tile never shrinks and never gives up ground; only its top
+ * left corner may move outward.
  */
 function grow(board: Board, rect: Rect, target: number): Rect {
   let current = { ...rect };
@@ -180,28 +192,42 @@ function grow(board: Board, rect: Rect, target: number): Rect {
     if (area >= target) return current;
 
     const preferWidth = current.w <= current.h * WIDTH_PREFERENCE;
+    const widerFits = current.w + 1 <= BOARD_MODULES && (current.w + 1) * current.h <= target;
+    const tallerFits = current.h + 1 <= BOARD_MODULES && current.w * (current.h + 1) <= target;
 
-    const column = {
-      fits: current.w + 1 <= BOARD_MODULES
-        && (current.w + 1) * current.h <= target
-        && board.columnFree(current.mx + current.w, current.my, current.h),
+    const right = {
+      fits: widerFits && board.columnFree(current.mx + current.w, current.my, current.h),
       apply: (): Rect => ({ ...current, w: current.w + 1 }),
       take: (): void => board.take({ mx: current.mx + current.w, my: current.my, w: 1, h: current.h }),
     };
-    const row = {
-      fits: current.h + 1 <= BOARD_MODULES
-        && current.w * (current.h + 1) <= target
-        && board.rowFree(current.mx, current.my + current.h, current.w),
+    const left = {
+      fits: widerFits && board.columnFree(current.mx - 1, current.my, current.h),
+      apply: (): Rect => ({ ...current, mx: current.mx - 1, w: current.w + 1 }),
+      take: (): void => board.take({ mx: current.mx - 1, my: current.my, w: 1, h: current.h }),
+    };
+    const down = {
+      fits: tallerFits && board.rowFree(current.mx, current.my + current.h, current.w),
       apply: (): Rect => ({ ...current, h: current.h + 1 }),
       take: (): void => board.take({ mx: current.mx, my: current.my + current.h, w: current.w, h: 1 }),
     };
+    const up = {
+      fits: tallerFits && board.rowFree(current.mx, current.my - 1, current.w),
+      apply: (): Rect => ({ ...current, my: current.my - 1, h: current.h + 1 }),
+      take: (): void => board.take({ mx: current.mx, my: current.my - 1, w: current.w, h: 1 }),
+    };
 
-    const order = preferWidth ? [column, row] : [row, column];
+    const order = preferWidth ? [right, left, down, up] : [down, up, right, left];
     const step = order.find((candidate) => candidate.fits);
     if (step === undefined) return current;
     step.take();
     current = step.apply();
   }
+}
+
+/** True when `outer` holds every module of `inner`. */
+export function contains(outer: Rect, inner: Rect): boolean {
+  return outer.mx <= inner.mx && outer.my <= inner.my
+    && outer.mx + outer.w >= inner.mx + inner.w && outer.my + outer.h >= inner.my + inner.h;
 }
 
 /**
@@ -224,9 +250,9 @@ export function allocate(stories: StoryInput[]): Allocation {
   const overflow: string[] = [];
 
   // Existing rectangles are laid down first, all of them, before anything
-  // grows. A tile placed later must never be allowed to grow into the anchor
-  // of one placed earlier, and the anchors are the one thing here that is
-  // already a fact.
+  // grows. A tile placed later must never be allowed to grow into the
+  // rectangle of one placed earlier, and the rectangles are the one thing
+  // here that is already a fact.
   for (const story of ordered) {
     const anchor = story.anchor;
     if (!anchor) continue;

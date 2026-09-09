@@ -6,6 +6,7 @@ import {
   CLAIMED_CEILING,
   CONFIRMED_CEILING,
   allocate,
+  contains,
   moduleOrder,
   overlaps,
   targetModules,
@@ -66,7 +67,7 @@ test("growth prefers width while w is at most h times 1.5 and reaches 24 as 6 by
   assert.deepEqual({ w: a.w, h: a.h }, { w: 6, h: 4 });
 });
 
-test("anchors never change across repeated runs, and later runs only grow", () => {
+test("a tile keeps every module it holds across repeated runs, and later runs only grow", () => {
   const first = allocate([
     story("a", { support: 5, placedAt: "2026-09-09T10:00:00Z" }),
     story("b", { support: 5, placedAt: "2026-09-09T11:00:00Z" }),
@@ -83,8 +84,7 @@ test("anchors never change across repeated runs, and later runs only grow", () =
   for (const after of second.placed) {
     const before = byId.get(after.id);
     if (before === undefined) continue;
-    assert.equal(after.mx, before.mx, `${after.id} moved in x`);
-    assert.equal(after.my, before.my, `${after.id} moved in y`);
+    assert.ok(contains(after, before), `${after.id} gave up ground`);
     assert.ok(after.w >= before.w, `${after.id} got narrower`);
     assert.ok(after.h >= before.h, `${after.id} got shorter`);
   }
@@ -122,21 +122,56 @@ test("a full board returns overflow rather than throwing", () => {
   noOverlap(result.placed);
 });
 
-test("a blocked tile does not grow at all", () => {
-  // Six one module tiles around a seventh whose right column and bottom row
-  // are both taken. The seventh wants four modules and gets none.
+test("a tile boxed in on all four sides does not grow at all", () => {
+  // Four one module tiles around a fifth. The fifth wants four modules and
+  // gets none, because every side is taken.
   const anchors: Record<string, { mx: number; my: number; w: number; h: number }> = {
     centre: { mx: 8, my: 7, w: 1, h: 1 },
     right: { mx: 9, my: 7, w: 1, h: 1 },
     below: { mx: 8, my: 8, w: 1, h: 1 },
+    left: { mx: 7, my: 7, w: 1, h: 1 },
+    above: { mx: 8, my: 6, w: 1, h: 1 },
   };
   const result = allocate([
     story("centre", { support: 100, placedAt: 1, anchor: anchors.centre }),
     story("right", { support: 0, placedAt: 2, anchor: anchors.right }),
     story("below", { support: 0, placedAt: 3, anchor: anchors.below }),
+    story("left", { support: 0, placedAt: 4, anchor: anchors.left }),
+    story("above", { support: 0, placedAt: 5, anchor: anchors.above }),
   ]);
   const centre = result.placed.find((p) => p.id === "centre")!;
   assert.deepEqual({ w: centre.w, h: centre.h }, { w: 1, h: 1 });
+});
+
+test("a tile blocked on the right and below grows left and up instead", () => {
+  // The case section 10 of docs/the-wall.md found: the first story on a busy
+  // day is surrounded within the hour on the two sides growth used to go.
+  const result = allocate([
+    story("centre", { support: 20, placedAt: 1, anchor: { mx: 8, my: 7, w: 1, h: 1 } }),
+    story("right", { support: 0, placedAt: 2, anchor: { mx: 9, my: 7, w: 1, h: 1 } }),
+    story("below", { support: 0, placedAt: 3, anchor: { mx: 8, my: 8, w: 1, h: 1 } }),
+  ]);
+  const centre = result.placed.find((p) => p.id === "centre")!;
+  // Width first: the column on the left. Then w is no longer at most h times
+  // 1.5, so a row, and the one below is taken, so the one above.
+  assert.deepEqual(centre, { id: "centre", mx: 7, my: 6, w: 2, h: 2 });
+  assert.ok(contains(centre, { mx: 8, my: 7, w: 1, h: 1 }));
+  noOverlap(result.placed);
+});
+
+test("right is preferred over left and down over up, so an open tile grows exactly as before", () => {
+  const result = allocate([story("a", { support: 20, anchor: { mx: 8, my: 7, w: 1, h: 1 } })]);
+  assert.deepEqual(result.placed[0], { id: "a", mx: 8, my: 7, w: 2, h: 2 });
+});
+
+test("growth up or left stops at the edge of the board", () => {
+  const result = allocate([
+    story("corner", { support: 20, placedAt: 1, anchor: { mx: 0, my: 0, w: 1, h: 1 } }),
+    story("right", { support: 0, placedAt: 2, anchor: { mx: 1, my: 0, w: 1, h: 1 } }),
+    story("below", { support: 0, placedAt: 3, anchor: { mx: 0, my: 1, w: 1, h: 1 } }),
+  ]);
+  const corner = result.placed.find((p) => p.id === "corner")!;
+  assert.deepEqual(corner, { id: "corner", mx: 0, my: 0, w: 1, h: 1 });
 });
 
 test("placement is deterministic under identical inputs, whatever order they arrive in", () => {

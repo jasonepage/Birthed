@@ -112,3 +112,41 @@ test("the printed SQL is one transaction a day and carries the story identifiers
   assert.ok(sql.includes(`md5('birthed-wall-seed-story:${day.date}:'`));
   assert.ok(!sql.includes("$j$$j$"));
 });
+
+test("on the seeded busy day, the most supported stories are no longer boxed in at one module", () => {
+  // The case docs/the-wall.md section 10 found and left alone: the first
+  // stories on the busy day were surrounded within the hour and growth only
+  // went right and down, so the two with the most support sat at one module
+  // each while a claimed story with less held four. Growth now goes in all
+  // four directions, section 9, and this is what that buys on the same seed.
+  const busy = seeded().find((day) => day.date === "2026-09-05")!;
+  const placed = busy.stories.filter((s) => s.rect !== null);
+  const area = (s: { rect: { w: number; h: number } | null }): number => (s.rect ? s.rect.w * s.rect.h : 0);
+  const confirmed = placed.filter((s) => s.tier !== "claimed").sort((a, b) => b.support - a.support);
+  const claimed = placed.filter((s) => s.tier === "claimed");
+
+  // The three stories section 10 named, by their support on this seed.
+  const seventyOne = confirmed.find((s) => s.tier === "seen_direct" && s.support === 71)!;
+  const sixtyTwo = confirmed.find((s) => s.tier === "seen_direct" && s.support === 62)!;
+  const thirtyEight = claimed.find((s) => s.support === 38)!;
+  assert.ok(seventyOne && sixtyTwo && thirtyEight, "the seed still produces the stories section 10 describes");
+  assert.equal(area(thirtyEight), 4, "the claimed story still holds four, its ceiling");
+  assert.ok(area(seventyOne) > area(thirtyEight), `71 units holds ${area(seventyOne)} modules`);
+  assert.ok(area(sixtyTwo) > area(thirtyEight), `62 units holds ${area(sixtyTwo)} modules`);
+
+  const biggestClaimed = Math.max(...claimed.map(area));
+  assert.equal(biggestClaimed, 4, "a claimed story is still capped at four modules");
+  const larger = confirmed.slice(0, 5).filter((s) => area(s) > biggestClaimed).length;
+  assert.ok(larger >= 3, `${larger} of the five most supported confirmed stories are bigger than any claimed one`);
+
+  // Every module a tile held at any tick, it still holds at the end.
+  for (const story of placed) {
+    assert.ok(story.rect!.mx >= 0 && story.rect!.my >= 0);
+    assert.ok(story.rect!.mx + story.rect!.w <= BOARD_MODULES && story.rect!.my + story.rect!.h <= BOARD_MODULES);
+  }
+  for (let i = 0; i < placed.length; i++) {
+    for (let j = i + 1; j < placed.length; j++) {
+      assert.ok(!overlaps(placed[i]!.rect!, placed[j]!.rect!));
+    }
+  }
+});
