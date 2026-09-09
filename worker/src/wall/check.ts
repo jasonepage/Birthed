@@ -223,7 +223,7 @@ export function settle(
 
     if (story.status === "false") {
       // Stamped. Keeps its exact rectangle, earns nothing, grows nowhere.
-      if (rect !== null) input.push({ id: story.id, tier: story.tier, support: 0, placedAt: story.placed_at ?? story.submitted_at, anchor: rect });
+      if (rect !== null) input.push({ id: story.id, tier: story.tier, support: 0, placedAt: story.placed_at ?? story.submitted_at, anchor: rect, frozen: true });
       continue;
     }
 

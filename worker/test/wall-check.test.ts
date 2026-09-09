@@ -166,7 +166,8 @@ test("a single source story graduates after the hold, and not before", () => {
   const a = held.stories.find((u) => u.id === "a")!;
   assert.equal(a.status, "placed");
   assert.equal(a.placed_at, NOW);
-  assert.deepEqual([a.anchor_mx, a.anchor_my, a.w_modules, a.h_modules], [8, 7, 1, 1]);
+  // One unit: the minimum four by three plus its first whole column.
+  assert.deepEqual([a.anchor_mx, a.anchor_my, a.w_modules, a.h_modules], [6, 6, 5, 3]);
   assert.equal(held.snapshot?.board.tiles.length, 1);
 });
 
@@ -201,20 +202,26 @@ test("a story that never verifies never leaves the pool, however long it waits a
 test("placed stories keep their rectangles and grow; the snapshot is the whole board", () => {
   const stories = [
     story("a", { status: "placed", support: 20, placed_at: EARLIER, anchor_mx: 8, anchor_my: 7, w_modules: 1, h_modules: 1, tier: "reported" }),
-    story("b", { status: "placed", support: 1, placed_at: JUST_NOW, anchor_mx: 9, anchor_my: 7, w_modules: 1, h_modules: 1 }),
+    // Already at the minimum with one unit: five by three, which is what one
+    // unit earns, so nothing about it changes on this run.
+    story("b", { status: "placed", support: 1, placed_at: JUST_NOW, anchor_mx: 9, anchor_my: 7, w_modules: 5, h_modules: 3 }),
   ];
   const settled = settle(DAY, stories, [
     source("s1", "a", "https://www.npr.org/x"), source("s2", "a", "https://edition.cnn.com/y"),
     source("s3", "b", "https://www.npr.org/z"),
   ], OWNERS, NOW);
   const a = settled.stories.find((u) => u.id === "a")!;
-  assert.equal(a.w_modules! * a.h_modules!, 4);
+  // Twenty units on a reported story: a target of thirty two, reached as a
+  // whole rectangle that still holds the one module it started with. The
+  // tile beside it blocks growth to the right, so it goes left.
+  assert.equal(a.w_modules! * a.h_modules!, 32);
+  assert.ok(a.anchor_mx! <= 8 && a.anchor_mx! + a.w_modules! > 8 && a.anchor_my! <= 7 && a.anchor_my! + a.h_modules! > 7, "the grown tile contains its old module");
   assert.equal(a.placed_at, undefined, "an already placed story keeps its placed_at");
   assert.equal(settled.stories.find((u) => u.id === "b"), undefined, "unchanged tile, nothing written");
   assert.equal(settled.snapshot?.board.tiles.length, 2);
 });
 
-test("a claimed story is capped at four modules whatever its support", () => {
+test("a claimed story is capped at its ceiling whatever its support", () => {
   const settled = settle(DAY, [story("a", { support: 500 })], [source("s1", "a", "https://www.npr.org/x")], OWNERS, NOW);
   const a = settled.stories.find((u) => u.id === "a")!;
   assert.equal(a.w_modules! * a.h_modules!, CLAIMED_CEILING);

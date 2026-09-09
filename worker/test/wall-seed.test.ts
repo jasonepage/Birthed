@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 
-import { BOARD_MODULES, overlaps } from "../src/wall/allocator.js";
+import { BOARD_MODULES, CLAIMED_CEILING, MAX_PLACED, MIN_MODULES, overlaps } from "../src/wall/allocator.js";
 import {
   addDays, easternDateOf, easternMidnight, plan, playback, seedId, toSql, type PlannedDay,
 } from "../src/wall/seed.js";
@@ -65,14 +65,16 @@ test("tomorrow's wall has submissions and no boosts, and the busy day is the cro
   assert.equal(tomorrow.boosts.length, 0);
   assert.ok(tomorrow.stories.every((s) => s.status === "pool"));
 
-  // The fixture holds 74 distinct articles and a date may carry each once,
-  // so a seeded board cannot run out of modules; overflow is proved in the
-  // allocator tests. What the busy day proves is that a crowded board places
-  // every supported story and leaves the unsupported ones in the pool.
+  // The fixture holds 74 distinct articles and a date may carry each once.
+  // What the busy day proves is that a crowded board holds a readable number
+  // of tiles and no more, that what qualified and found no room is overflow
+  // rather than lost, and that the unsupported ones stay in the pool.
   const busy = days.find((d) => d.date === "2026-09-05")!;
   const quiet = days.find((d) => d.date === "2026-09-04")!;
   assert.ok(busy.stories.length > quiet.stories.length * 3);
-  assert.ok(busy.stories.filter((s) => s.status === "placed").length >= 40);
+  const placed = busy.stories.filter((s) => s.status === "placed").length;
+  assert.ok(placed <= MAX_PLACED && placed >= MAX_PLACED - 3, `${placed} placed`);
+  assert.ok(busy.stories.some((s) => s.status === "overflow"));
   assert.ok(busy.stories.some((s) => s.status === "pool"));
 });
 
@@ -113,31 +115,22 @@ test("the printed SQL is one transaction a day and carries the story identifiers
   assert.ok(!sql.includes("$j$$j$"));
 });
 
-test("on the seeded busy day, the most supported stories are no longer boxed in at one module", () => {
-  // The case docs/the-wall.md section 10 found and left alone: the first
-  // stories on the busy day were surrounded within the hour and growth only
-  // went right and down, so the two with the most support sat at one module
-  // each while a claimed story with less held four. Growth now goes in all
-  // four directions, section 9, and this is what that buys on the same seed.
+test("on the seeded busy day, every tile can hold a headline and support still decides size", () => {
+  // The case docs/the-wall.md section 10 found and section 9 settled was
+  // about one module tiles boxing each other in. There are no one module
+  // tiles any more: a tile is never smaller than a headline needs, the board
+  // holds a readable number of them, and among those on the board the
+  // stories people backed hardest are the biggest.
   const busy = seeded().find((day) => day.date === "2026-09-05")!;
   const placed = busy.stories.filter((s) => s.rect !== null);
   const area = (s: { rect: { w: number; h: number } | null }): number => (s.rect ? s.rect.w * s.rect.h : 0);
-  const confirmed = placed.filter((s) => s.tier !== "claimed").sort((a, b) => b.support - a.support);
-  const claimed = placed.filter((s) => s.tier === "claimed");
-
-  // The three stories section 10 named, by their support on this seed.
-  const seventyOne = confirmed.find((s) => s.tier === "seen_direct" && s.support === 71)!;
-  const sixtyTwo = confirmed.find((s) => s.tier === "seen_direct" && s.support === 62)!;
-  const thirtyEight = claimed.find((s) => s.support === 38)!;
-  assert.ok(seventyOne && sixtyTwo && thirtyEight, "the seed still produces the stories section 10 describes");
-  assert.equal(area(thirtyEight), 4, "the claimed story still holds four, its ceiling");
-  assert.ok(area(seventyOne) > area(thirtyEight), `71 units holds ${area(seventyOne)} modules`);
-  assert.ok(area(sixtyTwo) > area(thirtyEight), `62 units holds ${area(sixtyTwo)} modules`);
-
-  const biggestClaimed = Math.max(...claimed.map(area));
-  assert.equal(biggestClaimed, 4, "a claimed story is still capped at four modules");
-  const larger = confirmed.slice(0, 5).filter((s) => area(s) > biggestClaimed).length;
-  assert.ok(larger >= 3, `${larger} of the five most supported confirmed stories are bigger than any claimed one`);
+  assert.ok(placed.length >= 8 && placed.length <= MAX_PLACED, `${placed.length} tiles`);
+  for (const story of placed) {
+    assert.ok(area(story) >= MIN_MODULES, `${story.support} units holds ${area(story)} modules`);
+    if (story.tier === "claimed") assert.ok(area(story) <= CLAIMED_CEILING, "a claimed story is capped");
+  }
+  const bySupport = [...placed].sort((a, b) => b.support - a.support);
+  assert.ok(area(bySupport[0]!) > area(bySupport[bySupport.length - 1]!), "the most supported tile is bigger than the least");
 
   // Every module a tile held at any tick, it still holds at the end.
   for (const story of placed) {
