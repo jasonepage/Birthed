@@ -46,7 +46,7 @@ services:
     # `npm run og`, un-ignore web/out/og, commit them, and drop og:ci here.
     buildCommand: npm install --include=dev && npm run site && npm run og:ci
     startCommand: node dist/src/serve.js
-    healthCheckPath: /
+    healthCheckPath: /healthz
 
     # Only rebuild when something that changes the site changes. The iOS target,
     # the worker and the specs do not.

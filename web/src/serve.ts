@@ -741,6 +741,17 @@ async function handle(
   const method = request.method ?? "GET";
   const [path = "/", query] = (request.url ?? "/").split("?");
 
+  // The health check, answered before anything else and depending on nothing.
+  // Render holds a deploy until this returns 200, so it must not rest on a
+  // file existing, on today's page having been built, or on any module beyond
+  // this function. Pointing the check at "/" made a healthy server look dead
+  // whenever the page behind "/" was not there.
+  if (path === "/healthz") {
+    response.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", ...SECURITY });
+    response.end(method === "HEAD" ? undefined : "ok");
+    return;
+  }
+
   // POST reaches exactly one address and every other verb on every other path
   // is still refused. The allow header names the truth per path rather than
   // advertising POST across a site where it means nothing.
@@ -1163,7 +1174,9 @@ export function start(options: { root?: string; port?: number } = {}): ReturnTyp
       response.end();
     });
   });
-  server.listen(port, () => console.log(`serving ${root} on ${port}`));
+  // 0.0.0.0 rather than Node's default, which prefers IPv6 and can leave a
+  // health checker knocking on IPv4 forever.
+  server.listen(port, "0.0.0.0", () => console.log(`serving ${root} on ${port}`));
   // Render sends SIGTERM on deploy. Finish what is in flight and go.
   process.on("SIGTERM", () => server.close(() => process.exit(0)));
   return server;

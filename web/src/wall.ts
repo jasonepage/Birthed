@@ -220,14 +220,27 @@ function units(n: number): string {
   return n === 1 ? "1 boost" : `${n} boosts`;
 }
 
-const EASTERN = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York", month: "long", day: "numeric", year: "numeric",
-  hour: "numeric", minute: "2-digit", timeZoneName: "short",
-});
+// Built on first use rather than at module load. serve.ts imports render.ts,
+// which imports this file, so anything evaluated here runs before the server
+// listens. A time zone database that cannot name America/New_York would throw
+// at import and the process would die before opening its port, with nothing in
+// the log to say why. Nothing in this module may cost anything until it is
+// called.
+let easternFormat: Intl.DateTimeFormat | null = null;
+
+function easternFormatter(): Intl.DateTimeFormat {
+  if (easternFormat === null) {
+    easternFormat = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York", month: "long", day: "numeric", year: "numeric",
+      hour: "numeric", minute: "2-digit", timeZoneName: "short",
+    });
+  }
+  return easternFormat;
+}
 
 /** A time as it reads in Eastern, because that is the clock the wall runs on. */
 export function eastern(iso: string): string {
-  return EASTERN.format(new Date(iso));
+  return easternFormatter().format(new Date(iso));
 }
 
 function longDate(day: WallDay): string {
