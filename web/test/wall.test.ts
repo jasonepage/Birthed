@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 import { renderDayPage, renderStoryPage } from "../src/render.js";
 import {
-  newestByDate, storyPath, tierLabel, wallSection, type WallDay, type WallStory,
+  fetchWall, newestByDate, storyPath, tierLabel, wallSection, type WallDay, type WallStory,
 } from "../src/wall.js";
 
 const PAGE = { month: 9, day: 9, people: [] };
@@ -138,4 +138,24 @@ test("tier labels are the document's words and never a verdict", () => {
 
 test("the receipt address sits under its date", () => {
   assert.equal(storyPath(story()), "/september-9/wall/11111111-2222-3333-4444-555555555555/");
+});
+
+test("a project without the wall tables yet is an empty wall, not a failed build", async () => {
+  const real = globalThis.fetch;
+  globalThis.fetch = (async () => new Response("", { status: 404 })) as typeof fetch;
+  try {
+    assert.deepEqual(await fetchWall("https://example.invalid", "key"), []);
+  } finally {
+    globalThis.fetch = real;
+  }
+});
+
+test("a wall that exists and cannot be read still fails the build", async () => {
+  const real = globalThis.fetch;
+  globalThis.fetch = (async () => new Response("", { status: 500 })) as typeof fetch;
+  try {
+    await assert.rejects(fetchWall("https://example.invalid", "key"));
+  } finally {
+    globalThis.fetch = real;
+  }
 });

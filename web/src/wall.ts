@@ -91,6 +91,14 @@ function parts(wallDate: string): { year: number; month: number; day: number } {
 // Reading
 // ---------------------------------------------------------------------------
 
+/**
+ * Reads a table whole. A 404 means the table is not there, which is what
+ * production looks like before the wall migration has run, and that is an
+ * empty wall rather than a failed build: the September 9 deploy failed on
+ * exactly this, and a section that does not exist yet must never take the
+ * site down. Any other failure still throws, because a wall that exists and
+ * cannot be read is a real problem.
+ */
 async function rows<T>(url: string, key: string, path: string): Promise<T[]> {
   const pageSize = 1000;
   const out: T[] = [];
@@ -99,6 +107,10 @@ async function rows<T>(url: string, key: string, path: string): Promise<T[]> {
     const response = await fetch(`${url}/rest/v1/${path}${joiner}limit=${pageSize}&offset=${offset}`, {
       headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: "application/json" },
     });
+    if (response.status === 404) {
+      console.log(`wall: ${path.split("?")[0]} is not there yet, so no page carries a wall`);
+      return [];
+    }
     if (!response.ok) throw new Error(`wall: ${path} failed with ${response.status}`);
     const page = (await response.json()) as T[];
     out.push(...page);
