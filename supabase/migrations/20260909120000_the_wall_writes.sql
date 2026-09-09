@@ -669,7 +669,9 @@ create table wall_attest_keys (
 create table wall_attest_challenges (
   id          uuid primary key default gen_random_uuid(),
   profile_id  uuid not null references profiles (id) on delete cascade,
-  challenge   bytea not null,
+  -- Thirty two random bytes, as standard base64, the way the device is
+  -- handed them and hands them back.
+  challenge   text not null,
   created_at  timestamptz not null default now(),
   expires_at  timestamptz not null,
   used_at     timestamptz
