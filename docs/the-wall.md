@@ -196,3 +196,113 @@ history already attached to a date.
 as a story surviving to its anniversary is undecided on purpose, because it
 reaches into the reputation question that is deliberately deferred, and the
 first anniversary is a year away.
+
+---
+
+## 10. Decided in the first build session, September 9, 2026
+
+The data layer, the placement engine and the read only wall on the web date
+pages were built in one session. These are the calls that session made that
+the sections above do not settle. Sessions two and three should read this
+before touching any of it.
+
+**The hold is twelve hours.** Section 5 says a single source story leaves the
+pool after "a set number of hours" and never set the number. It is twelve,
+`HOLD_HOURS` in `worker/src/wall/pool.ts`: a story with one source is placed
+by the following morning, and a rumour is not on the wall an hour after it
+is posted. Two sources under different ownership still place at once.
+
+**Pages bake at build time, the same as every other section.** A wall
+appears on birthed.app after a deploy, and until then the page shows the
+wall the build saw. This keeps the promise `serve.ts` makes, that an
+ordinary page view calls nothing, and it is the right call while nothing can
+submit or boost. It also means the live resizing promised in section 7 is
+not yet true on the web. The session that adds boosting decides how the open
+window's pages get fresh, and `withResult` in `serve.ts` is the precedent for
+a request that reads the database and falls back to the baked page.
+
+**A date page shows only the newest year's wall.** A page is a month and a
+day; a wall is a date with a year. When September 9 has a 2026 wall and a
+2027 wall, the page draws 2027 and nothing of 2026. Every story on every
+year's wall keeps its receipt page at `/<date>/wall/<story id>/`, so the
+older wall is not lost, it is just not drawn. Nathan chose this over the two
+alternatives, older years drawn smaller below or every year stacked.
+
+**The receipt page is under its date and carries noindex.** It is for a
+reader who followed a tile, not for a search result, and a few hundred pages
+of other outlets' quotations is not what this domain should be indexed for.
+
+**Eastern midnight is computed by the database, never sent by a client.** A
+trigger on `wall_days` fills `opens_at`, `live_at` and `closes_at` from
+`wall_date` on every insert, and whatever the caller sent for those columns
+is replaced. The window is stored rather than derived on read because time
+zone rules are data that can change, and a stored instant is the one that
+was true when the wall opened.
+
+**The budget is a trigger on `wall_boosts`.** Three units on the date
+itself, one the day after, none the day before, with "today" being the
+Eastern calendar date at the moment of the boost. The same trigger fills
+`tier_at_cast` and `support_before` from the story row at that instant, so a
+caller cannot supply them and cannot get them wrong. A second trigger
+refuses every update and delete, and triggers are not bypassed by the
+service role, so the worker and the dashboard are bound by it too.
+
+**`booster_id` is a value, not a foreign key.** A foreign key to `profiles`
+would force either a cascade that deletes history or a set null that edits
+it, and a boost row is never edited. When an account is deleted the row
+keeps a random identifier that points at nothing, on the precedent of
+`events.profile_id`. `wall_stories.submitted_by` is a foreign key with set
+null, because a story is not immutable.
+
+**`profiles` gained one column, `wall_joined_at`.** When the account first
+submitted or boosted. Nothing else the wall needs lives on the person, and
+nothing on the person is ever shown.
+
+**Reads are public on every wall table, including `wall_boosts`.** That was
+the instruction, and it means `booster_id` is readable through the automatic
+interface by anybody with the publishable key. It is an opaque identifier
+and names nobody, but it does let a reader see that the same account boosted
+two stories. If that is unwelcome, the fix is a view or a column grant in
+session two, not a change to what is recorded.
+
+**`wall_stories.support` is a cache kept by the boost trigger.** It is the
+sum of units and exists so the allocator and the page read one column. If it
+ever disagrees with `sum(units)` the boosts are right.
+
+**The placement engine.** `worker/src/wall/allocator.ts`, pure. Stories
+already holding a rectangle are laid down first, all of them, before anything
+grows, so a later story can never grow into an earlier anchor. Target size is
+an area in modules, `clamp(1, ceiling, floor(support / 5))`. Growth adds a
+column or a row at a time until the area reaches the target, and never takes
+a step that would overshoot it: a six module tile with a target of eight adds
+the row that makes eight, not the column that makes nine. A tile may
+therefore stop short of a target its shape cannot reach exactly. Width is
+preferred while `w <= h * 1.5`. A story that finds no free module is returned
+as overflow, is tried again on the next run, and stays overflow in practice
+because tiles never shrink and nothing is deleted.
+
+**The tier comes from the sources, except seen directly.** Reported means
+two sources under different owners with verified quotations. Seen directly
+is a judgement about the kind of source, video, a filing, a record, an
+official statement, and is passed in rather than guessed from a host name.
+Anything else is claimed. `tierFor` in `pool.ts`.
+
+**The seed is real articles and invented behaviour, and says so.** Every
+story in `worker/src/wall/seed-stories.ts` is a real article from the public
+feeds of NASA, NPR, Al Jazeera and ScienceDaily, with the outlet's own
+headline and wording. Which date it lands on, who boosted it and when are
+invented. Every check row the seed writes says the page was not fetched, so
+a seeded receipt does not claim a check that never ran. The seed must never
+run against the live project: a seeded wall on birthed.app would be a wall
+of things nobody here said.
+
+**Found, not decided: early tiles get boxed in.** New stories take the free
+module nearest the centre, which is the module beside the last story placed,
+and growth goes only right and down. So the first stories on a busy day are
+surrounded by one module tiles within the hour and can never grow, whatever
+support they gather. On the seeded September 5, two seen directly stories
+with 71 and 62 units sit at one module each, while a claimed story with 38
+units holds four. The rules in section 5 produce this exactly as written,
+so nothing was changed. It belongs in section 9 with the solemn dates. Options not yet
+chosen: growth in all four directions, placing a new story at the nearest
+module that leaves a margin, or a tile reserving room when it is placed.
