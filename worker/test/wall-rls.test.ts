@@ -27,15 +27,22 @@ test("row level security is enabled on every table in the public schema", {
   assert.deepEqual(off, [], `row level security is off on: ${off.join(", ")}`);
 });
 
-test("the seven wall tables exist and the boosts table refuses changes", {
+test("the wall tables exist and the boosts table refuses changes", {
   skip: url ? false : "set DATABASE_URL to a Postgres connection string to run this",
 }, () => {
   const walls = query("select tablename from pg_tables where schemaname = 'public' and tablename like 'wall\\_%' order by 1");
   assert.deepEqual(walls, [
-    "wall_boosts", "wall_checks", "wall_days", "wall_outcomes", "wall_snapshots", "wall_sources", "wall_stories",
+    "wall_attest_challenges", "wall_attest_grants", "wall_attest_keys", "wall_boost_requests", "wall_boosts",
+    "wall_checks", "wall_days", "wall_outcomes", "wall_outlet_owners", "wall_snapshots", "wall_sources", "wall_stories",
   ]);
   const triggers = query("select tgname from pg_trigger where tgrelid = 'public.wall_boosts'::regclass and not tgisinternal order by 1");
   assert.ok(triggers.includes("wall_boosts_immutable"));
   const policies = query("select cmd from pg_policies where schemaname = 'public' and tablename like 'wall\\_%' and cmd <> 'SELECT'");
-  assert.deepEqual(policies, [], "no wall table may carry a client write policy in this session");
+  assert.deepEqual(policies, [], "no wall table may carry a client write policy");
+  // The two ways in are functions, granted to authenticated and to nobody else.
+  const grants = query("select routine_name || ':' || grantee from information_schema.routine_privileges where specific_schema = 'public' and routine_name in ('wall_submit_story', 'wall_cast_boost') and privilege_type = 'EXECUTE' order by 1");
+  assert.deepEqual(grants.filter((g) => !g.endsWith(":postgres") && !g.endsWith(":service_role")), ["wall_cast_boost:authenticated", "wall_submit_story:authenticated"]);
+  // booster_id is recorded and is not published.
+  const boostColumns = query("select column_name from information_schema.column_privileges where table_name = 'wall_boosts' and grantee = 'anon' and privilege_type = 'SELECT' order by 1");
+  assert.ok(boostColumns.length > 0 && !boostColumns.includes("booster_id"), `anon reads ${boostColumns.join(", ")}`);
 });

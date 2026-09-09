@@ -443,7 +443,7 @@ begin
   -- Numeric references first, so that an encoded ampersand is not decoded
   -- twice.
   for code in select distinct m[1] from regexp_matches(s, '&#[xX]([0-9A-Fa-f]{1,6});', 'g') as m loop
-    n := ('x' || code)::bit(32)::integer;
+    n := ('x' || lpad(code, 8, '0'))::bit(32)::integer;
     if n between 1 and 1114111 and not (n between 55296 and 57343) then
       s := replace(s, '&#x' || code || ';', chr(n));
       s := replace(s, '&#X' || code || ';', chr(n));
@@ -483,6 +483,19 @@ as $$
   select btrim(regexp_replace(text_in, '\s+', ' ', 'g'));
 $$;
 
+-- The page with its scripts, styles and comments gone. Not what a reader
+-- sees, but nothing a reader cannot.
+create function wall_without_code(html_in text)
+returns text
+language sql
+immutable
+set search_path = public, pg_temp
+as $$
+  select regexp_replace(
+    regexp_replace(html_in, '<(script|style|noscript)\y.*?</\1\s*>', ' ', 'gi'),
+    '<!--.*?-->', ' ', 'g');
+$$;
+
 -- The visible text of a page: scripts and styles gone, tags gone, entities
 -- decoded, whitespace folded. What a reader would see, roughly, and what a
 -- quotation is matched against.
@@ -492,18 +505,15 @@ language sql
 immutable
 set search_path = public, pg_temp
 as $$
-  select wall_fold(wall_html_decode(regexp_replace(
-    regexp_replace(
-      regexp_replace(html_in, '<(script|style|noscript)\b.*?</\1\s*>', ' ', 'gi'),
-      '<!--.*?-->', ' ', 'g'),
-    '<[^>]*>', ' ', 'g')));
+  select wall_fold(wall_html_decode(regexp_replace(wall_without_code(html_in), '<[^>]*>', ' ', 'g')));
 $$;
 
 -- Whether a page contains a quotation, by exact string match. The page is
--- read two ways: as its visible text, and as its markup with entities decoded,
--- so a description carried in a meta tag counts. The quotation is compared
--- with its whitespace folded and is never otherwise changed. A paraphrase
--- fails. worker/src/wall/check.ts applies the same rule on every run.
+-- read two ways: as its visible text, and as its markup with entities decoded
+-- and its code gone, so a description carried in a meta tag counts. The
+-- quotation is compared with its whitespace folded and is never otherwise
+-- changed. A paraphrase fails. worker/src/wall/page.ts applies the same rule
+-- on every checker run.
 create function wall_page_contains(html_in text, quotation_in text)
 returns boolean
 language plpgsql
@@ -515,7 +525,7 @@ declare
 begin
   if q is null or q = '' then return false; end if;
   if position(q in wall_page_text(html_in)) > 0 then return true; end if;
-  if position(q in wall_fold(wall_html_decode(html_in))) > 0 then return true; end if;
+  if position(q in wall_fold(wall_html_decode(wall_without_code(html_in)))) > 0 then return true; end if;
   return false;
 end;
 $$;
@@ -787,7 +797,7 @@ begin
 end;
 $$;
 
-revoke all on function wall_units_left(date) from public;
+revoke all on function wall_units_left(date) from public, anon;
 grant execute on function wall_units_left(date) to authenticated;
 
 -- ---------------------------------------------------------------------------
@@ -956,9 +966,9 @@ as $$
   );
 $$;
 
-revoke all on function wall_submit_story(text, date) from public;
+revoke all on function wall_submit_story(text, date) from public, anon;
 grant execute on function wall_submit_story(text, date) to authenticated;
-revoke all on function wall_story_json(wall_stories) from public;
+revoke all on function wall_story_json(wall_stories) from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Casting a boost
@@ -1057,25 +1067,29 @@ begin
 end;
 $$;
 
-revoke all on function wall_cast_boost(uuid, integer, uuid) from public;
+revoke all on function wall_cast_boost(uuid, integer, uuid) from public, anon;
 grant execute on function wall_cast_boost(uuid, integer, uuid) to authenticated;
 
 -- The helpers are internal. Nothing but the functions above should call
--- them, and nothing else can.
-revoke all on function wall_outlet_of(text) from public;
-revoke all on function wall_owner_of(text) from public;
-revoke all on function wall_form_encode(text) from public;
-revoke all on function wall_form_decode(text) from public;
-revoke all on function wall_url_key(text) from public;
-revoke all on function wall_html_decode(text) from public;
-revoke all on function wall_fold(text) from public;
-revoke all on function wall_page_text(text) from public;
-revoke all on function wall_page_contains(text, text) from public;
-revoke all on function wall_meta(text, text) from public;
-revoke all on function wall_page_meta(text) from public;
-revoke all on function wall_fit_headline(text) from public;
-revoke all on function wall_fetch(text) from public;
-revoke all on function wall_require_attestation(uuid) from public;
+-- them, and nothing else can. Revoked from anon by name as well as from
+-- public, because the project grants execute on every new function to anon
+-- and authenticated by default, and revoking from public leaves those grants
+-- standing.
+revoke all on function wall_outlet_of(text) from public, anon, authenticated;
+revoke all on function wall_owner_of(text) from public, anon, authenticated;
+revoke all on function wall_form_encode(text) from public, anon, authenticated;
+revoke all on function wall_form_decode(text) from public, anon, authenticated;
+revoke all on function wall_url_key(text) from public, anon, authenticated;
+revoke all on function wall_html_decode(text) from public, anon, authenticated;
+revoke all on function wall_fold(text) from public, anon, authenticated;
+revoke all on function wall_without_code(text) from public, anon, authenticated;
+revoke all on function wall_page_text(text) from public, anon, authenticated;
+revoke all on function wall_page_contains(text, text) from public, anon, authenticated;
+revoke all on function wall_meta(text, text) from public, anon, authenticated;
+revoke all on function wall_page_meta(text) from public, anon, authenticated;
+revoke all on function wall_fit_headline(text) from public, anon, authenticated;
+revoke all on function wall_fetch(text) from public, anon, authenticated;
+revoke all on function wall_require_attestation(uuid) from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Who boosted what is recorded and is not published
