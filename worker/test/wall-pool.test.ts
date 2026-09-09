@@ -47,21 +47,28 @@ test("the tier follows the sources unless the story was seen directly", () => {
   assert.equal(tierFor(one, true), "seen_direct");
 });
 
-test("a story the importer seeded is placed on evidence alone", () => {
-  const sources = [{ owner: "National Public Radio", verified: true }];
+test("a seeded story waits for its quotation and nothing else", () => {
+  const verified = [{ owner: "National Public Radio", verified: true }];
+  const unverified = [{ owner: "National Public Radio", verified: false }];
   const seeded = { support: 0, submittedAt: T0, submittedBy: null };
   const person = { support: 0, submittedAt: T0, submittedBy: "11111111-1111-1111-1111-111111111111" };
 
-  // Before the hold, neither one goes anywhere. Evidence is not waived.
-  assert.equal(eligibleForWall(seeded, sources, T0 + HOLD_MS - 1), false);
+  // Today's news reaches today's wall the moment its quotation is found on the
+  // page. No hold, no boost. Otherwise submitted_at, which is when the row was
+  // written, would keep today's news off today's wall until tomorrow.
+  assert.equal(eligibleForWall(seeded, verified, T0), true);
+  assert.equal(eligibleForWall(seeded, verified, T0 + 60_000), true);
 
-  // After it, the seeded story is placed with nobody having boosted it, and
-  // the one a person submitted still waits for somebody to agree.
-  assert.equal(eligibleForWall(seeded, sources, T0 + HOLD_MS), true);
-  assert.equal(eligibleForWall(person, sources, T0 + HOLD_MS), false);
+  // An unverified quotation still keeps it off the board completely.
+  assert.equal(eligibleForWall(seeded, unverified, T0), false);
+  assert.equal(eligibleForWall(seeded, [], T0), false);
 
-  // One boost and the person's story goes up too.
-  assert.equal(eligibleForWall({ ...person, support: 1 }, sources, T0 + HOLD_MS), true);
+  // None of that is waived for a story a person submitted. It waits out the
+  // hold and still needs somebody other than the submitter to agree.
+  assert.equal(eligibleForWall(person, verified, T0), false);
+  assert.equal(eligibleForWall(person, verified, T0 + HOLD_MS), false);
+  assert.equal(eligibleForWall({ ...person, support: 1 }, verified, T0 + HOLD_MS - 1), false);
+  assert.equal(eligibleForWall({ ...person, support: 1 }, verified, T0 + HOLD_MS), true);
 });
 
 test("only a null submitter counts as seeded", () => {

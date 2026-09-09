@@ -265,7 +265,15 @@ export async function run(db: Db, options: { now?: Date; dry?: boolean; userAgen
     // A page already on this date is that story; ignoring the duplicate is
     // the same rule wall_submit_story applies, and the row that comes back
     // is only the new ones.
-    const stories = await insert<{ id: string; url_key: string }>(db, "wall_stories", mine.map((p) => ({
+    // The conflict target has to be named. PostgREST resolves
+    // ignore-duplicates against the primary key unless told otherwise, and
+    // this table's primary key is a generated uuid that never collides. The
+    // constraint that actually fires on a second run is the unique on
+    // (wall_date, url_key), so without this the whole batch fails with a 409
+    // the moment a feed still carries an article it carried last time, which
+    // is every run.
+    const stories = await insert<{ id: string; url_key: string }>(
+      db, "wall_stories?on_conflict=wall_date,url_key", mine.map((p) => ({
       wall_date: wallDate, headline: p.headline, url: p.url, url_key: p.urlKey, outlet: p.outlet, status: "pool", tier: "claimed",
     })), { returning: true, ignoreDuplicates: true });
     const byKey = new Map(mine.map((p) => [p.urlKey, p]));

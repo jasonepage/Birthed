@@ -348,8 +348,9 @@ choice. What is somebody's choice is every tile's size, which is the part the
 product actually measures. A seeded story with no boosts stays one module and
 falls off the bottom of what anybody looks at.
 
-**A seeded story is placed on evidence alone.** The support rule in section 3.1,
-at least one boost unit before a story leaves the pool, does not apply to it.
+**A seeded story is placed once its quotation verifies, and waits for nothing
+else.** Neither the support rule in section 3.1 nor the twelve hour hold applies
+to it.
 That rule exists to stop the board filling with modules nobody asked for, and a
 curated news feed is the asking. Applied to seeded stories it deadlocks the
 wall before it opens: on September 9, 2026 the first live run put 72 stories in
@@ -357,8 +358,19 @@ the pool where every one of them waited for a boost, on a product with nobody
 able to cast one. A story a person submitted still needs somebody other than
 the submitter to agree it belongs. `isSeeded` in `worker/src/wall/pool.ts`, and
 it means an explicitly null `submitted_by` and nothing else, so a caller that
-forgets to read the column gets the stricter answer rather than the looser
-one.
+forgets to read the column gets the stricter answer rather than the looser one.
+
+The hold goes for the same reason. It exists so a rumour is not carved into
+permanent history an hour after somebody posted it, and a story taken from
+NPR's own feed is not that: the feed list is the vetting and the outlet
+published it under its own name. Applied to a seeded story the hold does the
+opposite of its job, because `submitted_at` is when the row was written rather
+than when the thing happened, so today's news could not reach today's wall
+until tomorrow. That is the one thing the wall exists to do.
+
+Nothing that protects a reader is waived. One source still means the claimed
+tier and a ceiling of four modules, and an unverified quotation still keeps a
+story off the board completely.
 
 This does not change the pool, the tiers, the receipts or the budget. A seeded
 story is a submitted story whose submitter is the importer.

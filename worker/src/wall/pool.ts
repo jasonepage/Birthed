@@ -71,6 +71,22 @@ export function eligibleForWall(
   sources: SourceLike[],
   now: number | string,
 ): boolean {
+  // A seeded story is placed once one of its sources has a verified quotation,
+  // and waits for nothing else. Neither the hold nor the support rule applies.
+  //
+  // The hold exists so a rumour is not carved into permanent history an hour
+  // after somebody posted it. A story taken from NPR's own feed is not that:
+  // the feed list is the vetting, and the outlet published it under its own
+  // name. Applied here the hold does the opposite of its job, because
+  // submitted_at is when the row was written rather than when the thing
+  // happened, so today's news could not reach today's wall until tomorrow,
+  // which is the one thing the wall exists to do.
+  //
+  // Nothing is waived that protects a reader. One source still means the
+  // claimed tier and a hard ceiling of four modules, and an unverified
+  // quotation still keeps a story off the board entirely.
+  if (isSeeded(story)) return sources.some((source) => source.verified);
+
   if (!hasEnoughEvidence(sources, story.submittedAt, now)) return false;
   // The support rule exists to stop the board filling with modules nobody
   // asked for, and a curated news feed is the asking. A seeded story is placed
@@ -80,7 +96,6 @@ export function eligibleForWall(
   // on a day one product there is nobody to cast one. A story a person
   // submitted still needs someone other than the submitter to agree it
   // belongs. docs/the-wall.md section 11.
-  if (isSeeded(story)) return true;
   return hasEnoughSupport(story.support);
 }
 
