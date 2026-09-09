@@ -34,18 +34,55 @@ export interface Feed {
   outlet: string;
 }
 
-/** Public feeds with real headlines and a description on every item. */
+/**
+ * Public feeds with real headlines and a description on every item.
+ *
+ * Balance is the point, not volume. The first version was four world desks
+ * and two science desks, and the wall it produced read like a six o'clock
+ * bulletin: nothing anybody under thirty would say they remember about a day.
+ * What people actually carry out of a year is at least as much music, film,
+ * sport, games and whatever the internet was doing. So the list is grouped by
+ * what a day is made of, and no group is allowed to be the whole wall.
+ *
+ * Every one of these is a public feed carrying the outlet's own headline and
+ * its own description, which is what the quotation is matched against. A feed
+ * that stops carrying descriptions stops producing verified sources and should
+ * be replaced rather than worked around.
+ */
 export const FEEDS: Feed[] = [
+  // What happened in the world
   { url: "https://feeds.npr.org/1001/rss.xml", outlet: "npr.org" },
   { url: "https://www.aljazeera.com/xml/rss/all.xml", outlet: "aljazeera.com" },
   { url: "https://feeds.bbci.co.uk/news/world/rss.xml", outlet: "bbc.com" },
   { url: "https://www.theguardian.com/world/rss", outlet: "theguardian.com" },
+
+  // What was discovered
   { url: "https://www.nasa.gov/news-release/feed/", outlet: "nasa.gov" },
   { url: "https://www.sciencedaily.com/rss/top.xml", outlet: "sciencedaily.com" },
+
+  // What people watched
+  { url: "https://variety.com/feed/", outlet: "variety.com" },
+  { url: "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml", outlet: "bbc.com" },
+
+  // What people listened to
+  { url: "https://www.billboard.com/feed/", outlet: "billboard.com" },
+  { url: "https://feeds.npr.org/1039/rss.xml", outlet: "npr.org" },
+
+  // What the internet was doing
+  { url: "https://www.theverge.com/rss/index.xml", outlet: "theverge.com" },
+  { url: "https://www.polygon.com/rss/index.xml", outlet: "polygon.com" },
+
+  // What was won and lost
+  { url: "https://www.espn.com/espn/rss/news", outlet: "espn.com" },
+  { url: "https://www.theguardian.com/uk/sport/rss", outlet: "theguardian.com" },
 ];
 
-/** The most items one feed may put on one date's wall. */
-export const PER_FEED_PER_DATE = 8;
+/**
+ * The most items one feed may put on one date's wall. Lower than it was,
+ * because the list is more than twice as long and the point of widening it was
+ * a wall that carries a whole day rather than one desk's version of it.
+ */
+export const PER_FEED_PER_DATE = 5;
 
 // ---------------------------------------------------------------------------
 // Reading a feed
