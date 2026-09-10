@@ -937,7 +937,7 @@ body.home {
   gap: 14px; margin: 0 0 26px;
 }
 .mark {
-  font-size: 12px; font-weight: 800; letter-spacing: 0.22em;
+  font-size: 17px; font-weight: 800; letter-spacing: 0.2em;
   color: ${ACCENT}; text-transform: uppercase; text-decoration: none;
 }
 .quick { display: flex; gap: 8px; }
@@ -1309,7 +1309,7 @@ p.calkey .sw.today { background: none; box-shadow: inset 0 0 0 2px ${TODAY}; }
   box-shadow: 0 1px 0 rgba(255, 247, 238, 0.07);
 }
 .daybar .mark {
-  font-size: 11px; font-weight: 800; letter-spacing: 0.22em; text-transform: uppercase;
+  font-size: 17px; font-weight: 800; letter-spacing: 0.2em; text-transform: uppercase;
   color: ${ACCENT}; text-decoration: none;
 }
 .barnav { display: flex; align-items: center; gap: 4px; }

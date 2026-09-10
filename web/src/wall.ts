@@ -1109,7 +1109,12 @@ ${folded.map((s) => listRow(s, live, voice)).join("\n")}
     ? `${voice.imperative} what you think will still matter about ${escapeHtml(name)} years from now.`
     : notYet
       ? `Tomorrow's hive. When the date arrives, the ${voice.many} people give decide how much of the hive each story holds.`
-      : `What people here thought would still matter about ${escapeHtml(name)}, sized by how many backed each story.`;
+      : closed
+        ? `What people here thought would still matter about ${escapeHtml(name)}, sized by how many backed each story.`
+        // Open by the clock but drawn without the forms: the baked page,
+        // served when the live read could not be made. Present tense, because
+        // the date is still taking buzzes even if this page cannot take one.
+        : `What people think will still matter about ${escapeHtml(name)}, sized by how many ${voice.past} each story so far.`;
   const under = live
     ? `<p class="wnote wunder">Each ${voice.one} makes its story bigger on the hive, and you get a few a day. Typing spends nothing: the hive finds the story among what is filed for ${escapeHtml(name)} and shows it back before a ${voice.one} is spent. What you type is matched and not kept.</p>`
     : closed
