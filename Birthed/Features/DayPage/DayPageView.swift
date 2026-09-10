@@ -82,6 +82,17 @@ struct DayPageView: View {
                     // below and its "You were 7" goes on the tile instead.
                     HiveView(date: model.date, palette: palette,
                              ageLines: HiveFeed.ageLines(items: feed))
+                    // The three counts sit over the feed they count, not
+                    // under the date. When the hive came between them they
+                    // were the size of something two screens down, and they
+                    // were the fourth block between the top of the screen
+                    // and the board. Here they are the feed's heading and
+                    // the hive section's bottom edge.
+                    if !feed.isEmpty {
+                        counts
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 18)
+                    }
                     content
                     attribution
                 }
@@ -181,9 +192,17 @@ struct DayPageView: View {
                 .minimumScaleFactor(0.6)
                 .contentTransition(.opacity)
 
-            Text(subtitle)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            // Only when the line says something the page does not already
+            // show. With a birth year, "how old you were" is on every row
+            // below and the hive's question is the next thing on the
+            // screen; a subtitle between them was one more block before the
+            // board. Without one, this is the one place after onboarding
+            // that makes the case for adding it, and it stays.
+            if let subtitle {
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
 
             // The date's own clock, its own budget and its sentence about
             // what people remembered all came off this tab with the three
@@ -194,18 +213,20 @@ struct DayPageView: View {
             // sentence that used to explain that rearrangement is a named
             // open question rather than a reworded dodge of the one word the
             // acceptance forbids.
-
-            if !feed.isEmpty { counts }
+            //
+            // The three counts used to close the header. They are over the
+            // feed now, in `body`, because that is what they count.
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20)
         .padding(.top, 4)
-        .padding(.bottom, 18)
+        .padding(.bottom, 14)
     }
 
     /// What the day holds, before any of it. The same three counts the
     /// website prints under its heading, and the same job: a reader can see
-    /// the size of the day without scrolling it.
+    /// the size of the day before scrolling it. Drawn over the feed, under
+    /// the hive.
     private var counts: some View {
         let items = feed
         let cells = [
@@ -276,10 +297,12 @@ struct DayPageView: View {
         .foregroundStyle(.secondary)
     }
 
-    /// The one line under the date. With a birth year it says what the feed
-    /// is: this date, in the reader's years. Without one it is the one place
-    /// in the app after onboarding that makes the case for adding it.
-    private var subtitle: String {
+    /// The one line under the date, when there is something to say. While
+    /// the day loads or fails it says so. Without a birth year it is the one
+    /// place in the app after onboarding that makes the case for adding it.
+    /// With one, nil: "how old you were" is on every row of the feed and
+    /// does not need announcing above the hive.
+    private var subtitle: String? {
         switch model.state {
         case .loading:
             return "Looking up this day."
@@ -287,7 +310,7 @@ struct DayPageView: View {
             return "This day did not load."
         case .empty, .loaded:
             if readerBirthYear != nil {
-                return "What happened on this day, and how old you were."
+                return nil
             }
             return "What happened on this day. Add your birth year in Settings to see how old you were."
         }

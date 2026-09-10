@@ -19,6 +19,20 @@ import SwiftUI
 /// the one thing this app has that the website does not, and it belongs on
 /// the biggest thing on the screen.
 ///
+/// **The board is the product, and the section above it is one question.**
+/// The first drawing of this put thirteen blocks between the top of the
+/// screen and the board: a kicker, a seal sentence, the allowance, a lede,
+/// the question again, a bordered field, two lines of terms, a chip label
+/// and the chips. Most of them said what another one said. What is left
+/// above the board is the question and the line to answer it on. The
+/// allowance is one quiet line under the board, beside the link to the full
+/// screen hive. The seal clock and the cost are on the confirmation, which
+/// is the moment they matter. The chips come when the field is focused, the
+/// moment the keyboard hides the board and somebody with no answer needs
+/// one. The kicker is gone: the board is a bounded dark field, a boundary
+/// is a label, and the Mine panel already settled that one kicker above the
+/// fold is the most a screen wants.
+///
 /// Thin on purpose. The window, the words, the order and whose mark a mark is
 /// all come from `Hive.swift` and `Wall.swift` in the domain, where they are
 /// tested. This file draws.
@@ -38,19 +52,22 @@ struct HiveView: View {
     private var voice: HiveVoice { wall.voice }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            heading
+        VStack(alignment: .leading, spacing: 12) {
             if let day = wall.day {
+                let phase = day.phase(now: wall.now)
                 // The field first, and only while the date takes buzzes: its
                 // whole purpose is to spend one, and on any other phase it
-                // would find a story and have nothing to offer.
-                if day.phase(now: wall.now) == .live {
+                // would find a story and have nothing to offer. On those
+                // phases a line says what state the hive is in instead.
+                if phase == .live {
                     HiveField(day: day, date: date, palette: palette,
                               onOpen: { selected = $0 }, onAdd: { submitting = true })
+                } else {
+                    quietHeading(day, phase: phase)
                 }
                 HiveBoard(day: day, date: date, ageLines: ageLines, onOpen: { selected = $0 })
                 if !day.onHive.isEmpty {
-                    fullScreenLink
+                    underTheBoard(phase: phase)
                     legend
                 }
                 addButton
@@ -78,45 +95,46 @@ struct HiveView: View {
         }
     }
 
-    // MARK: Heading
+    // MARK: Above the board, when the field is not there
 
-    private var heading: some View {
+    /// A sealed date, a date that has not opened, or a date taking stories
+    /// but not yet buzzes. The field is absent on all three, so one line says
+    /// what state the hive is in and one says what the board is. On a live
+    /// date the field is the heading and this is not drawn.
+    private func quietHeading(_ day: WallDay, phase: WallDay.Phase) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("THE HIVE")
-                .font(.caption.weight(.heavy))
-                .kerning(2.5)
-                .foregroundStyle(HivePalette.amber)
-            if let day = wall.day {
-                let phase = day.phase(now: wall.now)
-                Text(stateLine(day, phase: phase))
+            Text(HiveCopy.state(phase: phase, ending: sealName(day), voice: voice))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(palette.type.opacity(0.7))
+            Text(HiveCopy.quietLede(dateName: date.displayName(), phase: phase, voice: voice))
+                .font(.footnote)
+                .foregroundStyle(palette.type.opacity(0.45))
+        }
+    }
+
+    /// The name of the day the hive seals at the end of, for the sentence
+    /// that says so.
+    private func sealName(_ day: WallDay) -> String {
+        WallBudget.dayAfter(day.wallDate).flatMap(\.calendarDate)?.displayName() ?? ""
+    }
+
+    // MARK: Under the board
+
+    /// One row: the allowance on the left, the way into the full screen hive
+    /// on the right. The allowance used to be the third line above the
+    /// board; it belongs beside the thing it is spent on.
+    private func underTheBoard(phase: WallDay.Phase) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            if phase == .live, let left = wall.unitsLeft {
+                Text(HiveCopy.allowance(left, allowance: wall.allowance, phase: phase, voice: voice))
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(palette.type.opacity(0.6))
-                if let left = wall.unitsLeft {
-                    Text(HiveCopy.allowance(left, allowance: wall.allowance, phase: phase, voice: voice))
-                        .font(.footnote)
-                        .foregroundStyle(palette.type.opacity(0.45))
-                        .contentTransition(.numericText())
-                }
-                Text(phase == .live
-                     ? HiveCopy.lede(dateName: date.displayName(), voice: voice)
-                     : HiveCopy.quietLede(dateName: date.displayName(), phase: phase, voice: voice))
-                    .font(.footnote)
-                    .foregroundStyle(palette.type.opacity(0.45))
+                    .contentTransition(.numericText())
             }
+            Spacer(minLength: 8)
+            fullScreenLink
         }
     }
-
-    private func stateLine(_ day: WallDay, phase: WallDay.Phase) -> String {
-        let ending = WallBudget.dayAfter(day.wallDate).flatMap(\.calendarDate)?.displayName() ?? ""
-        switch phase {
-        case .closed: return "Sealed at midnight Eastern ending \(ending). Permanent."
-        case .notYetOpen: return "Not open yet."
-        case .submissionsOnly: return "Open for stories. \(voice.many.capitalizedFirst) start when the date arrives, Eastern time."
-        case .live: return "Open. Seals at midnight Eastern ending \(ending), then permanent."
-        }
-    }
-
-    // MARK: The rest of the section
 
     private var fullScreenLink: some View {
         Button {
@@ -133,14 +151,18 @@ struct HiveView: View {
         .buttonStyle(.plain)
     }
 
+    /// The three tiers in one row, and under them the one sentence that says
+    /// a colour is a tier and a tier is not a verdict. It was four lines, one
+    /// per tier and one for the sentence; each tier's meaning is a tap away
+    /// on any receipt, and the board wants the space more than the legend.
     private var legend: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            ForEach([WallTier.seenDirect, .reported, .claimed], id: \.rawValue) { tier in
-                HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                ForEach([WallTier.seenDirect, .reported, .claimed], id: \.rawValue) { tier in
                     WallChip(tier: tier)
-                    Text(tier.meaning)
-                        .font(.caption2)
-                        .foregroundStyle(palette.type.opacity(0.5))
+                        // The meaning came off the screen and not off the
+                        // reader who cannot see the colour.
+                        .accessibilityLabel("\(tier.label): \(tier.meaning)")
                 }
             }
             Text(HiveCopy.legend)
@@ -180,12 +202,29 @@ struct HiveView: View {
 /// date and find it among the stories already filed, instead of asking the
 /// reader to shop a list of two hundred headlines.
 ///
-/// Three parts and each does a job. The field, with up to three chips under
-/// it drawn from the top of the board, because a blank box with a cursor
-/// intimidates people and the chips give somebody with no answer a way in.
-/// The result, which is never silent: what was found, its outlet and its
-/// tier. And the confirmation, which is not optional, because a buzz is
-/// scarce, permanent and irreversible and nothing may be spent without it.
+/// Three parts and each does a job. The question and the line to answer it
+/// on, with up to three chips under it while it is focused, drawn from the
+/// top of the board, because a blank line with a cursor intimidates people
+/// and the chips give somebody with no answer a way in. The result, which is
+/// never silent: what was found, its outlet and its tier. And the
+/// confirmation, which is not optional, because a buzz is scarce, permanent
+/// and irreversible and nothing may be spent without it.
+///
+/// **It is a prompt, not a form.** No panel, no bold label, no bordered box,
+/// no terms. The question is set in the page's own serif, the answer goes on
+/// a rule under it, and Return asks. There is no Find button: the field is
+/// the control and a button beside it would be a second control doing the
+/// field's job, the rule the Mine panel's older than sentence was built
+/// under. What typing costs, which is nothing, is said while the field is
+/// focused, and what a buzz costs is said on the confirmation, which is the
+/// only place one can be spent from.
+///
+/// **The chips come with the keyboard.** When the field is focused the
+/// keyboard covers the board, and the board was the other way in. So the
+/// three biggest things on the board follow the reader up to the field, at
+/// full length, one under another, and go away when the keyboard does. At
+/// rest the board is the list of things to buzz and does not need a second
+/// list above it.
 ///
 /// A miss is not an error. It says so plainly and offers the link flow, so
 /// the field is the front door to submission rather than requiring a
@@ -216,6 +255,9 @@ private struct HiveField: View {
     @State private var working = false
     @State private var spent = false
     @State private var refusal: String?
+    /// Whether the keyboard is up for this field. The chips and the hint
+    /// are drawn only then.
+    @FocusState private var typing: Bool
 
     private var voice: HiveVoice { wall.voice }
 
@@ -226,12 +268,13 @@ private struct HiveField: View {
                 confirmation(picked)
             } else if let asked {
                 result(HiveSearch.answer(query: asked, in: day.stories))
-            } else {
+            } else if typing {
+                Text(HiveCopy.askHint(dateName: date.displayName(), voice: voice))
+                    .font(.caption)
+                    .foregroundStyle(palette.type.opacity(0.45))
                 chips
             }
         }
-        .padding(14)
-        .background(palette.type.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .onChange(of: query) { _, _ in
             // The answer on screen was for the words that were there. Once
             // they change it is for nothing, and the chips come back until
@@ -242,37 +285,38 @@ private struct HiveField: View {
 
     // MARK: The field
 
+    /// The question, in the page's own face, and a rule to answer it on.
+    /// The rule is the field's whole boundary: it brightens to amber while
+    /// the reader is writing on it and fades when they are not.
     private var field: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 2) {
             Text(HiveCopy.ask(dateName: date.displayName()))
-                .font(.subheadline.weight(.semibold))
+                .font(.system(.title3, design: .serif, weight: .semibold))
                 .foregroundStyle(palette.type)
-            HStack(spacing: 8) {
-                TextField(HiveCopy.askPlaceholder, text: $query)
-                    .textFieldStyle(.roundedBorder)
-                    // Names and places are what gets typed here, and
-                    // autocorrect rewrites those into words it knows.
-                    .autocorrectionDisabled()
-                    .submitLabel(.search)
-                    .onSubmit { ask() }
-                Button {
-                    ask()
-                } label: {
-                    Text(HiveCopy.find)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(HivePalette.ink)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(HivePalette.amber)
-                .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
-            Text(HiveCopy.askHint(voice: voice))
-                .font(.caption)
-                .foregroundStyle(palette.type.opacity(0.45))
+                .fixedSize(horizontal: false, vertical: true)
+            TextField(HiveCopy.askPlaceholder, text: $query)
+                .textFieldStyle(.plain)
+                .font(.body)
+                .foregroundStyle(palette.type)
+                // Names and places are what gets typed here, and
+                // autocorrect rewrites those into words it knows.
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+                .focused($typing)
+                .onSubmit { ask() }
+                .padding(.vertical, 8)
+            Rectangle()
+                .fill(typing ? HivePalette.amber : palette.type.opacity(0.25))
+                .frame(height: 1)
+                .animation(.easeOut(duration: 0.15), value: typing)
         }
+        .accessibilityElement(children: .contain)
     }
 
+    /// Return asks. An empty line asks nothing: the Find button used to be
+    /// disabled on empty text and this is the same rule without the button.
     private func ask() {
+        guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         picked = nil
         spent = false
         refusal = nil
@@ -281,6 +325,11 @@ private struct HiveField: View {
 
     // MARK: The chips
 
+    /// Up to three, one under another, each headline at its full length.
+    /// The first drawing put them in a sideways scroll that cut every one of
+    /// them off mid-word at the screen edge and gave no sign it scrolled.
+    /// Either a chip fits or it is not a chip, and they are only drawn while
+    /// the keyboard is hiding the board, so they have the room.
     @ViewBuilder
     private var chips: some View {
         let top = HiveSearch.chips(from: day.stories)
@@ -289,35 +338,34 @@ private struct HiveField: View {
                 Text(HiveCopy.orStartFrom)
                     .font(.caption)
                     .foregroundStyle(palette.type.opacity(0.45))
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        ForEach(top) { story in
-                            Button {
-                                pick(story)
-                            } label: {
-                                Text(story.headline)
-                                    .font(.caption.weight(.semibold))
-                                    .lineLimit(1)
-                                    .truncationMode(.tail)
-                                    .frame(maxWidth: 220)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 6)
-                                    .background(HivePalette.fill(story.tier), in: Capsule())
-                                    .foregroundStyle(HivePalette.type(story.tier))
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("\(story.headline). \(story.outlet). \(story.tier.label).")
-                        }
+                ForEach(top) { story in
+                    Button {
+                        pick(story)
+                    } label: {
+                        Text(story.headline)
+                            .font(.caption.weight(.semibold))
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(HivePalette.fill(story.tier), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .foregroundStyle(HivePalette.type(story.tier))
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(story.headline). \(story.outlet). \(story.tier.label).")
                 }
             }
         }
     }
 
+    /// A pick puts the keyboard away: the confirmation is the next thing to
+    /// read and the keyboard would be covering the board under it.
     private func pick(_ story: WallStory) {
         spent = false
         refusal = nil
         picked = story
+        typing = false
     }
 
     // MARK: The result
@@ -465,7 +513,11 @@ private struct HiveField: View {
                 .tint(HivePalette.amber)
                 .disabled(working || wall.isBuzzing(story))
                 .accessibilityLabel("\(voice.button): \(story.headline)")
-                Text(HiveCopy.irreversible)
+                // The terms, here and not over an empty field: that a buzz
+                // cannot be taken back and when the hive seals. A warning
+                // about a cost shown before the reader has done anything
+                // made an easy thing feel heavy.
+                Text(HiveCopy.terms(ending: sealName, voice: voice))
                     .font(.caption2)
                     .foregroundStyle(palette.type.opacity(0.5))
             }
@@ -495,6 +547,11 @@ private struct HiveField: View {
         }
         .padding(12)
         .background(Theme.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    /// The name of the day the hive seals at the end of, for the terms.
+    private var sealName: String {
+        WallBudget.dayAfter(day.wallDate).flatMap(\.calendarDate)?.displayName() ?? ""
     }
 
     private func cast(_ story: WallStory) async {
@@ -589,6 +646,16 @@ private struct HiveBoard: View {
 /// A tile: the headline, the reader's age when there is one, and a footer
 /// carrying the control, the count and the outlet.
 ///
+/// **Nothing on a tile is cut off mid-word except the headline.** The first
+/// drawing had "22 YEARS BEFORE Y..." and "en.wikipedia...." on tiles
+/// eighty points wide. A line that does not fit is not drawn: the age line
+/// is offered on a big tile only, and `ViewThatFits` drops it when even a
+/// big tile is too narrow for it; the footer offers itself with the outlet,
+/// then without it, then as the control alone. The headline is the one
+/// thing that must appear and it ends in an ellipsis when the rectangle is
+/// smaller than the sentence, the same way it does on the website, and the
+/// whole of it is one tap away on the receipt.
+///
 /// A stored rectangle too small for a headline is the whole tile as one link
 /// to its receipt and takes no control. Those are rectangles from before the
 /// allocator had a minimum size and they cannot grow, so they are drawn
@@ -676,12 +743,25 @@ private struct HiveTile: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(label + " Opens the receipt.")
 
-                if let ageLine {
-                    Text(ageLine.uppercased())
-                        .font(.system(size: 7, weight: .heavy))
-                        .kerning(0.6)
-                        .lineLimit(1)
-                        .foregroundStyle(type.opacity(0.7))
+                // The reader's age, on a big tile, when the tile is wide
+                // enough for the whole line. A mid tile is four things in
+                // sixty points and something had to give; the age line is
+                // the one thing this app has that nothing else does, so it
+                // stays where there is room for it rather than coming off.
+                // `ViewThatFits` measures the line at its full width and
+                // takes the empty fallback when it would have had to cut
+                // the line. The fallback is a zero-size clear view rather
+                // than `EmptyView`, because an `EmptyView` contributes no
+                // child to choose.
+                if let ageLine, WallBoard.size(of: rect) == .big {
+                    ViewThatFits(in: .horizontal) {
+                        Text(ageLine.uppercased())
+                            .font(.system(size: 7, weight: .heavy))
+                            .kerning(0.4)
+                            .lineLimit(1)
+                            .foregroundStyle(type.opacity(0.7))
+                        Color.clear.frame(width: 0, height: 0)
+                    }
                 }
 
                 Spacer(minLength: 0)
@@ -695,41 +775,68 @@ private struct HiveTile: View {
     /// chip: the tile's colour is its tier and the legend says so, and a chip
     /// beside the outlet was what pushed a phone tile down to one line of
     /// headline on the website.
+    ///
+    /// Three shapes, widest first, and the first that fits is drawn: with
+    /// the outlet, without it, and the control alone. None of the three has
+    /// a `maxWidth` of its own, on purpose: a child that stretches to the
+    /// proposed width always fits and `ViewThatFits` would never look past
+    /// it. The stretch is applied to the chosen one, outside.
     private var footer: some View {
-        HStack(spacing: 5) {
-            if buzzed {
-                Text(voice.mark)
-                    .font(.system(size: 8, weight: .heavy))
-                    .lineLimit(1)
-                    .foregroundStyle(HivePalette.markType(story.tier))
-            } else if takes {
-                Button(action: onBuzz) {
-                    Text(voice.button)
-                        .font(.system(size: 8, weight: .heavy))
-                        .lineLimit(1)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 1)
-                        .background(HivePalette.buttonFill(story.tier), in: Capsule())
-                        .foregroundStyle(HivePalette.buttonType(story.tier))
-                }
-                .buttonStyle(.plain)
-                .disabled(working)
-                .opacity(working ? 0.5 : 1)
-                .accessibilityLabel("\(voice.button): \(story.headline)")
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 5) {
+                control
+                countText
+                outletText
             }
-            if let count {
-                Text(count)
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundStyle(type)
-                    .contentTransition(.numericText())
+            HStack(spacing: 5) {
+                control
+                countText
             }
-            Text(story.outlet)
-                .font(.system(size: 8))
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .foregroundStyle(type.opacity(0.8))
+            control
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var control: some View {
+        if buzzed {
+            Text(voice.mark)
+                .font(.system(size: 8, weight: .heavy))
+                .lineLimit(1)
+                .foregroundStyle(HivePalette.markType(story.tier))
+        } else if takes {
+            Button(action: onBuzz) {
+                Text(voice.button)
+                    .font(.system(size: 8, weight: .heavy))
+                    .lineLimit(1)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 1)
+                    .background(HivePalette.buttonFill(story.tier), in: Capsule())
+                    .foregroundStyle(HivePalette.buttonType(story.tier))
+            }
+            .buttonStyle(.plain)
+            .disabled(working)
+            .opacity(working ? 0.5 : 1)
+            .accessibilityLabel("\(voice.button): \(story.headline)")
+        }
+    }
+
+    @ViewBuilder
+    private var countText: some View {
+        if let count {
+            Text(count)
+                .font(.system(size: 8, weight: .bold))
+                .lineLimit(1)
+                .foregroundStyle(type)
+                .contentTransition(.numericText())
+        }
+    }
+
+    private var outletText: some View {
+        Text(story.outlet)
+            .font(.system(size: 8))
+            .lineLimit(1)
+            .foregroundStyle(type.opacity(0.8))
     }
 
     private var label: String {
@@ -768,6 +875,16 @@ private struct HiveFullScreenView: View {
                                 .foregroundStyle(palette.type.opacity(0.6))
                                 .contentTransition(.numericText())
                         }
+                        // The one sentence that says what the hive is for.
+                        // It came off the Today tab, where it sat above the
+                        // field asking the same question the field asks;
+                        // here the board is the whole page and the sentence
+                        // is about the board.
+                        Text(phase == .live
+                             ? HiveCopy.lede(dateName: date.displayName(), voice: wall.voice)
+                             : HiveCopy.quietLede(dateName: date.displayName(), phase: phase, voice: wall.voice))
+                            .font(.footnote)
+                            .foregroundStyle(palette.type.opacity(0.5))
                         HiveBoard(day: day, date: date, ageLines: ageLines, onOpen: { selected = $0 })
                         Text(HiveCopy.legend)
                             .font(.caption)

@@ -409,10 +409,29 @@ enum HiveCopy {
         }
     }
 
-    /// The sentence above the board, on a date taking support.
+    /// The sentence over the full screen hive, on a date taking support.
+    ///
+    /// It used to be the fourth line above the field on the Today tab, where
+    /// it asked the question the field asks. One question on that screen,
+    /// and the field is the one a reader can act on, so this is said where
+    /// the board is the whole page.
     static func lede(dateName: String, voice: HiveVoice) -> String {
         "\(voice.imperative) what you think will still matter about \(dateName) years from now."
             + " Each \(voice.one) makes it bigger on the hive, and you get a few a day."
+    }
+
+    /// What state the hive is in, above the board, on a date where the field
+    /// is not drawn. On a live date nothing says this above the board: the
+    /// field is the heading and the seal is on the confirmation, where it is
+    /// a term of the spend rather than a warning over an empty line.
+    static func state(phase: WallDay.Phase, ending: String, voice: HiveVoice) -> String {
+        switch phase {
+        case .closed: return "Sealed at midnight Eastern ending \(ending). Permanent."
+        case .notYetOpen: return "Not open yet."
+        case .submissionsOnly:
+            return "Open for stories. \(voice.many.capitalizedFirst) start when the date arrives, Eastern time."
+        case .live: return "Open. Seals at midnight Eastern ending \(ending), then permanent."
+        }
     }
 
     /// The sentence above the board on a date that is not taking support.
@@ -478,17 +497,32 @@ enum HiveCopy {
 
     static let askPlaceholder = "A name, a place, a few words"
 
-    /// Under the field, so the reader knows what typing costs: nothing.
-    static func askHint(voice: HiveVoice) -> String {
-        "The hive finds the story among what is filed for the date. Nothing is spent until you confirm,"
-            + " and a \(voice.one) cannot be taken back."
+    /// Under the field while it is focused, so the reader knows what typing
+    /// costs: nothing. Not drawn over a field nobody has touched; a
+    /// sentence about spending in front of an empty line made the line feel
+    /// like a form. The cost of the buzz itself is `terms`, on the
+    /// confirmation.
+    ///
+    /// The one argument form is the one the sentence sweep in
+    /// `BirthedTests` names; it says the same thing without the date.
+    static func askHint(dateName: String, voice: HiveVoice) -> String {
+        "Typing spends nothing. The hive finds the story among what is filed for \(dateName)"
+            + " and shows it back before a \(voice.one) is spent."
     }
 
+    static func askHint(voice: HiveVoice) -> String {
+        askHint(dateName: "the date", voice: voice)
+    }
+
+    /// Not drawn. There is no Find button: Return asks, and a button beside
+    /// the field was a second control doing the field's job. The word stays
+    /// only because the sentence sweep in `BirthedTests` names it, and that
+    /// directory is not this pass's to edit. Retire it with the test.
     static let find = "Find"
 
-    /// Over the chips. A blank box with a cursor intimidates people, and the
+    /// Over the chips. A blank line with a cursor intimidates people, and the
     /// chips are a way in for somebody with no answer yet.
-    static let orStartFrom = "Or start from what is already on the hive:"
+    static let orStartFrom = "Or one of these, from the hive:"
 
     static let found = "Is this the one?"
 
@@ -514,6 +548,16 @@ enum HiveCopy {
     }
 
     static let irreversible = "What is spent cannot be taken back."
+
+    /// The terms, under the button on the confirmation: that a buzz cannot
+    /// be taken back, and when the hive seals. Both used to be above the
+    /// field, before the reader had typed a thing, which is the wrong
+    /// moment for a warning about a cost. `ending` is the name of the day
+    /// the hive seals at the end of.
+    static func terms(ending: String, voice: HiveVoice) -> String {
+        "A \(voice.one) cannot be taken back. The hive seals at midnight Eastern ending \(ending),"
+            + " then it is permanent."
+    }
 
     static let notThisOne = "Not this one"
 
