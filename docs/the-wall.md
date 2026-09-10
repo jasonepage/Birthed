@@ -1253,3 +1253,50 @@ address, its real feed description as sent, and a page body that does not
 contain it. The next tick is the test. Look for Guardian, Variety, Verge
 and NASA sources verifying, and for the line naming `www.npr.org` as a
 silent host.
+
+### Pictures on the hive, later the same day
+
+Nathan looked at the site and asked for two things: the three controls in
+the bar to be one kind of thing, and pictures on the board. The first is a
+line of style. The second turned out to be mostly built already: the site
+has had every number one's cover from Apple and a face for anybody Wikidata
+has one for, downloaded onto this domain by `download-covers.ts` and
+`download-faces.ts` for the reason those files give, and had never put
+them on a tile.
+
+**The number ones are pixels now.** Section 13 left them behind a line
+because a song is keyed to a year and a chart rather than a day. The
+history seeder files, on each open date, the number one in every year that
+has one, keyed by the issue date, with Wikipedia's year list as the
+receipt, at the news's priority so sixty of them do not take every unbacked
+slot ahead of the date's events. One buzz beats that, as it beats
+everything. Under the feed they are a strip of covers with the year on
+each rather than sixty rows, most backed first, then newest year. Same
+pool, same button, same three a day; nothing in section 13 moves.
+
+**A picture reaches a tile through a style rule the build bakes, not a
+column.** The live section swapped in by `serve.ts` knows nothing about
+what is on disk, and the build knows everything. So a story carries the
+subject the worker filed it under as `data-subject`, and `pictureRules`
+writes two rules per date beside the wall region: a `--pic` for every
+subject with a picture on disk, and one shared rule for the light type and
+the scrim a headline needs over a photograph. Whatever section is in the
+page, the tile for that subject draws its picture. No migration, no new
+host, `img-src 'self'` untouched.
+
+**Faces are next and are not built.** `notable_people.image_file` is empty
+for all 25,741 rows and `static/faces` was never downloaded. The rule and
+the tile are ready for `person:<Wikidata identifier>`. What is missing is
+an importer run to fill the column and a decision about where a few
+thousand pictures live: in the repository beside the covers, which is a
+large commit, or in Supabase Storage, which is a company already named on
+the privacy page and would mean widening `img-src` to the project's host.
+That is a decision, not a session's guess.
+
+**News pictures are not built either, and they run into a promise.** A
+page's own preview picture is the accepted way to show a link, but it lives
+on the outlet's host, and the privacy page says Supabase and Render are the
+only companies that see anything about a reader. Hotlinking announces every
+visitor to the Guardian and NPR in exchange for a thumbnail, and copying the
+pictures here is re-hosting a newspaper's photographs. Both are decisions
+with the privacy page open beside them, and neither was made.
