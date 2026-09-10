@@ -479,6 +479,34 @@ as a shelf, not a plan.
   put that animation through an offscreen pass sixty times a second for a soft
   edge that never changes.
 
+### The wall leads the date page, decided September 10, 2026
+
+- **A date page opens with its name and the wall.** The wall is the main
+  mechanic on birthed.app now. The three "also on this date" cards follow it,
+  then the remembrance question as its own section, and then what happened,
+  what came out, the number one song and who shares the date, folded into one
+  details element under a line that counts what is inside. Nothing was
+  deleted: the imported history is the search plan (a page with fewer than
+  eight people is already kept out of the index) and it is the wall's own
+  context, what did matter about the date under what will. A crawler reads
+  the folded text; a reader sees the wall and one line.
+- **Reading and voting are two controls on a tile.** The headline opens the
+  receipt, because that is what a headline does everywhere else, and a small
+  Buzz button spends the unit. The first version made the headline the vote
+  and nobody could find the receipt.
+- **The unit is a buzz, except on solemn dates.** The mascot is a bee.
+  `Voice` in `web/src/wall.ts` is the one place the word lives and
+  `PLAIN_DATES` is the list of dates that speak plainly instead. The list is
+  a start and is meant to be edited by a person.
+- **No honey, no karma.** A reward for backing stories that last was raised
+  and refused, because `docs/the-wall.md` sections 6 and 8 refuse any score
+  and the outcomes that would feed one are a year away. If it is ever built
+  it is a private mark on the sealed page, never a number.
+- **Open, and not a layout question:** the page runs two games with two
+  clocks, remembrance answers sealed for a year and buzzes sealed for good.
+  The honest long term shape may be one mechanic with two faces. That changes
+  the year two measurement and belongs to Nathan and Jason.
+
 ### Search, decided September 5, 2026
 
 - **A date page with fewer than eight people carries `noindex` and stays out of the sitemap.** It is still built and still loads. A new domain that hands a crawler 366 URLs with most of them empty teaches the crawler that the site is thin, and that judgement is made once and is expensive to undo. The threshold is eight rather than `FR-022`'s ten because a few real dates have fewer people with English Wikipedia articles.
