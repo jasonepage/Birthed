@@ -1116,7 +1116,7 @@ function foundBlock(found: WallStory[], day: WallDay, live: boolean, voice: Voic
 <ul class="wlist">
 ${rows}
 </ul>
-<p class="wnote">Spend one ${voice.one} on this? What is spent cannot be taken back. <a href="/${slug(month, d)}/#ask">Not this one</a></p>
+<p class="wnote">Spend one ${voice.one} on this? You get thirty seconds to take it back, and after that it stands. <a href="/${slug(month, d)}/#ask">Not this one</a></p>
 </div>`;
 }
 

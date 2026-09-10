@@ -1358,21 +1358,31 @@ async function handle(
     // A buzz cast from a receipt comes back to that receipt, so the Undo
     // button belongs on it too. It is only ever this story: a receipt is one
     // story's page and the redirect that reached it named the same one.
-    const undoOn = tappedOnFrom(query);
+    //
+    // Gated on the word as well as the story, the way the date page is. Read
+    // from the query alone, `?on=` drew an Undo button for anybody handed the
+    // address on a page they had tapped nothing on, which is the thing
+    // undoForm's own note says must never happen. The database still refuses
+    // a stranger, so this was a lying control rather than a hole.
+    const undoOn = tapped === "kept" ? tappedOnFrom(query) : null;
     if (wall !== undefined && wall !== null && story !== undefined) {
       const token = tokenFromCookie(request.headers.cookie);
       const standing = token === null ? null : await wallStanding(wall.day.wallDate, token);
       const marks = standing === null ? "" : wallMarks(standing, wall.day, now);
+      const undo = undoOn !== null && undoOn === story.id ? story : null;
       response.writeHead(200, {
         "Content-Type": "text/html; charset=utf-8",
-        "Cache-Control": marks === "" ? "public, max-age=20, must-revalidate" : "no-store",
+        // Never stored when the page carries anything that is one reader's
+        // own, which is their marks or their Undo button. Deciding on the
+        // marks alone would hand a shared cache a page with an Undo form on
+        // it whenever the standing read failed.
+        "Cache-Control": marks === "" && undo === null ? "public, max-age=20, must-revalidate" : "no-store",
         ...securityFor(path),
       });
       // The checks are read for this one story here, because the day's
       // read leaves them out; see fetchWallDay.
       const key = process.env.SUPABASE_ANON_KEY ?? "";
       const told = method === "HEAD" ? story : await withChecks(projectBase(), key, story, WALL_TIMEOUT_MS);
-      const undo = undoOn !== null && undoOn === story.id ? story : null;
       response.end(method === "HEAD" ? undefined : renderStoryPage(told, wall.day, now, { interactive: true, undo }) + marks);
       return;
     }

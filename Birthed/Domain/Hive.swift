@@ -604,7 +604,7 @@ enum HiveCopy {
         "Spend one \(voice.one) on this?"
     }
 
-    static let irreversible = "What is spent cannot be taken back."
+    static let irreversible = "You get thirty seconds to take it back, and after that it stands."
 
     /// The terms, under the button on the confirmation: that a buzz cannot
     /// be taken back, and when the hive seals. Both used to be above the
@@ -612,8 +612,8 @@ enum HiveCopy {
     /// moment for a warning about a cost. `ending` is the name of the day
     /// the hive seals at the end of.
     static func terms(ending: String, voice: HiveVoice) -> String {
-        "A \(voice.one) cannot be taken back. The hive seals at midnight Eastern ending \(ending),"
-            + " then it is permanent."
+        "You get thirty seconds to take a \(voice.one) back, and after that it stands."
+            + " The hive seals at midnight Eastern ending \(ending), then it is permanent."
     }
 
     static let notThisOne = "Not this one"

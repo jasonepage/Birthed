@@ -688,6 +688,20 @@ test("a receipt on an open date is drawn live with the buzz control, and a buzz 
   assert.ok(marked.includes("#w-11111111-1111-1111-1111-111111111111 .wmine{display:block}"), "the receipt carries the reader's own mark");
   assert.ok(marked.includes('.wleft::after{content:"Two buzzes left today."}'));
 
+  // The Undo button on a receipt is gated on the word as well as the story,
+  // the way the date page's is. Read from ?on= alone it drew a control on a
+  // page nobody had tapped anything on, for anybody handed the address.
+  const withUndo = await realFetch(`${base}${receiptPath}?tapped=kept&on=11111111-1111-1111-1111-111111111111`, { headers: { Cookie: token } });
+  assert.ok((await withUndo.text()).includes('action="/unboost"'), "the Undo button is drawn after a buzz that counted");
+  assert.equal(withUndo.headers.get("cache-control"), "no-store");
+  const justReading = await realFetch(`${base}${receiptPath}?on=11111111-1111-1111-1111-111111111111`, { headers: { Cookie: token } });
+  assert.ok(!(await justReading.text()).includes('action="/unboost"'), "the story alone draws no Undo");
+  const strangerReading = await realFetch(`${base}${receiptPath}?on=11111111-1111-1111-1111-111111111111`);
+  const strangerPage = await strangerReading.text();
+  assert.ok(!strangerPage.includes('action="/unboost"'), "and never for somebody handed the address");
+  assert.equal(strangerReading.headers.get("cache-control"), "public, max-age=20, must-revalidate",
+               "a page with nothing of one reader's own on it is still shareable");
+
   // A story the wall does not have falls through to the files, and there is none.
   assert.equal((await realFetch(`${base}/${openSlug}/wall/22222222-2222-2222-2222-222222222222/`)).status, 404);
   // A path that is not a receipt is not one.

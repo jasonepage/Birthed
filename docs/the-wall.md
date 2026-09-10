@@ -1411,7 +1411,13 @@ returning false in both cases.
 
 **Where the button is drawn.** On the website, only on the page that follows
 a buzz that counted, beside the sentence that says it counted, and nowhere
-else: a page somebody is merely reading never carries one. On the phone it is
+else: a page somebody is merely reading never carries one. That means the
+word and the story both, on the date page and on the receipt alike. The
+receipt's first version read the story out of the query string on its own,
+which drew the button for anybody handed the address on a page they had
+tapped nothing on. The database refused them, so it was a lying control
+rather than a hole, and a lying control is still the thing this paragraph
+forbids. On the phone it is
 on the tile that was just tapped and it goes when the window does. Neither
 client checks the clock for permission; both draw the button for thirty
 seconds and the database decides, because a window a client can argue with is
@@ -1469,6 +1475,16 @@ alternative, saying no number at all until a reading after the seal, would
 mean most readers never get one. **This is Jason's to overrule** and the
 three shapes are written down here so it can be argued rather than
 rediscovered.
+
+**A morning that has gone by is not rescheduled, and getting that wrong
+compounds.** The first version worked the morning out from whichever was
+later, the seal or now, which meant every hive a reader had ever buzzed on
+found an hour in the future and every one of them was rescheduled for
+tomorrow morning, every morning, forever. Thirty old dates is thirty banners
+a day about hives that sealed weeks ago, and past sixty they fill the sixty
+four slots and every friend's birthday is silently dropped, which is the
+promise this app is actually for. The morning is measured from the seal and
+never from now, and one already past is nothing at all.
 
 **It counts against the sixty four like everything else, and it never
 displaces the reader's own day.** The plan places the reader's own birthday

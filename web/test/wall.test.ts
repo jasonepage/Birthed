@@ -498,7 +498,10 @@ test("the confirmation shows the story, its outlet and its tier, and the buzz is
   const block = one.slice(one.indexOf('id="wfound"'), one.indexOf("</div>", one.indexOf('id="wfound"')));
   assert.ok(block.includes('<form class="wbuzz" method="post" action="/boost">'));
   assert.ok(block.includes(`name="s" value="${found.id}"`));
-  assert.ok(block.includes("Spend one buzz on this? What is spent cannot be taken back."));
+  // Thirty seconds, since the undo shipped. A confirmation that told the
+  // reader a buzz could not be taken back and then drew an Undo button under
+  // it was the copy contradicting the product.
+  assert.ok(block.includes("Spend one buzz on this? You get thirty seconds to take it back, and after that it stands."));
   assert.ok(block.includes('<a href="/september-9/#ask">Not this one</a>'));
   // The same story is still drawn in the feed under its own id, so the two ids differ.
   assert.ok(one.includes(`<li id="w-${found.id}">`));

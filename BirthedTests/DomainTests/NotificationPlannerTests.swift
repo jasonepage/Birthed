@@ -409,6 +409,35 @@ extension NotificationPlannerTests {
         XCTAssertFalse(plan.contains { $0.kind == .hiveSealed(wallDate: WallDate(key: "2026-09-10")!) })
     }
 
+    func testOldSealedHivesNeverPileUpAndNeverCrowdOutAFriendsBirthday() {
+        // The bug this pins. The first version measured the morning after
+        // from whichever was later, the seal or now, so every hive a reader
+        // had ever buzzed on found a fire hour in the future and every one of
+        // them was rescheduled for tomorrow morning, every morning, forever.
+        // Past sixty of them they fill the sixty four slots and every
+        // friend's birthday is silently dropped.
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        var old: [HiveNote] = []
+        for day in 1...28 {
+            old.append(HiveNote(wallDate: "2026-06-\(String(format: "%02d", day))",
+                                storyID: "s", headline: "H",
+                                sealsAt: f.date(from: "2026-06-\(String(format: "%02d", day))T04:00:00Z")!))
+        }
+        let people = (1...40).map { person(9, ($0 % 28) + 1, name: "P\($0)") }
+        let plan = planner(losAngeles).plan(
+            for: birthday(3, 3),
+            people: people,
+            hives: old,
+            // Months later. Every one of those mornings is long gone.
+            from: instant(2026, 9, 10, zone: losAngeles)
+        )
+        XCTAssertFalse(plan.contains { if case .hiveSealed = $0.kind { return true } else { return false } },
+                       "a morning that has gone by is not rescheduled")
+        XCTAssertTrue(plan.contains { if case .personBirthday = $0.kind { return true } else { return false } },
+                      "and the friends are still there")
+    }
+
     func testAMisshapenNoteIsDroppedRatherThanGuessedAt() {
         let plan = planner(losAngeles).plan(
             for: birthday(3, 3),

@@ -155,16 +155,28 @@ struct NotificationPlanner {
     /// worked out with `addingTimeInterval` lands an hour off across a
     /// daylight saving change.
     private func morningAfter(_ moment: Date, from reference: Date) -> DateComponents? {
-        let after = max(moment, reference)
-        var day = after
+        // Measured from the seal and never from now. Clamping a seal in the
+        // past up to the present was the first version of this and it was
+        // wrong in a way that compounds: every hive a reader had ever buzzed
+        // on would find a fire hour in the future, so all of them would be
+        // rescheduled for tomorrow morning, every morning, forever. Thirty
+        // old dates is thirty banners a day about hives that sealed weeks
+        // ago, and past sixty of them they fill the sixty four slots and
+        // every friend's birthday is silently dropped, which is the promise
+        // this app is actually for.
+        var day = moment
         // Two days is always enough: the reminder hour comes round once every
         // day, so the first or the second is the one. The bound is a bound and
         // not a rule, so a calendar that surprises us stops rather than loops.
         for _ in 0..<3 {
             if let components = fireComponents(on: day),
                let candidate = calendar.calendar.date(from: components),
-               candidate > after {
-                return components
+               candidate > moment {
+                // The morning after the seal, once. If it has already gone
+                // by, there is nothing to schedule: a notification behind the
+                // clock either fires at once or never, and neither is a thing
+                // to wake somebody with.
+                return candidate > reference ? components : nil
             }
             guard let next = calendar.calendar.date(byAdding: .day, value: 1, to: day) else { return nil }
             day = next

@@ -145,7 +145,7 @@ final class WallService {
         self.attestor = WallAttestor()
         self.noteStore = HiveNoteStore(defaults: defaults)
         self.marks = Self.readMarks(from: defaults)
-        self.notes = HiveNoteStore(defaults: defaults).load()
+        self.notes = self.noteStore.load()
     }
 
     private static func readMarks(from defaults: UserDefaults) -> HiveMarks {

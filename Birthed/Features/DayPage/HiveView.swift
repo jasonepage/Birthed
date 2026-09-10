@@ -315,6 +315,9 @@ private struct HiveField: View {
     let onAdd: () -> Void
 
     @Environment(WallService.self) private var wall
+    @Environment(NotificationService.self) private var notifications
+    @Environment(ProfileStore.self) private var profileStore
+    @Environment(PeopleStore.self) private var peopleStore
 
     @State private var query = ""
     /// The query the reader actually asked, as distinct from what is in the
