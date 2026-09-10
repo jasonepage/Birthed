@@ -49,6 +49,10 @@ export { calendar, isLeapYear, monthAnchor };
  */
 const ICON_DICE = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="4.6"/><circle cx="8.4" cy="8.4" r="1.35" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.35" fill="currentColor" stroke="none"/><circle cx="15.6" cy="15.6" r="1.35" fill="currentColor" stroke="none"/></svg>`;
 
+// Every date: a grid of days, because the calendar mark already means Today
+// on this bar and two calendars in a row would read as one control twice.
+const ICON_GRID = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="3.6"/><path d="M3.4 9.2h17.2M3.4 14.8h17.2M9.2 3.4v17.2M14.8 3.4v17.2"/></svg>`;
+
 const ICON_CALENDAR = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3.4" y="5" width="17.2" height="15.6" rx="3.6"/><path d="M3.4 10.2h17.2M8.2 3.2v3.6M15.8 3.2v3.6"/></svg>`;
 
 /**
@@ -70,6 +74,7 @@ function topBar(): string {
 <a class="mark" href="/">Birthed</a>
 <nav class="quick" aria-label="Jump to a date">
 <a href="/today/" aria-label="Today's date">${ICON_CALENDAR}<span>Today</span></a>
+<a href="/calendar/" aria-label="Every day of the year">${ICON_GRID}<span>Every date</span></a>
 <a href="/random/" aria-label="A random day of the year">${ICON_DICE}<span>Random day</span></a>
 </nav>
 </header>`;
