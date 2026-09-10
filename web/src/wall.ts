@@ -1375,15 +1375,16 @@ export const WALL_STYLE = `
   padding: 2px; box-sizing: border-box; border-radius: 10px; background: #100D16;
   box-shadow: inset 0 0 0 1px rgba(255, 247, 238, .08);
 }
-/* Bigger than the column. On a phone the board runs edge to edge, because
-   a gutter either side of the one picture on the page is forty pixels of
-   nothing; on a wide screen it is wider than the prose beside it, the way a
-   photograph in an article is. The full screen page sizes its own. */
+/* On a phone the board runs edge to edge, because a gutter either side of
+   the one picture on the page is forty pixels of nothing. The sticky bar
+   runs edge to edge with it, or the tiles show either side of the bar as
+   the page scrolls under it, which is what the first version did. On a wide
+   screen the board stays the column's width for the same reason: the bar
+   is the column's width, and a board wider than the bar scrolls out from
+   under it. The full screen page sizes its own. */
 @media (max-width: 760px) {
   .wall:not(.whive) .wboard { width: calc(100% + 40px); max-width: none; margin-left: -20px; margin-right: -20px; border-radius: 0; }
-}
-@media (min-width: 900px) {
-  .wall:not(.whive) .wboard { width: 880px; max-width: none; margin-left: -100px; margin-right: -100px; }
+  .day .daybar { margin-left: -20px; margin-right: -20px; padding-left: 20px; padding-right: 20px; }
 }
 /* The empty board. A faint grid of the modules nothing has filled, the
    centre cleared for the words, so a hive that has not opened, or sealed
