@@ -84,6 +84,41 @@ export const FEEDS: Feed[] = [
  */
 export const PER_FEED_PER_DATE = 5;
 
+/**
+ * Headlines that are not a thing that happened. docs/the-wall.md section 15.
+ *
+ * The wall asks one question, whether a story will still matter about this
+ * date years from now, and a reader who is handed a ballot of ticket-buying
+ * guides and console opinion answers it correctly by not spending anything.
+ * These are the shapes that are never an answer to that question: an opinion
+ * column, a question headline, a listicle, service journalism telling you
+ * where to buy something, a release date, a review.
+ *
+ * Two apostrophes, because half these feeds curl theirs and a screen that
+ * misses "Here's Where to Buy" while catching "Here's where to buy" is not a
+ * screen.
+ *
+ * Deliberately narrow. Every pattern here was written against the hundred
+ * and twenty nine headlines the live feeds actually filed for September 9,
+ * 2026, and it catches twelve of them and no story. Over-filtering costs
+ * more than the junk does: the junk loses one tile, a false positive loses
+ * the day's news. When in doubt this lets it through.
+ *
+ * Not a deletion. Section 11 says the feed list is the vetting, and this is
+ * the same vetting applied one level finer. Nothing is removed from any
+ * table; these were never filed.
+ */
+const NOT_A_THING_THAT_HAPPENED =
+  /\?\s*$|^(opinion|analysis|review|explainer|column)\b|here['’]?s (what|how|why|when|where|everything)|everything you need|top [0-9]+|[0-9]+ (things|ways|reasons)\b|finally gets a release|release date|:\s*here['’]|weigh in\b|what to know\b|explained\s*$|ranked\s*$|hands.on\b|first look\b|is the (last|best|worst|most)\b|who needs\b|tour [0-9]{4}\b/i;
+
+/**
+ * Whether a headline is a thing that happened, and so whether it belongs on
+ * a board about what will still matter.
+ */
+export function mayMatter(headline: string): boolean {
+  return headline.trim() !== "" && !NOT_A_THING_THAT_HAPPENED.test(headline);
+}
+
 // ---------------------------------------------------------------------------
 // Reading a feed
 // ---------------------------------------------------------------------------
@@ -205,6 +240,9 @@ export function planNews(feedItems: Array<{ feed: Feed; items: FeedItem[] }>, no
       const key = `${wallDate}|${urlKey}`;
       if (seen.has(key)) continue;
       const headline = fitHeadline(item.title);
+      // The screen runs on the source's own title rather than on the cut
+      // one, so a pattern near the end is still there to be seen.
+      if (!mayMatter(item.title)) continue;
       let quotation = fold(item.description);
       if (quotation.length < 20) quotation = headline;
       if (headline === "" || quotation.length < 20) continue;
