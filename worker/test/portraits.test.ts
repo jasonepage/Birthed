@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { buildPortraitQuery, everyDate, fileNameFrom, filePathUrl, readPortraits, uniquePeople } from "../src/portraits.js";
-import { PEOPLE_PER_DATE, hivePeoplePath } from "../src/wall/history.js";
+import { FACES_PER_DATE, buildPortraitQuery, everyDate, fileNameFrom, filePathUrl, readPortraits, uniquePeople } from "../src/portraits.js";
+import { hivePeoplePath } from "../src/wall/history.js";
 
 test("a file name becomes a sized Commons url", () => {
   const url = filePathUrl("Buddy Holly cropped.jpg");
@@ -53,14 +53,15 @@ test("the hive run walks all 366 dates, February 29 included", () => {
   assert.equal(dates.filter((d) => d.month === 4 && d.day === 31).length, 0);
 });
 
-test("the hive run asks for exactly the people the history seeder files", () => {
-  const path = hivePeoplePath(9, 10);
+test("the hive run asks for the people the history seeder files, the most looked up first, with a limit for faces only", () => {
+  assert.ok(!hivePeoplePath(9, 10).includes("limit="), "the seeder files everybody on the date");
+  const path = hivePeoplePath(9, 10, FACES_PER_DATE);
   assert.ok(path.startsWith("notable_people?"));
   assert.ok(path.includes("birth_month=eq.9"));
   assert.ok(path.includes("birth_day=eq.10"));
   assert.ok(path.includes("adult_content=eq.false"));
   assert.ok(path.includes("order=notability_score.desc"));
-  assert.ok(path.endsWith(`limit=${PEOPLE_PER_DATE}`));
+  assert.ok(path.endsWith(`limit=${FACES_PER_DATE}`));
 });
 
 test("a person filed under two dates is looked up once", () => {

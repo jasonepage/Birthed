@@ -73,9 +73,15 @@ export const PRIORITY_HISTORY = 1;
  */
 export const PRIORITY_SONG = 0;
 
-/** How many people a date files; the rest stay on their own table. */
-export const PEOPLE_PER_DATE = 12;
-/** How many of those get the person priority. */
+/**
+ * Every person on the date is filed. Nathan, September 10, 2026: a cap of
+ * twelve left the other eighteen people on a date with no button on the
+ * phone, and a board meant to find out who the most famous birthday is
+ * cannot start by taking names off the ballot. The cap was twelve; it is
+ * gone. Faces are still fetched for the most looked up only, in
+ * worker/src/portraits.ts, because that is a folder size and not a vote.
+ */
+/** How many people get the person priority: the most looked up on the date. */
 export const TOP_PEOPLE = 3;
 
 // ---------------------------------------------------------------------------
@@ -211,7 +217,7 @@ export function planHistory(wallDate: string, history: DateHistory, dropped?: Dr
     });
   }
 
-  history.people.slice(0, PEOPLE_PER_DATE).forEach((p, index) => {
+  history.people.forEach((p, index) => {
     const description = fold(p.short_description ?? "");
     const born = p.birth_year === null ? "" : `, born ${p.birth_year}`;
     const headline = fitHeadline(`${p.name}${description ? `, ${description}` : ""}${born}`);
@@ -338,14 +344,14 @@ export function monthDayOf(value: string): string {
 }
 
 /**
- * The people a date files, as the automatic interface is asked for them: the
- * most looked up by notability, PEOPLE_PER_DATE of them, nobody flagged as
- * adult content. One string, because the faces importer in
- * worker/src/portraits.ts has to ask for exactly the people the hive files,
+ * The people a date files, as the automatic interface is asked for them:
+ * everybody born on it, most looked up first, nobody flagged as adult
+ * content. One string, because the faces importer in
+ * worker/src/portraits.ts asks for the same people with a limit on the end,
  * and two copies of this query would drift the first time one was edited.
  */
-export function hivePeoplePath(month: number, day: number): string {
-  return `notable_people?select=wikidata_qid,name,birth_year,death_year,short_description&birth_month=eq.${month}&birth_day=eq.${day}&adult_content=eq.false&order=notability_score.desc&limit=${PEOPLE_PER_DATE}`;
+export function hivePeoplePath(month: number, day: number, limit: number | null = null): string {
+  return `notable_people?select=wikidata_qid,name,birth_year,death_year,short_description&birth_month=eq.${month}&birth_day=eq.${day}&adult_content=eq.false&order=notability_score.desc${limit === null ? "" : `&limit=${limit}`}`;
 }
 
 export async function readHistory(db: Db, month: number, day: number): Promise<DateHistory> {

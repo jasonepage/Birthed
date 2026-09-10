@@ -20,7 +20,7 @@ import { realpathSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { loadConfig, loadDotEnv } from "./config.js";
-import { PEOPLE_PER_DATE, hivePeoplePath } from "./wall/history.js";
+import { hivePeoplePath } from "./wall/history.js";
 
 const WIKIDATA = "https://query.wikidata.org/sparql";
 const COMMONS = "https://commons.wikimedia.org/wiki/Special:FilePath";
@@ -231,13 +231,16 @@ async function everyone(url: string, key: string, userAgent: string, write: bool
 //   npm run portraits -- --hive --write
 //
 // docs/the-wall.md section 16 left faces unbuilt with image_file empty on
-// every row. The hive files twelve people a date, so twelve a date is what
-// gets a face: 366 dates at twelve is at most 4,392 people, about twenty two
-// queries against the query service instead of a hundred and thirty, and a
-// few thousand files on the site instead of twenty five thousand. The people
-// are read through hivePeoplePath, the same string history.ts asks with, so
-// the faces on disk are exactly the tiles that can draw one.
+// every row. The hive files every person on a date, but a face for all
+// 25,741 of them is close to a gigabyte on the site, so faces go to the
+// FACES_PER_DATE most looked up on each date: 366 dates at twelve is at most
+// 4,392 people, about twenty two queries against the query service, and a
+// few thousand files. The people are read through hivePeoplePath, the same
+// string history.ts asks with, with the limit on the end, so a face lands on
+// the tiles most likely to be on the board.
 // ---------------------------------------------------------------------------
+
+export const FACES_PER_DATE = 12;
 
 const DAYS_IN_MONTH = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
@@ -272,7 +275,7 @@ export function uniquePeople(pages: PersonRow[][]): PersonRow[] {
 async function hivePeople(url: string, key: string): Promise<PersonRow[]> {
   const pages: PersonRow[][] = [];
   for (const { month, day } of everyDate()) {
-    const response = await fetch(`${url}/rest/v1/${hivePeoplePath(month, day)}`, {
+    const response = await fetch(`${url}/rest/v1/${hivePeoplePath(month, day, FACES_PER_DATE)}`, {
       headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: "application/json" },
     });
     if (!response.ok) throw new Error(`people for ${month}/${day} failed with ${response.status}`);
@@ -283,7 +286,7 @@ async function hivePeople(url: string, key: string): Promise<PersonRow[]> {
 
 async function hive(url: string, key: string, userAgent: string, write: boolean): Promise<void> {
   const people = await hivePeople(url, key);
-  console.log(`${people.length} people across the year, at most ${PEOPLE_PER_DATE} a date`);
+  console.log(`${people.length} people across the year, at most ${FACES_PER_DATE} a date`);
 
   const found: Array<{ qid: string; file: string | null }> = [];
   for (let start = 0; start < people.length; start += QIDS_PER_QUERY) {
@@ -318,7 +321,7 @@ async function main(): Promise<void> {
   const day = nums[1];
   if (!all && !onlyHive && (month === undefined || day === undefined)) {
     console.error("usage: npm run portraits -- <month> <day> [--out path.json]");
-    console.error("       npm run portraits -- --hive --write     the twelve people a date the hive files");
+    console.error("       npm run portraits -- --hive --write     the twelve most looked up a date");
     console.error("       npm run portraits -- --all --write      everybody");
     process.exit(1);
   }
