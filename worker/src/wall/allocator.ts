@@ -35,9 +35,10 @@
 //   feeds. The wall still opens carrying the day's news, section 11; it no
 //   longer opens finished.
 //   New stories are laid down after every story already holding a rectangle,
-//   most supported first, then by placement time, then id, so a story people
-//   backed reaches the board before one nobody has, and the first to arrive
-//   wins among equals. A new story takes the free minimum rectangle whose
+//   most supported first, then by priority, then by placement time, then id,
+//   so a story people backed reaches the board before one nobody has, the
+//   date's own history opens the board ahead of the news feeds, and the
+//   first to arrive wins among equals. A new story takes the free minimum rectangle whose
 //   centre is nearest the board centre, ranked by distance, then clockwise
 //   angle from straight up, then mx, then my.
 //   Target size is min(tier ceiling, MIN_MODULES + floor(support /
@@ -112,6 +113,12 @@ export interface StoryInput {
   tier: Tier;
   /** Boost units so far. */
   support: number;
+  /**
+   * Order among stories with equal support when the board has room: the
+   * date's biggest history first, then people, then the rest, then the news
+   * feeds. docs/the-wall.md section 13. Beaten by a single unit of support.
+   */
+  priority?: number;
   /**
    * When the story earned its place, as milliseconds since the epoch or an
    * ISO string. Decides the order stories are considered in. For a story
@@ -354,6 +361,7 @@ export function allocate(stories: StoryInput[]): Allocation {
 
   const arriving = stories.filter((s) => !s.anchor).sort((a, b) => {
     if (b.support !== a.support) return b.support - a.support;
+    if ((b.priority ?? 0) !== (a.priority ?? 0)) return (b.priority ?? 0) - (a.priority ?? 0);
     return byArrival(a, b);
   });
 

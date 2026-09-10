@@ -1,5 +1,5 @@
-// One tick of the wall, for the schedule in render.yaml: the news seeder
-// and then the checker, every quarter hour.
+// One tick of the wall, for the schedule in render.yaml: the history seeder,
+// the news seeder and then the checker, every quarter hour.
 //
 //   node dist/src/wall/tick.js
 //
@@ -12,6 +12,7 @@
 import { loadConfig, loadDotEnv } from "../config.js";
 import { run as check } from "./check.js";
 import type { Db } from "./db.js";
+import { run as history } from "./history.js";
 import { run as news } from "./news.js";
 
 async function main(): Promise<void> {
@@ -20,6 +21,14 @@ async function main(): Promise<void> {
   const db: Db = { url: config.supabaseUrl, key: config.serviceRoleKey };
   let failed = false;
 
+  // The date's own history first, so a wall opens looking like the date and
+  // its picks take the first tiles ahead of the feeds.
+  try {
+    await history(db);
+  } catch (error: unknown) {
+    failed = true;
+    console.error(`wall history failed: ${error instanceof Error ? error.message : error}`);
+  }
   try {
     await news(db, { userAgent: config.userAgent });
   } catch (error: unknown) {

@@ -56,6 +56,7 @@ export interface StoryRow {
   status: Status;
   tier: Tier;
   support: number;
+  priority: number;
   placed_at: string | null;
   anchor_mx: number | null;
   anchor_my: number | null;
@@ -71,6 +72,8 @@ export interface SourceRow {
   quotation: string;
   verified_at: string | null;
   is_primary_doc: boolean;
+  /** The importer read this page once; the checker leaves it alone. */
+  imported: boolean;
 }
 
 export interface CheckRow {
@@ -240,14 +243,14 @@ export function settle(
       if (!its.some((s) => s.verified)) continue;
       if (!eligibleForWall({ support: story.support, submittedAt: story.submitted_at, submittedBy: story.submitted_by }, its, now)) continue;
       touch(story.id).placed_at = now;
-      input.push({ id: story.id, tier, support: story.support, placedAt: now, anchor: null });
+      input.push({ id: story.id, tier, support: story.support, priority: story.priority, placedAt: now, anchor: null });
       continue;
     }
 
     // placed or overflow: placed_at is when it earned its place, and an
     // overflow story keeps that so it is considered in the order it earned
     // rather than as new each run.
-    input.push({ id: story.id, tier, support: story.support, placedAt: story.placed_at ?? story.submitted_at, anchor: rect });
+    input.push({ id: story.id, tier, support: story.support, priority: story.priority, placedAt: story.placed_at ?? story.submitted_at, anchor: rect });
   }
 
   if (input.length === 0) {
@@ -331,18 +334,22 @@ export async function run(db: Db, options: { now?: Date; date?: string; dry?: bo
 
   for (const day of days) {
     const stories = await rows<StoryRow>(db,
-      `wall_stories?select=id,wall_date,submitted_at,submitted_by,status,tier,support,placed_at,anchor_mx,anchor_my,w_modules,h_modules&wall_date=eq.${day.wall_date}&order=submitted_at.asc,id.asc`);
+      `wall_stories?select=id,wall_date,submitted_at,submitted_by,status,tier,support,priority,placed_at,anchor_mx,anchor_my,w_modules,h_modules&wall_date=eq.${day.wall_date}&order=submitted_at.asc,id.asc`);
     const live = stories.filter((s) => s.status !== "false");
     const sources: SourceRow[] = [];
     for (const ids of chunk(live.map((s) => s.id), 80)) {
       sources.push(...await rows<SourceRow>(db,
-        `wall_sources?select=id,story_id,url,owner,quotation,verified_at,is_primary_doc&story_id=in.(${ids.join(",")})&order=added_at.asc,id.asc`));
+        `wall_sources?select=id,story_id,url,owner,quotation,verified_at,is_primary_doc,imported&story_id=in.(${ids.join(",")})&order=added_at.asc,id.asc`));
     }
 
     // Every source, every run. One at a time: these are other people's
     // servers and the wall is not in a hurry.
     const checks: CheckRow[] = [];
     for (const source of sources) {
+      // An imported source is the importer's own citation, read once when
+      // the row was written. It is not fetched again and its verification
+      // stands; the receipt says so. docs/the-wall.md section 13.
+      if (source.imported) continue;
       const fetched = await fetchPage(source.url, userAgent);
       const judged = checkSource(source, fetched, at);
       checks.push(...judged.checks);

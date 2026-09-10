@@ -26,7 +26,7 @@ const A_PERSON = "11111111-1111-1111-1111-111111111111";
 
 function story(id: string, overrides: Partial<StoryRow> = {}): StoryRow {
   return {
-    id, wall_date: "2026-09-09", submitted_at: EARLIER, submitted_by: A_PERSON, status: "pool", tier: "claimed", support: 0, placed_at: null,
+    id, wall_date: "2026-09-09", submitted_at: EARLIER, submitted_by: A_PERSON, status: "pool", tier: "claimed", support: 0, priority: 0, placed_at: null,
     anchor_mx: null, anchor_my: null, w_modules: null, h_modules: null, ...overrides,
   };
 }
@@ -34,7 +34,7 @@ function story(id: string, overrides: Partial<StoryRow> = {}): StoryRow {
 function source(id: string, storyId: string, url: string, overrides: Partial<SourceRow> = {}): SourceRow {
   return {
     id, story_id: storyId, url, owner: "", quotation: "Five tankers were hit and sunk on Tuesday morning.",
-    verified_at: NOW, is_primary_doc: false, ...overrides,
+    verified_at: NOW, is_primary_doc: false, imported: false, ...overrides,
   };
 }
 
