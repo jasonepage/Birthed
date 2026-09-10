@@ -303,6 +303,45 @@ final class WallService {
         return WallSubmitPreview(story: story, existing: existing)
     }
 
+    // MARK: Find it for me
+
+    /// Asks the `hive-find` Edge Function for a source, on an explicit tap
+    /// and never on a keystroke. docs/the-wall.md section 15, past the miss.
+    ///
+    /// **What leaves the phone is `HiveFind.Request.body` and nothing else**:
+    /// the words and the date. The account's token goes in the header, the
+    /// same way it does for every write, because a search costs money and
+    /// the key alone ships inside the app. No birthday, no region, no name.
+    /// The function stores no words; it stores that this account ran one
+    /// search on this date, which is what gives it five a day.
+    ///
+    /// Nothing here files anything. What comes back is a list of pages for
+    /// the reader to pick from, and the pick goes through `submit(url:)`
+    /// like a pasted link, so the story gets the same receipt from the same
+    /// fetched page.
+    ///
+    /// A refusal is thrown in the reader's terms. "paused" is not one: it is
+    /// an outcome, because the date and the reader have done nothing wrong.
+    func find(_ request: HiveFind.Request) async throws -> HiveFind.Outcome {
+        lastRefusal = nil
+        guard let token = await account.freshAccessToken() else { throw WriteError.notReady }
+        var urlRequest = URLRequest(url: baseURL.appending(path: "functions/v1/hive-find"))
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue(anonKey, forHTTPHeaderField: "apikey")
+        urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.httpBody = try JSONSerialization.data(withJSONObject: request.body)
+        // Two model calls and up to four page reads. Well under a minute
+        // usually; the ceiling is for the page that will not answer.
+        urlRequest.timeoutInterval = 90
+        let (data, response) = try await session.data(for: urlRequest)
+        let object = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw refuse((object["error"] as? String) ?? "search did not answer")
+        }
+        return HiveFind.outcome(status: object["status"] as? String, rows: object["candidates"] as? [[String: Any]])
+    }
+
     /// Spends one buzz on a story.
     ///
     /// One tap is one unit, docs/the-wall.md section 4. One story takes one

@@ -230,6 +230,16 @@ struct HiveView: View {
 /// the field is the front door to submission rather than requiring a
 /// uniform resource locator in hand.
 ///
+/// **A miss also offers "Find it for me", and that button is the one place
+/// text leaves the phone.** Typing sends nothing and Return searches only
+/// what is already loaded. The button says, before it is tapped, that it
+/// sends the words and the date to a web search and nothing else. What
+/// comes back is two or three real pages with the page's own title and a
+/// quotation the function found on the page; a tap on one files it through
+/// `WallService.submit`, the same path as a pasted link, and then shows the
+/// filed story on the confirmation. Nothing is filed and nothing is spent
+/// without that tap. The rules are `HiveFind` in the domain.
+///
 /// The matching, the chips, the ranking and every sentence are
 /// `HiveSearch` and `HiveCopy` in the domain, where they are tested against
 /// real headlines. This draws, and it holds the one rule a view has to hold:
@@ -259,6 +269,15 @@ private struct HiveField: View {
     /// are drawn only then.
     @FocusState private var typing: Bool
 
+    /// The web search, after a miss. `finding` while it runs, `found` once
+    /// it answered, `filing` while a pick is being read by the submit path.
+    /// All three are cleared when the words change, because an answer was
+    /// for the words that were there.
+    @State private var finding = false
+    @State private var found: HiveFind.Outcome?
+    @State private var filing: HiveFind.Candidate?
+    @State private var findRefusal: String?
+
     private var voice: HiveVoice { wall.voice }
 
     var body: some View {
@@ -279,7 +298,11 @@ private struct HiveField: View {
             // The answer on screen was for the words that were there. Once
             // they change it is for nothing, and the chips come back until
             // the reader asks again. A story already picked is left alone.
-            if picked == nil { asked = nil }
+            if picked == nil {
+                asked = nil
+                found = nil
+                findRefusal = nil
+            }
         }
     }
 
@@ -320,6 +343,8 @@ private struct HiveField: View {
         picked = nil
         spent = false
         refusal = nil
+        found = nil
+        findRefusal = nil
         asked = query
     }
 
@@ -382,6 +407,9 @@ private struct HiveField: View {
                 Text(HiveCopy.miss(dateName: date.displayName()))
                     .font(.footnote)
                     .foregroundStyle(palette.type.opacity(0.6))
+                if HiveFind.offers(answer) {
+                    findSection
+                }
                 Button(action: onAdd) {
                     HStack(spacing: 8) {
                         Image(systemName: "link")
@@ -443,6 +471,172 @@ private struct HiveField: View {
         .buttonStyle(.plain)
         .accessibilityLabel("\(story.headline). \(story.outlet). \(story.tier.label).")
         .accessibilityHint("Shows it for confirmation. Nothing is spent yet.")
+    }
+
+    // MARK: Find it for me
+
+    /// The request the button would send, or nil when there is nothing
+    /// worth sending. The button is drawn only when this is not nil, so a
+    /// query of stop words never reaches a web search either.
+    private var findRequest: HiveFind.Request? {
+        guard let asked else { return nil }
+        return HiveFind.request(query: asked, wallDate: day.wallDate)
+    }
+
+    /// Under the miss: the button and its sentence, the wait, the answer,
+    /// or the refusal. One of these at a time.
+    @ViewBuilder
+    private var findSection: some View {
+        if let filing {
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("\(HiveCopy.findFiling): \(filing.title)")
+                    .font(.footnote)
+                    .foregroundStyle(palette.type.opacity(0.6))
+                    .lineLimit(2)
+            }
+        } else if finding {
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text(HiveCopy.finding)
+                    .font(.footnote)
+                    .foregroundStyle(palette.type.opacity(0.6))
+            }
+        } else if let found {
+            findResult(found)
+        } else if findRequest != nil {
+            if let findRefusal {
+                Text(findRefusal)
+                    .font(.footnote)
+                    .foregroundStyle(palette.type.opacity(0.6))
+            }
+            findButton
+            Text(HiveCopy.findWillSearch(dateName: date.displayName()))
+                .font(.caption)
+                .foregroundStyle(palette.type.opacity(0.45))
+        }
+    }
+
+    /// The one control that sends text off the phone. It says so in the
+    /// sentence under it, and it is never tapped by anything but a finger.
+    private var findButton: some View {
+        Button {
+            Task { await find() }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                Text(HiveCopy.findForMe)
+                    .font(.subheadline.weight(.semibold))
+            }
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(HivePalette.amber)
+        .disabled(finding || filing != nil)
+        .accessibilityHint(HiveCopy.findWillSearch(dateName: date.displayName()))
+    }
+
+    private func find() async {
+        guard !finding, filing == nil, let request = findRequest else { return }
+        finding = true
+        findRefusal = nil
+        found = nil
+        defer { finding = false }
+        do {
+            found = try await wall.find(request)
+        } catch {
+            findRefusal = wall.lastRefusal ?? error.localizedDescription
+        }
+    }
+
+    @ViewBuilder
+    private func findResult(_ outcome: HiveFind.Outcome) -> some View {
+        switch outcome {
+        case let .found(candidates):
+            VStack(alignment: .leading, spacing: 8) {
+                Text(HiveCopy.findFound(voice: voice))
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(palette.type.opacity(0.6))
+                ForEach(candidates) { candidate in
+                    candidateRow(candidate)
+                }
+                if let findRefusal {
+                    Text(findRefusal)
+                        .font(.footnote)
+                        .foregroundStyle(palette.type.opacity(0.6))
+                }
+            }
+        case .nothing:
+            Text(HiveCopy.findNothing(dateName: date.displayName()))
+                .font(.footnote)
+                .foregroundStyle(palette.type.opacity(0.6))
+        case .paused:
+            Text(HiveCopy.findPaused)
+                .font(.footnote)
+                .foregroundStyle(palette.type.opacity(0.6))
+        case .failed:
+            Text(HiveCopy.findFailed)
+                .font(.footnote)
+                .foregroundStyle(palette.type.opacity(0.6))
+            findButton
+        }
+    }
+
+    /// One page the search found: its own title, its outlet, and the
+    /// quotation the function found on it. A tap files it; the headline the
+    /// hive shows is read off the page by the submit path, not from here.
+    private func candidateRow(_ candidate: HiveFind.Candidate) -> some View {
+        Button {
+            Task { await file(candidate) }
+        } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(candidate.title)
+                    .font(.system(size: 15, weight: .semibold, design: .serif))
+                    .foregroundStyle(palette.type)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(candidate.outlet)
+                    .font(.caption)
+                    .foregroundStyle(palette.type.opacity(0.55))
+                Text(candidate.quotation)
+                    .font(.system(.caption, design: .serif))
+                    .italic()
+                    .foregroundStyle(palette.type.opacity(0.7))
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(3)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(10)
+            .background(Theme.card, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(filing != nil)
+        .accessibilityLabel("\(candidate.title). \(candidate.outlet).")
+        .accessibilityHint(HiveCopy.findPickHint(voice: voice))
+    }
+
+    /// The pick, through the ordinary submit path. A page already on the
+    /// date is that story and is shown for confirmation without a write.
+    /// Otherwise the server reads the page, takes its own headline and
+    /// quotation, and the story it hands back goes to the confirmation,
+    /// where the receipt is one tap away and a buzz can be cast or not.
+    private func file(_ candidate: HiveFind.Candidate) async {
+        guard filing == nil, !finding else { return }
+        if let story = HiveFind.filed(candidate, in: day.stories) {
+            found = nil
+            pick(story)
+            return
+        }
+        filing = candidate
+        findRefusal = nil
+        defer { filing = nil }
+        do {
+            let preview = try await wall.submit(url: candidate.url, wallDate: day.wallDate)
+            await wall.load(date: date)
+            found = nil
+            pick(wall.story(preview.story.id) ?? preview.story)
+        } catch {
+            findRefusal = wall.lastRefusal ?? error.localizedDescription
+        }
     }
 
     // MARK: The confirmation

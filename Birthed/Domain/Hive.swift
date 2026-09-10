@@ -577,6 +577,58 @@ enum HiveCopy {
         "\(voice.mark). One story takes one \(voice.one) from this account."
     }
 
+    // MARK: Find it for me, docs/the-wall.md section 15 past the miss
+
+    /// The button under the miss. It is offered beside the link button, not
+    /// instead of it: a reader with an address in hand still has the short
+    /// way.
+    static let findForMe = "Find it for me"
+
+    /// Under the button, before it is tapped. This is the one sentence that
+    /// says text is about to leave the phone, and it is the whole of what
+    /// leaves: the words and the date. Typing sends nothing; this button
+    /// does, and it says so before it is pressed rather than after.
+    static func findWillSearch(dateName: String) -> String {
+        "This sends the words you typed and \(dateName) to a web search, and nothing else."
+            + " Nothing you type is kept."
+    }
+
+    /// While the search runs. It takes tens of seconds; a spinner with no
+    /// sentence beside it reads as a hang.
+    static let finding = "Searching the web for a source. This takes a moment."
+
+    /// Over the candidates. The wording promise is made here, before the
+    /// pick, because the pick files it.
+    static func findFound(voice: HiveVoice) -> String {
+        "Found. Pick one and it is filed for the date in the page's own words."
+            + " No \(voice.one) is spent until you say so."
+    }
+
+    /// The search ran and nothing held up. Still the front door to the link
+    /// flow, because a reader may know where it is better than a search does.
+    static func findNothing(dateName: String) -> String {
+        "Nothing found on the web for that and \(dateName). If you have a link to it, add it and it is filed."
+    }
+
+    /// Out of searches: the month's, the day's, or this account's five.
+    /// One sentence for all three, because which one it is does not change
+    /// what the reader can do about it.
+    static let findPaused = "Searching is paused for now. If you have a link, add it and it is filed."
+
+    /// The function did not answer. Not retried on its own, because each
+    /// try costs money and a reader can tap again.
+    static let findFailed = "The search did not answer. Try again in a moment, or add a link."
+
+    /// While the pick is being filed through the submit path, which reads
+    /// the page. The same words the link flow uses for the same wait.
+    static let findFiling = "Reading the page"
+
+    /// Under a candidate, for a screen reader. Filing is a write and is
+    /// said to be one; spending is not, and is said not to be.
+    static func findPickHint(voice: HiveVoice) -> String {
+        "Files this page for the date. The headline comes from the page. No \(voice.one) is spent."
+    }
+
     /// A refusal from the server, in the reader's terms.
     ///
     /// The server's own sentences start with "wall:" and are plain by design;
@@ -609,6 +661,7 @@ enum HiveCopy {
             return "This device could not be verified. Adding to the hive needs a real device."
         }
         if lower.contains("not signed in") { return "The account is not ready yet. Try again in a moment." }
+        if lower.contains("search did not answer") || lower.contains("phrase is too short") { return findFailed }
         return "The hive refused that. Try again in a moment."
     }
 }
