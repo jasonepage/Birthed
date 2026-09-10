@@ -760,3 +760,15 @@ as a reward for backing stories that last was raised and is not built: section
 one are a year away. The shape that keeps the rule, if it is ever built, is a
 private mark on the sealed page, "you backed this and it held", shown only to
 the browser that made it and never as a number.
+
+**The wall leads the date page.** Decided by Nathan the same evening. The page
+opens with the date's name and the wall; the three "also on this date" cards
+follow; the remembrance question is its own section with its clock and its
+copy untouched; and what happened, what came out, the song and who shares the
+date fold into one block a reader opens with a tap and a crawler reads whole,
+under a line that counts what is inside. Nothing was deleted, because the
+imported history is the search plan and the wall's context both. Two open
+questions were named and not settled: the page now runs two games with two
+clocks, and the honest long term shape may be one mechanic with two faces,
+what will matter about today and what did matter about a past date. That
+changes the year two measurement and is not a layout decision.
