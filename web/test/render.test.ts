@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ASK_SLOTS, askCandidates, renderDayPage, renderRobots, renderSitemap, escapeHtml, isReady, undoForm, resultMarkup } from "../src/render.js";
+import { ASK_SLOTS, askCandidates, renderDayPage, renderCalendarPage, renderRobots, renderSitemap, escapeHtml, isReady, undoForm, resultMarkup } from "../src/render.js";
 import { everyDate, neighbours, slug } from "../src/model.js";
 
 const page = {
@@ -138,10 +138,13 @@ import { calendar, isLeapYear, renderAdd, renderHome, renderPrivacy, renderSuppo
 import { asHighlight, pickHighlights, type Fact } from "../src/facts.js";
 import { redirectFor } from "../src/serve.js";
 
-test("the front door still reaches every date, and the two pages people need", () => {
+test("the front door reaches the calendar, and the two pages people need", () => {
+  // The twelve grids came off the foot of this page on September 10, 2026:
+  // with Every date in the bar they were the calendar page twice. Every date
+  // is one link away, on /calendar/, which the next tests hold to all 366.
   const html = renderHome();
-  const links = new Set(html.match(/href="\/[a-z]+-\d+\/"/g) ?? []);
-  assert.equal(links.size, 366);
+  assert.ok(html.includes('href="/calendar/"'));
+  assert.equal((html.match(/href="\/[a-z]+-\d+\/"/g) ?? []).length, 0, "no grid of dates on the front door");
   assert.ok(html.includes('href="/support/"'));
   assert.ok(html.includes('href="/privacy/"'));
 });
@@ -165,13 +168,14 @@ test("an icon only link still has a name when its words are hidden", () => {
   assert.ok(html.includes('href="/random/" aria-label='));
 });
 
-test("the born in strip jumps to a month that exists on the page", () => {
+test("the born in strip jumps to a month that exists on the calendar page", () => {
   const html = renderHome(2026);
-  const jumps = html.match(/href="#([a-z]+)"/g) ?? [];
+  const jumps = html.match(/href="\/calendar\/#([a-z]+)"/g) ?? [];
   assert.equal(jumps.length, 12);
+  const calendarPage = renderCalendarPage(2026);
   for (const jump of jumps) {
-    const anchor = jump.slice('href="#'.length, -1);
-    assert.ok(html.includes(`id="${anchor}"`), `no calendar for #${anchor}`);
+    const anchor = jump.slice('href="/calendar/#'.length, -1);
+    assert.ok(calendarPage.includes(`id="${anchor}"`), `no calendar for #${anchor}`);
   }
   // The strip must not have added a script to a page that promises none.
   assert.ok(!html.includes("<script"));
@@ -196,7 +200,7 @@ test("every page names its favicon", () => {
 });
 
 test("the index is twelve calendars, and each month starts on its real weekday", () => {
-  const html = renderHome(2026);
+  const html = renderCalendarPage(2026);
   const january = html.split("<h3>January</h3>")[1]?.split("</section>")[0] ?? "";
   // January 1 2026 was a Thursday, so four squares sit empty before it.
   assert.equal((january.match(/<span class="pad"><\/span>/g) ?? []).length, 4);
@@ -208,16 +212,16 @@ test("the index is twelve calendars, and each month starts on its real weekday",
 });
 
 test("the number is what you see, the date is what a screen reader says", () => {
-  const html = renderHome(2026);
+  const html = renderCalendarPage(2026);
   assert.ok(html.includes('aria-label="December 25" title="December 25">25</a>'));
 });
 
 test("February 29 keeps a square in a year that does not have one", () => {
-  const ordinary = renderHome(2026);
+  const ordinary = renderCalendarPage(2026);
   assert.ok(ordinary.includes('<a class="leap" href="/february-29/"'));
   assert.ok(ordinary.includes("February 29 comes around every fourth year"));
 
-  const leap = renderHome(2028);
+  const leap = renderCalendarPage(2028);
   assert.ok(leap.includes('<a href="/february-29/"'));
   assert.ok(!leap.includes('class="leap"'), "a leap year has no odd one out");
   assert.ok(!leap.includes("comes around every fourth year"));
@@ -798,7 +802,7 @@ test("no facts is a missing section rather than a heading over nothing", () => {
   const html = renderHome(2026, []);
   assert.ok(!html.includes("Every date has a day like this in it"));
   // And the page still works.
-  assert.equal(new Set(html.match(/href="\/[a-z]+-\d+\/"/g) ?? []).size, 366);
+  assert.ok(html.includes('href="/calendar/"') && html.includes('class="bornin"'));
 });
 
 test("the front door still runs nothing", () => {

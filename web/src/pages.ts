@@ -81,7 +81,12 @@ function topBar(): string {
 }
 
 /**
- * Twelve month buttons, each jumping to that month's calendar further down.
+ * Twelve month buttons, each jumping to that month on the calendar page.
+ *
+ * The twelve grids used to sit at the foot of this page as well as on
+ * /calendar/. Nathan, September 10, 2026: with Every date in the bar the
+ * copy at the foot was the same page twice, so the buttons point at the one
+ * calendar and the same :target rule lights the month there.
  *
  * The page cannot know when a visitor was born, and a picker that asked would
  * need a script. So the visitor tells it with one tap, and the answer is a
@@ -98,7 +103,7 @@ function bornInStrip(): string {
   const links = Array.from({ length: 12 }, (_, index) => {
     const month = index + 1;
     const name = monthName(month);
-    return `<a href="#${monthAnchor(month)}" aria-label="Born in ${name}"><span aria-hidden="true">${name.slice(0, 3)}</span></a>`;
+    return `<a href="/calendar/#${monthAnchor(month)}" aria-label="Born in ${name}"><span aria-hidden="true">${name.slice(0, 3)}</span></a>`;
   }).join("");
   return `<section class="picker">
 <h2 class="pickerlabel">Born in</h2>
@@ -279,12 +284,6 @@ ${highlightStrip(highlights)}
   <li><h3>Other people's days</h3><p>Add the people you care about. Birthed tells you three days before and on the day, so you are never the one who forgot.</p></li>
   <li><h3>Nothing about you leaves</h3><p>No sign up and no name. Nothing Birthed makes carries your name, and nothing shared out of it carries your birth year. <a href="/privacy/">How your data is handled</a>.</p></li>
 </ul>
-</section>
-
-<section class="allyear">
-<h2 class="plain">Every day of the year</h2>
-<p class="lede">Pick a date and see who shares it and what happened on it. The weeks are laid out the way they fall in ${year}.</p>
-${calendar(year)}
 </section>
 ${FOOT}`;
 }
