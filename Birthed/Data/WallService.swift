@@ -3,8 +3,8 @@ import DeviceCheck
 import Foundation
 import Observation
 
-/// The wall, as the app reads and writes it. docs/the-wall.md, and section
-/// 12 for what this session decided.
+/// The hive, as the app reads and writes it. docs/the-wall.md, and sections
+/// 12 and 14 for what the app's own sessions decided.
 ///
 /// **Reading needs nothing.** The square, the pool, the receipts and every
 /// check are public rows, read through the automatic interface with the
@@ -25,9 +25,22 @@ import Observation
 /// incident.
 ///
 /// **Server time decides.** `wall_clock` is asked before anything is drawn,
-/// and the three open dates come from its answer. A boost cast in the same
+/// and the three open dates come from its answer. A buzz cast in the same
 /// second a date closes is decided by the database's clock, never this
 /// phone's.
+///
+/// **One tap is one unit and one story takes one buzz from one install.**
+/// docs/the-wall.md section 4, as amended September 10, 2026, and section 14.
+/// The budget itself is the database's, three on the date and one the day
+/// after; this refuses early so a reader is not made to wait for a no.
+///
+/// **Which stories this account backed is remembered here, not fetched.**
+/// `wall_boosts.booster_id` is revoked from this role on purpose, recorded
+/// and not published, and `wall_units_left` answers with a number and
+/// nothing else. `wall_web_standing` belongs to the website's browser token
+/// and refuses an authenticated caller, so the app must not reach for it.
+/// `HiveMarks` in the domain is the answer and `UserDefaults` is where it
+/// lives, on the precedent of this account's own remembrance answers.
 @Observable
 final class WallService {
 
@@ -55,8 +68,12 @@ final class WallService {
     /// Set when the wall could not be read at all.
     private(set) var failed = false
 
-    /// Boosts in flight, so a double tap is one request.
+    /// Buzzes in flight, so a double tap is one request.
     private var ledger = WallBoostLedger()
+
+    /// The stories this install has buzzed, by date. The mark on a tile and
+    /// the reason a second tap on the same story spends nothing.
+    private(set) var marks = HiveMarks()
 
     /// The last refusal, in the reader's terms, for the sheet to show.
     private(set) var lastRefusal: String?
@@ -68,16 +85,32 @@ final class WallService {
     private let session: URLSession
     private let account: AccountService
     private let attestor: WallAttestor
+    private let defaults: UserDefaults
+
+    /// Where this install's own buzzes are kept between launches.
+    private static let marksKey = "birthed.hive.marks"
 
     init(account: AccountService,
          baseURL: URL = Secrets.supabaseURL,
          anonKey: String = Secrets.supabaseAnonKey,
-         session: URLSession = .shared) {
+         session: URLSession = .shared,
+         defaults: UserDefaults = .standard) {
         self.account = account
         self.baseURL = baseURL
         self.anonKey = anonKey
         self.session = session
+        self.defaults = defaults
         self.attestor = WallAttestor()
+        self.marks = Self.readMarks(from: defaults)
+    }
+
+    private static func readMarks(from defaults: UserDefaults) -> HiveMarks {
+        guard let stored = defaults.dictionary(forKey: marksKey) as? [String: [String]] else { return HiveMarks() }
+        return HiveMarks(stored: stored)
+    }
+
+    private func writeMarks() {
+        defaults.set(marks.stored, forKey: Self.marksKey)
     }
 
     /// Server time now, as best this phone can say.
@@ -88,6 +121,35 @@ final class WallService {
 
     var phase: WallDay.Phase? {
         day?.phase(now: now)
+    }
+
+    /// The word this date uses for a unit. A handful of solemn dates speak
+    /// plainly and every other date says buzz. `HiveDates` is the list.
+    var voice: HiveVoice {
+        if let day { return HiveDates.voice(for: day.wallDate) }
+        if let loadedFor { return HiveDates.voice(for: loadedFor) }
+        return .bee
+    }
+
+    /// What a fresh account would have on this date today: three on the date
+    /// itself, one the day after, none before. The count sentence needs it to
+    /// know whether to say "on this date".
+    var allowance: Int {
+        guard let day else { return 0 }
+        return WallBudget.allowance(castOn: WallClock.easternDate(of: now), wallDate: day.wallDate)
+    }
+
+    /// True when this install has already buzzed the story, which is both the
+    /// mark it shows and the reason another tap spends nothing.
+    func hasBuzzed(_ story: WallStory) -> Bool {
+        marks.has(storyID: story.id, on: story.wallDate)
+    }
+
+    /// The one feed under the hive: the reader's own timeline with the buzz
+    /// hung off it, this year's news above it, and anything the worker filed
+    /// that the timeline did not draw below it.
+    func feed(items: [DayFeed.Item]) -> [HiveFeed.Row] {
+        HiveFeed.build(items: items, stories: day?.stories ?? [])
     }
 
     // MARK: Reading
@@ -185,7 +247,9 @@ final class WallService {
         guard let days = await rows("wall_days?select=wall_date,opens_at,live_at,closes_at,closed_at&wall_date=eq.\(wallDate.key)"),
               let dayRow = days.first
         else { return nil }
-        let select = "id,wall_date,submitted_at,headline,url,outlet,status,tier,support,placed_at,anchor_mx,anchor_my,w_modules,h_modules,false_at,false_note,"
+        // priority, subject_kind and subject_id are the history migration's,
+        // and they are what lets the timeline and the hive be one feed.
+        let select = "id,wall_date,submitted_at,headline,url,outlet,status,tier,support,placed_at,anchor_mx,anchor_my,w_modules,h_modules,false_at,false_note,priority,subject_kind,subject_id,"
             + "wall_sources(id,story_id,url,outlet,owner,headline,quotation,verified_at,added_at,is_primary_doc,wall_checks(source_id,checked_at,kind,passed,http_status,detail))"
         guard let storyRows = await rows("wall_stories?select=\(select)&wall_date=eq.\(wallDate.key)&order=submitted_at.asc,id.asc&wall_sources.order=added_at.asc&wall_sources.wall_checks.order=checked_at.asc")
         else { return nil }
@@ -233,33 +297,52 @@ final class WallService {
         let payload: [String: Any] = ["action": "submit", "url": url.absoluteString, "wall_date": wallDate.key]
         let result = try await write(payload)
         guard let storyRow = result["story"] as? [String: Any], let story = WallRows.story(storyRow) else {
-            throw WriteError.refused(WallCopy.refusal("unreadable answer"))
+            throw WriteError.refused(HiveCopy.refusal("unreadable answer", voice: voice))
         }
         let existing = (result["existing"] as? Bool) ?? false
         return WallSubmitPreview(story: story, existing: existing)
     }
 
-    /// Spends units on a story. Idempotent: a second tap while the first is
-    /// in flight sends the same request identifier, and the database returns
-    /// the first boost for it rather than making a second.
+    /// Spends one buzz on a story.
+    ///
+    /// One tap is one unit, docs/the-wall.md section 4. One story takes one
+    /// buzz from one install, section 14, which is the website's rule and is
+    /// enforced here rather than by the database: the database counts units
+    /// against the day's budget and does not care which story they land on.
+    /// The trade is the website's too. This install is what is known; a
+    /// reinstall forgets, and the buzz itself is in the database either way.
+    ///
+    /// Idempotent twice over. A second tap while the first is in flight sends
+    /// the same request identifier and the database returns the first buzz
+    /// for it rather than making a second, and a tap on a story this install
+    /// has already buzzed never leaves the phone.
     @discardableResult
-    func boost(story: WallStory, units: Int) async throws -> Int {
-        if let left = unitsLeft, !WallBudget.canSpend(units, left: left) {
-            let line = WallCopy.unitsLeft(left, phase: phase ?? .live)
+    func buzz(story: WallStory) async throws -> Int {
+        if hasBuzzed(story) {
+            // Not a refusal to report. The button on a story already buzzed
+            // is the mark, so this is a tap that should not have been offered.
+            return story.support
+        }
+        if let left = unitsLeft, !WallBudget.canSpend(1, left: left) {
+            let line = HiveCopy.allowance(left, allowance: allowance, phase: phase ?? .live, voice: voice)
             lastRefusal = line
             throw WriteError.refused(line)
         }
         let requestID = ledger.begin(storyID: story.id)
         defer { ledger.finish(storyID: story.id) }
         let payload: [String: Any] = [
-            "action": "boost", "story_id": story.id, "units": units, "request_id": requestID.uuidString.lowercased(),
+            "action": "boost", "story_id": story.id, "units": 1, "request_id": requestID.uuidString.lowercased(),
         ]
         let result = try await write(payload)
         if let left = result["units_left"] as? Int { unitsLeft = left }
+        // Written down only once the database has taken it, so a refused tap
+        // does not leave a mark on a story nobody backed.
+        marks.add(storyID: story.id, on: story.wallDate)
+        writeMarks()
         return (result["support"] as? Int) ?? story.support
     }
 
-    func isBoosting(_ story: WallStory) -> Bool {
+    func isBuzzing(_ story: WallStory) -> Bool {
         ledger.isInFlight(storyID: story.id)
     }
 
@@ -297,14 +380,14 @@ final class WallService {
                 "challenge": challengeText, "payload": payloadText,
             ], token: token)
         } catch let error as WallAttestor.Failure {
-            let line = WallCopy.refusal(error.message)
+            let line = HiveCopy.refusal(error.message, voice: voice)
             lastRefusal = line
             throw WriteError.refused(line)
         }
     }
 
     private func refuse(_ message: String) -> WriteError {
-        let line = WallCopy.refusal(message)
+        let line = HiveCopy.refusal(message, voice: voice)
         lastRefusal = line
         return .refused(line)
     }
