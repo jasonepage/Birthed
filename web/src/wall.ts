@@ -1428,6 +1428,11 @@ export const WALL_STYLE = `
 .whive h2.section { margin: 10px 0 6px; font-size: 18px; }
 .wrap.hivepage { max-width: none; padding: 16px 16px 40px; }
 .day.wsq { max-width: min(100%, calc(100vh - 40px)); margin: 0 auto; }
+/* The footer is held to the same width as the board and centred with it.
+   The full screen page widens the wrapper so the board can be as big as the
+   window, and the footer was left full width under a centred board, so it
+   hung off the left edge under the legend. */
+.hivepage footer { max-width: min(100%, calc(100vh - 40px)); margin-left: auto; margin-right: auto; }
 .whive .wboard { width: 100%; }
 .whive .wlegend { max-width: 60ch; margin: 12px auto 0; }
 /* Honey. Decided September 10, 2026: the tile's colour is its tier, and the
