@@ -57,6 +57,9 @@ export interface StoryRow {
   tier: Tier;
   support: number;
   priority: number;
+  /** The imported row this story stands for, or null for the day's news. Read by the allocator's variety pass. */
+  subject_kind?: string | null;
+  outlet?: string;
   placed_at: string | null;
   anchor_mx: number | null;
   anchor_my: number | null;
@@ -243,14 +246,16 @@ export function settle(
       if (!its.some((s) => s.verified)) continue;
       if (!eligibleForWall({ support: story.support, submittedAt: story.submitted_at, submittedBy: story.submitted_by }, its, now)) continue;
       touch(story.id).placed_at = now;
-      input.push({ id: story.id, tier, support: story.support, priority: story.priority, placedAt: now, anchor: null });
+      input.push({ id: story.id, tier, support: story.support, priority: story.priority, placedAt: now, anchor: null,
+                   subjectKind: story.subject_kind ?? null, outlet: story.outlet });
       continue;
     }
 
     // placed or overflow: placed_at is when it earned its place, and an
     // overflow story keeps that so it is considered in the order it earned
     // rather than as new each run.
-    input.push({ id: story.id, tier, support: story.support, priority: story.priority, placedAt: story.placed_at ?? story.submitted_at, anchor: rect });
+    input.push({ id: story.id, tier, support: story.support, priority: story.priority, placedAt: story.placed_at ?? story.submitted_at, anchor: rect,
+                 subjectKind: story.subject_kind ?? null, outlet: story.outlet });
   }
 
   if (input.length === 0) {
@@ -334,7 +339,7 @@ export async function run(db: Db, options: { now?: Date; date?: string; dry?: bo
 
   for (const day of days) {
     const stories = await rows<StoryRow>(db,
-      `wall_stories?select=id,wall_date,submitted_at,submitted_by,status,tier,support,priority,placed_at,anchor_mx,anchor_my,w_modules,h_modules&wall_date=eq.${day.wall_date}&order=submitted_at.asc,id.asc`);
+      `wall_stories?select=id,wall_date,submitted_at,submitted_by,status,tier,support,priority,subject_kind,outlet,placed_at,anchor_mx,anchor_my,w_modules,h_modules&wall_date=eq.${day.wall_date}&order=submitted_at.asc,id.asc`);
     const live = stories.filter((s) => s.status !== "false");
     const sources: SourceRow[] = [];
     for (const ids of chunk(live.map((s) => s.id), 80)) {

@@ -3,6 +3,10 @@ import { test } from "node:test";
 
 import {
   BOARD_MODULES,
+  NEWS_UNBACKED,
+  PER_KIND_UNBACKED,
+  PER_OUTLET_UNBACKED,
+  varied,
   CLAIMED_CEILING,
   CONFIRMED_CEILING,
   MAX_PLACED,
@@ -347,4 +351,95 @@ test("a stored rectangle that overlaps another stored rectangle is refused, beca
     story("a", { anchor: { mx: 0, my: 0, w: 2, h: 2 } }),
     story("b", { anchor: { mx: 1, my: 1, w: 2, h: 2 } }),
   ]));
+});
+
+// The variety pass. docs/the-wall.md section 15.
+//
+// The first board anybody ever saw was ten headlines, three of them from one
+// video game site and every one of them from today rather than from the date.
+// These hold the two rules that stop that, and the two that stop the rules
+// themselves doing harm: one buzz beats them, and they never leave the board
+// emptier than it could be.
+
+function newsStory(id: string, outlet: string, support = 0): StoryInput {
+  return { id, tier: "claimed", support, priority: 0, placedAt: 1, subjectKind: null, outlet };
+}
+
+function historyStory(id: string, kind: string, priority = 1, support = 0): StoryInput {
+  const outlet = kind === "person" ? "wikidata.org" : "en.wikipedia.org";
+  return { id, tier: "claimed", support, priority, placedAt: 1, subjectKind: kind, outlet };
+}
+
+test("one newsroom cannot take the board", () => {
+  const stories = ["a", "b", "c", "d", "e"].map((k) => newsStory(`polygon-${k}`, "polygon.com"));
+  const order = varied(stories, 8).map((s) => s.id);
+  // Two of them are chosen, and the rest are not refused, only considered
+  // after everything else. On a date with nothing else they still land.
+  assert.deepEqual(order.slice(0, 2), ["polygon-a", "polygon-b"]);
+  assert.equal(order.length, stories.length, "nothing is dropped, only reordered");
+});
+
+test("the day's news takes a minority of the board and the date's own history takes the rest", () => {
+  const stories: StoryInput[] = [];
+  // The news arrives first and in bulk, which is exactly the shape that
+  // produced a wall of wire copy.
+  for (let i = 0; i < 10; i++) stories.push(newsStory(`news-${i}`, `outlet-${i}.com`));
+  for (let i = 0; i < 10; i++) stories.push(historyStory(`event-${i}`, "historical_event"));
+  for (let i = 0; i < 10; i++) stories.push(historyStory(`person-${i}`, "person"));
+  for (let i = 0; i < 10; i++) stories.push(historyStory(`culture-${i}`, "cultural_event"));
+
+  const board = varied(stories, 8).slice(0, 8);
+  const news = board.filter((s) => s.subjectKind === null);
+  assert.equal(news.length, NEWS_UNBACKED, "today gets a few tiles and not the board");
+  assert.equal(board.length - news.length, 8 - NEWS_UNBACKED, "the date's history takes the rest");
+
+  for (const kind of ["historical_event", "person", "cultural_event"]) {
+    const n = board.filter((s) => s.subjectKind === kind).length;
+    assert.ok(n <= PER_KIND_UNBACKED, `${kind} took ${n} tiles, more than ${PER_KIND_UNBACKED}`);
+  }
+});
+
+test("the date's history is not capped by outlet, because every event shares one encyclopedia", () => {
+  // Eight events all citing en.wikipedia.org. Capping these by outlet would
+  // leave six slots empty for no reason anybody could see on the screen.
+  const stories = Array.from({ length: 8 }, (_, i) => historyStory(`event-${i}`, "historical_event"));
+  const board = varied(stories, 8).slice(0, 8);
+  assert.equal(board.length, 8);
+  assert.ok(board.every((s) => s.outlet === "en.wikipedia.org"));
+});
+
+test("the caps never leave the board emptier than it could be", () => {
+  // Only one newsroom has filed anything. The cap says two, and the board
+  // has eight slots, so the other six are filled in plain order rather than
+  // left blank.
+  const stories = Array.from({ length: 9 }, (_, i) => newsStory(`bbc-${i}`, "bbc.com"));
+  const board = varied(stories, 8).slice(0, 8);
+  assert.equal(board.length, 8, "a varied board is worth something and an empty one is not");
+});
+
+test("one buzz beats every variety rule", () => {
+  const stories: StoryInput[] = [
+    newsStory("polygon-a", "polygon.com"),
+    newsStory("polygon-b", "polygon.com"),
+    newsStory("polygon-backed", "polygon.com", 1),
+  ];
+  for (let i = 0; i < 8; i++) stories.push(historyStory(`event-${i}`, "historical_event", PER_KIND_UNBACKED + 1));
+  const result = allocate(stories);
+  assert.ok(result.placed.some((p) => p.id === "polygon-backed"),
+    "a story somebody backed is on the board however many tiles its outlet already holds");
+  // And it is first, ahead of every priority, which is the rule section 13 set.
+  assert.equal(result.placed[0]!.id, "polygon-backed");
+});
+
+test("a story with no outlet and no kind is its own outlet rather than everybody's", () => {
+  // Missing fields must not make two unrelated stories look like one
+  // newsroom and cap each other out.
+  const stories: StoryInput[] = [
+    { id: "one", tier: "claimed", support: 0, priority: 0, placedAt: 1 },
+    { id: "two", tier: "claimed", support: 0, priority: 0, placedAt: 1 },
+    { id: "three", tier: "claimed", support: 0, priority: 0, placedAt: 1 },
+  ];
+  const board = varied(stories, 8).slice(0, 8);
+  assert.equal(board.length, 3, "three stories with nothing said about them are three stories");
+  assert.equal(PER_OUTLET_UNBACKED, 2, "and this is the cap they would have breached");
 });

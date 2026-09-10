@@ -80,6 +80,28 @@ export const MAX_PLACED = 12;
 export const UNBACKED_PLACED = 8;
 
 /**
+ * Variety among the tiles nobody has backed yet. docs/the-wall.md section 15.
+ *
+ * The first board a person ever saw was ten headlines of which three came
+ * from one video game site, and every one of them was from today rather than
+ * from the date. Both of those are the same failure: the order alone decides
+ * the board, and an order with no variety in it produces a board with no
+ * variety on it.
+ *
+ * These are caps on the unbacked tiles only, and they are advisory. A story
+ * anybody has backed is never held off the board by them, because one buzz
+ * beats every rule here, and if the caps cannot fill the board the leftover
+ * slots are filled in plain order rather than left empty. A varied board is
+ * worth something; an empty one is not.
+ */
+/** How many unbacked tiles may be the day's news rather than the date's own history. */
+export const NEWS_UNBACKED = 3;
+/** How many unbacked tiles any one outlet may hold. The date's history is exempt: every event shares one encyclopedia and that says nothing about variety. */
+export const PER_OUTLET_UNBACKED = 2;
+/** How many unbacked tiles any one kind of history may hold, so a board is not eight birthdays. */
+export const PER_KIND_UNBACKED = 3;
+
+/**
  * Boost units per module of target area, above the minimum. One, because on
  * the web a tap is one unit and the board has to answer a single tap: at
  * five, the number set when a boost could be worth three units, five taps
@@ -134,6 +156,13 @@ export interface StoryInput {
    * section 5, and the minimum tile size must not quietly enlarge it.
    */
   frozen?: boolean;
+  /**
+   * The imported row this story stands for, or null for the day's news.
+   * Read by the variety pass and by nothing else here.
+   */
+  subjectKind?: string | null;
+  /** The outlet, for the variety pass. A missing one is its own outlet. */
+  outlet?: string;
 }
 
 export interface Placement extends Rect {
@@ -340,6 +369,58 @@ export function contains(outer: Rect, inner: Rect): boolean {
 }
 
 /**
+ * The unbacked stories, reordered so the tiles they take are varied.
+ *
+ * Two passes. The first walks the list in the order support and priority
+ * already put it in and takes a story only while it breaches none of the
+ * caps. The second walks whatever is left and fills any slot the first pass
+ * did not, caps ignored, because a varied board is worth something and an
+ * empty one is not. Everything else follows in its original order, so the
+ * overflow list is the same shape it always was.
+ *
+ * Pure, and it decides order rather than placement: a story this moves down
+ * is not refused, it is considered later, and on a quiet date it still lands.
+ */
+export function varied(unbacked: StoryInput[], limit: number): StoryInput[] {
+  if (limit <= 0 || unbacked.length === 0) return unbacked;
+  const taken = new Set<string>();
+  const chosen: StoryInput[] = [];
+  let news = 0;
+  const byOutlet = new Map<string, number>();
+  const byKind = new Map<string, number>();
+
+  for (const story of unbacked) {
+    if (chosen.length >= limit) break;
+    const kind = story.subjectKind ?? null;
+    const outlet = story.outlet ?? story.id;
+    if (kind === null) {
+      // The day's news. Capped as a whole, and capped again per outlet, so
+      // one newsroom's feed cannot take the board.
+      if (news >= NEWS_UNBACKED) continue;
+      if ((byOutlet.get(outlet) ?? 0) >= PER_OUTLET_UNBACKED) continue;
+    } else if ((byKind.get(kind) ?? 0) >= PER_KIND_UNBACKED) {
+      // The date's own history, capped by kind rather than by outlet: every
+      // event on a date shares one encyclopedia and that is not a variety
+      // problem, eight birthdays in a row is.
+      continue;
+    }
+    chosen.push(story);
+    taken.add(story.id);
+    if (kind === null) {
+      news += 1;
+      byOutlet.set(outlet, (byOutlet.get(outlet) ?? 0) + 1);
+    } else {
+      byKind.set(kind, (byKind.get(kind) ?? 0) + 1);
+    }
+  }
+
+  const rest = unbacked.filter((s) => !taken.has(s.id));
+  const fill = rest.slice(0, Math.max(0, limit - chosen.length));
+  const after = rest.slice(fill.length);
+  return [...chosen, ...fill, ...after];
+}
+
+/**
  * Places every story that has earned a place.
  *
  * Stories already carrying an anchor keep their exact rectangle and may
@@ -359,11 +440,20 @@ export function allocate(stories: StoryInput[]): Allocation {
   // Most supported first. Among stories arriving together this is what puts
   // the one people backed on the board ahead of the ones nobody did.
 
-  const arriving = stories.filter((s) => !s.anchor).sort((a, b) => {
+  const sorted = stories.filter((s) => !s.anchor).sort((a, b) => {
     if (b.support !== a.support) return b.support - a.support;
     if ((b.priority ?? 0) !== (a.priority ?? 0)) return (b.priority ?? 0) - (a.priority ?? 0);
     return byArrival(a, b);
   });
+
+  // Anything anybody backed keeps its place at the front, untouched: one buzz
+  // beats every rule in the variety pass, the same way it beats every
+  // priority. Only the tiles nobody has chosen yet are reordered for variety,
+  // and only as far as the slots they can take.
+  const backedFirst = sorted.filter((s) => s.support > 0);
+  const unbackedRest = sorted.filter((s) => s.support <= 0);
+  const room = Math.max(0, UNBACKED_PLACED - anchored.filter((s) => s.support <= 0).length);
+  const arriving = [...backedFirst, ...varied(unbackedRest, room)];
 
   const board = new Board();
   const placed: Placement[] = [];
