@@ -3,7 +3,8 @@ import { test } from "node:test";
 
 import { renderDayPage, renderStoryPage } from "../src/render.js";
 import {
-  fetchWall, newestByDate, storyPath, tierLabel, wallSection, type WallDay, type WallStory,
+  allowanceOn, fetchWall, newestByDate, storyPath, takingBoosts, tapsLeftSentence, tierLabel, units, wallMarks, wallSection,
+  type WallDay, type WallStory,
 } from "../src/wall.js";
 
 const PAGE = { month: 9, day: 9, people: [] };
@@ -58,7 +59,7 @@ test("a tile sits at its stored anchor and size, and links to its receipt", () =
   assert.ok(html.includes(`href="${storyPath(s)}"`));
   assert.ok(html.includes("Council approves the river crossing"));
   assert.ok(html.includes("example.org"));
-  assert.ok(html.includes("40 boosts"));
+  assert.ok(html.includes("40 taps"));
   assert.ok(html.includes(">Reported<"));
   assert.ok(html.includes("Open. Closes at midnight Eastern ending September 10, 2026"));
 });
@@ -101,7 +102,7 @@ test("the receipt shows the headline, the link, the tier, every quotation and ev
   assert.ok(html.includes("Link resolves"));
   assert.ok(html.includes("Page contains the quotation"));
   assert.ok(html.includes("matched at offset 2210"));
-  assert.ok(html.includes("12 boosts"));
+  assert.ok(html.includes("12 taps"));
   assert.ok(html.includes('<meta name="robots" content="noindex">'));
   // The words the document forbids never appear.
   assert.ok(!/verified truth|fact checked/i.test(html));
@@ -158,4 +159,104 @@ test("a wall that exists and cannot be read still fails the build", async () => 
   } finally {
     globalThis.fetch = real;
   }
+});
+
+// ---------------------------------------------------------------------------
+// Boosting from the web, docs/the-wall.md section 13
+// ---------------------------------------------------------------------------
+
+const LIVE_NOW = Date.parse("2026-09-09T20:00:00Z");
+
+test("a story nobody backed never prints a count of nothing", () => {
+  assert.equal(units(0), "");
+  assert.equal(units(1), "1 tap");
+  assert.equal(units(3), "3 taps");
+  const s = story({ rect: { mx: 3, my: 5, w: 4, h: 3 }, support: 0 });
+  const html = wallSection(day([s]), "September 9", LIVE_NOW);
+  assert.ok(!/0 (boosts|taps)/.test(html));
+  assert.ok(!/\bboost/i.test(html), "the page does not say boost anywhere; a reader is not told what one is");
+  const page = renderStoryPage(s, day([s]));
+  assert.ok(page.includes("Nobody has backed it yet."));
+  assert.ok(!/0 (boosts|taps)/.test(page));
+});
+
+test("the baked section carries no forms, and the interactive one carries a tap on every tile and row while the date takes boosts", () => {
+  const onWall = story({ rect: { mx: 3, my: 5, w: 4, h: 3 }, support: 2 });
+  const pooled = story({ id: "aaaaaaaa-0000-0000-0000-000000000001", status: "pool", rect: null, placedAt: null, support: 0 });
+  const spilled = story({ id: "aaaaaaaa-0000-0000-0000-000000000002", status: "overflow", rect: null });
+  const d = day([onWall, pooled, spilled]);
+
+  const baked = wallSection(d, "September 9", LIVE_NOW);
+  assert.ok(!baked.includes("<form"), "a baked page never offers a tap");
+  assert.ok(baked.includes(`href="${storyPath(onWall)}"`));
+  assert.ok(baked.includes('id="wkept"'), "the afterwords are on every page, for a tap refused after a page was served");
+
+  const live = wallSection(d, "September 9", LIVE_NOW, { interactive: true });
+  assert.equal((live.match(/<form class="wtile/g) ?? []).length, 1);
+  assert.equal((live.match(/<form class="wrow/g) ?? []).length, 2);
+  assert.ok(live.includes('action="/boost"'));
+  assert.ok(live.includes(`name="s" value="${onWall.id}"`));
+  assert.ok(live.includes('name="m" value="9"') && live.includes('name="d" value="9"'));
+  // The headline is the button; the outlet name is the link to the receipt.
+  assert.ok(live.includes('<button type="submit" class="wtap"'));
+  assert.ok(live.includes(`<a class="wo" href="${storyPath(onWall)}"`));
+  assert.ok(live.includes("Tap the stories you think will still matter about September 9"));
+  assert.ok(live.includes("Three taps left today."));
+  assert.ok(live.includes("You backed this"));
+  // The evidence tiers keep their one line and nothing claims a model decided anything.
+  assert.ok(live.includes("a tier is not a verdict."));
+  assert.ok(!/verified truth|fact checked|model/i.test(live));
+});
+
+test("the day before takes no taps, the day after takes one, and a closed wall takes none", () => {
+  const d = day([story({ rect: { mx: 3, my: 5, w: 4, h: 3 } })]);
+  const before = Date.parse("2026-09-08T20:00:00Z");
+  const after = Date.parse("2026-09-10T20:00:00Z");
+  const closed = Date.parse("2026-09-11T05:00:00Z");
+  assert.equal(takingBoosts(d, before), false);
+  assert.equal(takingBoosts(d, LIVE_NOW), true);
+  assert.equal(takingBoosts(d, after), true);
+  assert.equal(takingBoosts(d, closed), false);
+  assert.equal(allowanceOn(d, before), 0);
+  assert.equal(allowanceOn(d, LIVE_NOW), 3);
+  assert.equal(allowanceOn(d, after), 1);
+  assert.equal(allowanceOn(d, closed), 0);
+
+  const early = wallSection(d, "September 9", before, { interactive: true });
+  assert.ok(!early.includes("<form"), "no tap is offered before the date arrives");
+  assert.ok(early.includes("Taps start when the date arrives"));
+  const late = wallSection(d, "September 9", after, { interactive: true });
+  assert.ok(late.includes("<form"));
+  assert.ok(late.includes("One tap left today on this date. It closes tonight."));
+  const shut = wallSection(d, "September 9", closed, { interactive: true });
+  assert.ok(!shut.includes("<form"));
+  assert.ok(!shut.includes("taps left"));
+});
+
+test("the remaining count says what it means", () => {
+  assert.equal(tapsLeftSentence(3, 3), "Three taps left today.");
+  assert.equal(tapsLeftSentence(2, 3), "Two taps left today.");
+  assert.equal(tapsLeftSentence(1, 3), "One tap left today.");
+  assert.equal(tapsLeftSentence(0, 3), "No taps left today.");
+  assert.equal(tapsLeftSentence(1, 1), "One tap left today on this date. It closes tonight.");
+  assert.equal(tapsLeftSentence(0, 1), "No taps left today on this date.");
+});
+
+test("a reader's own marks reveal their taps and their count, and nothing about anybody else", () => {
+  const d = day([story({ rect: { mx: 3, my: 5, w: 4, h: 3 }, support: 7 })]);
+  const marks = wallMarks({ left: 2, allowance: 3, backed: ["11111111-2222-3333-4444-555555555555", "not a uuid; }"] }, d, LIVE_NOW);
+  assert.ok(marks.startsWith("<style>") && marks.endsWith("</style>"));
+  assert.ok(marks.includes('.wleft::after{content:"Two taps left today."}'));
+  assert.ok(marks.includes("#w-11111111-2222-3333-4444-555555555555 .wmine{display:block}"));
+  assert.ok(!marks.includes("not a uuid"));
+  assert.ok(!/\d+ (people|readers)/.test(marks));
+  // Nothing at all for a browser that has done nothing on a closed date.
+  assert.equal(wallMarks({ left: 0, allowance: 0, backed: [] }, d, Date.parse("2026-09-12T00:00:00Z")), "");
+});
+
+test("a tile is drawn at the height it has, and the headline gets the lines it can hold", () => {
+  const short = wallSection(day([story({ rect: { mx: 0, my: 0, w: 4, h: 3 } })]), "September 9", LIVE_NOW);
+  assert.ok(short.includes("grid-row:1 / span 3;--lines:3"));
+  const tall = wallSection(day([story({ rect: { mx: 0, my: 0, w: 6, h: 5 } })]), "September 9", LIVE_NOW);
+  assert.ok(tall.includes("--lines:7"));
 });

@@ -431,3 +431,202 @@ test("an open date page reads the wall at request time, falls back to the baked 
   assert.equal(await (await realFetch(`${base}/${openSlug}/`)).text(), BAKED);
   assert.deepEqual(calls, []);
 });
+
+// ---------------------------------------------------------------------------
+// Boosting from the web. docs/the-wall.md section 13.
+// ---------------------------------------------------------------------------
+
+import { readTap, tappedFrom } from "../src/serve.js";
+
+test("a posted tap is a story and a date, and nothing else gets through", () => {
+  assert.deepEqual(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9"), {
+    storyId: "11111111-1111-1111-1111-111111111111", month: 9, day: 9,
+  });
+  assert.equal(readTap("s=not-a-story&m=9&d=9"), null);
+  assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=13&d=9"), null);
+  assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=0"), null);
+  assert.equal(readTap("s=11111111-1111-1111-1111-111111111111"), null);
+  assert.equal(readTap(""), null);
+});
+
+test("only a word the server knows may spend a fresh wall read", () => {
+  assert.equal(tappedFrom("tapped=kept"), "kept");
+  assert.equal(tappedFrom("tapped=spent"), "spent");
+  assert.equal(tappedFrom("tapped=anything"), null);
+  assert.equal(tappedFrom("kept=moment:1"), null);
+  assert.equal(tappedFrom(undefined), null);
+});
+
+test("a tap posts to the database, comes back to the date with its word, sets the token, and the next page is fresh and marked", async (t) => {
+  const root = resolve("test-site-tap");
+  await rm(root, { recursive: true, force: true });
+  const open = openWallDates();
+  const [openKey, openDate] = [...open.entries()][1]!;
+  const [openMonth, openDay] = openKey.split("-").map(Number) as [number, number];
+  const openSlug = `${["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"][openMonth - 1]}-${openDay}`;
+  await mkdir(join(root, openSlug), { recursive: true });
+  await writeFile(join(root, openSlug, "index.html"), BAKED, "utf8");
+
+  const realFetch = globalThis.fetch;
+  const previousKey = process.env.SUPABASE_ANON_KEY;
+  process.env.SUPABASE_ANON_KEY = "test-key";
+  const calls: Array<{ url: string; body: string }> = [];
+  let answer: Record<string, unknown> = { result: "kept", support: 13, allowance: 3, left: 2, backed: ["11111111-1111-1111-1111-111111111111"] };
+  let standing: Record<string, unknown> = { allowance: 3, left: 2, backed: ["11111111-1111-1111-1111-111111111111"] };
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    if (!url.includes("supabase")) return realFetch(input, init);
+    calls.push({ url, body: String(init?.body ?? "") });
+    if (url.endsWith("/rpc/wall_cast_web_boost")) {
+      return new Response(JSON.stringify(answer), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (url.endsWith("/rpc/wall_web_standing")) {
+      return new Response(JSON.stringify(standing), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (url.endsWith("/rpc/my_answers")) {
+      return new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    const rows = wallRows(openDate);
+    return new Response(JSON.stringify(url.includes("wall_days") ? rows.day : rows.stories), {
+      status: 200, headers: { "Content-Type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  const server = start({ root, port: 0 });
+  await new Promise((done) => server.once("listening", done));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const base = `http://127.0.0.1:${address.port}`;
+
+  t.after(async () => {
+    server.close();
+    globalThis.fetch = realFetch;
+    if (previousKey === undefined) delete process.env.SUPABASE_ANON_KEY; else process.env.SUPABASE_ANON_KEY = previousKey;
+    forgetWalls();
+    await rm(root, { recursive: true, force: true });
+  });
+
+  // A first time reader with no cookie taps. The tap reaches the database
+  // with a token this server minted, and the reader is sent back with the
+  // word and the cookie.
+  forgetWalls();
+  const posted = await realFetch(`${base}/boost`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: `s=11111111-1111-1111-1111-111111111111&m=${openMonth}&d=${openDay}`,
+    redirect: "manual",
+  });
+  assert.equal(posted.status, 303);
+  assert.equal(posted.headers.get("location"), `/${openSlug}/?tapped=kept#wkept`);
+  const cookie = posted.headers.get("set-cookie") ?? "";
+  assert.match(cookie, /^bt=[A-Za-z0-9_-]{16,}; Path=\/; Max-Age=31536000; HttpOnly; SameSite=Lax; Secure$/);
+  const cast = calls.find((c) => c.url.endsWith("/rpc/wall_cast_web_boost"))!;
+  const sent = JSON.parse(cast.body) as { story_id_in: string; voter_token_in: string };
+  assert.equal(sent.story_id_in, "11111111-1111-1111-1111-111111111111");
+  assert.ok(cookie.startsWith(`bt=${sent.voter_token_in};`), "the token in the cookie is the token the database was given");
+  assert.equal(posted.headers.get("cache-control"), "no-store");
+
+  // The page that follows: a fresh read, this browser's marks, never stored.
+  const token = cookie.split(";")[0]!;
+  calls.length = 0;
+  const landed = await realFetch(`${base}/${openSlug}/?tapped=kept`, { headers: { Cookie: token } });
+  assert.equal(landed.status, 200);
+  assert.equal(landed.headers.get("cache-control"), "no-store");
+  const page = await landed.text();
+  assert.ok(page.includes("Fresh headline from the live read"));
+  assert.ok(page.includes('id="wkept"'), "the sentence for the word is on the page");
+  assert.ok(page.includes('.wleft::after{content:"Two taps left today."}'), "the count is this browser's own");
+  assert.ok(page.includes("#w-11111111-1111-1111-1111-111111111111 .wmine{display:block}"), "the tapped story carries the reader's mark");
+  assert.equal(calls.filter((c) => c.url.includes("wall_days")).length, 1, "the read went past the cache");
+  const asked = calls.find((c) => c.url.endsWith("/rpc/wall_web_standing"))!;
+  assert.equal(JSON.parse(asked.body).voter_token_in, sent.voter_token_in);
+
+  // A second tap on the same story spends nothing and says so.
+  answer = { result: "already", support: 13, allowance: 3, left: 2, backed: ["11111111-1111-1111-1111-111111111111"] };
+  const again = await realFetch(`${base}/boost`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Cookie: token },
+    body: `s=11111111-1111-1111-1111-111111111111&m=${openMonth}&d=${openDay}`,
+    redirect: "manual",
+  });
+  assert.equal(again.headers.get("location"), `/${openSlug}/?tapped=already#walready`);
+  const reused = calls.filter((c) => c.url.endsWith("/rpc/wall_cast_web_boost")).pop()!;
+  assert.equal(JSON.parse(reused.body).voter_token_in, sent.voter_token_in, "the same browser is the same booster");
+
+  // The fourth tap of the day: the database's word, not the page's.
+  answer = { result: "spent", support: 4, allowance: 3, left: 0, backed: [] };
+  const fourth = await realFetch(`${base}/boost`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Cookie: token },
+    body: `s=22222222-2222-2222-2222-222222222222&m=${openMonth}&d=${openDay}`,
+    redirect: "manual",
+  });
+  assert.equal(fourth.headers.get("location"), `/${openSlug}/?tapped=spent#wspent`);
+
+  // A word the server does not know is our failure, never a claim about the date.
+  answer = { result: "something_new" };
+  const odd = await realFetch(`${base}/boost`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Cookie: token },
+    body: `s=22222222-2222-2222-2222-222222222222&m=${openMonth}&d=${openDay}`,
+    redirect: "manual",
+  });
+  assert.equal(odd.headers.get("location"), `/${openSlug}/?tapped=failed#wfailed`);
+
+  // A malformed tap is a 400 and never reaches the database.
+  calls.length = 0;
+  const bad = await realFetch(`${base}/boost`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: "s=nope&m=9&d=9",
+    redirect: "manual",
+  });
+  assert.equal(bad.status, 400);
+  assert.deepEqual(calls, []);
+
+  // A GET is not a tap: nothing a reader reaches by browsing writes anything.
+  assert.equal((await realFetch(`${base}/boost`)).status, 404);
+  assert.equal((await realFetch(`${base}/boost`, { method: "PUT" })).status, 405);
+});
+
+test("a flood of taps from one address is refused before the database is touched", async (t) => {
+  const root = resolve("test-site-flood");
+  await rm(root, { recursive: true, force: true });
+  await mkdir(root, { recursive: true });
+  const realFetch = globalThis.fetch;
+  const previousKey = process.env.SUPABASE_ANON_KEY;
+  process.env.SUPABASE_ANON_KEY = "test-key";
+  let reached = 0;
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    if (!url.includes("supabase")) return realFetch(input, init);
+    reached += 1;
+    return new Response(JSON.stringify({ result: "kept", allowance: 3, left: 2, backed: [] }), { status: 200, headers: { "Content-Type": "application/json" } });
+  }) as typeof fetch;
+  const server = start({ root, port: 0 });
+  await new Promise((done) => server.once("listening", done));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const base = `http://127.0.0.1:${address.port}`;
+  t.after(async () => {
+    server.close();
+    globalThis.fetch = realFetch;
+    if (previousKey === undefined) delete process.env.SUPABASE_ANON_KEY; else process.env.SUPABASE_ANON_KEY = previousKey;
+    await rm(root, { recursive: true, force: true });
+  });
+
+  // One address, well past the per minute ceiling. The address is what the
+  // limit keys on, so this is a flood however many cookies it clears.
+  const statuses: number[] = [];
+  for (let i = 0; i < 80; i++) {
+    const r = await realFetch(`${base}/boost`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", "X-Forwarded-For": "203.0.113.9" },
+      body: `s=33333333-3333-3333-3333-333333333333&m=9&d=9`,
+      redirect: "manual",
+    });
+    statuses.push(r.status);
+  }
+  assert.ok(statuses.filter((s) => s === 400).length >= 30, `${statuses.filter((s) => s === 400).length} refused`);
+  assert.ok(reached <= 40, `${reached} reached the database`);
+});

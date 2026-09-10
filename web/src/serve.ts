@@ -17,6 +17,12 @@
 // the result. Nothing a reader can reach by browsing calls the database, and
 // when the ?kept= call fails the page is served exactly as it was built, so
 // the outage costs a result and never a site.
+//
+// The wall bends this for its three open dates, docs/the-wall.md sections
+// 12 and 13: those pages read the wall at request time, shared and cached,
+// a tap is a POST to /boost shaped exactly like /remember, and the GET that
+// follows it, carrying ?tapped=, reads once more past the cache. Every one
+// of those falls back to the page as built.
 
 import { randomBytes } from "node:crypto";
 import { createReadStream } from "node:fs";
@@ -26,7 +32,7 @@ import { extname, join, normalize, resolve, sep } from "node:path";
 
 import { everyDate, monthName, slug } from "./model.js";
 import { ASK_SLOTS, TODAY, resultId, resultMarkup, undoForm, type Remembered } from "./render.js";
-import { fetchWallDay, openWallDates, replaceWall, wallKey, wallSection } from "./wall.js";
+import { fetchWallDay, openWallDates, replaceWall, wallKey, wallMarks, wallSection, type WallDay } from "./wall.js";
 
 
 const TYPES: Record<string, string> = {
@@ -734,6 +740,111 @@ async function unrecord(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Tapping a story on the wall
+// ---------------------------------------------------------------------------
+
+export interface Tap {
+  storyId: string;
+  month: number;
+  day: number;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/**
+ * A posted tap into a story and a date to come back to, or null. Checked
+ * here so a malformed post is a 400 rather than a round trip; the database
+ * checks the story again.
+ */
+export function readTap(body: string): Tap | null {
+  const form = new URLSearchParams(body);
+  const storyId = (form.get("s") ?? "").trim().toLowerCase();
+  const month = Number(form.get("m"));
+  const day = Number(form.get("d"));
+  if (!UUID.test(storyId)) return null;
+  if (!Number.isInteger(month) || month < 1 || month > 12) return null;
+  if (!Number.isInteger(day) || day < 1 || day > 31) return null;
+  return { storyId, month, day };
+}
+
+/**
+ * What happened to a tap, in the database's words, plus the two that are
+ * ours: bad, for a story it does not have, and failed, for never reaching
+ * it. Each has its own sentence on the page and its own fragment, so a
+ * refusal never borrows another refusal's explanation.
+ */
+export type Tapped = "kept" | "already" | "spent" | "not_yet" | "closed" | "false" | "bad" | "failed";
+
+const TAPPED = new Set<string>(["kept", "already", "spent", "not_yet", "closed", "false", "bad", "failed"]);
+
+const TAP_FRAGMENT: Record<Tapped, string> = {
+  kept: "wkept", already: "walready", spent: "wspent", not_yet: "wnotyet",
+  closed: "wclosed", false: "wfalse", bad: "wfailed", failed: "wfailed",
+};
+
+/** The tap a redirect says just happened, or null. Bounded like a posted tap: it permits one fresh read. */
+export function tappedFrom(query: string | undefined): Tapped | null {
+  if (query === undefined || query === "") return null;
+  const value = new URLSearchParams(query).get("tapped");
+  if (value === null || !TAPPED.has(value)) return null;
+  return value as Tapped;
+}
+
+async function castWebBoost(storyId: string, token: string): Promise<Tapped> {
+  const key = process.env.SUPABASE_ANON_KEY;
+  if (!key) return "failed";
+  try {
+    const response = await fetch(`${projectBase()}/rest/v1/rpc/wall_cast_web_boost`, {
+      method: "POST",
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ story_id_in: storyId, voter_token_in: token }),
+    });
+    if (!response.ok) return "failed";
+    const answer = (await response.json()) as { result?: unknown };
+    const result = typeof answer?.result === "string" ? answer.result : "";
+    if (result === "no_story" || result === "bad_token") return "bad";
+    // A word this server does not know is our end failing to keep up with
+    // the database, not a fact about the tap.
+    return TAPPED.has(result) ? result as Tapped : "failed";
+  } catch {
+    return "failed";
+  }
+}
+
+/**
+ * What this browser has on this wall date: taps left today and the stories
+ * it backed. Null on any failure, which costs the reader their marks and
+ * the count for one page view and nothing else.
+ */
+async function wallStanding(wallDate: string, token: string | null): Promise<{ left: number; allowance: number; backed: string[] } | null> {
+  const key = process.env.SUPABASE_ANON_KEY;
+  if (!key) return null;
+  try {
+    const response = await fetch(`${projectBase()}/rest/v1/rpc/wall_web_standing`, {
+      method: "POST",
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ wall_date_in: wallDate, voter_token_in: token }),
+    });
+    if (!response.ok) return null;
+    const answer = (await response.json()) as { left?: unknown; allowance?: unknown; backed?: unknown };
+    if (typeof answer?.left !== "number" || typeof answer?.allowance !== "number" || !Array.isArray(answer?.backed)) return null;
+    return { left: answer.left, allowance: answer.allowance, backed: answer.backed.filter((b): b is string => typeof b === "string") };
+  } catch {
+    return null;
+  }
+}
+
 async function handle(
   root: string,
   request: IncomingMessage,
@@ -756,7 +867,7 @@ async function handle(
   // POST reaches exactly one address and every other verb on every other path
   // is still refused. The allow header names the truth per path rather than
   // advertising POST across a site where it means nothing.
-  const posts = path === "/remember" || path === "/year" || path === "/forget";
+  const posts = path === "/remember" || path === "/year" || path === "/forget" || path === "/boost";
   if (method !== "GET" && method !== "HEAD" && !(method === "POST" && posts)) {
     response.writeHead(405, {
       Allow: posts ? "POST" : "GET, HEAD",
@@ -829,6 +940,48 @@ async function handle(
       Location: back,
       "Cache-Control": "no-store",
       "Set-Cookie": cookie,
+      ...SECURITY,
+    });
+    response.end();
+    return;
+  }
+
+  // One tap on the wall. docs/the-wall.md section 13.
+  //
+  // The shape of /remember, exactly: the token cookie is the identity, a
+  // reader with none gets one on this tap, the address is rate limited
+  // before the database is touched, the database decides in one word, and
+  // the answer is a redirect back to the date page carrying the word in the
+  // query string, which permits the one fresh wall read on the way back,
+  // and in the fragment, which reveals the sentence for it.
+  //
+  // The trade, named: a cookie is not a person. Anybody who clears one is a
+  // new voter and can tap again, and there is no honest way around that
+  // without an account, which reading here must never require. It is the
+  // same trade the answers make, it is bounded by underLimit and by the
+  // three unit budget in the database, and it is why every web boost is
+  // recorded as web_token rather than attested.
+  if (method === "POST" && path === "/boost") {
+    const address = String(request.headers["x-forwarded-for"] ?? "").split(",")[0]?.trim()
+      || request.socket.remoteAddress || "unknown";
+    const token = tokenFromCookie(request.headers.cookie) ?? newToken();
+    let tap: Tap | null = null;
+    try {
+      tap = readTap(await readBody(request));
+    } catch {
+      tap = null;
+    }
+    if (tap === null || !underLimit(address)) {
+      response.writeHead(400, { "Content-Type": "text/plain; charset=utf-8", ...SECURITY });
+      response.end("No.\n");
+      return;
+    }
+    const said = await castWebBoost(tap.storyId, token);
+    const where = `/${slug(tap.month, tap.day)}/`;
+    response.writeHead(303, {
+      Location: `${where}?tapped=${said}#${TAP_FRAGMENT[said]}`,
+      "Cache-Control": "no-store",
+      "Set-Cookie": `${TOKEN_COOKIE}=${token}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax; Secure`,
       ...SECURITY,
     });
     response.end();
@@ -957,7 +1110,10 @@ async function handle(
       const shown = underLimit(address) ? await withResult(file, path, kept) : null;
       if (shown !== null) {
         const date = dateFor(path);
-        const wall = date === null ? null : await liveWallSection(date.month, date.day);
+        const now = Date.now();
+        const wall = date === null ? null : await liveWall(date.month, date.day, now);
+        const token = tokenFromCookie(request.headers.cookie);
+        const standing = wall === null || token === null ? null : await wallStanding(wall.day.wallDate, token);
         response.writeHead(200, {
           "Content-Type": "text/html; charset=utf-8",
           // Never stored. It is one reader's own result on one row and it is
@@ -965,7 +1121,7 @@ async function handle(
           "Cache-Control": "no-store",
           ...securityFor(path),
         });
-        response.end(withWall(shown, wall));
+        response.end(withWall(shown, wall?.section ?? null) + (standing === null ? "" : wallMarks(standing, wall!.day, now)));
         return;
       }
     }
@@ -985,11 +1141,29 @@ async function handle(
     const readable = method === "GET" && file.endsWith(".html");
     const token = readable ? tokenFromCookie(request.headers.cookie) : null;
     const born = readable ? yearFromCookie(request.headers.cookie) : null;
-    const marked = token === null && born === null ? null : dateFor(path);
+    // The one request that follows a tap. It is allowed a fresh wall read,
+    // past the twenty second cache, so the count and the mark the reader
+    // just made are on the page they land on. Rate limited per address like
+    // the tap itself, and like ?kept=.
+    const tapped = readable ? tappedFrom(query) : null;
+    const fresh = tapped !== null && underLimit(
+      String(request.headers["x-forwarded-for"] ?? "").split(",")[0]?.trim() || request.socket.remoteAddress || "unknown",
+    );
+    const marked = token === null && born === null && tapped === null ? null : dateFor(path);
     if (marked !== null) {
-      const marks = (token === null ? "" : await myMarks(marked.month, marked.day, token))
+      const now = Date.now();
+      const wall = await liveWall(marked.month, marked.day, now, fresh);
+      let marks = (token === null ? "" : await myMarks(marked.month, marked.day, token))
         + yearMarks(slug(marked.month, marked.day), born);
-      if (marks !== "") {
+      // The reader's own taps and count, for a browser that has a token and
+      // a date whose wall is open. A browser with no token yet sees the
+      // section's own words, which are right for a browser that has done
+      // nothing.
+      if (wall !== null && token !== null) {
+        const standing = await wallStanding(wall.day.wallDate, token);
+        if (standing !== null) marks += wallMarks(standing, wall.day, now);
+      }
+      if (marks !== "" || tapped !== null) {
         let html: string | null = null;
         try {
           html = await readFile(file, "utf8");
@@ -997,7 +1171,6 @@ async function handle(
           html = null;
         }
         if (html !== null) {
-          const wall = await liveWallSection(marked.month, marked.day);
           response.writeHead(200, {
             "Content-Type": "text/html; charset=utf-8",
             // Never stored. It is one reader's own answers and it is wrong for
@@ -1005,7 +1178,7 @@ async function handle(
             "Cache-Control": "no-store",
             ...securityFor(path),
           });
-          response.end(method === "HEAD" ? undefined : withWall(html, wall) + marks);
+          response.end(method === "HEAD" ? undefined : withWall(html, wall?.section ?? null) + marks);
           return;
         }
       }
@@ -1015,7 +1188,7 @@ async function handle(
     // is streamed exactly as built, below.
     const open = readable ? dateFor(path) : null;
     if (open !== null) {
-      const wall = await liveWallSection(open.month, open.day);
+      const wall = (await liveWall(open.month, open.day))?.section ?? null;
       if (wall !== null) {
         let html: string | null = null;
         try {
@@ -1176,29 +1349,46 @@ async function myMarks(month: number, day: number, token: string): Promise<strin
 const WALL_FRESH_MS = 20_000;
 const WALL_TIMEOUT_MS = 3000;
 
-const wallCache = new Map<string, { at: number; section: string | null }>();
+const wallCache = new Map<string, { at: number; day: WallDay | null }>();
 
-/** The fresh wall section for a date page, or null to serve the page as built. */
-async function liveWallSection(month: number, day: number, now: number = Date.now()): Promise<string | null> {
+/**
+ * The fresh wall for a date page, as the section to swap in and the day it
+ * was drawn from, or null to serve the page as built.
+ *
+ * The day is what is cached, and the section is drawn from it per request,
+ * because the section now depends on the request: it carries tap forms
+ * while the date takes boosts by the clock, and the clock moves. Drawing
+ * is a hundred rows of string work; the read is the thing worth sharing.
+ *
+ * `fresh` skips the cache for the one request that follows a tap, so the
+ * reader who just tapped sees the count they moved rather than the section
+ * everybody else saw twenty seconds ago. It is permitted by the query
+ * string and rate limited per address, the way ?kept= is.
+ */
+async function liveWall(
+  month: number, day: number, now: number = Date.now(), fresh: boolean = false,
+): Promise<{ section: string; day: WallDay } | null> {
   const key = process.env.SUPABASE_ANON_KEY;
   if (!key) return null;
   const wallDate = openWallDates(now).get(wallKey(month, day));
   if (wallDate === undefined) return null;
 
   const cached = wallCache.get(wallDate);
-  if (cached !== undefined && now - cached.at < WALL_FRESH_MS) return cached.section;
-
-  let section: string | null = null;
-  try {
-    const wall = await fetchWallDay(projectBase(), key, wallDate, WALL_TIMEOUT_MS);
-    section = wall === null ? null : wallSection(wall, `${monthName(month)} ${day}`, now);
-  } catch {
-    section = null;
+  let wall: WallDay | null;
+  if (!fresh && cached !== undefined && now - cached.at < WALL_FRESH_MS) {
+    wall = cached.day;
+  } else {
+    try {
+      wall = await fetchWallDay(projectBase(), key, wallDate, WALL_TIMEOUT_MS);
+    } catch {
+      wall = null;
+    }
+    // A failure is remembered too, so an outage is asked about once every
+    // twenty seconds rather than on every page view.
+    wallCache.set(wallDate, { at: now, day: wall });
   }
-  // A failure is remembered too, so an outage is asked about once every
-  // twenty seconds rather than on every page view.
-  wallCache.set(wallDate, { at: now, section });
-  return section;
+  if (wall === null) return null;
+  return { section: wallSection(wall, `${monthName(month)} ${day}`, now, { interactive: true }), day: wall };
 }
 
 /** The page with the fresh wall in it, or the page as it was. */
