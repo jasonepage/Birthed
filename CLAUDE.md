@@ -589,6 +589,54 @@ as a shelf, not a plan.
   container or in the shell on the Mac, and the proxy refuses
   `download.swift.org`. Every rule has a test and not one has been run.
 
+### The ballot, not the button, September 10, 2026
+
+- **A board of ticket guides and console opinion is a ballot nobody should
+  spend on.** The wall shipped and the first real board was ten beige tiles,
+  three from one video game site, none about the date. The mechanic was
+  working as built. Everything below follows from the candidates being the
+  problem rather than the button.
+- **The history seeder threw on every tick from the day it shipped.**
+  `cultural_events.event_date` is a date column and the read asked PostgREST
+  for `event_date=like.*-09-09`, which Postgres answers 42883, no
+  `date ~~ text` operator. The 400 took out the whole `Promise.all`, and
+  `tick.ts` logged one line and carried on to the news. So section 13's
+  promise that everything with a birthday on a date is a pixel was never once
+  true in production. **Never send LIKE to a date column through the
+  automatic interface.** The date is screened in code now.
+- **A stage that fails every run looks like one that failed once.** The only
+  record of a full day of failure was a Render cron log. Nothing in the
+  product can answer "has the history seeder ever succeeded." Not fixed.
+- **Variety is a rule now, in `varied` in the allocator.** Order alone was
+  choosing the board, and fixing the seeder would have flipped it from eight
+  news tiles to eight encyclopedia events. At most three unbacked tiles are
+  the day's news, at most two of those from one outlet, at most three are any
+  one kind of history. History is not capped by outlet on purpose: every
+  event cites the same encyclopedia. **One buzz beats every one of these
+  caps**, and a slot the caps cannot fill is filled in plain order rather
+  than left empty.
+- **The news seeder screens headlines that are not a thing that happened.**
+  Opinion, question headlines, listicles, where-to-buy, release dates,
+  reviews, both apostrophes. Written against the 129 real headlines the live
+  feeds filed for September 9 and pinned in `wall-news.test.ts`: twelve it
+  must catch, sixteen it must not. Narrow on purpose, because a false
+  positive costs the day's news and the junk costs one tile.
+- **Open: the tier palette is decorative.** Every seeded story is `claimed`
+  forever because nothing adds a second source, so the three tones of honey
+  are one tone. Clustering the same story across the independently owned
+  feeds would make `reported` real and turn corroboration into free editorial
+  judgment. Not built: a wrong merge puts two different events under one
+  receipt, and that needs a rule argued on real headlines.
+- **Open: the typed field is the better answer.** Ask what mattered about the
+  date and find it in the pool, rather than asking somebody to shop a list of
+  forty. If a model is used it picks from a closed list with grounded search
+  off and returns an identifier, never words. The miss is the valuable case:
+  it becomes the front door to submission. What is stored of what people type
+  is Nathan's call, not a session's.
+- **Nothing in that session was run against the live feeds.** The worker's
+  291 tests pass on fixtures and on headlines copied out of the database. The
+  next tick is the test.
+
 ### Search, decided September 5, 2026
 
 - **A date page with fewer than eight people carries `noindex` and stays out of the sitemap.** It is still built and still loads. A new domain that hands a crawler 366 URLs with most of them empty teaches the crawler that the site is thin, and that judgement is made once and is expensive to undo. The threshold is eight rather than `FR-022`'s ten because a few real dates have fewer people with English Wikipedia articles.
