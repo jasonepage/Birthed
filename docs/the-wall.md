@@ -772,3 +772,17 @@ questions were named and not settled: the page now runs two games with two
 clocks, and the honest long term shape may be one mechanic with two faces,
 what will matter about today and what did matter about a past date. That
 changes the year two measurement and is not a layout decision.
+
+**The square is the product, decided by Nathan the same night.** A date page
+is today's square, and every square this date has ever had. So: the page
+zooms to its tiles (`viewportFor`, the smallest square that holds them,
+never under eight modules, never over the board; the stored rectangles are
+untouched and the sealed square is drawn whole); every date has a full
+screen page at `/<date>/square/`; tomorrow draws an empty square with the
+hour it opens rather than no section, and a date with no square yet says when
+its first one opens; under the square only backed stories are listed and the
+day's feed is one line a reader can open; the three card band, the day
+before and after cards, and the calendar on every page are gone, the
+calendar to its own page. The remembrance question keeps its section. The
+lists and the band were where the page was a clusterfuck, in Nathan's word,
+and none of them answered to the sentence.
