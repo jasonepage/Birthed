@@ -282,7 +282,7 @@ export function pictureRules(pictures: Picture[]): string {
   const safe = (text: string): string => text.replace(/["\\]/g, "").replace(/[^A-Za-z0-9:_./-]/g, "");
   const each = pictures.map((p) => `[data-subject="${safe(p.subject)}"]{--pic:url("${safe(p.path)}")}`).join("");
   const all = pictures.map((p) => `.wtile[data-subject="${safe(p.subject)}"]`).join(",");
-  return `<style class="wpics">${each}${all}{color:#FFF7EE;--wink:#FFF7EE;--wbtn:#FFE9B0;--wbtn-ink:#2A1A08;--wmark:#FFE9B0;--scrim:linear-gradient(to top,rgba(20,12,4,.94) 0%,rgba(20,12,4,.62) 48%,rgba(20,12,4,.18) 100%)}</style>`;
+  return `<style class="wpics">${each}${all}{color:#FFF7EE;--wink:#FFF7EE;--wbtn:#FFE9B0;--wbtn-ink:#2A1A08;--wmark:#FFE9B0;justify-content:flex-end;--scrim:linear-gradient(to top,rgba(20,12,4,.94) 0%,rgba(20,12,4,.62) 48%,rgba(20,12,4,.18) 100%)}</style>`;
 }
 
 /** "1994", "\"Song\" by Artist" out of the headline the worker wrote for a song, or null. */
@@ -1319,7 +1319,10 @@ export const WALL_STYLE = `
 .wsongs { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 .wsongs li { display: flex; flex-direction: column; gap: 6px; background: #17141F; border-radius: 12px; padding: 8px; font-size: 13px; line-height: 1.35; --wbtn: #E7A83A; --wbtn-ink: #2A1A08; --wmark: #E7A83A; --wink: #E7A83A; }
 .wsongs .wart {
-  display: block; aspect-ratio: 1; border-radius: 8px; overflow: hidden; position: relative; text-decoration: none;
+  /* width: 100% is not decoration. In a column flex box an aspect-ratio
+     box with no width takes its width from its height, which is nothing,
+     and draws as nothing. */
+  display: block; width: 100%; aspect-ratio: 1; border-radius: 8px; overflow: hidden; position: relative; text-decoration: none;
   background: #241E2E var(--pic, none) center / cover no-repeat;
 }
 .wsongs .wart:hover { outline: 2px solid #E7A83A; outline-offset: -2px; }
