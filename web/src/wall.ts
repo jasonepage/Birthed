@@ -674,6 +674,14 @@ export interface WallOptions {
    * lifted back out of the baked page by serve.ts for the live section.
    */
   history?: string;
+  /**
+   * What the typed field found, best first, drawn as the confirmation under
+   * the field. Only serve.ts sets this, on the one request that follows a
+   * post to /find, and only on a date page: the reader sees the story, its
+   * outlet and its tier, and the buzz is a second post through /boost
+   * unchanged. Nothing is spent by finding.
+   */
+  found?: WallStory[];
 }
 
 export function wallSection(day: WallDay | null, name: string, now: number = Date.now(), options: WallOptions = {}): string {
@@ -768,7 +776,7 @@ function countLine(day: WallDay, now: number, voice: Voice): string {
  * included, because a tap can be refused on a date that closed after the
  * page was served, and that reader lands on the baked page.
  */
-function afterwords(voice: Voice): string {
+function afterwords(voice: Voice, name: string): string {
   const v = voice;
   return `<div class="wsaids">
 <p class="wsaid" id="wkept">That counts. <span class="wleft"></span> The hive redraws on the quarter hour, so a bigger tile takes a few minutes to show; your mark is there now.</p>
@@ -778,6 +786,62 @@ function afterwords(voice: Voice): string {
 <p class="wsaid" id="wclosed">This hive has sealed and is permanent now. That ${v.one} arrived after midnight and was not counted.</p>
 <p class="wsaid" id="wfalse">That story was later shown false. It keeps its place on the hive and takes no ${v.many}.</p>
 <p class="wsaid" id="wfailed">That did not save, and it was this end rather than yours. The date is fine. Try it again.</p>
+<p class="wsaid" id="wmiss">Nothing filed for ${escapeHtml(name)} says that. Nothing was spent. Adding a story takes a link and happens in the app: <a href="/add/">get Birthed</a> and add it there, and it is filed for the date.</p>
+<p class="wsaid" id="wblank">Those words are too common to search on. Try a name, a place or what happened. Nothing was spent.</p>
+<p class="wsaid" id="wnofind">The hive could not be searched just now: either it has sealed, or this end could not reach it. Nothing was spent. Try it again.</p>
+</div>`;
+}
+
+/** The most a reader may type into the field. The input says so and the server holds it to the same. */
+export const ASK_MAX = 120;
+
+/**
+ * The typed field. Ask what mattered about the date and find the story the
+ * reader means among what is filed for it, rather than handing them a feed
+ * of two hundred headlines to shop. A plain form, like the buzz: it posts
+ * the phrase to /find, the server matches it against the date's stories in
+ * memory and sends the reader back here with what it found, and nothing is
+ * spent until they confirm through /boost. Drawn only in the live section,
+ * for the same reason the buzz forms are, so a baked page never carries it.
+ */
+function askForm(day: WallDay, name: string, voice: Voice): string {
+  const { month, day: d } = parts(day.wallDate);
+  return `<form class="wask" id="ask" method="post" action="/find">
+<label class="wasklabel" for="askq">What mattered about ${escapeHtml(name)}?</label>
+<div class="waskrow"><input class="input" id="askq" name="q" type="text" maxlength="${ASK_MAX}" placeholder="A name, a place, a few words" autocomplete="off"><input type="hidden" name="m" value="${month}"><input type="hidden" name="d" value="${d}"><button type="submit">Find</button></div>
+<p class="wnote">Typing spends nothing. The hive finds the story among what is filed for ${escapeHtml(name)} and shows it back before a ${voice.one} is spent. What you type is matched and not kept.</p>
+</form>`;
+}
+
+/**
+ * The confirmation, drawn under the field on the one request after a post
+ * to /find. The confirmation is not optional: a buzz is scarce, permanent
+ * and irreversible, and a silent wrong match spends it on something the
+ * reader did not mean. So the story, its outlet and its tier are shown
+ * back, the button is the same form every tile carries, and "Not this one"
+ * is the field again. A story shown false is still the story the reader
+ * meant, so it is shown and it takes no buzz, the same as on a tile.
+ */
+function foundBlock(found: WallStory[], day: WallDay, live: boolean, voice: Voice): string {
+  if (found.length === 0) return "";
+  const { month, day: d } = parts(day.wallDate);
+  const heading = found.length === 1 ? "Is this the one?" : "A few stories say that. Which one did you mean?";
+  const rows = found.map((s) => {
+    const count = units(s.support, voice);
+    const meta = `<span class="wmeta">${escapeHtml(s.outlet)} ${chip(s.tier)}${count === "" ? "" : ` ${count}`}</span>`;
+    const control = s.status === "false"
+      ? ` <span class="wmeta">Later shown false. Takes no ${voice.many}.</span>`
+      : live ? ` ${buzzForm(s, voice)}` : "";
+    // Its own id prefix, because the same story is drawn once more on the
+    // hive or in the feed, and one id on a page names one element.
+    return `<li id="f-${s.id}"><a href="${storyPath(s)}">${escapeHtml(s.headline)}</a> ${meta}${control}</li>`;
+  }).join("\n");
+  return `<div class="wsaid wfound" id="wfound">
+<p class="wfoundhead">${heading}</p>
+<ul class="wlist">
+${rows}
+</ul>
+<p class="wnote">Spend one ${voice.one} on this? What is spent cannot be taken back. <a href="/${slug(month, d)}/#ask">Not this one</a></p>
 </div>`;
 }
 
@@ -831,7 +895,7 @@ ${tiles}${empty}
   if (hive) {
     return `<section class="wall whive" aria-labelledby="wallhead">
 <h2 class="section" id="wallhead">${escapeHtml(longDate(day))}</h2>
-${countLine(day, now, voice)}${afterwords(voice)}
+${countLine(day, now, voice)}${afterwords(voice, name)}
 ${board}
 ${legend}
 </section>`;
@@ -866,7 +930,7 @@ ${waiting.map((s) => listRow(s, live, voice)).join("\n")}
 <h2 class="section" id="wallhead">The hive for ${escapeHtml(longDate(day))}</h2>
 <p class="wstate">${stateLine(day, now)}</p>
 <p class="wlede">${lede}</p>
-${countLine(day, now, voice)}${afterwords(voice)}
+${countLine(day, now, voice)}${live ? askForm(day, name, voice) : ""}${foundBlock(options.found ?? [], day, live, voice)}${afterwords(voice, name)}
 ${board}
 ${full}
 ${onWall.length > 0 ? legend : ""}
@@ -918,12 +982,104 @@ export function wallMarks(standing: { left: number; allowance: number; backed: s
 // The receipt
 // ---------------------------------------------------------------------------
 
+function checkName(kind: WallCheck["kind"]): string {
+  return kind === "resolves" ? "Link resolves" : "Page contains the quotation";
+}
+
+/**
+ * A run of checks of one kind that all came out the same way: the same
+ * result and the same status, one after another, with nothing of that kind
+ * between them that differed. The receipt draws a run as one line.
+ */
+export interface CheckRun {
+  kind: WallCheck["kind"];
+  passed: boolean;
+  httpStatus: number | null;
+  /** Every check in the run, oldest first. Never fewer than one. */
+  checks: WallCheck[];
+}
+
+/**
+ * The check history folded into runs, in the order the runs began.
+ *
+ * The worker checked every source every quarter hour and wrote a row each
+ * time, so a receipt was dozens of identical lines saying the link resolves
+ * and the page contains the quotation: a log, not a receipt. Section 12
+ * promises that a page that changes after a pass gets a new failing row and
+ * the old row is never edited, so the fold keeps every change: a run breaks
+ * on any check of its kind whose result or status differs, and the check
+ * that broke it starts a run of its own, so a single failure between two
+ * hundred passes is its own line.
+ *
+ * The two kinds interleave in the table, resolves then quotation every
+ * tick, so runs are kept per kind and a run of one kind is not broken by
+ * the other kind's rows. The detail is not part of the key on purpose: the
+ * resolves detail carries the page's length in characters, which drifts
+ * from fetch to fetch on a page that has not changed in any way the check
+ * measures, and a fold that broke on it would fold nothing. The details are
+ * still all on the page; the run row carries them.
+ */
+export function checkRuns(checks: WallCheck[]): CheckRun[] {
+  const ordered = [...checks].sort((a, b) => a.checkedAt.localeCompare(b.checkedAt));
+  const runs: CheckRun[] = [];
+  const open = new Map<WallCheck["kind"], CheckRun>();
+  for (const c of ordered) {
+    const current = open.get(c.kind);
+    if (current !== undefined && current.passed === c.passed && current.httpStatus === c.httpStatus) {
+      current.checks.push(c);
+      continue;
+    }
+    const run: CheckRun = { kind: c.kind, passed: c.passed, httpStatus: c.httpStatus, checks: [c] };
+    open.set(c.kind, run);
+    runs.push(run);
+  }
+  return runs;
+}
+
+/** "about 11 hours", "about 3 days", "about 45 minutes": how long a run lasted, said plainly. */
+export function spanWords(fromIso: string, toIso: string): string {
+  const minutes = Math.max(0, Math.round((Date.parse(toIso) - Date.parse(fromIso)) / 60_000));
+  if (minutes < 60) return minutes === 1 ? "about a minute" : `about ${minutes} minutes`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return hours === 1 ? "about an hour" : `about ${hours} hours`;
+  const days = Math.round(hours / 24);
+  return `about ${days} days`;
+}
+
 function checkRow(c: WallCheck): string {
-  const what = c.kind === "resolves" ? "Link resolves" : "Page contains the quotation";
-  return `<tr><td>${escapeHtml(eastern(c.checkedAt))}</td><td>${what}</td><td>${c.passed ? "Passed" : "Failed"}</td><td>${c.httpStatus ?? ""}</td><td>${escapeHtml(c.detail ?? "")}</td></tr>`;
+  return `<tr><td>${escapeHtml(eastern(c.checkedAt))}</td><td>${checkName(c.kind)}</td><td>${c.passed ? "Passed" : "Failed"}</td><td>${c.httpStatus ?? ""}</td><td>${escapeHtml(c.detail ?? "")}</td></tr>`;
+}
+
+/**
+ * One line for a run. A run of one is the row it always was. A longer run
+ * says how many times and over what period, and folds every row it stands
+ * for into a details element under the line, because the evidence stays
+ * complete and only the repetition goes. A details element opens without a
+ * script, which is what lets a receipt fold anything at all.
+ */
+function runRow(run: CheckRun): string {
+  const first = run.checks[0]!;
+  if (run.checks.length === 1) return checkRow(first);
+  const last = run.checks[run.checks.length - 1]!;
+  const details = new Set(run.checks.map((c) => c.detail ?? ""));
+  const wording = details.size === 1
+    ? escapeHtml(first.detail ?? "")
+    : `${escapeHtml(first.detail ?? "")} The wording varied; every check is below.`;
+  const every = run.checks.map((c) => `<li>${escapeHtml(eastern(c.checkedAt))}: ${escapeHtml(c.detail ?? "")}</li>`).join("\n");
+  return `<tr class="wrun"><td>${escapeHtml(eastern(first.checkedAt))} to ${escapeHtml(eastern(last.checkedAt))}</td><td>${checkName(run.kind)}</td><td>${run.passed ? "Passed" : "Failed"}</td><td>${run.httpStatus ?? ""}</td>`
+    + `<td>${run.checks.length} checks over ${spanWords(first.checkedAt, last.checkedAt)}, the same result every time. ${wording}`
+    + `<details class="wevery"><summary>Every one of the ${run.checks.length}</summary><ul>
+${every}
+</ul></details></td></tr>`;
 }
 
 function sourceBlock(source: WallSource, index: number): string {
+  // The runs, worked out once: the note below explains folding and there is
+  // no sense explaining a folding that did not happen. A source checked twice
+  // in two different ways has two rows and no run, and used to carry the
+  // note anyway.
+  const runs = checkRuns(source.checks);
+  const folded = runs.some((run) => run.checks.length > 1);
   const verified = source.verifiedAt === null
     ? `<p class="wnote">The quotation has not yet been found on the page.</p>`
     : `<p class="wnote">Marked as found on the page, exactly, ${escapeHtml(eastern(source.verifiedAt))}. The check history below is the evidence.</p>`;
@@ -932,7 +1088,7 @@ function sourceBlock(source: WallSource, index: number): string {
     : `<div class="wscroll"><table class="wchecks">
 <thead><tr><th>When</th><th>Check</th><th>Result</th><th>Status</th><th>Detail</th></tr></thead>
 <tbody>
-${source.checks.map(checkRow).join("\n")}
+${runs.map(runRow).join("\n")}
 </tbody></table></div>`;
   return `<section class="wsource">
 <h3 class="wsub">Source ${index + 1}: ${escapeHtml(source.outlet)}</h3>
@@ -941,6 +1097,7 @@ ${source.checks.map(checkRow).join("\n")}
 <blockquote class="wquote">${escapeHtml(source.quotation)}</blockquote>
 ${verified}
 <h4 class="wsub small">Check history</h4>
+${folded ? `<p class="wnote">A run of checks that came out the same way is one line, with every check in it folded underneath. Any check that came out differently is its own line.</p>` : ""}
 ${history}
 </section>`;
 }
@@ -980,7 +1137,7 @@ export function storyBody(story: WallStory, day: WallDay, now: number = Date.now
   // element by id, the way it lands on a tile.
   const control = live
     ? `<p class="wfacts wreceiptbuzz" id="w-${story.id}">${buzzForm(story, voice, "receipt")}${mine(voice)}</p>
-${countLine(day, now, voice)}${afterwords(voice)}`
+${countLine(day, now, voice)}${afterwords(voice, `${monthName(month)} ${d}`)}`
     : `<p class="wfacts" id="w-${story.id}">${mine(voice)}</p>`;
   return `<p class="wback"><a href="/${slug(month, d)}/">&larr; ${escapeHtml(monthName(month))} ${d}</a> &middot; the hive for ${escapeHtml(longDate(day))}</p>
 <h1 class="wtitle">${escapeHtml(story.headline)}</h1>
@@ -1144,4 +1301,27 @@ export const WALL_STYLE = `
 .wlist .wbuzz { margin-left: 6px; }
 .wlist .wbuzz button { font-size: 12px; padding: 2px 9px; }
 .wlist .wmine { margin-left: 6px; }
+/* The typed field, docs/the-wall.md section 15. A form like the buzz, and
+   the confirmation is drawn under it on the one request that follows. */
+.wask { margin: 0 0 14px; }
+.wasklabel { display: block; margin: 0 0 8px; font-family: Georgia, "Times New Roman", serif; font-weight: 800; font-size: 19px; color: #FFF7EE; }
+.waskrow { display: flex; gap: 8px; align-items: stretch; }
+.wask .input { flex: 1; min-width: 0; padding: 11px 14px; border-radius: 12px; }
+.wask button {
+  flex: none; margin: 0; padding: 0 18px; border: 0; border-radius: 12px; cursor: pointer;
+  background: #E7A83A; color: #2A1A08; font: inherit; font-weight: 800;
+}
+.wask button:hover { filter: brightness(1.1); }
+.wask button:focus-visible { outline: 2px solid #FFD98A; outline-offset: 2px; }
+.wask .wnote { margin: 8px 0 0; }
+.wsaid.wfound { display: block; }
+.wfoundhead { margin: 0 0 8px; font-family: Georgia, "Times New Roman", serif; font-weight: 800; font-size: 19px; }
+.wfound .wlist { margin: 0 0 10px; }
+.wfound .wnote { margin: 0; }
+.wfound .wnote a { color: #A49BAE; }
+/* A run of identical checks, folded. The details element is the fold. */
+.wevery { margin: 6px 0 0; }
+.wevery > summary { cursor: pointer; color: #827B75; }
+.wevery > ul { margin: 6px 0 0; padding: 0 0 0 16px; list-style: disc; color: #827B75; }
+.wevery > ul > li { display: list-item; background: none; border-radius: 0; padding: 1px 0; font-size: 12px; }
 `;

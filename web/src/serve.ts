@@ -32,7 +32,8 @@ import { extname, join, normalize, resolve, sep } from "node:path";
 
 import { everyDate, monthName, slug } from "./model.js";
 import { ASK_SLOTS, TODAY, renderStoryPage, resultId, resultMarkup, undoForm, type Remembered } from "./render.js";
-import { emptyWallDay, fetchWallDay, openWallDates, replaceWall, hivePath, wallKey, wallMarks, wallSection, type TapBack, type WallDay } from "./wall.js";
+import { ASK_MAX, emptyWallDay, fetchWallDay, openWallDates, replaceWall, hivePath, wallKey, wallMarks, wallSection, type TapBack, type WallDay } from "./wall.js";
+import { answer as findAnswer } from "./find.js";
 
 
 const TYPES: Record<string, string> = {
@@ -786,6 +787,49 @@ const TAP_FRAGMENT: Record<Tapped, string> = {
   closed: "wclosed", false: "wfalse", bad: "wfailed", failed: "wfailed",
 };
 
+// ---------------------------------------------------------------------------
+// The typed field. docs/the-wall.md section 15.
+// ---------------------------------------------------------------------------
+
+export interface Ask {
+  /** What the reader typed, trimmed. May be empty: pressing Find on nothing is a blank answer, not a bad request. */
+  q: string;
+  month: number;
+  day: number;
+}
+
+/**
+ * A posted phrase and the date it asks about, or null. The phrase is held
+ * to the length the input already declares, so a hand made post cannot hand
+ * the matcher a novel. The date is checked the way a tap's is.
+ */
+export function readAsk(body: string): Ask | null {
+  const form = new URLSearchParams(body);
+  const q = (form.get("q") ?? "").trim();
+  const month = Number(form.get("m"));
+  const day = Number(form.get("d"));
+  if (q.length > ASK_MAX) return null;
+  if (!Number.isInteger(month) || month < 1 || month > 12) return null;
+  if (!Number.isInteger(day) || day < 1 || day > 31) return null;
+  return { q, month, day };
+}
+
+/**
+ * The stories a redirect from /find says were found, best first, or null.
+ * Identifiers only, never words: the phrase itself stays in the post body
+ * it arrived in and is never written into an address, where it would land
+ * in a request log. At most the few the field offers, and every one of
+ * them must be shaped like ours or the whole list is refused.
+ */
+export function foundFrom(query: string | undefined): string[] | null {
+  if (query === undefined || query === "") return null;
+  const value = new URLSearchParams(query).get("found");
+  if (value === null) return null;
+  const ids = value.split(",").map((id) => id.trim().toLowerCase());
+  if (ids.length === 0 || ids.length > 3 || !ids.every((id) => UUID.test(id))) return null;
+  return ids;
+}
+
 /** The tap a redirect says just happened, or null. Bounded like a posted tap: it permits one fresh read. */
 export function tappedFrom(query: string | undefined): Tapped | null {
   if (query === undefined || query === "") return null;
@@ -870,7 +914,7 @@ async function handle(
   // POST reaches exactly one address and every other verb on every other path
   // is still refused. The allow header names the truth per path rather than
   // advertising POST across a site where it means nothing.
-  const posts = path === "/remember" || path === "/year" || path === "/forget" || path === "/boost";
+  const posts = path === "/remember" || path === "/year" || path === "/forget" || path === "/boost" || path === "/find";
   if (method !== "GET" && method !== "HEAD" && !(method === "POST" && posts)) {
     response.writeHead(405, {
       Allow: posts ? "POST" : "GET, HEAD",
@@ -989,6 +1033,65 @@ async function handle(
       Location: `${where}?tapped=${said}#${TAP_FRAGMENT[said]}`,
       "Cache-Control": "no-store",
       "Set-Cookie": `${TOKEN_COOKIE}=${token}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax; Secure`,
+      ...SECURITY,
+    });
+    response.end();
+    return;
+  }
+
+  // The typed field. docs/the-wall.md section 15.
+  //
+  // The shape of /boost up to the point where /boost spends something: a
+  // plain form, a malformed post refused as a 400 before anything is read,
+  // a flood from one address refused before the wall is touched. Then the
+  // phrase is matched, in memory, against the stories this server has
+  // already read for the date, and the answer is a redirect back to the
+  // date page. A find spends nothing, so no token is minted here and no
+  // cookie is set: the buzz that may follow goes through /boost, which
+  // does both.
+  //
+  // The phrase travels in the post body and nowhere else. The redirect
+  // carries story identifiers, or a bare fragment for a miss, so what a
+  // person typed never lands in an address or a request log. Whether it
+  // should ever be kept is Nathan's call, section 15, and until it is made
+  // the answer here is that it is not.
+  if (method === "POST" && path === "/find") {
+    const address = String(request.headers["x-forwarded-for"] ?? "").split(",")[0]?.trim()
+      || request.socket.remoteAddress || "unknown";
+    let ask: Ask | null = null;
+    try {
+      ask = readAsk(await readBody(request));
+    } catch {
+      ask = null;
+    }
+    if (ask === null || !underLimit(address)) {
+      response.writeHead(400, { "Content-Type": "text/plain; charset=utf-8", ...SECURITY });
+      response.end("No.\n");
+      return;
+    }
+    const where = `/${slug(ask.month, ask.day)}/`;
+    // The cached read is the right one: nothing is spent on a find, and the
+    // reader confirms against the same wall the page just showed them.
+    const wall = await liveWall(ask.month, ask.day, Date.now(), false, false);
+    let location: string;
+    if (wall === null) {
+      // A date that is not open, or a wall this end could not read. The
+      // sentence says both, because from here they are the same thing:
+      // nothing to search.
+      location = `${where}#wnofind`;
+    } else {
+      const found = findAnswer(ask.q, wall.day.stories);
+      location = found.kind === "blank"
+        ? `${where}#wblank`
+        : found.kind === "miss"
+          ? `${where}#wmiss`
+          : found.kind === "one"
+            ? `${where}?found=${found.match.story.id}#wfound`
+            : `${where}?found=${found.matches.map((m) => m.story.id).join(",")}#wfound`;
+    }
+    response.writeHead(303, {
+      Location: location,
+      "Cache-Control": "no-store",
       ...SECURITY,
     });
     response.end();
@@ -1189,10 +1292,15 @@ async function handle(
     const fresh = tapped !== null && underLimit(
       String(request.headers["x-forwarded-for"] ?? "").split(",")[0]?.trim() || request.socket.remoteAddress || "unknown",
     );
-    const marked = token === null && tapped === null ? null : dateFor(path);
+    // The one request that follows a find. It carries the identifiers the
+    // matcher chose, and the section is drawn with the confirmation for
+    // them. Nothing was spent, so the cached wall is the right one, and no
+    // token is needed: a browser that has never buzzed can find.
+    const found = readable ? foundFrom(query) : null;
+    const marked = token === null && tapped === null && found === null ? null : dateFor(path);
     if (marked !== null) {
       const now = Date.now();
-      const wall = await liveWall(marked.month, marked.day, now, fresh, marked.hive);
+      const wall = await liveWall(marked.month, marked.day, now, fresh, marked.hive, found);
       let marks = "";
       // The reader's own taps and count, for a browser that has a token and
       // a date whose wall is open. A browser with no token yet sees the
@@ -1202,7 +1310,7 @@ async function handle(
         const standing = await wallStanding(wall.day.wallDate, token);
         if (standing !== null) marks += wallMarks(standing, wall.day, now);
       }
-      if (marks !== "" || tapped !== null) {
+      if (marks !== "" || tapped !== null || found !== null) {
         let html: string | null = null;
         try {
           html = await readFile(file, "utf8");
@@ -1340,6 +1448,7 @@ const wallCache = new Map<string, { at: number; day: WallDay | null }>();
  */
 async function liveWall(
   month: number, day: number, now: number = Date.now(), fresh: boolean = false, hive: boolean = false,
+  found: string[] | null = null,
 ): Promise<{ section: string; day: WallDay } | null> {
   const key = process.env.SUPABASE_ANON_KEY;
   if (!key) return null;
@@ -1365,8 +1474,15 @@ async function liveWall(
     wallCache.set(wallDate, { at: now, day: wall });
   }
   if (wall === null) return null;
+  // The identifiers a find redirect carries, resolved against this wall in
+  // the order the matcher gave them. One that is not on the date is dropped
+  // rather than refused: the wall may have moved since the find.
+  const read = wall;
+  const stories = found === null
+    ? undefined
+    : found.map((id) => read.stories.find((s) => s.id === id)).filter((s): s is NonNullable<typeof s> => s !== undefined);
   return {
-    section: wallSection(wall, `${monthName(month)} ${day}`, now, { interactive: true, hive, date: { month, day } }),
+    section: wallSection(wall, `${monthName(month)} ${day}`, now, { interactive: true, hive, date: { month, day }, found: stories }),
     day: wall,
   };
 }

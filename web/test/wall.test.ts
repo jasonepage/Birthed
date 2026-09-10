@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import { renderDayPage, renderHivePage, renderStoryPage } from "../src/render.js";
 import {
+  eastern,
   BEE, PLAIN, PLAIN_DATES, VIEW_MIN, allowanceOn, emptyWallDay, fetchWall, hivePath, newestByDate, storyPath, takingBoosts,
   tapsLeftSentence, tierLabel, units, viewportFor, voiceFor, wallMarks, wallSection, type WallDay, type WallStory,
 } from "../src/wall.js";
@@ -417,4 +418,174 @@ test("the full screen page is the hive, its count and its sentences, and a buzz 
   const dated = wallSection(d, "September 9", LIVE_NOW);
   assert.ok(dated.includes('href="/september-9/hive/">Open the hive full screen</a>'));
   assert.ok(!wallSection(emptyWallDay("2026-09-10"), "September 10", LIVE_NOW).includes("full screen"));
+});
+
+/** The page as a reader sees it: tags gone, entities left alone. Class names
+ * and attribute values are markup and are not read by anybody. */
+function visibleText(html: string): string {
+  return html.replace(/<[^>]*>/g, " ");
+}
+
+// ---------------------------------------------------------------------------
+// The typed field. docs/the-wall.md section 15.
+// ---------------------------------------------------------------------------
+
+import { ASK_MAX, checkRuns, spanWords, type WallCheck } from "../src/wall.js";
+
+test("the typed field is on the live section only, posts a plain form to /find, and spends nothing", () => {
+  const d = day([story({ rect: { mx: 3, my: 5, w: 4, h: 3 } })]);
+  const baked = wallSection(d, "September 9", LIVE_NOW);
+  assert.ok(!baked.includes('action="/find"'), "a baked page never carries the field");
+  // The three sentences the field answers with are on every page, baked
+  // ones included, for a reader whose find lands on the fallback.
+  for (const id of ["wmiss", "wblank", "wnofind"]) assert.ok(baked.includes(`id="${id}"`), `${id} is on the baked page`);
+
+  const live = wallSection(d, "September 9", LIVE_NOW, { interactive: true });
+  assert.equal((live.match(/<form class="wask"/g) ?? []).length, 1);
+  assert.ok(live.includes('method="post" action="/find"'));
+  assert.ok(live.includes("What mattered about September 9?"));
+  assert.ok(live.includes(`name="q" type="text" maxlength="${ASK_MAX}"`));
+  assert.ok(live.includes('name="m" value="9"') && live.includes('name="d" value="9"'));
+  assert.ok(live.includes(">Find</button>"));
+  assert.ok(live.includes("Typing spends nothing."));
+  // No script anywhere near it: a form and a button and nothing else.
+  assert.ok(!/<script|onsubmit|oninput/i.test(live));
+  // The miss is the front door to submission rather than a dead end.
+  assert.ok(live.includes('id="wmiss">Nothing filed for September 9 says that.'));
+  assert.ok(live.includes('<a href="/add/">'));
+
+  // After the date seals the field is gone with the buzz forms.
+  const sealed = wallSection(d, "September 9", Date.parse("2026-09-12T00:00:00Z"), { interactive: true });
+  assert.ok(!sealed.includes('action="/find"'));
+  // And the full screen hive does not carry it: it is the hive and its count and nothing else.
+  assert.ok(!wallSection(d, "September 9", LIVE_NOW, { interactive: true, hive: true }).includes('action="/find"'));
+});
+
+test("the confirmation shows the story, its outlet and its tier, and the buzz is the same /boost form, with a way out", () => {
+  const found = story({ id: "aaaaaaaa-0000-0000-0000-000000000001", status: "pool", rect: null, placedAt: null, support: 0 });
+  const other = story({ id: "aaaaaaaa-0000-0000-0000-000000000002", status: "pool", rect: null, placedAt: null, support: 3, headline: "The other one" });
+  const d = day([found, other]);
+
+  const none = wallSection(d, "September 9", LIVE_NOW, { interactive: true });
+  assert.ok(!none.includes('id="wfound"'), "no confirmation unless a find said so");
+
+  const one = wallSection(d, "September 9", LIVE_NOW, { interactive: true, found: [found] });
+  assert.ok(one.includes('id="wfound"'));
+  assert.ok(one.includes("Is this the one?"));
+  assert.ok(one.includes(`<li id="f-${found.id}"><a href="${storyPath(found)}">Council approves the river crossing after a decade of study</a>`));
+  assert.ok(one.includes("example.org") && one.includes(">Reported<"));
+  // Nothing spent until the reader confirms, and the confirmation is the
+  // existing buzz form, unchanged: the story, the date, /boost.
+  const block = one.slice(one.indexOf('id="wfound"'), one.indexOf("</div>", one.indexOf('id="wfound"')));
+  assert.ok(block.includes('<form class="wbuzz" method="post" action="/boost">'));
+  assert.ok(block.includes(`name="s" value="${found.id}"`));
+  assert.ok(block.includes("Spend one buzz on this? What is spent cannot be taken back."));
+  assert.ok(block.includes('<a href="/september-9/#ask">Not this one</a>'));
+  // The same story is still drawn in the feed under its own id, so the two ids differ.
+  assert.ok(one.includes(`<li id="w-${found.id}">`));
+
+  const several = wallSection(d, "September 9", LIVE_NOW, { interactive: true, found: [other, found] });
+  assert.ok(several.includes("A few stories say that. Which one did you mean?"));
+  assert.ok(several.indexOf(`id="f-${other.id}"`) < several.indexOf(`id="f-${found.id}"`), "best first, as the matcher ordered them");
+  assert.ok(several.includes("3 buzzes"));
+
+  // A story shown false is still the one the reader meant, so it is shown, and it takes no buzz.
+  const stamped = story({ id: "aaaaaaaa-0000-0000-0000-000000000003", status: "false", falseAt: "2026-09-09T18:00:00Z" });
+  const shown = wallSection(day([stamped]), "September 9", LIVE_NOW, { interactive: true, found: [stamped] });
+  const falseBlock = shown.slice(shown.indexOf('id="wfound"'), shown.indexOf("</div>", shown.indexOf('id="wfound"')));
+  assert.ok(falseBlock.includes("Later shown false. Takes no buzzes."));
+  assert.ok(!falseBlock.includes("<form"));
+
+  // On a solemn date the confirmation speaks plainly too.
+  const plain = wallSection(day([found], { wallDate: "2026-09-11", month: 9, day: 11, liveAt: "2026-09-11T04:00:00Z", closesAt: "2026-09-13T04:00:00Z" }),
+    "September 11", Date.parse("2026-09-11T20:00:00Z"), { interactive: true, found: [{ ...found, wallDate: "2026-09-11" }] });
+  assert.ok(plain.includes("Spend one tap on this?"));
+  // Visible text only. The class name on the form is "wbuzz" and a reader
+  // never sees a class name, so the sweep reads the page the way a reader
+  // does rather than the way the markup is written.
+  assert.ok(!/buzz/i.test(visibleText(plain)));
+});
+
+// ---------------------------------------------------------------------------
+// The receipt's check history, folded.
+// ---------------------------------------------------------------------------
+
+function check(minute: number, kind: WallCheck["kind"], passed: boolean, httpStatus: number | null, detail: string): WallCheck {
+  return { checkedAt: new Date(Date.UTC(2026, 8, 9, 14, minute)).toISOString(), kind, passed, httpStatus, detail };
+}
+
+/** A quarter hour of checks, the way the worker wrote them: a pair every fifteen minutes. */
+function quarterHours(pairs: number, from: number = 0): WallCheck[] {
+  const out: WallCheck[] = [];
+  for (let i = 0; i < pairs; i += 1) {
+    const minute = from + i * 15;
+    out.push(check(minute, "resolves", true, 200, `200, text/html, ${48000 + i} characters`));
+    out.push(check(minute + 1, "quotation", true, 200, "the page contains the quotation, exactly"));
+  }
+  return out;
+}
+
+test("a run of identical checks is one run per kind, and every change breaks it", () => {
+  const same = quarterHours(4);
+  const runs = checkRuns(same);
+  assert.equal(runs.length, 2, "two kinds, two runs");
+  assert.deepEqual(runs.map((r) => [r.kind, r.passed, r.httpStatus, r.checks.length]), [["resolves", true, 200, 4], ["quotation", true, 200, 4]]);
+  // The run keeps every row, oldest first.
+  assert.deepEqual(runs[0]!.checks.map((c) => c.detail), same.filter((c) => c.kind === "resolves").map((c) => c.detail));
+
+  // The page changed after a pass: a failing quotation row between two runs
+  // of passes is its own run, and the resolves run around it is untouched.
+  const changed = [...quarterHours(3), check(45, "resolves", true, 200, "200, text/html, 48100 characters"), check(46, "quotation", false, 200, "the page does not contain the quotation, exactly"), ...quarterHours(2, 60)];
+  const broken = checkRuns(changed);
+  assert.deepEqual(broken.map((r) => [r.kind, r.passed, r.checks.length]), [
+    ["resolves", true, 6], ["quotation", true, 3], ["quotation", false, 1], ["quotation", true, 2],
+  ]);
+  // A different status is a change too, even when the result is the same word.
+  const moved = [check(0, "resolves", true, 200, "a"), check(15, "resolves", true, 301, "b"), check(30, "resolves", true, 301, "c")];
+  assert.deepEqual(checkRuns(moved).map((r) => [r.httpStatus, r.checks.length]), [[200, 1], [301, 2]]);
+  // Out of order rows are put in order first, so a run is a run in time.
+  assert.deepEqual(checkRuns([...same].reverse()).map((r) => r.checks.length), [4, 4]);
+  assert.deepEqual(checkRuns([]), []);
+});
+
+test("the receipt draws a run as one line with its count and its period, keeps every row underneath, and shows a change in full", () => {
+  const checks = [...quarterHours(48), check(720, "quotation", false, 200, "the page does not contain the quotation, exactly")];
+  const s = story({ sources: [{ ...story().sources[0]!, checks }] });
+  const html = renderStoryPage(s, day([s]));
+  // Forty eight pairs and one failure are four lines, not ninety seven.
+  assert.equal((html.match(/<tr class="wrun"/g) ?? []).length, 2);
+  assert.equal((html.match(/<tbody>[\s\S]*?<\/tbody>/)![0].match(/<tr[ >]/g) ?? []).length, 3);
+  assert.ok(html.includes("48 checks over about 12 hours, the same result every time."));
+  // Built from eastern() rather than pinned to one string: the exact wording
+  // is the platform's Intl output and has already differed between versions,
+  // which is not a thing this test is trying to hold still.
+  // The two kinds alternate, so the resolves run is the even indices: it
+  // opens at checks[0] and closes at checks[94], and the quotation run that
+  // follows it closes one minute later.
+  assert.ok(html.includes(`${eastern(checks[0]!.checkedAt)} to ${eastern(checks[94]!.checkedAt)}`));
+  // The resolves detail drifts by a few characters between fetches, which
+  // is not a change the check measures; the row says so and keeps them all.
+  assert.ok(html.includes("The wording varied; every check is below."));
+  assert.ok(html.includes("<summary>Every one of the 48</summary>"));
+  assert.ok(html.includes("200, text/html, 48000 characters") && html.includes("200, text/html, 48047 characters"), "every row is still on the page");
+  assert.equal((html.match(/the page contains the quotation, exactly/g) ?? []).length, 49, "the quotation run's detail once on the line and once per row underneath");
+  // The failure is its own full line, never folded into the passes.
+  assert.ok(html.includes("<td>Failed</td><td>200</td><td>the page does not contain the quotation, exactly</td>"));
+  // No script does the folding.
+  assert.ok(!/<script/i.test(html));
+  assert.ok(html.includes("<details class=\"wevery\">"));
+
+  // A single check is the row it always was, with no note about runs.
+  const one = renderStoryPage(story(), day([story()]));
+  assert.ok(!one.includes("wrun"));
+  assert.ok(!one.includes("A run of checks that came out the same way"));
+});
+
+test("a period is said plainly", () => {
+  assert.equal(spanWords("2026-09-09T14:00:00Z", "2026-09-09T14:00:00Z"), "about 0 minutes");
+  assert.equal(spanWords("2026-09-09T14:00:00Z", "2026-09-09T14:01:00Z"), "about a minute");
+  assert.equal(spanWords("2026-09-09T14:00:00Z", "2026-09-09T14:45:00Z"), "about 45 minutes");
+  assert.equal(spanWords("2026-09-09T14:00:00Z", "2026-09-09T15:00:00Z"), "about an hour");
+  assert.equal(spanWords("2026-09-09T14:00:00Z", "2026-09-10T01:00:00Z"), "about 11 hours");
+  assert.equal(spanWords("2026-09-09T14:00:00Z", "2026-09-12T14:00:00Z"), "about 3 days");
 });
