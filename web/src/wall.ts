@@ -1223,6 +1223,27 @@ ${tiles}${empty}
     ? `<p class="wfull"><a href="${hivePath(month, d)}">Open the hive full screen</a></p>`
     : "";
 
+  /**
+   * The way to get the picture, and it is a link and nothing else.
+   *
+   * No script, because this site runs none and the whole argument it makes
+   * about itself depends on that. No download attribute either: it forces a
+   * save without ever showing the thing, and somebody who is going to put
+   * this in a message wants to look at it first. So it opens the picture at
+   * its own address, full size, and every browser and every phone already
+   * knows how to keep a picture from there.
+   *
+   * Two labels, one shown. The address never carries a year and the page is
+   * shared, so which label is right is not known when this is baked: a
+   * reader who has told the site their year gets their own version at the
+   * same address, and `yoursMark` in serve.ts swaps the words on the open
+   * dates. The same trick as the count and the marks, and safe for the same
+   * reason, which is that every word in it is generated here.
+   */
+  const save = onWall.length > 0
+    ? `<p class="wsave"><a href="/${slug(month, d)}/yours.png"><span class="wsaveall">Save this picture</span><span class="wsavemine">Save your version</span></a></p>`
+    : "";
+
   // The three chips and one clause. What each tier means is on the About
   // page and on every receipt; the legend's job here is only to say the
   // colours mean something.
@@ -1234,6 +1255,7 @@ ${tiles}${empty}
 ${countLine(day, now, voice, live)}${afterwords(voice, name, options.undo ?? null, "hive")}
 ${board}
 ${legend}
+${save}
 ${anniversaryBlock(options.anniversary ?? [], day, voice)}
 </section>`;
   }
@@ -1301,7 +1323,7 @@ ${songs.map((s) => songRow(s, live, voice)).join("\n")}
 ${lede === "" ? "" : `<p class="wlede">${lede}</p>`}
 ${live ? askForm(day, name, voice) : ""}${countLine(day, now, voice, live)}${foundBlock(options.found ?? [], day, live, voice)}${afterwords(voice, name, options.undo ?? null)}
 ${board}
-<div class="wafter">${onWall.length > 0 ? legend : ""}${full}</div>
+<div class="wafter">${onWall.length > 0 ? legend : ""}${save}${full}</div>
 ${under}
 </section>
 ${anniversaryBlock(options.anniversary ?? [], day, voice)}
@@ -1593,7 +1615,15 @@ export const WALL_STYLE = `
 .wafter .wlegend { margin: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .wafter .wlegend .wchip { margin: 0; }
 .wafter .wlegend .wlegendsay { margin-left: 4px; }
-.wafter .wfull { margin: 0; flex: none; }
+.wafter .wfull, .wafter .wsave { margin: 0; flex: none; }
+/* Both labels are in the page and one of them is shown. The reader's own
+   version is revealed by a rule serve.ts appends on the open dates, because
+   the baked page is shared and cannot know who is reading it. */
+.wsave { margin: 8px 0 0; text-align: right; font-size: 13px; }
+.wsave a { color: #A49BAE; text-decoration: none; border-bottom: 1px solid #3A3348; }
+.wsave a:hover { color: #FFD98A; border-color: #FFD98A; }
+.wsavemine { display: none; }
+.whive .wsave { max-width: 60ch; margin: 8px auto 0; }
 .wfull { margin: 8px 0 0; text-align: right; font-size: 13px; }
 .wfull a { color: #A49BAE; text-decoration: none; border-bottom: 1px solid #3A3348; }
 .wfull a:hover { color: #FFD98A; border-color: #FFD98A; }

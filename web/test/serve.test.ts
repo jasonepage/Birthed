@@ -3,7 +3,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
 
-import { openDates, pictureFor, redirectFor, resolvePath, securityFor, start, todaySlug, todayStylesheet, yearMarks } from "../src/serve.js";
+import { openDates, pictureFor, redirectFor, resolvePath, securityFor, start, todaySlug, todayStylesheet, yearMarks, yoursMark } from "../src/serve.js";
 import { personalName } from "../src/share.js";
 import { monthName } from "../src/model.js";
 
@@ -1036,4 +1036,13 @@ test("no address on this site carries a birth year", () => {
   assert.equal(pictureFor("/september-10/yours.png?by=1994"), null);
   assert.equal(pictureFor("/february-31/yours.png"), null);
   assert.equal(pictureFor("/september-10/"), null);
+});
+
+test("a reader who has given a year is told the picture will be theirs", () => {
+  const mark = yoursMark("september-4", 1994);
+  assert.ok(mark.includes(".on-september-4 .wsaveall{display:none}"));
+  assert.ok(mark.includes(".on-september-4 .wsavemine{display:inline}"));
+  // The year itself never reaches the page, only the fact that there is one.
+  assert.ok(!mark.includes("1994"));
+  assert.equal(yoursMark("september-4", null), "", "and nothing for a reader who never said");
 });

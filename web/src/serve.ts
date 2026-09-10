@@ -1492,6 +1492,10 @@ async function handle(
     // below, unused, with the route that still answers /year.
     const readable = method === "GET" && file.endsWith(".html");
     const token = readable ? tokenFromCookie(request.headers.cookie) : null;
+    // The birth year is read again, for one thing only: the label on the save
+    // link, because a reader who has given a year gets their own picture at
+    // that address and the link should say so.
+    const born = readable ? yearFromCookie(request.headers.cookie) : null;
     // The one request that follows a tap. It is allowed a fresh wall read,
     // past the twenty second cache, so the count and the mark the reader
     // just made are on the page they land on. Rate limited per address like
@@ -1508,7 +1512,7 @@ async function handle(
     // The story a buzz just counted for, so the sentence that says it
     // counted can carry the Undo button for the one request that follows.
     const undoOn = readable && tapped === "kept" ? tappedOnFrom(query) : null;
-    const marked = token === null && tapped === null && found === null ? null : dateFor(path);
+    const marked = token === null && tapped === null && found === null && born === null ? null : dateFor(path);
     if (marked !== null) {
       const now = Date.now();
       // The reader's own buzzes are read before the section rather than after
@@ -1533,10 +1537,18 @@ async function handle(
       if (wall !== null && standing !== null) {
         marks += wallMarks(standing, wall.day, now);
       }
+      // And the label on the save link, for a reader who has given a year on
+      // a date that has a board to save a picture of.
+      if (wall !== null) {
+        marks += yoursMark(slug(marked.month, marked.day), born);
+      }
       // An anniversary is reason enough to draw this reader their own page,
       // even on a date they have done nothing on today: it is the whole of
       // what they came back for.
       const anniversary = (standing?.anniversary.length ?? 0) > 0;
+      // A year alone is reason enough: without this a reader who has given
+      // one and done nothing else is handed the shared page, and their link
+      // says "Save this picture" while the address gives them their own.
       if (marks !== "" || anniversary || tapped !== null || found !== null) {
         let html: string | null = null;
         try {
@@ -1615,6 +1627,23 @@ async function handle(
  * to it on specificity. This block is later in the document, so an equal rule
  * wins.
  */
+/**
+ * The one rule that changes the label on the save link under the board.
+ *
+ * A reader who has told the site their birth year gets their own picture at
+ * the same address, so the link says so. Both labels are baked into the
+ * shared page and this reveals the right one, which is the shape the count
+ * and the marks already use: everything written here is generated text, never
+ * a source's words, so it is safe inside a style block.
+ *
+ * Empty for a reader with no year, and the page keeps the words it was built
+ * with.
+ */
+export function yoursMark(dateSlug: string, year: number | null): string {
+  if (year === null) return "";
+  return `<style class="wyours">.on-${dateSlug} .wsaveall{display:none}.on-${dateSlug} .wsavemine{display:inline}</style>`;
+}
+
 export function yearMarks(slug: string, year: number | null): string {
   if (year === null) return "";
   const decade = `${Math.floor(year / 10) * 10}s`;

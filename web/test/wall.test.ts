@@ -6,7 +6,7 @@ import {
   eastern,
   yearsAgo,
   BEE, PLAIN, PLAIN_DATES, VIEW_MIN, allowanceOn, emptyWallDay, fetchWall, hivePath, newestByDate, storyPath, takingBoosts,
-  tapsLeftSentence, tierLabel, units, viewportFor, voiceFor, wallMarks, wallSection, pictureRules, songParts, subjectOf, takeTurns, FEED_SHOWN, tileKind, kindMark, type WallDay, type WallStory,
+  tapsLeftSentence, tierLabel, units, viewportFor, voiceFor, wallMarks, wallSection, pictureRules, songParts, subjectOf, takeTurns, FEED_SHOWN, tileKind, kindMark, WALL_STYLE, type WallDay, type WallStory,
 } from "../src/wall.js";
 import { picturesFor } from "../src/render.js";
 
@@ -860,4 +860,27 @@ test("how long ago is counted in years, because that is the only span an anniver
   // February 29 is an ordinary case here: the years subtract and the month
   // and day were already matched by the database.
   assert.equal(yearsAgo("2024-02-29", "2028-02-29"), "four years ago today");
+});
+
+test("the way to get the picture is a link, and nothing more than a link", () => {
+  const section = wallSection(day([story()]), "September 9", Date.parse("2026-09-09T20:00:00Z"), { date: { month: 9, day: 9 } });
+  assert.ok(section.includes('href="/september-9/yours.png"'));
+  assert.ok(section.includes("Save this picture"));
+  // No script anywhere on this site, and no download attribute either: that
+  // saves the file without ever showing it, and somebody about to put this
+  // in a message wants to look at it first.
+  assert.ok(!section.includes("download"));
+  assert.ok(!section.includes("<script"));
+  assert.ok(!section.includes("onclick"));
+  // Both labels are baked in, because the page is shared and cannot know who
+  // is reading it. The reader's own is hidden until a rule reveals it.
+  assert.ok(section.includes("Save your version"));
+  assert.ok(WALL_STYLE.includes(".wsavemine { display: none; }"));
+  // The full screen page carries it too, since that is where somebody is
+  // already looking at the board closely.
+  const whole = renderHivePage(day([story()]), 9, 9);
+  assert.ok(whole.includes('href="/september-9/yours.png"'));
+  // A date with nothing on its board has no picture worth offering.
+  const bare = wallSection(day([]), "September 9", Date.parse("2026-09-09T20:00:00Z"), { date: { month: 9, day: 9 } });
+  assert.ok(!bare.includes("yours.png"));
 });
