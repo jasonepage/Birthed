@@ -19,6 +19,8 @@
 // The steps follow Apple's "Validating apps that connect to your server",
 // in the order given there.
 
+import { p384 } from "npm:@noble/curves@1.9.2/p384";
+
 // ---------------------------------------------------------------------------
 // Bytes
 // ---------------------------------------------------------------------------
@@ -56,7 +58,7 @@ export function equal(a: Uint8Array, b: Uint8Array): boolean {
 }
 
 export async function sha256(bytes: Uint8Array): Promise<Uint8Array> {
-  return new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  return new Uint8Array(await named("digest SHA-256", () => crypto.subtle.digest("SHA-256", bytes)));
 }
 
 export function utf8(text: string): Uint8Array {
@@ -357,11 +359,39 @@ const HASH_FOR: Record<string, "SHA-256" | "SHA-384"> = {
   "1.2.840.10045.4.3.3": "SHA-384",
 };
 
-/** Whether `signed` carries a valid signature from the holder of `issuer`'s key. */
+/**
+ * A cryptography call, named. The runtime's own refusals say "Not
+ * implemented" and nothing else, and on September 10, 2026 that was the
+ * whole of what the log had to say about every write from a real phone,
+ * while the same code passed its tests under plain Deno. The name says
+ * which call, which curve and which hash, so the log can point at the one
+ * combination the Supabase runtime lacks rather than at all of them.
+ */
+async function named<T>(stage: string, call: () => Promise<T>): Promise<T> {
+  try {
+    return await call();
+  } catch (error: unknown) {
+    const reason = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+    throw new Error(`${stage}: ${reason}`);
+  }
+}
+
+/**
+ * Whether `signed` carries a valid signature from the holder of `issuer`'s key.
+ *
+ * Apple signs the device certificate with a P-384 key over a SHA-256 hash.
+ * Plain Deno verifies that pairing and the Supabase runtime does not: it
+ * answers "Not implemented" to a P-384 key with any hash but SHA-384, which
+ * on September 10, 2026 refused every real phone while the tests, which
+ * paired each curve with its own hash, passed. So that one pairing is
+ * verified in plain JavaScript on the curve itself, with the hash taken
+ * from the runtime, which does support it. Every other pairing stays on
+ * the runtime's cryptography, and a test signs with the mismatched pairing
+ * so the fallback is exercised wherever the tests run.
+ */
 export async function verifyCertificate(signed: Certificate, issuer: Certificate): Promise<boolean> {
   const hash = HASH_FOR[signed.signatureAlgorithm];
   if (hash === undefined) return false;
-  const key = await crypto.subtle.importKey("spki", issuer.spki, { name: "ECDSA", namedCurve: issuer.curve }, false, ["verify"]);
   const size = issuer.curve === "P-256" ? 32 : 48;
   let raw: Uint8Array;
   try {
@@ -369,19 +399,34 @@ export async function verifyCertificate(signed: Certificate, issuer: Certificate
   } catch {
     return false;
   }
-  return crypto.subtle.verify({ name: "ECDSA", hash }, key, raw, signed.tbs);
+  if (issuer.curve === "P-384" && hash === "SHA-256") {
+    const digest = new Uint8Array(await named("digest SHA-256", () => crypto.subtle.digest("SHA-256", signed.tbs)));
+    try {
+      // The signature is r || s, raw. Certificate signatures are not held
+      // to a low s value, so that check is off.
+      return p384.verify(raw, digest, issuer.publicKeyPoint, { prehash: false, lowS: false, format: "compact" });
+    } catch {
+      return false;
+    }
+  }
+  const key = await named(`importKey spki ECDSA ${issuer.curve}`, () =>
+    crypto.subtle.importKey("spki", issuer.spki, { name: "ECDSA", namedCurve: issuer.curve }, false, ["verify"]));
+  return named(`verify ECDSA ${issuer.curve} ${hash}`, () =>
+    crypto.subtle.verify({ name: "ECDSA", hash }, key, raw, signed.tbs));
 }
 
 /** Whether `signature` (DER) over `message` is by the P-256 key in `spki`. */
 export async function verifyP256(spki: Uint8Array, signature: Uint8Array, message: Uint8Array): Promise<boolean> {
-  const key = await crypto.subtle.importKey("spki", spki, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
+  const key = await named("importKey spki ECDSA P-256", () =>
+    crypto.subtle.importKey("spki", spki, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]));
   let raw: Uint8Array;
   try {
     raw = derSignatureToRaw(signature, 32);
   } catch {
     return false;
   }
-  return crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key, raw, message);
+  return named("verify ECDSA P-256 SHA-256", () =>
+    crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key, raw, message));
 }
 
 // ---------------------------------------------------------------------------

@@ -91,8 +91,14 @@ async function makeKey(curve: "P-256" | "P-384"): Promise<TestKey> {
   return { pair, spki: new Uint8Array(await crypto.subtle.exportKey("spki", pair.publicKey)), curve };
 }
 
-async function sign(key: TestKey, message: Uint8Array): Promise<Uint8Array> {
-  const hash = key.curve === "P-256" ? "SHA-256" : "SHA-384";
+type Hash = "SHA-256" | "SHA-384";
+
+/** The hash a key signs with unless told otherwise: its curve's own. */
+function ownHash(key: TestKey): Hash {
+  return key.curve === "P-256" ? "SHA-256" : "SHA-384";
+}
+
+async function sign(key: TestKey, message: Uint8Array, hash: Hash = ownHash(key)): Promise<Uint8Array> {
   const raw = new Uint8Array(await crypto.subtle.sign({ name: "ECDSA", hash }, key.pair.privateKey, message));
   return rawSignatureToDer(raw);
 }
@@ -101,12 +107,19 @@ function name(cn: string): Uint8Array {
   return seq(set(seq(oid("2.5.4.3"), utf8String(cn))));
 }
 
-/** A certificate for `subject`'s key, signed by `issuer`'s, with optional extensions. */
+/**
+ * A certificate for `subject`'s key, signed by `issuer`'s, with optional
+ * extensions. `hash` is the issuer's own unless given: Apple signs the
+ * device certificate with a P-384 key over SHA-256, and that pairing is
+ * the one the Supabase runtime cannot verify, so the fixture below makes it
+ * the way Apple does.
+ */
 async function certificate(
   subjectName: string, subject: TestKey, issuerName: string, issuer: TestKey,
   extensions: Uint8Array[] = [], validity: [string, string] = ["2026-01-01T00:00:00Z", "2036-01-01T00:00:00Z"],
+  hash: Hash = ownHash(issuer),
 ): Promise<Uint8Array> {
-  const algorithm = seq(oid(issuer.curve === "P-256" ? "1.2.840.10045.4.3.2" : "1.2.840.10045.4.3.3"));
+  const algorithm = seq(oid(hash === "SHA-256" ? "1.2.840.10045.4.3.2" : "1.2.840.10045.4.3.3"));
   const tbs = seq(
     explicit(0, integer(new Uint8Array([2]))),
     integer(new Uint8Array([1, 2, 3])),
@@ -117,7 +130,7 @@ async function certificate(
     subject.spki,
     ...(extensions.length > 0 ? [explicit(3, seq(...extensions))] : []),
   );
-  return seq(tbs, algorithm, bits(await sign(issuer, tbs)));
+  return seq(tbs, algorithm, bits(await sign(issuer, tbs, hash)));
 }
 
 function pem(derBytes: Uint8Array): string {
@@ -167,6 +180,20 @@ test("the certificate parser reads what it made and refuses a forged signature",
   assert.equal(await verifyCertificate(leafCert, otherCert), false);
 });
 
+test("a P-384 key signing over SHA-256, Apple's pairing, verifies and a forgery does not", async () => {
+  const issuer = await makeKey("P-384");
+  const leaf = await makeKey("P-256");
+  const issuerCert = parseCertificate(await certificate("Issuer", issuer, "Issuer", issuer));
+  const leafCert = parseCertificate(await certificate("Leaf", leaf, "Issuer", issuer, [], undefined, "SHA-256"));
+  assert.equal(leafCert.signatureAlgorithm, "1.2.840.10045.4.3.2");
+  assert.equal(await verifyCertificate(leafCert, issuerCert), true);
+  const other = await makeKey("P-384");
+  const otherCert = parseCertificate(await certificate("Other", other, "Other", other));
+  assert.equal(await verifyCertificate(leafCert, otherCert), false);
+  const forged = { ...leafCert, tbs: concat(leafCert.tbs, new Uint8Array([1])) };
+  assert.equal(await verifyCertificate(forged, issuerCert), false);
+});
+
 test("object identifiers, base64 and CBOR read back what was written", () => {
   assert.equal(decodeOid(oid("1.2.840.113635.100.8.2").slice(2)), "1.2.840.113635.100.8.2");
   const bytes = new Uint8Array([0, 1, 2, 250, 251, 255]);
@@ -209,7 +236,9 @@ async function attestationFixture(options: { nonceTamper?: boolean; wrongKeyId?:
   const nonce = await sha256(concat(authData, await sha256(challenge)));
   if (options.nonceTamper) nonce[0] ^= 1;
   const nonceExtension = seq(oid("1.2.840.113635.100.8.2"), octets(seq(explicit(1, octets(nonce)))));
-  const credCert = await certificate("Test Credential", credential, "Test Attestation CA 1", intermediate, [nonceExtension]);
+  // Signed the way Apple signs it: the P-384 intermediate over SHA-256.
+  const credCert = await certificate("Test Credential", credential, "Test Attestation CA 1", intermediate, [nonceExtension],
+    undefined, "SHA-256");
 
   const attestation = toBase64(encodeCbor({
     fmt: "apple-appattest",
