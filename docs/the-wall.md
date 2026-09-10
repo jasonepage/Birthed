@@ -846,3 +846,149 @@ section 3, unchanged: a history story is claimed, like every other story with
 one source, and its tile is wax. A tier is not a verdict and this document
 still says so on every page. `DayFeed`, the remembrances table, the yearly
 seal and four direction growth were not touched.
+
+---
+
+## 14. Decided in the fourth build session, September 10, 2026
+
+The iOS app caught up to the date page in one session: the hive, the honey,
+one buzz a tap and one feed on the Today tab. These are the calls it made
+that the sections above do not settle, recorded the way sections 10, 12 and
+13 are. Nothing in sections 1 to 9 was changed except section 4, which is the
+first entry below, and which was changed before any code that depended on it.
+
+**One tap is one unit in the app too, and section 4 says so now.** Nathan's
+call, asked as the brief's first question. Section 4 carried the one, two or
+three unit conviction sizing and section 13 re-affirmed that it stayed in the
+app, so the document was edited first and the code followed it, which is the
+house rule about which of the two wins. What is lost is the way somebody said
+they were certain rather than merely interested. What stands in its place is
+that they had three taps that day and chose to spend one here. The database
+still accepts one to three, because `wall_cast_boost` and the budget trigger
+were built that way and narrowing them would edit a written history for
+nothing; no client sends more than one.
+
+**One story takes one buzz from one install, and that rule is the app's, not
+the database's.** The website answers a second tap on a story the same
+browser already backed with `already`, and the app had nothing equivalent:
+its request identifier stops a double tap and a retry and does nothing about
+a third deliberate tap. Without this, three taps a day could all land on one
+story, which is the conviction sizing arriving through the back door on the
+same evening it was removed through the front. So `WallService.buzz` refuses
+a second buzz on a story this install has already buzzed, and that tap never
+leaves the phone. The budget trigger still counts units against the day and
+still does not care which story they land on; this is a client rule, and it is
+the same class of rule as the website's, held in the same kind of place.
+
+**The mark is the device's own memory, because the database will not say.**
+`wall_boosts.booster_id` is revoked from the app's role by the column grant in
+section 12, recorded and not published. `wall_units_left` answers with a
+number and nothing else. `wall_web_standing` takes a browser token and refuses
+an authenticated caller, which is the brief's fourth question answered: the
+app keeps its own read and nothing reaches for the web function. So `HiveMarks`
+in the domain holds the story identifiers this install has buzzed, by date, and
+`UserDefaults` keeps it between launches, which is exactly what
+`RememberService` already does with this account's own answers and for exactly
+the same reason. The oldest dates fall off at a hundred and twenty.
+
+The trade, named, and it is the website's trade in a different coat. A
+reinstall forgets the mark and a second device never knew it, so a reader who
+restores a phone can buzz a story they had already buzzed. The buzz itself is
+in the database forever either way, so what is lost is the mark and never the
+vote, and the day's budget is still the database's and still three. Making
+this survive a reinstall means a `wall_my_boosts(wall_date)` returning the
+calling account's story identifiers, granted to `authenticated` only. That is
+a migration, it was not written, and it is named here so the next session does
+not have to rediscover why the mark is where it is.
+
+**The window on the board is ported, not reinvented.** `viewportFor` from
+`web/src/wall.ts` is now `WallBoard.viewport` with the same rules: the
+smallest square that holds the placed tiles, never under eight modules across,
+never over the board, the stored rectangles untouched. The halving is done in
+floating point because that is what the website does, and a port that halved
+in whole numbers answers a different origin on any spread whose centre lands
+on a half module. Every expectation in `HiveTests` for it was printed from the
+website's own function and pasted in, including that case, which is the only
+thing standing between the two products drifting. The app also gains the full
+screen hive that `/<date>/hive/` is on the site, reached from one link under
+the board.
+
+**One feed, and the app's feed is its own timeline rather than the website's
+list.** The brief offered three shapes and Nathan chose the expensive one.
+`DayFeed` keeps its order, which is arithmetic on the reader's age and is the
+best surface in the product, and the buzz hangs off it: a row whose subject the
+worker filed as a story carries that story's count and its button. The day's
+news has no subject and no place in an order ranked by the reader's age, so it
+sits at the top as this year's rows, in the feed's own order, most buzzed
+first. Anything the worker filed that the timeline did not draw sits below the
+timeline, because a filed story with nowhere to be buzzed is not one feed. A
+row the worker filed nothing for draws no button, and the number one songs are
+the standing case: a song is keyed to a year and a chart rather than to a day
+and is not a pixel yet, exactly as section 13 says.
+
+**A story on the hive is not drawn again in the feed, and its tile carries the
+age line.** The website does not repeat a tile as a row and neither does this,
+but the app had something to lose by copying that: the dozen stories the hive
+promotes are the date's biggest history, and they are the rows whose "You were
+7" is worth the most. So the line follows the story onto the tile.
+`HiveFeed.ageLines` hands back the reader's age for every subject the timeline
+drew and the tile asks for its own. A reader with no birth year lends no lines,
+because `DayFeed` leaves the label nil and nothing downstream may invent one.
+
+**The words.** THE HIVE, and a unit is a buzz. `HiveVoice` and `HiveDates` port
+`Voice` and `PLAIN_DATES`, so the same eight solemn dates speak plainly in the
+app and on the site, September 11 among them, and a test asserts each one.
+`HiveCopy` holds every sentence and every one of them takes a voice.
+`WallCopy` was retired rather than renamed, so a sentence in the old words
+cannot survive by being referenced from somewhere nobody looked. A story
+nobody has backed shows no count at all rather than a nought, on the tile, on
+the row and on the receipt. One test sweeps every sentence a reader can reach
+and fails if any of them says wall, square, boost or remember, which is the
+brief's acceptance written down as a test rather than as a hope.
+
+**The honey is a palette of its own.** `HivePalette`, ported from the
+website's stylesheet: pale wax for claimed, amber for reported, deep honey for
+seen directly, with the ink that reads on each and a button colour that
+inverts on the dark tile. `Theme` and `StagePalette.forScheme` were not
+touched, which the brief asked for and which matters because seven files
+including both share cards read the second one. The tier chip came off the
+tile, so the headline gets its lines back, and the legend carries the sentence
+that a tile's colour is its tier and a tier is not a verdict.
+
+**The second clock came off the Today tab with the three answers.** The brief
+asked for `RememberRow` and its three answers not to be drawn, and taking only
+the buttons would have left the date's remembrance clock ticking beside the
+hive's, its own budget counting down beside the hive's, and a line saying the
+page was in the order the people who were here remembered it. Section 13 named
+two clocks on one page as the problem and the same night settled that there is
+one game. So the clock, the budget line and that sentence went too. Nothing is
+dropped from the database, `RememberService` still loads, `RememberRow` and
+the tables are untouched, and `/remember` still answers.
+
+**Open, and named rather than guessed:** a sealed date still draws in the
+order its own people remembered it, through `DayFeed.byMemory`, which section
+13 says was not touched. The one sentence that explained that rearrangement to
+a reader said "remembered", which the acceptance forbids on this screen, so it
+came off and nothing replaced it. A page that visibly reorders with no reason
+given is a small dishonesty, and rewording the sentence to dodge the one
+forbidden word would be a larger one. Either the sealed order needs a sentence
+that is true in the hive's vocabulary, or the sealed reordering belongs to the
+archive rather than to the Today tab. That is Nathan's and Jason's, not a
+layout decision.
+
+**Found, not fixed: nothing here was compiled.** Neither this session's
+container nor the shell on Jason's machine has a Swift toolchain, and the
+proxy in front of both refuses `download.swift.org`, so `swift test` was not
+run once. Every rule added here has a test written for it and not one of them
+has been executed. The domain is pure and Foundation only and the tests assert
+values printed from the website's own functions, which is the most that could
+be done from here, and it is not the same as green. Jason builds in Xcode and
+runs `swift test` on the Mac, and the first run will say.
+
+**What did not change.** The budget's shape is section 4: three on the date,
+one the day after, none the day before, server authoritative. The tiers are
+section 3. The allocator, the checker, the worker, the close job, the archive
+and the website were not touched. The app's read path is unchanged except for
+three columns added to one select. `DayFeed`'s ranking, the yearly seal and
+the sealed lead are as they were. Nothing was deleted from the live database
+and no migration was written.
