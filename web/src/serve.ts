@@ -778,13 +778,22 @@ export function readTap(body: string): Tap | null {
  * it. Each has its own sentence on the page and its own fragment, so a
  * refusal never borrows another refusal's explanation.
  */
-export type Tapped = "kept" | "already" | "spent" | "not_yet" | "closed" | "false" | "bad" | "failed";
+export type Tapped =
+  | "kept" | "already" | "spent" | "not_yet" | "closed" | "false" | "bad" | "failed"
+  // The undo's own two, docs/the-wall.md, the last entry in section 16. They
+  // ride the same query string as a tap's word, for the same reason: it is
+  // what permits the one fresh wall read on the way back, so the reader lands
+  // on the count that moved rather than the one everybody else saw.
+  | "undone" | "too_late";
 
-const TAPPED = new Set<string>(["kept", "already", "spent", "not_yet", "closed", "false", "bad", "failed"]);
+const TAPPED = new Set<string>([
+  "kept", "already", "spent", "not_yet", "closed", "false", "bad", "failed", "undone", "too_late",
+]);
 
 const TAP_FRAGMENT: Record<Tapped, string> = {
   kept: "wkept", already: "walready", spent: "wspent", not_yet: "wnotyet",
   closed: "wclosed", false: "wfalse", bad: "wfailed", failed: "wfailed",
+  undone: "wundone", too_late: "wtoolate",
 };
 
 // ---------------------------------------------------------------------------
@@ -830,6 +839,23 @@ export function foundFrom(query: string | undefined): string[] | null {
   return ids;
 }
 
+/**
+ * The story a redirect says a buzz just counted for, or null.
+ *
+ * A kept tap sends the reader to `#w-<story>`, and a fragment never reaches
+ * a server, so the story travels in the query string as well. It is what
+ * lets the sentence that says a buzz counted carry an Undo button for the
+ * one request that follows it. Shaped like ours or refused, the way a found
+ * identifier is: it is written into a form on the page.
+ */
+export function tappedOnFrom(query: string | undefined): string | null {
+  if (query === undefined || query === "") return null;
+  const value = new URLSearchParams(query).get("on");
+  if (value === null) return null;
+  const id = value.trim().toLowerCase();
+  return UUID.test(id) ? id : null;
+}
+
 /** The tap a redirect says just happened, or null. Bounded like a posted tap: it permits one fresh read. */
 export function tappedFrom(query: string | undefined): Tapped | null {
   if (query === undefined || query === "") return null;
@@ -858,6 +884,40 @@ async function castWebBoost(storyId: string, token: string): Promise<Tapped> {
     if (result === "no_story" || result === "bad_token") return "bad";
     // A word this server does not know is our end failing to keep up with
     // the database, not a fact about the tap.
+    return TAPPED.has(result) ? result as Tapped : "failed";
+  } catch {
+    return "failed";
+  }
+}
+
+/**
+ * Ask the database to take one buzz back.
+ *
+ * It decides. The thirty second window, the caller match and the sealed
+ * check all live in wall_forget_boost, so there is nothing here to get out
+ * of step with them, which is the reasoning unrecord gives for the
+ * remembrance answers. The token is the identity, the same one that cast it.
+ */
+async function forgetWebBoost(storyId: string, token: string): Promise<Tapped> {
+  const key = process.env.SUPABASE_ANON_KEY;
+  if (!key) return "failed";
+  try {
+    const response = await fetch(`${projectBase()}/rest/v1/rpc/wall_forget_boost`, {
+      method: "POST",
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ story_id_in: storyId, voter_token_in: token }),
+    });
+    if (!response.ok) return "failed";
+    const answer = (await response.json()) as { result?: unknown };
+    const result = typeof answer?.result === "string" ? answer.result : "";
+    if (result === "no_story" || result === "bad_token") return "bad";
+    // A word this server does not know is our end failing to keep up with
+    // the database, never a claim about the buzz.
     return TAPPED.has(result) ? result as Tapped : "failed";
   } catch {
     return "failed";
@@ -914,7 +974,8 @@ async function handle(
   // POST reaches exactly one address and every other verb on every other path
   // is still refused. The allow header names the truth per path rather than
   // advertising POST across a site where it means nothing.
-  const posts = path === "/remember" || path === "/year" || path === "/forget" || path === "/boost" || path === "/find";
+  const posts = path === "/remember" || path === "/year" || path === "/forget"
+    || path === "/boost" || path === "/unboost" || path === "/find";
   if (method !== "GET" && method !== "HEAD" && !(method === "POST" && posts)) {
     response.writeHead(405, {
       Allow: posts ? "POST" : "GET, HEAD",
@@ -1036,10 +1097,59 @@ async function handle(
     // word lands on its sentence as before, because there is nothing on the
     // board to show for it.
     const fragment = said === "kept" ? `w-${tap.storyId}` : TAP_FRAGMENT[said];
+    // A buzz that counted also names its story in the query string, because
+    // the fragment above never reaches this server on the way back and the
+    // Undo button has to know what it is undoing. Only for a buzz that
+    // counted: there is nothing to take back after any other word.
+    const on = said === "kept" ? `&on=${tap.storyId}` : "";
     response.writeHead(303, {
-      Location: `${where}?tapped=${said}#${fragment}`,
+      Location: `${where}?tapped=${said}${on}#${fragment}`,
       "Cache-Control": "no-store",
       "Set-Cookie": `${TOKEN_COOKIE}=${token}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax; Secure`,
+      ...SECURITY,
+    });
+    response.end();
+    return;
+  }
+
+  // Taking one buzz back, for thirty seconds after casting it.
+  // docs/the-wall.md, the last entry in section 16.
+  //
+  // /boost's shape exactly, and deliberately so: the same posted fields, the
+  // same token cookie as the identity, the same per address limit before the
+  // database is touched, the same one word answer, and the same redirect
+  // carrying that word in the query string, which permits the one fresh wall
+  // read, and in the fragment, which reveals the sentence for it.
+  //
+  // The window is not checked here. wall_forget_boost checks it, and matches
+  // on the caller as well as on the story, so this cannot reach a buzz
+  // somebody else cast however the form is edited. A reader with no token has
+  // cast nothing, so unlike /boost this mints none and sets no cookie: there
+  // is nothing for a fresh browser to take back.
+  if (method === "POST" && path === "/unboost") {
+    const address = String(request.headers["x-forwarded-for"] ?? "").split(",")[0]?.trim()
+      || request.socket.remoteAddress || "unknown";
+    const token = tokenFromCookie(request.headers.cookie);
+    let tap: Tap | null = null;
+    try {
+      tap = readTap(await readBody(request));
+    } catch {
+      tap = null;
+    }
+    if (tap === null || token === null || !underLimit(address)) {
+      response.writeHead(400, { "Content-Type": "text/plain; charset=utf-8", ...SECURITY });
+      response.end("No.\n");
+      return;
+    }
+    const said = await forgetWebBoost(tap.storyId, token);
+    const where = tap.back === "hive"
+      ? hivePath(tap.month, tap.day)
+      : tap.back === "receipt"
+        ? `/${slug(tap.month, tap.day)}/wall/${tap.storyId}/`
+        : `/${slug(tap.month, tap.day)}/`;
+    response.writeHead(303, {
+      Location: `${where}?tapped=${said}#${TAP_FRAGMENT[said]}`,
+      "Cache-Control": "no-store",
       ...SECURITY,
     });
     response.end();
@@ -1228,6 +1338,10 @@ async function handle(
     const fresh = tapped !== null && underLimit(address);
     const wall = await liveWall(receipt.month, receipt.day, now, fresh, false);
     const story = wall?.day.stories.find((s) => s.id === receipt.id);
+    // A buzz cast from a receipt comes back to that receipt, so the Undo
+    // button belongs on it too. It is only ever this story: a receipt is one
+    // story's page and the redirect that reached it named the same one.
+    const undoOn = tappedOnFrom(query);
     if (wall !== undefined && wall !== null && story !== undefined) {
       const token = tokenFromCookie(request.headers.cookie);
       const standing = token === null ? null : await wallStanding(wall.day.wallDate, token);
@@ -1241,7 +1355,8 @@ async function handle(
       // read leaves them out; see fetchWallDay.
       const key = process.env.SUPABASE_ANON_KEY ?? "";
       const told = method === "HEAD" ? story : await withChecks(projectBase(), key, story, WALL_TIMEOUT_MS);
-      response.end(method === "HEAD" ? undefined : renderStoryPage(told, wall.day, now, { interactive: true }) + marks);
+      const undo = undoOn !== null && undoOn === story.id ? story : null;
+      response.end(method === "HEAD" ? undefined : renderStoryPage(told, wall.day, now, { interactive: true, undo }) + marks);
       return;
     }
   }
@@ -1308,10 +1423,13 @@ async function handle(
     // them. Nothing was spent, so the cached wall is the right one, and no
     // token is needed: a browser that has never buzzed can find.
     const found = readable ? foundFrom(query) : null;
+    // The story a buzz just counted for, so the sentence that says it
+    // counted can carry the Undo button for the one request that follows.
+    const undoOn = readable && tapped === "kept" ? tappedOnFrom(query) : null;
     const marked = token === null && tapped === null && found === null ? null : dateFor(path);
     if (marked !== null) {
       const now = Date.now();
-      const wall = await liveWall(marked.month, marked.day, now, fresh, marked.hive, found);
+      const wall = await liveWall(marked.month, marked.day, now, fresh, marked.hive, found, undoOn);
       let marks = "";
       // The reader's own taps and count, for a browser that has a token and
       // a date whose wall is open. A browser with no token yet sees the
@@ -1459,7 +1577,7 @@ const wallCache = new Map<string, { at: number; day: WallDay | null }>();
  */
 async function liveWall(
   month: number, day: number, now: number = Date.now(), fresh: boolean = false, hive: boolean = false,
-  found: string[] | null = null,
+  found: string[] | null = null, undoOn: string | null = null,
 ): Promise<{ section: string; day: WallDay } | null> {
   const key = process.env.SUPABASE_ANON_KEY;
   if (!key) return null;
@@ -1492,8 +1610,13 @@ async function liveWall(
   const stories = found === null
     ? undefined
     : found.map((id) => read.stories.find((s) => s.id === id)).filter((s): s is NonNullable<typeof s> => s !== undefined);
+  // The story a buzz just counted for, resolved against this wall. One that
+  // is not on the date is dropped rather than refused, the way a find's is:
+  // the button is a convenience and its absence costs the reader the window,
+  // never the page.
+  const undo = undoOn === null ? null : read.stories.find((s) => s.id === undoOn) ?? null;
   return {
-    section: wallSection(wall, `${monthName(month)} ${day}`, now, { interactive: true, hive, date: { month, day }, found: stories }),
+    section: wallSection(wall, `${monthName(month)} ${day}`, now, { interactive: true, hive, date: { month, day }, found: stories, undo }),
     day: wall,
   };
 }

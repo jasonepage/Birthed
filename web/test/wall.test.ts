@@ -754,3 +754,48 @@ test("a face is drawn only when its file is on disk, however the database feels 
   assert.equal(picturesFor([], people, new Set()).length, 0, "an empty folder draws no face");
   assert.deepEqual(picturesFor([], people, new Set(["Q1.jpg"])).map((p) => p.path), ["/faces/Q1.jpg"]);
 });
+
+test("the Undo button is inside the sentence that says a buzz counted, and a form is never put in a paragraph", () => {
+  const s = story({ id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" });
+  const now = Date.parse("2026-09-09T18:00:00Z");
+  const d = day([s]);
+
+  // Without the story, the sentence carries no way back out of anything.
+  const plain = wallSection(d, "September 9", now, { interactive: true, date: { month: 9, day: 9 } });
+  assert.ok(!plain.includes("/unboost"), "no Undo on a page nobody just tapped on");
+
+  const after = wallSection(d, "September 9", now, { interactive: true, date: { month: 9, day: 9 }, undo: s });
+  assert.ok(after.includes('action="/unboost"'));
+  assert.ok(after.includes(`<input type="hidden" name="s" value="${s.id}">`));
+
+  // The bug this pins, found by rendering the page and looking at it. A form
+  // is not permitted inside a paragraph, so a browser closes the paragraph
+  // before the form: the Undo button ended up a sibling of the hidden
+  // sentence rather than a child of it, which meant it was drawn on every
+  // page, including pages nobody had tapped anything on. The sentence is a
+  // div, and every element that carries a form has to be.
+  const opened = after.slice(after.indexOf('id="wkept"'));
+  const closed = opened.slice(0, opened.indexOf("</div>"));
+  assert.ok(closed.includes("/unboost"), "the button is inside the element that is hidden until a buzz counts");
+  assert.ok(!closed.includes("<p>That counts".replace("<p>", "<p class")), "the sentence itself is still a paragraph");
+  for (const carrier of [after, renderStoryPage(s, d, now, { interactive: true, undo: s })]) {
+    for (const match of carrier.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/g)) {
+      assert.ok(!match[1]!.includes("<form"), `a form inside a paragraph: ${match[0]!.slice(0, 90)}`);
+    }
+  }
+});
+
+test("the receipt draws its buzz control in an element the reader's mark can land on", () => {
+  const s = story({ id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" });
+  const now = Date.parse("2026-09-09T18:00:00Z");
+  const html = renderStoryPage(s, day([s]), now, { interactive: true });
+  // wallMarks writes "#w-<id> .wmine{display:block}", so the control and the
+  // mark have to be inside the element that carries that id. They were in a
+  // paragraph with a form in it, which a browser splits, so the mark could
+  // never appear on a receipt.
+  const opened = html.slice(html.indexOf(`id="w-${s.id}"`));
+  const block = opened.slice(0, opened.indexOf("</div>"));
+  assert.ok(block.includes('class="wbuzz"'), "the control is inside it");
+  assert.ok(block.includes('class="wmine"'), "and so is the mark the rule reveals");
+  assert.ok(wallMarks({ left: 2, allowance: 3, backed: [s.id] }, day([s]), now).includes(`#w-${s.id} .wmine{display:block}`));
+});

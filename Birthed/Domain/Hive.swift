@@ -204,12 +204,69 @@ struct HiveMarks: Equatable {
         trim()
     }
 
+    /// Takes one mark off, for a buzz the database took back inside its
+    /// window. docs/the-wall.md, the last entry in section 16.
+    ///
+    /// Only ever called after the database has said `undone`. A mark removed
+    /// on any other word would tell the reader they had not buzzed something
+    /// they had, and the next tap would be refused by a rule they could not
+    /// see. A date left holding nothing drops out rather than sitting there
+    /// as an empty set, so what is stored between launches stays what it was
+    /// before the buzz.
+    mutating func remove(storyID: String, on date: WallDate) {
+        guard var ids = byDate[date.key] else { return }
+        ids.remove(storyID)
+        if ids.isEmpty { byDate.removeValue(forKey: date.key) } else { byDate[date.key] = ids }
+    }
+
     /// The newest dates only. Keys are "2026-09-09", so sorting them as text
     /// sorts them in time.
     private mutating func trim() {
         guard byDate.count > Self.datesKept else { return }
         let keep = Set(byDate.keys.sorted(by: >).prefix(Self.datesKept))
         byDate = byDate.filter { keep.contains($0.key) }
+    }
+}
+
+// MARK: - Thirty seconds to take a misclick back
+
+/// The window in which a buzz can be taken back, and what a screen may do
+/// with it. docs/the-wall.md, the last entry in section 16.
+///
+/// Pure arithmetic on a clock, so "is the Undo button still up" is a question
+/// with an answer in `swift test` rather than one somebody times with a
+/// stopwatch on a phone. The database decides for real, in
+/// `wall_forget_boost`, and this only decides whether the button is drawn: a
+/// window a client can argue with is not a window, so this is deliberately a
+/// touch tighter than the database's and never looser.
+///
+/// It is for the finger and not for the opinion. A misclick is noticed at
+/// once; second thoughts take longer than half a minute, and a longer window
+/// would let somebody watch what everybody else backed and move to it, which
+/// is the thing the whole mechanic is built to avoid.
+enum HiveUndo {
+    /// Thirty seconds, the same number `wall_undo_seconds` holds.
+    static let seconds: TimeInterval = 30
+
+    /// The last moment the button should be up for a buzz cast at `castAt`.
+    static func endsAt(castAt: Date) -> Date {
+        castAt.addingTimeInterval(seconds)
+    }
+
+    /// Whether a buzz cast at `castAt` is still inside its window at `now`.
+    ///
+    /// A hair short of the database's window on purpose. A button that is
+    /// drawn for the last tenth of a second sends a request that arrives
+    /// after the window has closed and comes back "that one stands", which is
+    /// a correct answer to a question the screen should not have asked.
+    static func open(castAt: Date, now: Date) -> Bool {
+        let gone = now.timeIntervalSince(castAt)
+        return gone >= 0 && gone < seconds - 1
+    }
+
+    /// Whole seconds left, for a screen that counts down. Never below zero.
+    static func secondsLeft(castAt: Date, now: Date) -> Int {
+        max(0, Int((seconds - now.timeIntervalSince(castAt)).rounded(.down)))
     }
 }
 
@@ -560,6 +617,30 @@ enum HiveCopy {
     }
 
     static let notThisOne = "Not this one"
+
+    // MARK: Taking a misclick back, docs/the-wall.md, the last entry in section 16
+
+    /// The button. One word, and the plainest one there is, because a reader
+    /// looking for it is a reader who has just done something they did not
+    /// mean and is not in the mood to read a label.
+    static let undo = "Undo"
+
+    /// Under the button, while it is up. It says how long, so nobody is left
+    /// wondering whether it will still be there in a minute, and it says what
+    /// the window is for, so nobody treats it as a way to shop the board.
+    static let undoWindow = "Thirty seconds, for a tap you did not mean."
+
+    /// After the database has taken it back.
+    static func undone(voice: HiveVoice) -> String {
+        "Taken back. That \(voice.one) is gone and you have it again."
+    }
+
+    /// Past the window, or a story this account never buzzed. One sentence
+    /// for both, because from a screen they are the same answer, which is
+    /// the reasoning the database gives for answering both in one word.
+    static func tooLate(voice: HiveVoice) -> String {
+        "That one stands. A \(voice.one) can be taken back for thirty seconds after it is cast."
+    }
 
     /// After the database has taken it.
     static let counted = "That counts. The hive redraws on the quarter hour, so a bigger tile takes a few"

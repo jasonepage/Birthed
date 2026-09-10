@@ -89,6 +89,14 @@ accepts one, two or three units in a single call, because `wall_cast_boost` and
 the budget trigger were built that way and narrowing them would edit a written
 history for nothing. No client sends more than one.
 
+**A buzz is irreversible after thirty seconds.** Added September 10, 2026,
+and it is the one amendment to the word permanent this section carries. A
+buzz can be removed for thirty seconds after it is cast, by the person who
+cast it, on a date that has not sealed, and the unit goes back to that day's
+budget because the budget counts the rows that exist. It is a window for a
+misclick and it is far too short to be a way of changing your mind. The
+argument, and what it costs, are the last entry in section 16.
+
 ---
 
 ## 5. Getting onto the wall
@@ -157,6 +165,12 @@ support the story already had at that moment. None of those last three can be
 reconstructed afterwards, which is why they are captured from the first version
 even though nothing uses them yet.
 
+Immutably, with one exception added September 10, 2026 and enforced by the
+same trigger: a boost removed inside its thirty second window by the person
+who cast it, which is a misclick and not history. Nothing else can update or
+delete a row in `wall_boosts`, and nothing is written to record that an undo
+happened. Section 4, and the last entry in section 16.
+
 **What is not built:** any accuracy, karma, reputation or influence formula.
 Everyone has equal weight and nothing changes it. No leaderboard. No public
 record page. No score shown to anybody, anywhere.
@@ -203,7 +217,9 @@ the handling of solemn dates is an open question in section 9.
 Pixel art inside tiles. That is a later phase and the wall's Phase One mural is
 the tiles themselves. Comments, replies, following, messaging or any user to
 user contact. A leaderboard. A public profile. Any karma formula. Deleting
-anything.
+anything, with the single exception added September 10, 2026: your own buzz,
+by you, for thirty seconds, on a date that has not sealed. No story, no
+source, no check and no sealed square is ever deleted by anybody.
 
 ---
 
@@ -1334,3 +1350,78 @@ it files as news with no subject, so it is not a person born on the date,
 takes no face, and does not add anybody to `notable_people`. Doing it
 properly means matching a name to a Wikidata identifier and a row in that
 table, which is a schema and product decision for Nathan and Jason.
+
+### Thirty seconds to take a misclick back, later the same day
+
+A buzz is permanent. It stays permanent. What this adds is a window thirty
+seconds wide in which a tap that was never meant can be removed, and the
+window is deliberately far too short to be a way of changing your mind.
+
+**The window is for the finger, not for the opinion.** This is the argument
+`supabase/migrations/20260908090000_forget.sql` already made about the
+remembrance answers, and it holds here for the same reason and one more. A
+misclick is noticed at once: the wrong tile, the row above the one you meant,
+a thumb on a phone. Second thoughts take longer than half a minute. And the
+hazard a longer window would create is the one this whole document is built
+to avoid: the count is on the screen by the time a buzz has landed, so
+somebody who could undo an hour later could watch what everybody else backed
+and move to it. That is the conformity problem coming back in through the
+exit door, and it is worse than voting under a visible count, because the
+change would be caused by the number rather than merely coloured by it.
+Thirty seconds is short enough that nothing on the board has moved: sizes
+settle on the quarter hour, section 13, so a reader who undoes has learned
+nothing in the meantime except what they themselves just did.
+
+**Section 4 said irreversible and now says irreversible after thirty
+seconds.** The sentence is edited rather than quietly worked around, because
+the house rule is that the document wins and is changed first. Section 6 says
+a boost is recorded permanently and immutably, and that still holds with one
+exception written into the same trigger that enforces it: `wall_boosts`
+refuses every update and every delete from everybody, the service role and
+the dashboard included, and permits exactly one delete, the one
+`wall_forget_boost` makes, flagged by a transaction local setting the way
+`authenticated_by` is flagged. A row nobody flagged cannot be removed by any
+caller by any route. The ledger is still a ledger; a row that was never meant
+to be in it is not history.
+
+**A removed buzz leaves nothing behind, and that is the point.** The unit
+goes back to the day's budget, because the budget counts the rows that exist
+and a deleted row is not one, so the refund is the delete rather than a
+second piece of arithmetic that could disagree with it. The story's `support`
+comes down by the same trigger arithmetic that put it up. Nothing is written
+to say a buzz was taken back: an undo record would be a record of a mistake
+attached to a person, and the reason the window is thirty seconds is that
+what happened inside it was not a decision worth keeping.
+
+**A sealed hive takes nothing back.** The function refuses on a date that has
+closed, exactly as `forget` refuses on a sealed edition, even inside the
+thirty seconds. Midnight is the one thing in this document that is final, and
+a square that is permanent from midnight cannot lose a module at ten past.
+The cost is a reader who buzzes in the last half minute of a date and cannot
+undo it, which is a real if rare unfairness and is the smaller of the two.
+
+**One function, both ends.** `wall_forget_boost(story, token)` takes a
+browser token or, with no token, the calling account, so the website and the
+app remove a buzz through one set of rules rather than through two copies of
+them. It answers in one word the way `wall_cast_web_boost` does: `undone`,
+`too_late`, `closed`, `no_story`, `bad_token`. `too_late` covers a buzz older
+than the window and a story this caller never buzzed alike, because from a
+page those are the same answer, which is the reasoning `forget` gives for
+returning false in both cases.
+
+**Where the button is drawn.** On the website, only on the page that follows
+a buzz that counted, beside the sentence that says it counted, and nowhere
+else: a page somebody is merely reading never carries one. On the phone it is
+on the tile that was just tapped and it goes when the window does. Neither
+client checks the clock for permission; both draw the button for thirty
+seconds and the database decides, because a window a client can argue with is
+not a window.
+
+**The app's undo is attested like every other write it makes.** It goes
+through `wall-write` as an `unboost` action, which costs a challenge and an
+assertion before the call, seconds inside a window of thirty. Granting the
+function to `authenticated` and letting the app call it directly would be
+faster and would give away nothing, since the function can only ever reach
+the caller's own row inside the window. It was not done, because one write
+path is worth more than two seconds. If the round trip turns out to eat the
+window on a slow connection, the direct grant is the fix and it is safe.

@@ -78,6 +78,35 @@ final class WallService {
     /// The last refusal, in the reader's terms, for the sheet to show.
     private(set) var lastRefusal: String?
 
+    /// The buzz that can still be taken back, and when it was cast.
+    ///
+    /// One at a time, and only the last one: docs/the-wall.md, the last entry
+    /// in section 16, puts the button on the tile that was just tapped and
+    /// nowhere else. A second buzz on another story replaces it, which is
+    /// right, because the window on the first has all but run out by the time
+    /// a reader has read another headline and decided about it.
+    ///
+    /// Not written to `UserDefaults`. A window this short does not survive
+    /// the app being closed, and a button that came back on a tile a reader
+    /// buzzed yesterday would be a lie the database would then have to tell
+    /// them off for.
+    private(set) var undoable: (storyID: String, castAt: Date)?
+
+    /// What the screen says after an undo, in the reader's terms. Cleared by
+    /// the next buzz or the next undo.
+    private(set) var lastUndo: String?
+
+    /// Whether the Undo button should be up for this story right now.
+    ///
+    /// The phone's own clock rather than the server's, on purpose: this
+    /// measures a span of thirty seconds that began on this device a moment
+    /// ago, and a span is the one thing a device's clock is reliable for. The
+    /// database decides for real and this only decides what is drawn.
+    func canUndo(_ story: WallStory, now: Date = Date()) -> Bool {
+        guard let undoable, undoable.storyID == story.id else { return false }
+        return HiveUndo.open(castAt: undoable.castAt, now: now)
+    }
+
     // MARK: Setting up
 
     private let baseURL: URL
@@ -378,7 +407,51 @@ final class WallService {
         // does not leave a mark on a story nobody backed.
         marks.add(storyID: story.id, on: story.wallDate)
         writeMarks()
+        // The window opens when the database says the buzz landed, not when
+        // the finger went down, so a slow write does not eat it.
+        undoable = (storyID: story.id, castAt: Date())
+        lastUndo = nil
         return (result["support"] as? Int) ?? story.support
+    }
+
+    /// Takes one buzz back, inside its thirty second window.
+    ///
+    /// docs/the-wall.md, the last entry in section 16. The window, the caller
+    /// match and the sealed check all live in `wall_forget_boost`, so there is
+    /// nothing here to get out of step with them, and this refuses early only
+    /// where it already knows the answer.
+    ///
+    /// An app write like any other: it goes through `wall-write`, which is
+    /// what makes it attested, and it consumes the grant that function writes.
+    /// The database answers in one word rather than raising, so a refusal is a
+    /// sentence for the reader rather than an error, and `too_late` is not a
+    /// failure: the buzz simply stands.
+    @discardableResult
+    func undo(story: WallStory) async throws -> String {
+        guard canUndo(story) else {
+            let line = HiveCopy.tooLate(voice: voice)
+            lastUndo = line
+            return line
+        }
+        let payload: [String: Any] = ["action": "unboost", "story_id": story.id]
+        let result = try await write(payload)
+        let said = (result["result"] as? String) ?? ""
+        // The mark comes off only on the word that says the row is gone. Any
+        // other word leaves the buzz where it is, and so leaves the mark.
+        if said == "undone" {
+            marks.remove(storyID: story.id, on: story.wallDate)
+            writeMarks()
+            undoable = nil
+            lastUndo = HiveCopy.undone(voice: voice)
+        } else {
+            // Every other word means it stands, and the window is over either
+            // way: the button comes down rather than inviting a second no.
+            undoable = nil
+            lastUndo = said == "closed"
+                ? HiveCopy.allowance(0, allowance: 0, phase: .closed, voice: voice)
+                : HiveCopy.tooLate(voice: voice)
+        }
+        return lastUndo ?? ""
     }
 
     func isBuzzing(_ story: WallStory) -> Bool {

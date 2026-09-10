@@ -659,6 +659,23 @@ function buzzForm(story: WallStory, voice: Voice, back: TapBack = "day"): string
 }
 
 /**
+ * The one control that takes a buzz back: the same shape as the buzz form,
+ * posting to /unboost, carrying the same three fields plus where to come
+ * back to.
+ *
+ * Drawn only inside the sentence that follows a buzz that counted, and only
+ * when the server knows which story that was, so a page somebody is merely
+ * reading never carries one. docs/the-wall.md, the last entry in section 16:
+ * the window is for a misclick and it is far too short to be a way of
+ * changing your mind. Neither this nor the button's presence is permission;
+ * the database decides and answers in one word.
+ */
+function undoForm(story: WallStory, voice: Voice, back: TapBack = "day"): string {
+  return `<form class="wundo" method="post" action="/unboost">${tapFields(story, back)}`
+    + `<button type="submit" aria-label="${escapeHtml(`Undo that ${voice.one}: ${story.headline}`)}">Undo</button></form>`;
+}
+
+/**
  * What kind of thing a tile is, drawn as a small line mark so the board
  * reads its mix at a glance: something that happened, somebody born, a
  * number one song, or the day's news. Four, not one per table: a fact, an
@@ -885,6 +902,16 @@ export interface WallOptions {
    * unchanged. Nothing is spent by finding.
    */
   found?: WallStory[];
+  /**
+   * The story a buzz just counted for, on the one request that follows it,
+   * so the sentence saying it counted can carry the Undo button. Null on
+   * every other request, and the button is drawn nowhere else.
+   *
+   * It travels in the query string rather than in the fragment, because the
+   * fragment is what scrolls the page to the tile and a fragment never
+   * reaches a server. docs/the-wall.md, the last entry in section 16.
+   */
+  undo?: WallStory | null;
 }
 
 export function wallSection(day: WallDay | null, name: string, now: number = Date.now(), options: WallOptions = {}): string {
@@ -987,10 +1014,22 @@ function countLine(day: WallDay, now: number, voice: Voice, live: boolean = true
  * included, because a tap can be refused on a date that closed after the
  * page was served, and that reader lands on the baked page.
  */
-function afterwords(voice: Voice, name: string): string {
+function afterwords(voice: Voice, name: string, undo: WallStory | null = null, back: TapBack = "day"): string {
   const v = voice;
+  // The Undo button, only on the page that follows a buzz that counted, and
+  // only when the redirect said which story it counted for. The sentence is
+  // the same one either way: what changes is whether there is still a way
+  // back out of it.
+  const takeItBack = undo === null
+    ? ""
+    // A div, not a paragraph. A paragraph cannot contain a form: a browser
+    // closes it before the form, which puts the button outside whatever the
+    // paragraph was doing. That is exactly the bug this line had first.
+    : `<div class="wundoline">${undoForm(undo, v, back)}<span class="wundonote">Thirty seconds, for a tap you did not mean.</span></div>`;
   return `<div class="wsaids">
-<p class="wsaid" id="wkept">That counts. <span class="wleft"></span> The hive redraws on the quarter hour, so a bigger tile takes a few minutes to show; your mark is there now.</p>
+<div class="wsaid" id="wkept"><p>That counts. <span class="wleft"></span> The hive redraws on the quarter hour, so a bigger tile takes a few minutes to show; your mark is there now.</p>${takeItBack}</div>
+<p class="wsaid" id="wundone">Taken back. That ${v.one} is gone and you have it again. <span class="wleft"></span></p>
+<p class="wsaid" id="wtoolate">That one stands. A ${v.one} can be taken back for thirty seconds after it is cast, and only by the browser that cast it. Nothing was changed.</p>
 <p class="wsaid" id="walready">You already ${v.past} that one, on this browser. It did not spend a ${v.one}.</p>
 <p class="wsaid" id="wspent">That is every ${v.one} you have on this date today, so that one did not count. It is still a good story to have picked.</p>
 <p class="wsaid" id="wnotyet">Not yet. A date takes ${v.many} from the day itself, and this one has not arrived.</p>
@@ -1119,7 +1158,7 @@ ${tiles}${empty}
   if (hive) {
     return `<section class="wall whive" aria-labelledby="wallhead">
 <h2 class="section" id="wallhead">${escapeHtml(longDate(day))}</h2>
-${countLine(day, now, voice, live)}${afterwords(voice, name)}
+${countLine(day, now, voice, live)}${afterwords(voice, name, options.undo ?? null, "hive")}
 ${board}
 ${legend}
 </section>`;
@@ -1186,7 +1225,7 @@ ${songs.map((s) => songRow(s, live, voice)).join("\n")}
   return `<section class="wall" aria-labelledby="wallhead">
 <p class="whead"><span class="section" id="wallhead">The hive for ${escapeHtml(longDate(day))}</span> <span class="wstate">${stateLine(day, now)}</span></p>
 ${lede === "" ? "" : `<p class="wlede">${lede}</p>`}
-${live ? askForm(day, name, voice) : ""}${countLine(day, now, voice, live)}${foundBlock(options.found ?? [], day, live, voice)}${afterwords(voice, name)}
+${live ? askForm(day, name, voice) : ""}${countLine(day, now, voice, live)}${foundBlock(options.found ?? [], day, live, voice)}${afterwords(voice, name, options.undo ?? null)}
 ${board}
 <div class="wafter">${onWall.length > 0 ? legend : ""}${full}</div>
 ${under}
@@ -1372,6 +1411,12 @@ export interface ReceiptOptions {
    * reason a baked date page never does.
    */
   interactive?: boolean;
+  /**
+   * The story a buzz just counted for, so the sentence saying it counted can
+   * carry the Undo button. The receipt draws the same sentences the date page
+   * does and gets the button on the same one request.
+   */
+  undo?: WallStory | null;
 }
 
 export function storyBody(story: WallStory, day: WallDay, now: number = Date.now(), options: ReceiptOptions = {}): string {
@@ -1393,8 +1438,8 @@ export function storyBody(story: WallStory, day: WallDay, now: number = Date.now
   // to go back to vote on what they just read. The mark lands on this
   // element by id, the way it lands on a tile.
   const control = live
-    ? `<p class="wfacts wreceiptbuzz" id="w-${story.id}">${buzzForm(story, voice, "receipt")}${mine(voice)}</p>
-${countLine(day, now, voice)}${afterwords(voice, `${monthName(month)} ${d}`)}`
+    ? `<div class="wfacts wreceiptbuzz" id="w-${story.id}">${buzzForm(story, voice, "receipt")}${mine(voice)}</div>
+${countLine(day, now, voice)}${afterwords(voice, `${monthName(month)} ${d}`, options.undo ?? null, "receipt")}`
     : `<p class="wfacts" id="w-${story.id}">${mine(voice)}</p>`;
   return `<p class="wback"><a href="/${slug(month, d)}/">&larr; ${escapeHtml(monthName(month))} ${d}</a> &middot; the hive for ${escapeHtml(longDate(day))}</p>
 <h1 class="wtitle">${escapeHtml(story.headline)}</h1>
@@ -1683,6 +1728,20 @@ export const WALL_STYLE = `
   background: #171227; border: 1px solid #2A2434; color: #E9E1DB; font-size: 14px; line-height: 1.5;
 }
 .wsaid:target { display: block; }
+/* Taking a misclick back. A quiet outline button rather than a second amber
+   one: the buzz is the thing this page wants you to press, and the undo is
+   the thing that should be findable and never inviting. It sits on the
+   sentence that says a buzz counted, and nowhere else. */
+.wsaid > p { margin: 0; }
+.wundoline { margin: 10px 0 0; }
+.wundo { display: inline; margin: 0; }
+.wundo button {
+  margin: 0; padding: 2px 11px; border: 1px solid #55506A; border-radius: 999px; cursor: pointer;
+  background: transparent; color: #E9E1DB; font: inherit; font-weight: 700; line-height: 1.5;
+}
+.wundo button:hover { border-color: #8F88A6; background: rgba(255, 255, 255, .06); }
+.wundo button:focus-visible { outline: 2px solid #E7A83A; outline-offset: 2px; }
+.wundonote { margin-left: 7px; color: #A49BAE; font-size: 13px; }
 .wlist li { --wbtn: #E7A83A; --wbtn-ink: #2A1A08; --wmark: #E7A83A; --wink: #E7A83A; }
 .wlist .wbuzz { margin-left: 6px; }
 .wlist .wbuzz button { font-size: 12px; padding: 2px 9px; }

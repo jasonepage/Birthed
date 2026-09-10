@@ -265,6 +265,11 @@ private struct HiveField: View {
     @State private var working = false
     @State private var spent = false
     @State private var refusal: String?
+    /// A second hand, running only while a buzz can still be taken back, so
+    /// the Undo button on the confirmation comes down on its own. The same
+    /// clock the board keeps, and for the same reason: SwiftUI redraws when
+    /// what it reads changes, and it cannot read the time.
+    @State private var tick = Date()
     /// Whether the keyboard is up for this field. The chips and the hint
     /// are drawn only then.
     @FocusState private var typing: Bool
@@ -293,6 +298,9 @@ private struct HiveField: View {
                     .foregroundStyle(palette.type.opacity(0.45))
                 chips
             }
+        }
+        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { now in
+            if wall.undoable != nil { tick = now }
         }
         .onChange(of: query) { _, _ in
             // The answer on screen was for the words that were there. Once
@@ -720,6 +728,30 @@ private struct HiveField: View {
                 Text(HiveCopy.counted)
                     .font(.footnote)
                     .foregroundStyle(palette.type.opacity(0.6))
+                // The same window the tile gets, on the surface a buzz from
+                // the feed or the typed field is actually cast from. This is
+                // the app's "That counts", so it is where the way back out
+                // belongs. docs/the-wall.md, the last entry in section 16.
+                if wall.canUndo(story, now: tick) {
+                    Button(action: { Task { await takeBack(story) } }) {
+                        Text(HiveCopy.undo)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(HivePalette.amber)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 7)
+                            .overlay(Capsule().strokeBorder(HivePalette.amber.opacity(0.6), lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(working)
+                    .accessibilityHint(HiveCopy.undoWindow)
+                    Text(HiveCopy.undoWindow)
+                        .font(.caption2)
+                        .foregroundStyle(palette.type.opacity(0.5))
+                } else if let line = wall.lastUndo {
+                    Text(line)
+                        .font(.footnote)
+                        .foregroundStyle(palette.type.opacity(0.6))
+                }
             }
 
             if let refusal {
@@ -748,6 +780,22 @@ private struct HiveField: View {
         WallBudget.dayAfter(day.wallDate).flatMap(\.calendarDate)?.displayName() ?? ""
     }
 
+    /// Takes the buzz back, inside its thirty second window. The database
+    /// decides; every word it can answer with is a sentence the confirmation
+    /// already has room for, and the button comes down either way.
+    private func takeBack(_ story: WallStory) async {
+        guard !working else { return }
+        working = true
+        defer { working = false }
+        do {
+            try await wall.undo(story: story)
+            tick = Date()
+            await wall.load(date: date)
+        } catch {
+            refusal = wall.lastRefusal ?? error.localizedDescription
+        }
+    }
+
     private func cast(_ story: WallStory) async {
         guard !working else { return }
         working = true
@@ -756,6 +804,7 @@ private struct HiveField: View {
         do {
             try await wall.buzz(story: story)
             spent = true
+            tick = Date()
             await wall.load(date: date)
         } catch {
             // The service holds the sentence in the reader's terms, and the
@@ -782,6 +831,16 @@ private struct HiveBoard: View {
 
     @Environment(WallService.self) private var wall
 
+    /// A second hand, running only while a buzz can still be taken back.
+    ///
+    /// SwiftUI redraws when something it reads changes, and the thing that
+    /// changes here is the time, which it cannot read. So the window needs a
+    /// clock or the Undo button would sit on the tile until something else
+    /// happened to redraw the board, which on a quiet screen is never. The
+    /// timer runs only while there is a window open, so an idle hive costs
+    /// nothing.
+    @State private var tick = Date()
+
     var body: some View {
         let tiles = WallBoard.tiles(day.stories)
         let view = WallBoard.viewport(forStories: day.stories)
@@ -801,9 +860,16 @@ private struct HiveBoard: View {
                                  live: phase == .live,
                                  buzzed: wall.hasBuzzed(story),
                                  working: wall.isBuzzing(story),
+                                 // The window on the tile that was just
+                                 // tapped, and on no other tile. It is
+                                 // recomputed on the tick below, which is
+                                 // what takes the button down when the
+                                 // thirty seconds are up.
+                                 undoable: wall.canUndo(story, now: tick),
                                  ageLine: HiveFeed.ageLine(for: story, lines: ageLines),
                                  onOpen: { onOpen(story) },
-                                 onBuzz: { Task { await cast(story) } })
+                                 onBuzz: { Task { await cast(story) } },
+                                 onUndo: { Task { await takeBack(story) } })
                             .frame(width: frame.width, height: frame.height)
                             .offset(x: frame.x, y: frame.y)
                     }
@@ -821,15 +887,34 @@ private struct HiveBoard: View {
         .aspectRatio(1, contentMode: .fit)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("The hive, \(tiles.count) stories")
+        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { now in
+            // Only while a window is open. Assigning the same value would
+            // redraw the board every second for nothing.
+            if wall.undoable != nil { tick = now }
+        }
     }
 
     private func cast(_ story: WallStory) async {
         do {
             try await wall.buzz(story: story)
+            tick = Date()
             await wall.load(date: date)
         } catch {
             // A tile is too small to explain anything, and the story is one
             // tap from the page that can. The service is holding the sentence.
+            onOpen(story)
+        }
+    }
+
+    /// Takes the buzz back. A refusal is not worth a sheet: the word from the
+    /// database means the buzz stands, the button comes down either way, and
+    /// the reader can open the story to read what happened to it.
+    private func takeBack(_ story: WallStory) async {
+        do {
+            try await wall.undo(story: story)
+            tick = Date()
+            await wall.load(date: date)
+        } catch {
             onOpen(story)
         }
     }
@@ -861,9 +946,13 @@ private struct HiveTile: View {
     let live: Bool
     let buzzed: Bool
     let working: Bool
+    /// This buzz is still inside its thirty second window, so the footer
+    /// offers to take it back instead of showing the mark.
+    let undoable: Bool
     let ageLine: String?
     let onOpen: () -> Void
     let onBuzz: () -> Void
+    let onUndo: () -> Void
 
     private var type: Color { HivePalette.type(story.tier) }
     private var count: String? { HiveCopy.count(story.support, voice: voice) }
@@ -993,7 +1082,29 @@ private struct HiveTile: View {
 
     @ViewBuilder
     private var control: some View {
-        if buzzed {
+        if undoable {
+            // For thirty seconds after a buzz lands, the tile offers the way
+            // back out instead of the mark. docs/the-wall.md, the last entry
+            // in section 16: it is a window for a misclick, so it is on the
+            // tile that was just tapped and it goes when the window does. An
+            // outline rather than a filled capsule, because the buzz is the
+            // thing this board wants pressed and the undo is the thing that
+            // should be findable and never inviting.
+            Button(action: onUndo) {
+                Text(HiveCopy.undo)
+                    .font(.system(size: 8, weight: .heavy))
+                    .lineLimit(1)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 1)
+                    .overlay(Capsule().strokeBorder(HivePalette.markType(story.tier), lineWidth: 1))
+                    .foregroundStyle(HivePalette.markType(story.tier))
+            }
+            .buttonStyle(.plain)
+            .disabled(working)
+            .opacity(working ? 0.5 : 1)
+            .accessibilityLabel("\(HiveCopy.undo) that \(voice.one): \(story.headline)")
+            .accessibilityHint(HiveCopy.undoWindow)
+        } else if buzzed {
             Text(voice.mark)
                 .font(.system(size: 8, weight: .heavy))
                 .lineLimit(1)
@@ -1038,6 +1149,7 @@ private struct HiveTile: View {
         if let count { line += " \(count)." }
         if let ageLine { line += " \(ageLine)." }
         if buzzed { line += " \(voice.mark)." }
+        if undoable { line += " \(HiveCopy.undoWindow)" }
         if story.status == .shownFalse { line += " Later shown false." }
         return line
     }

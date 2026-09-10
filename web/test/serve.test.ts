@@ -526,7 +526,10 @@ test("a tap posts to the database, comes back to the date with its word, sets th
     redirect: "manual",
   });
   assert.equal(posted.status, 303);
-  assert.equal(posted.headers.get("location"), `/${openSlug}/?tapped=kept#w-11111111-1111-1111-1111-111111111111`);
+  // The story travels in the query string as well as in the fragment, because
+  // a fragment never reaches a server and the Undo button has to know what it
+  // is undoing.
+  assert.equal(posted.headers.get("location"), `/${openSlug}/?tapped=kept&on=11111111-1111-1111-1111-111111111111#w-11111111-1111-1111-1111-111111111111`);
   const cookie = posted.headers.get("set-cookie") ?? "";
   assert.match(cookie, /^bt=[A-Za-z0-9_-]{16,}; Path=\/; Max-Age=31536000; HttpOnly; SameSite=Lax; Secure$/);
   const cast = calls.find((c) => c.url.endsWith("/rpc/wall_cast_web_boost"))!;
@@ -546,9 +549,27 @@ test("a tap posts to the database, comes back to the date with its word, sets th
   assert.ok(page.includes('id="wkept"'), "the sentence for the word is on the page");
   assert.ok(page.includes('.wleft::after{content:"Two buzzes left today."}'), "the count is this browser's own");
   assert.ok(page.includes("#w-11111111-1111-1111-1111-111111111111 .wmine{display:block}"), "the tapped story carries the reader's mark");
+  assert.ok(!page.includes('action="/unboost"'), "no Undo without the story the query string names");
   assert.equal(calls.filter((c) => c.url.includes("wall_days")).length, 1, "the read went past the cache");
   const asked = calls.find((c) => c.url.endsWith("/rpc/wall_web_standing"))!;
   assert.equal(JSON.parse(asked.body).voter_token_in, sent.voter_token_in);
+
+  // The page the tap actually lands on: the same request carrying the story,
+  // which is the one request that draws the Undo button. After the cache
+  // assertion above, because each of these is a read of its own.
+  const withUndo = await realFetch(`${base}/${openSlug}/?tapped=kept&on=11111111-1111-1111-1111-111111111111`, { headers: { Cookie: token } });
+  const undoPage = await withUndo.text();
+  assert.ok(undoPage.includes('<form class="wundo" method="post" action="/unboost">'), "the Undo button is drawn");
+  assert.ok(undoPage.includes('<input type="hidden" name="s" value="11111111-1111-1111-1111-111111111111">'), "it names the story it takes back");
+  assert.ok(undoPage.includes("Thirty seconds, for a tap you did not mean."));
+  assert.ok(undoPage.includes('id="wundone"') && undoPage.includes('id="wtoolate"'), "both undo sentences are on the page");
+
+  // A page nobody just tapped on never carries one, however the query is
+  // edited: the word has to be kept and the story has to be on the date.
+  const readingOnly = await realFetch(`${base}/${openSlug}/?tapped=already&on=11111111-1111-1111-1111-111111111111`, { headers: { Cookie: token } });
+  assert.ok(!(await readingOnly.text()).includes('action="/unboost"'), "a word that is not kept draws no Undo");
+  const notOnTheDate = await realFetch(`${base}/${openSlug}/?tapped=kept&on=99999999-9999-9999-9999-999999999999`, { headers: { Cookie: token } });
+  assert.ok(!(await notOnTheDate.text()).includes('action="/unboost"'), "a story this date does not have draws no Undo");
 
   // A second tap on the same story spends nothing and says so.
   answer = { result: "already", support: 13, allowance: 3, left: 2, backed: ["11111111-1111-1111-1111-111111111111"] };
@@ -659,7 +680,7 @@ test("a receipt on an open date is drawn live with the buzz control, and a buzz 
     redirect: "manual",
   });
   assert.equal(posted.status, 303);
-  assert.equal(posted.headers.get("location"), `${receiptPath}?tapped=kept#w-11111111-1111-1111-1111-111111111111`);
+  assert.equal(posted.headers.get("location"), `${receiptPath}?tapped=kept&on=11111111-1111-1111-1111-111111111111#w-11111111-1111-1111-1111-111111111111`);
   const token = (posted.headers.get("set-cookie") ?? "").split(";")[0]!;
   const landed = await realFetch(`${base}${receiptPath}?tapped=kept`, { headers: { Cookie: token } });
   assert.equal(landed.headers.get("cache-control"), "no-store");
@@ -673,6 +694,123 @@ test("a receipt on an open date is drawn live with the buzz control, and a buzz 
   assert.equal(receiptFor("/september-9/wall/not-a-story/"), null);
   assert.equal(receiptFor("/nowhere-9/wall/11111111-1111-1111-1111-111111111111/"), null);
   assert.deepEqual(receiptFor("/september-9/wall/11111111-1111-1111-1111-111111111111/index.html"), { month: 9, day: 9, id: "11111111-1111-1111-1111-111111111111" });
+});
+
+test("a buzz can be taken back for thirty seconds, and only by the browser that cast it", async (t) => {
+  const root = resolve("test-site-undo");
+  await rm(root, { recursive: true, force: true });
+  const open = openWallDates();
+  const [openKey, openDate] = [...open.entries()][1]!;
+  const [openMonth, openDay] = openKey.split("-").map(Number) as [number, number];
+  const openSlug = `${["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"][openMonth - 1]}-${openDay}`;
+  await mkdir(join(root, openSlug), { recursive: true });
+  await writeFile(join(root, openSlug, "index.html"), BAKED, "utf8");
+
+  const realFetch = globalThis.fetch;
+  const previousKey = process.env.SUPABASE_ANON_KEY;
+  process.env.SUPABASE_ANON_KEY = "test-key";
+  const calls: Array<{ url: string; body: string }> = [];
+  let answer: Record<string, unknown> = { result: "undone", support: 12 };
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    if (!url.includes("supabase")) return realFetch(input, init);
+    calls.push({ url, body: String(init?.body ?? "") });
+    if (url.endsWith("/rpc/wall_forget_boost")) {
+      return new Response(JSON.stringify(answer), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (url.endsWith("/rpc/wall_web_standing")) {
+      return new Response(JSON.stringify({ allowance: 3, left: 3, backed: [] }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    const rows = wallRows(openDate);
+    return new Response(JSON.stringify(url.includes("wall_days") ? rows.day : rows.stories), {
+      status: 200, headers: { "Content-Type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  const server = start({ root, port: 0 });
+  await new Promise((done) => server.once("listening", done));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const base = `http://127.0.0.1:${address.port}`;
+  const token = "bt=aaaaaaaaaaaaaaaaaaaaaaaa";
+
+  t.after(async () => {
+    server.close();
+    globalThis.fetch = realFetch;
+    if (previousKey === undefined) delete process.env.SUPABASE_ANON_KEY; else process.env.SUPABASE_ANON_KEY = previousKey;
+    forgetWalls();
+    await rm(root, { recursive: true, force: true });
+  });
+
+  // The word comes back from the database and lands on its own sentence.
+  forgetWalls();
+  const undone = await realFetch(`${base}/unboost`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Cookie: token },
+    body: `s=11111111-1111-1111-1111-111111111111&m=${openMonth}&d=${openDay}`,
+    redirect: "manual",
+  });
+  assert.equal(undone.status, 303);
+  assert.equal(undone.headers.get("location"), `/${openSlug}/?tapped=undone#wundone`);
+  assert.equal(undone.headers.get("cache-control"), "no-store");
+  const sent = JSON.parse(calls.find((c) => c.url.endsWith("/rpc/wall_forget_boost"))!.body) as { story_id_in: string; voter_token_in: string };
+  assert.equal(sent.story_id_in, "11111111-1111-1111-1111-111111111111");
+  assert.equal(sent.voter_token_in, "aaaaaaaaaaaaaaaaaaaaaaaa", "the token that cast it is the token that takes it back");
+
+  // Past the window, and from the full screen hive, which it returns to.
+  answer = { result: "too_late", support: 13 };
+  const late = await realFetch(`${base}/unboost`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Cookie: token },
+    body: `s=11111111-1111-1111-1111-111111111111&m=${openMonth}&d=${openDay}&v=hive`,
+    redirect: "manual",
+  });
+  assert.equal(late.headers.get("location"), `/${openSlug}/hive/?tapped=too_late#wtoolate`);
+
+  // A sealed date, and a word this server does not know, each get their own
+  // sentence rather than borrowing another refusal's.
+  answer = { result: "closed", support: 13 };
+  const sealed = await realFetch(`${base}/unboost`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Cookie: token },
+    body: `s=11111111-1111-1111-1111-111111111111&m=${openMonth}&d=${openDay}`,
+    redirect: "manual",
+  });
+  assert.equal(sealed.headers.get("location"), `/${openSlug}/?tapped=closed#wclosed`);
+  answer = { result: "something_new" };
+  const odd = await realFetch(`${base}/unboost`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Cookie: token },
+    body: `s=11111111-1111-1111-1111-111111111111&m=${openMonth}&d=${openDay}`,
+    redirect: "manual",
+  });
+  assert.equal(odd.headers.get("location"), `/${openSlug}/?tapped=failed#wfailed`);
+
+  // A browser with no token has cast nothing, so there is nothing to take
+  // back and no cookie is minted to pretend otherwise.
+  calls.length = 0;
+  const stranger = await realFetch(`${base}/unboost`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: `s=11111111-1111-1111-1111-111111111111&m=${openMonth}&d=${openDay}`,
+    redirect: "manual",
+  });
+  assert.equal(stranger.status, 400);
+  assert.equal(stranger.headers.get("set-cookie"), null);
+  assert.deepEqual(calls, [], "a caller with no token never reaches the database");
+
+  // A malformed post is a 400 before anything is called, and browsing to it
+  // writes nothing.
+  const bad = await realFetch(`${base}/unboost`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Cookie: token },
+    body: "s=nope&m=9&d=9",
+    redirect: "manual",
+  });
+  assert.equal(bad.status, 400);
+  assert.deepEqual(calls, []);
+  assert.equal((await realFetch(`${base}/unboost`)).status, 404);
+  assert.equal((await realFetch(`${base}/unboost`, { method: "PUT" })).status, 405);
 });
 
 test("a flood of taps from one address is refused before the database is touched", async (t) => {

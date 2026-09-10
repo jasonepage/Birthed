@@ -19,8 +19,9 @@
 //
 // payload is the request as a JSON string, exactly the bytes the device
 // hashed after the challenge, so the signature covers what is being asked
-// as well as who is asking. It carries { action: "submit", url, wall_date }
-// or { action: "boost", story_id, units, request_id }.
+// as well as who is asking. It carries { action: "submit", url, wall_date },
+// { action: "boost", story_id, units, request_id }, or
+// { action: "unboost", story_id } to take a buzz back inside its window.
 //
 // Reading needs none of this and never comes here.
 
@@ -201,8 +202,16 @@ Deno.serve(async (request: Request) => {
   } else if (action.action === "boost") {
     name = "wall_cast_boost";
     args = { story_id_in: action.story_id, units_in: action.units, request_id_in: action.request_id };
+  } else if (action.action === "unboost") {
+    // Taking a buzz back inside its thirty second window. docs/the-wall.md,
+    // the last entry in section 16. It goes through here rather than being
+    // called directly so the app has one write path, and the token is null
+    // because the caller is the account: wall_forget_boost refuses a token
+    // from an authenticated caller rather than obeying it.
+    name = "wall_forget_boost";
+    args = { story_id_in: action.story_id, voter_token_in: null };
   } else {
-    return reply(400, { error: "action is submit or boost" });
+    return reply(400, { error: "action is submit, boost or unboost" });
   }
 
   const response = await fetch(`${url}/rest/v1/rpc/${name}`, {

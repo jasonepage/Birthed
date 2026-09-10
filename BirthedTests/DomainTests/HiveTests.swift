@@ -114,6 +114,9 @@ final class HiveTests: XCTestCase {
             HiveCopy.nothingWaiting(dateName: dateName),
             HiveCopy.lede(dateName: dateName, voice: .bee),
             HiveCopy.lede(dateName: dateName, voice: .plain),
+            HiveCopy.undo, HiveCopy.undoWindow,
+            HiveCopy.undone(voice: .bee), HiveCopy.undone(voice: .plain),
+            HiveCopy.tooLate(voice: .bee), HiveCopy.tooLate(voice: .plain),
         ]
         for phase in [WallDay.Phase.notYetOpen, .submissionsOnly, .live, .closed] {
             for voice in [HiveVoice.bee, .plain] {
@@ -284,6 +287,76 @@ final class HiveTests: XCTestCase {
         XCTAssertFalse(marks.has(storyID: "a", on: WallDate(year: 1900, month: 1, day: 1)!), "the oldest went")
         XCTAssertTrue(marks.has(storyID: "a", on: WallDate(year: years.upperBound - 1, month: 1, day: 1)!),
                       "the newest stayed")
+    }
+
+    func testTakingAMarkOffLeavesTheStoreExactlyAsItWasBeforeTheBuzz() {
+        let ninth = WallDate(year: 2026, month: 9, day: 9)!
+        let tenth = WallDate(year: 2026, month: 9, day: 10)!
+        var marks = HiveMarks()
+        let empty = marks.stored
+
+        marks.add(storyID: "a", on: ninth)
+        marks.add(storyID: "b", on: ninth)
+        marks.add(storyID: "c", on: tenth)
+
+        // One mark off leaves its neighbours and every other date alone.
+        marks.remove(storyID: "a", on: ninth)
+        XCTAssertFalse(marks.has(storyID: "a", on: ninth))
+        XCTAssertTrue(marks.has(storyID: "b", on: ninth))
+        XCTAssertTrue(marks.has(storyID: "c", on: tenth))
+
+        // A date left holding nothing goes, so undoing the only buzz of a day
+        // leaves the store byte for byte what it was before that buzz.
+        marks.remove(storyID: "c", on: tenth)
+        XCTAssertNil(marks.stored["2026-09-10"])
+        marks.remove(storyID: "b", on: ninth)
+        XCTAssertEqual(marks.stored as NSDictionary, empty as NSDictionary)
+        XCTAssertTrue(marks.isEmpty)
+
+        // Removing what is not there, on a date that is not there, changes
+        // nothing and does not create one.
+        marks.remove(storyID: "nobody", on: ninth)
+        XCTAssertTrue(marks.isEmpty)
+    }
+
+    // MARK: Thirty seconds to take a misclick back
+
+    func testTheUndoWindowIsOpenForThirtySecondsAndShutsJustBeforeTheDatabases() {
+        let cast = Date(timeIntervalSince1970: 1_000_000)
+
+        XCTAssertTrue(HiveUndo.open(castAt: cast, now: cast), "the moment it lands")
+        XCTAssertTrue(HiveUndo.open(castAt: cast, now: cast.addingTimeInterval(28.9)))
+
+        // A hair short of the database's thirty on purpose: a button drawn in
+        // the last second sends a request that arrives after the window and
+        // comes back "that one stands", which is a right answer to a question
+        // the screen should not have asked.
+        XCTAssertFalse(HiveUndo.open(castAt: cast, now: cast.addingTimeInterval(29)))
+        XCTAssertFalse(HiveUndo.open(castAt: cast, now: cast.addingTimeInterval(30)))
+        XCTAssertFalse(HiveUndo.open(castAt: cast, now: cast.addingTimeInterval(600)))
+        XCTAssertLessThan(HiveUndo.seconds - 1, HiveUndo.seconds,
+                          "the drawn window is never wider than the database's")
+
+        // A clock that went backwards is not an open window. A phone whose
+        // time is corrected between the buzz and the next redraw would
+        // otherwise draw the button forever.
+        XCTAssertFalse(HiveUndo.open(castAt: cast, now: cast.addingTimeInterval(-1)))
+
+        XCTAssertEqual(HiveUndo.endsAt(castAt: cast), cast.addingTimeInterval(30))
+        XCTAssertEqual(HiveUndo.secondsLeft(castAt: cast, now: cast), 30)
+        XCTAssertEqual(HiveUndo.secondsLeft(castAt: cast, now: cast.addingTimeInterval(10.4)), 19)
+        XCTAssertEqual(HiveUndo.secondsLeft(castAt: cast, now: cast.addingTimeInterval(90)), 0,
+                       "never below zero")
+    }
+
+    func testTheUndoSentencesTakeTheDatesOwnVoice() {
+        XCTAssertEqual(HiveCopy.undone(voice: .bee), "Taken back. That buzz is gone and you have it again.")
+        XCTAssertEqual(HiveCopy.undone(voice: .plain), "Taken back. That tap is gone and you have it again.")
+        XCTAssertTrue(HiveCopy.tooLate(voice: .bee).contains("thirty seconds"))
+        XCTAssertTrue(HiveCopy.tooLate(voice: .plain).contains("tap"))
+        XCTAssertFalse(HiveCopy.tooLate(voice: .plain).contains("buzz"),
+                       "a solemn date does not make the pun, here either")
+        XCTAssertEqual(HiveCopy.undo, "Undo")
     }
 
     // MARK: The order of the feed
