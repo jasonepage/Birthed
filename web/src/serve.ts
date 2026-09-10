@@ -1029,8 +1029,15 @@ async function handle(
       : tap.back === "receipt"
         ? `/${slug(tap.month, tap.day)}/wall/${tap.storyId}/`
         : `/${slug(tap.month, tap.day)}/`;
+    // A tap that counted lands on the story it counted for, so the tile
+    // reads as changed through :target and the page scrolls to it. The
+    // sentence for it is revealed by a :has rule in the stylesheet rather
+    // than by the fragment, which can only name one element. Every other
+    // word lands on its sentence as before, because there is nothing on the
+    // board to show for it.
+    const fragment = said === "kept" ? `w-${tap.storyId}` : TAP_FRAGMENT[said];
     response.writeHead(303, {
-      Location: `${where}?tapped=${said}#${TAP_FRAGMENT[said]}`,
+      Location: `${where}?tapped=${said}#${fragment}`,
       "Cache-Control": "no-store",
       "Set-Cookie": `${TOKEN_COOKIE}=${token}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax; Secure`,
       ...SECURITY,

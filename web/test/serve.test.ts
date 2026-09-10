@@ -520,7 +520,7 @@ test("a tap posts to the database, comes back to the date with its word, sets th
     redirect: "manual",
   });
   assert.equal(posted.status, 303);
-  assert.equal(posted.headers.get("location"), `/${openSlug}/?tapped=kept#wkept`);
+  assert.equal(posted.headers.get("location"), `/${openSlug}/?tapped=kept#w-11111111-1111-1111-1111-111111111111`);
   const cookie = posted.headers.get("set-cookie") ?? "";
   assert.match(cookie, /^bt=[A-Za-z0-9_-]{16,}; Path=\/; Max-Age=31536000; HttpOnly; SameSite=Lax; Secure$/);
   const cast = calls.find((c) => c.url.endsWith("/rpc/wall_cast_web_boost"))!;
@@ -653,7 +653,7 @@ test("a receipt on an open date is drawn live with the buzz control, and a buzz 
     redirect: "manual",
   });
   assert.equal(posted.status, 303);
-  assert.equal(posted.headers.get("location"), `${receiptPath}?tapped=kept#wkept`);
+  assert.equal(posted.headers.get("location"), `${receiptPath}?tapped=kept#w-11111111-1111-1111-1111-111111111111`);
   const token = (posted.headers.get("set-cookie") ?? "").split(";")[0]!;
   const landed = await realFetch(`${base}${receiptPath}?tapped=kept`, { headers: { Cookie: token } });
   assert.equal(landed.headers.get("cache-control"), "no-store");

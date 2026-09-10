@@ -661,7 +661,7 @@ export function viewportFor(rects: Array<{ mx: number; my: number; w: number; h:
   return { ox, oy, side };
 }
 
-function tile(story: WallStory, live: boolean, voice: Voice, view: Viewport, hive: boolean): string {
+function tile(story: WallStory, live: boolean, voice: Voice, view: Viewport, hive: boolean, index: number = 0): string {
   const rect = story.rect!;
   const size = tileClass(rect);
   const count = units(story.support, voice);
@@ -671,7 +671,9 @@ function tile(story: WallStory, live: boolean, voice: Voice, view: Viewport, hiv
   // reads. Three modules hold three lines on a phone and four on a desktop;
   // taller tiles hold more.
   const lines = rect.h <= 3 ? 3 : rect.h === 4 ? 5 : rect.h === 5 ? 7 : rect.h === 6 ? 9 : 11;
-  const style = `grid-column:${rect.mx - view.ox + 1} / span ${rect.w};grid-row:${rect.my - view.oy + 1} / span ${rect.h};--lines:${lines}`;
+  // --i is the tile's place in the deal, for the stagger when the board
+  // rises in. The same variable the covers and the feed rise on.
+  const style = `grid-column:${rect.mx - view.ox + 1} / span ${rect.w};grid-row:${rect.my - view.oy + 1} / span ${rect.h};--lines:${lines};--i:${index}`;
   const stamp = story.status === "false" ? `<span class="wstamp">Shown false</span>` : "";
   const classes = `wtile ${size} w-${story.tier}${rect.h <= 3 ? " wh3" : ""}${story.status === "false" ? " wfalse" : ""}`;
   const receipt = storyPath(story);
@@ -996,7 +998,7 @@ ${HISTORY_START}${history}${HISTORY_END}
     .sort((a, b) => b.support - a.support || (songParts(b.headline)?.year ?? "").localeCompare(songParts(a.headline)?.year ?? ""));
   const waiting = takeTurns(inPool.filter((s) => s.subjectKind !== "song"));
   const view = viewportFor(onWall.map((s) => s.rect!));
-  const tiles = onWall.map((s) => tile(s, live, voice, view, hive)).join("\n");
+  const tiles = onWall.map((s, index) => tile(s, live, voice, view, hive, index)).join("\n");
   const notYet = now < Date.parse(day.liveAt);
   const closed = !takingBoosts(day, now) && !notYet;
   const { month, day: d } = parts(day.wallDate);
@@ -1384,6 +1386,44 @@ export const WALL_STYLE = `
 .wtile.w-reported { background: #E7A83A; }
 .wtile.w-seen_direct { background: #B05A0C; color: #FFF3DC; --wink: #FFF3DC; --wbtn: #FFE9B0; --wbtn-ink: #2A1A08; --wmark: #FFE9B0; }
 .wtile:hover { outline: 2px solid var(--wink); outline-offset: -2px; }
+/* Juice, September 10, 2026, in style and nowhere else because the site
+   sends default-src 'none'. Three things: the tiles rise in when the board
+   loads, the way the covers do; a tile lifts under the pointer; and the
+   tile a reader just buzzed reads as changed. The last one is :target. A
+   tap that counts comes back to the page with the story's own id in the
+   fragment, so the browser scrolls to the tile and lights it, and the
+   sentence above the board is shown by :has rather than by the fragment,
+   which can only name one element. Every ring here is a box shadow rather
+   than an outline, because the reader's own mark already owns the outline. */
+.wtile { transition: transform 160ms ease, box-shadow 160ms ease; }
+.wtile:hover { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(0, 0, 0, .5); z-index: 2; }
+/* The section is a column so the sentence for a tap can move: after a tap
+   that counted the browser lands on the tile, so the sentence and the count
+   go under the board where the reader is looking, and the tile lands a
+   third of the way down the window with room for them beneath it. */
+.wall:not(.whive) { display: flex; flex-direction: column; }
+.wall:not(.whive) > * { order: 0; }
+.wall:not(.whive) > .wunder, .wall:not(.whive) > .wfull, .wall:not(.whive) > .wlegend { order: 2; }
+.day:has(.wtile:target) .wall > .wsaids { order: 1; margin: 12px 0 0; }
+.wtile:target, .wlist li:target, .wsongs li:target {
+  z-index: 3; scroll-margin-top: 34vh;
+  box-shadow: 0 0 0 3px #FFD98A, 0 0 28px rgba(255, 217, 138, .55);
+}
+.wtile:target { outline: 3px solid #FFD98A !important; outline-offset: -3px; }
+.wlist li:target, .wsongs li:target { position: relative; }
+.day:has(.wtile:target, .wlist li:target, .wsongs li:target, .wreceiptbuzz:target) #wkept { display: block; }
+@keyframes wpop {
+  0% { transform: scale(.92); box-shadow: 0 0 0 0 rgba(255, 217, 138, .95), 0 0 0 rgba(255, 217, 138, 0); }
+  55% { transform: scale(1.04); }
+  100% { transform: none; box-shadow: 0 0 0 3px #FFD98A, 0 0 28px rgba(255, 217, 138, .55); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .wboard .wtile { animation: rise 460ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards; animation-delay: calc(var(--i, 0) * 45ms); }
+  .wboard .wtile:target { animation: rise 460ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards, wpop 720ms cubic-bezier(0.22, 0.61, 0.36, 1) 480ms both; }
+  .wlist li:target, .wsongs li:target { animation: wpop 720ms cubic-bezier(0.22, 0.61, 0.36, 1) 200ms both; }
+  .wtile:hover { transition: transform 160ms ease, box-shadow 160ms ease; }
+}
+@media (prefers-reduced-motion: reduce) { .wtile { transition: none; } .wtile:hover { transform: none; } }
 /* A picture, when the page's picture rules name one for this tile's subject:
    the cover or the face fills the tile and a scrim darkens the bottom so the
    headline reads over it. A tile no rule names has --pic unset and draws as
