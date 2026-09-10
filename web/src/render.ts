@@ -271,9 +271,6 @@ const STYLE = `
 .rest > summary::before { content: "+"; display: inline-block; width: 22px; color: #A49BAE; font-weight: 700; }
 .rest[open] > summary::before { content: "\\2212"; }
 .rest > summary:hover { color: #FFD98A; }
-/* On a phone the bar has room for the arrows, the dice and About; the index
-   is one tap away in the footer. */
-@media (max-width: 520px) { .daybar a[href="/calendar/"] { display: none; } }
 .wlist li.hist { display: flex; gap: 12px; align-items: baseline; }
 .wlist .fyr { flex: none; width: 46px; font-family: Georgia, serif; font-size: 17px; color: #E7A83A; font-variant-numeric: tabular-nums; }
 .wlist .fbody { min-width: 0; flex: 1; }
@@ -387,21 +384,27 @@ const STYLE = `
 }
 .afterword:target { display: block; }
 
-.barend { display: flex; align-items: center; gap: 14px; }
-.dice {
+.barend { display: flex; align-items: center; gap: 8px; }
+/* Three of the same thing. One height, one border, one type size, an icon
+   each; the word next to the icon, because an icon alone is a riddle to a
+   first visit. */
+.pill {
   display: inline-flex; align-items: center; gap: 6px; text-decoration: none;
+  font-size: 13px; line-height: 1; white-space: nowrap;
   color: #A49BAE; border: 1px solid #2A2434; border-radius: 999px;
-  padding: 5px 11px 5px 9px;
+  padding: 7px 12px 7px 10px; min-height: 30px; box-sizing: border-box;
 }
-.dice:hover { color: #FFF7EE; border-color: var(--day-soft, #C6B0F5); }
-.dice .ic { display: block; }
+.pill:hover { color: #FFF7EE; border-color: var(--day-soft, #C6B0F5); }
+.pill .ic { display: block; flex: none; }
 /* A photograph is not square. A head sits in the top third of almost every one
    of these, so a square crop takes foreheads off. */
 img.face {
   width: 100%; aspect-ratio: 4 / 5; object-fit: cover; object-position: 50% 16%;
   border-radius: 10px; margin-bottom: 11px; display: block; background: #1A1526;
 }
-@media (max-width: 520px) { .dice span { display: none; } .dice { padding: 6px 8px; } }
+/* On a phone the words come off and the three icons stay, each still
+   carrying its label for a screen reader and a long press. */
+@media (max-width: 520px) { .pill span { display: none; } .pill { padding: 7px 8px; min-width: 32px; justify-content: center; } }
 
 /* The opening band.
    Three tiles, each a picture with its caption UNDERNEATH it on solid ground.
@@ -2280,7 +2283,30 @@ export function firstAsk(rows: TimelineRow[], _now: number = new Date().getUTCFu
  * a site that ships none, and robots.txt already refuses it so no crawler
  * wanders 366 pages of duplicates.
  */
+// The three marks in the bar's end. Our own line drawings, one stroke weight,
+// the same box, so the three read as a set. Not emoji: an emoji is drawn by
+// whichever phone or computer is looking, and looks like three different
+// sets on three different screens.
 const DICE = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="4.6"/><circle cx="8.4" cy="8.4" r="1.35" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.35" fill="currentColor" stroke="none"/><circle cx="15.6" cy="15.6" r="1.35" fill="currentColor" stroke="none"/></svg>`;
+const CALENDAR = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3.4" y="5" width="17.2" height="15.6" rx="3.6"/><path d="M3.4 10.2h17.2M8.2 3.2v3.6M15.8 3.2v3.6"/></svg>`;
+const INFO = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="8.6"/><path d="M12 11v5.2"/><circle cx="12" cy="7.9" r="0.9" fill="currentColor" stroke="none"/></svg>`;
+
+/**
+ * The bar's end: Random, Every date and About as three matching pills. They
+ * used to be one pill and two bare words, which is three controls that look
+ * like three different kinds of thing. Nathan, September 10, 2026: same
+ * size, same border, an icon each, and the word kept next to it so nobody
+ * has to guess what a die does.
+ */
+function barEnd(options: { calendar?: boolean } = {}): string {
+  return `<span class="barend">
+<a class="pill" href="/random/" title="A random day of the year" aria-label="A random day of the year">${DICE}<span>Random</span></a>`
+    + (options.calendar === false ? "" : `
+<a class="pill" href="/calendar/" title="Every day of the year" aria-label="Every day of the year">${CALENDAR}<span>Every date</span></a>`)
+    + `
+<a class="pill" href="/about/" title="About Birthed" aria-label="About Birthed">${INFO}<span>About</span></a>
+</span>`;
+}
 
 export function renderDayPage(
   page: DayPage,
@@ -2463,11 +2489,7 @@ export function renderDayPage(
 <span class="here">${shortName}</span>
 <a class="arrow" href="/${slug(next.month, next.day)}/" title="${monthName(next.month)} ${next.day}" aria-label="${monthName(next.month)} ${next.day}">&rsaquo;</a>
 </span>
-<span class="barend">
-<a class="dice" href="/random/" title="A random day of the year" aria-label="A random day of the year">${DICE}<span>Random</span></a>
-<a class="get" href="/calendar/">Every date</a>
-<a class="get" href="/about/">About</a>
-</span>
+${barEnd()}
 </div>
 <h1>${name}</h1>
 ${wallSection(wall, name, Date.now(), {
@@ -2502,7 +2524,7 @@ export function renderStoryPage(story: WallStory, day: WallDay, now: number = Da
 <div class="day wstory" style="--day:${hue.day};--day-soft:${hue.soft}">
 <div class="daybar">
 <a class="mark" href="/">Birthed</a>
-<span class="barend"><a class="get" href="/about/">About</a></span>
+${barEnd()}
 </div>
 ${storyBody(story, day, now, options)}
 </div>
@@ -2544,10 +2566,7 @@ export function renderCalendarPage(year: number): string {
 <div class="day">
 <div class="daybar">
 <a class="mark" href="/">Birthed</a>
-<span class="barend">
-<a class="dice" href="/random/" title="A random day of the year" aria-label="A random day of the year">${DICE}<span>Random</span></a>
-<a class="get" href="/about/">About</a>
-</span>
+${barEnd({ calendar: false })}
 </div>
 <section class="everyday">
 <h1>Every day of the year</h1>

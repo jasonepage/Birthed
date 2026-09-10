@@ -850,8 +850,19 @@ test("a date page can be moved off in both directions without reaching the foot"
   assert.ok(html.includes('<link rel="prev" href="https://birthed.app/september-3/">'));
   assert.ok(html.includes('<link rel="next" href="https://birthed.app/september-5/">'));
   // The index of all 366 is its own page now, linked from the bar.
-  assert.ok(bar.includes('href="/calendar/">Every date</a>'));
+  assert.ok(bar.includes('href="/calendar/"'));
+  assert.ok(bar.includes("<span>Every date</span>"));
   assert.ok(!html.includes('class="everyday"'));
+});
+
+test("Random, Every date and About are three of the same control, each with its own mark and its word", () => {
+  const html = renderDayPage(page);
+  const bar = html.slice(html.indexOf('<span class="barend">'), html.indexOf("</span>\n</div>"));
+  const pills = bar.match(/<a class="pill"/g) ?? [];
+  assert.equal(pills.length, 3, "three matching pills, not one pill and two bare words");
+  assert.equal((bar.match(/<svg class="ic"/g) ?? []).length, 3, "a drawn mark on each, not an emoji");
+  for (const word of ["Random", "Every date", "About"]) assert.ok(bar.includes(`<span>${word}</span>`), `the word ${word} stays next to its mark`);
+  assert.ok(!bar.includes('class="get"') && !bar.includes('class="dice"'), "the old shapes are gone");
 });
 
 test("a month has its own colour and the brand pink is not it", () => {
