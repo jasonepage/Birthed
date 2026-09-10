@@ -505,7 +505,38 @@ as a shelf, not a plan.
 - **Open, and not a layout question:** the page runs two games with two
   clocks, remembrance answers sealed for a year and buzzes sealed for good.
   The honest long term shape may be one mechanic with two faces. That changes
-  the year two measurement and belongs to Nathan and Jason.
+  the year two measurement and belongs to Nathan and Jason. Settled the same
+  night, below.
+
+### One feed, one verb, and the hive, decided September 10, 2026
+
+- **Everything with a birthday on a date is a pixel.** What happened on it,
+  who was born on it, what came out on it and the day's news are all wall
+  stories in one pool, they take the same three buzzes a day, and any of them
+  can take the board. `worker/src/wall/history.ts` files the imported rows as
+  stories when a date opens, with the row's own link and the row's own
+  sentence, and marks the source `imported` so the checker leaves it alone
+  and the receipt says what was read. `docs/the-wall.md` section 13.
+- **The three answer remembrance game is off the page.** No separate budget,
+  no "I remember it", no birth year question, no "What people remember".
+  Nothing of it is dropped from the database and `/remember` still answers;
+  no page sends it anything. One feed, one button, one word.
+- **The board is the hive.** On the page, in the copy and in the path
+  (`/<date>/hive/`). "Square" was the allocator's word and it leaked.
+- **The date's biggest history goes on first.** `wall_stories.priority`: 3 for
+  a row Wikipedia's editors picked or somebody wrote a lead line for, 2 for
+  the three most looked up people, 1 for other history, 0 for the news feeds.
+  The allocator and the feed order use it only among stories with equal
+  support. One buzz beats any priority.
+- **The whole feed is on the page, no fold.** Most buzzed first, then
+  priority, then arrival, the way a reddit reads its feed. The number one
+  songs are the one thing still behind a line, because a song is keyed to a
+  year and a chart rather than a day and is not a pixel yet.
+- **Before the worker has filed a date, the baked history stands in.** Plain
+  rows without buttons under the promise on a date with no hive, and in place
+  of the feed on a hive with nothing filed yet. The moment the worker files
+  them they are stories with the button, and the baked rows are not drawn
+  twice.
 
 ### Search, decided September 5, 2026
 

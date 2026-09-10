@@ -786,3 +786,51 @@ before and after cards, and the calendar on every page are gone, the
 calendar to its own page. The remembrance question keeps its section. The
 lists and the band were where the page was a clusterfuck, in Nathan's word,
 and none of them answered to the sentence.
+
+**One feed, one verb, decided by Nathan the same night, and the name is the
+hive.** The two open questions above are settled: there is one game. Everything
+with a birthday on a date is a pixel. What happened on it, who was born on it,
+what came out on it and the day's news are all wall stories in the one pool,
+they take the same three buzzes a day, and any of them can take the hive.
+There is no separate remembrance budget, no three answers, no birth year
+question: the three answer game is off the page, and nothing of it is dropped
+from the database. The square is called the hive, on the page and in the
+path (`/<date>/hive/`), because a bee's board is a hive and "square" was the
+allocator's word leaking into the copy.
+
+How the history gets on. `worker/src/wall/history.ts` runs at the start of
+every tick, before the news seeder, and files each open date's rows from
+`historical_events`, `birth_facts`, `cultural_events` and `notable_people` as
+wall stories, submitted by nobody, with the row's own link as the story's
+one source and the row's own sentence as its quotation. The source is marked
+`imported`, so the checker leaves it alone and the receipt says the importer
+read it rather than claiming a check that never ran. The story's `url_key` is
+its subject rather than its page, which is what keeps forty events that share
+one Wikipedia article distinct and what keeps a row from being filed twice.
+
+What goes first. The hive holds eight stories nobody has backed, and section
+13 above left them to whichever feed item was read first. Now they are the
+date's biggest history: `priority` on `wall_stories`, 3 for a row Wikipedia's
+editors picked for the date or somebody wrote a lead line for, 2 for the three
+most looked up people, 1 for the rest of the history, 0 for the news feeds.
+The allocator considers higher priority first among stories with equal
+support and decides nothing else; one buzz still beats any priority. The feed
+under the hive is in the same order: most buzzed first, then priority, then
+arrival, all of it, with no fold, because a reddit reads its feed and so does
+this. The people are twelve a date, the most looked up, and a person whose
+name and description make less than a sentence is skipped rather than filed
+as a headline with nothing under it.
+
+What the page draws before the worker has filed anything. A date with no hive
+yet lists its history as plain rows under the promise, without buttons, and a
+hive the worker has not filed a story for yet shows the same rows standing in
+for the feed. The moment the worker files them they are stories, with the one
+button, and the baked rows are not drawn beside the stories they became. The
+number one songs stay behind one line, because a song is keyed to a year and a
+chart rather than to a day and is not a pixel yet.
+
+What did not change. The budget is section 4, unchanged. The tiers are
+section 3, unchanged: a history story is claimed, like every other story with
+one source, and its tile is wax. A tier is not a verdict and this document
+still says so on every page. `DayFeed`, the remembrances table, the yearly
+seal and four direction growth were not touched.
