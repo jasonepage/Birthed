@@ -337,6 +337,17 @@ export function monthDayOf(value: string): string {
   return match === null ? "" : `${match[2]}-${match[3]}`;
 }
 
+/**
+ * The people a date files, as the automatic interface is asked for them: the
+ * most looked up by notability, PEOPLE_PER_DATE of them, nobody flagged as
+ * adult content. One string, because the faces importer in
+ * worker/src/portraits.ts has to ask for exactly the people the hive files,
+ * and two copies of this query would drift the first time one was edited.
+ */
+export function hivePeoplePath(month: number, day: number): string {
+  return `notable_people?select=wikidata_qid,name,birth_year,death_year,short_description&birth_month=eq.${month}&birth_day=eq.${day}&adult_content=eq.false&order=notability_score.desc&limit=${PEOPLE_PER_DATE}`;
+}
+
 export async function readHistory(db: Db, month: number, day: number): Promise<DateHistory> {
   const [events, facts, culture, people, selected, leads] = await Promise.all([
     // Suppressed rows too. The screen is the date page's, not the hive's;
@@ -358,7 +369,7 @@ export async function readHistory(db: Db, month: number, day: number): Promise<D
     // reading all of them and keeping the ones on this month and day costs
     // less than being clever. `monthDayOf` is the screen.
     rows<CultureRow>(db, `cultural_events?select=id,event_date,context_string,source_url,origin&status=eq.published&order=event_date.asc,id.asc`),
-    rows<PersonRow>(db, `notable_people?select=wikidata_qid,name,birth_year,death_year,short_description&birth_month=eq.${month}&birth_day=eq.${day}&adult_content=eq.false&order=notability_score.desc&limit=${PEOPLE_PER_DATE}`),
+    rows<PersonRow>(db, hivePeoplePath(month, day)),
     rows<{ event_year: number }>(db, `selected_anniversaries?select=event_year&event_month=eq.${month}&event_day=eq.${day}`),
     rows<LeadLine>(db, "lead_lines?select=subject_kind,subject_id,line"),
   ]);

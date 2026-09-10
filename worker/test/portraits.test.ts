@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { buildPortraitQuery, fileNameFrom, filePathUrl, readPortraits } from "../src/portraits.js";
+import { buildPortraitQuery, everyDate, fileNameFrom, filePathUrl, readPortraits, uniquePeople } from "../src/portraits.js";
+import { PEOPLE_PER_DATE, hivePeoplePath } from "../src/wall/history.js";
 
 test("a file name becomes a sized Commons url", () => {
   const url = filePathUrl("Buddy Holly cropped.jpg");
@@ -43,4 +44,29 @@ test("the first picture wins when somebody has two", () => {
 test("a malformed or empty answer yields nothing rather than throwing", () => {
   assert.equal(readPortraits({}).size, 0);
   assert.equal(readPortraits({ results: { bindings: [{ item: { value: "x/Q1" } }] } }).size, 0);
+});
+
+test("the hive run walks all 366 dates, February 29 included", () => {
+  const dates = everyDate();
+  assert.equal(dates.length, 366);
+  assert.ok(dates.some((d) => d.month === 2 && d.day === 29));
+  assert.equal(dates.filter((d) => d.month === 4 && d.day === 31).length, 0);
+});
+
+test("the hive run asks for exactly the people the history seeder files", () => {
+  const path = hivePeoplePath(9, 10);
+  assert.ok(path.startsWith("notable_people?"));
+  assert.ok(path.includes("birth_month=eq.9"));
+  assert.ok(path.includes("birth_day=eq.10"));
+  assert.ok(path.includes("adult_content=eq.false"));
+  assert.ok(path.includes("order=notability_score.desc"));
+  assert.ok(path.endsWith(`limit=${PEOPLE_PER_DATE}`));
+});
+
+test("a person filed under two dates is looked up once", () => {
+  const people = uniquePeople([
+    [{ wikidata_qid: "Q1", name: "A" }, { wikidata_qid: "Q2", name: "B" }],
+    [{ wikidata_qid: "Q2", name: "B" }, { wikidata_qid: "Q3", name: "C" }],
+  ]);
+  assert.deepEqual(people.map((p) => p.wikidata_qid), ["Q1", "Q2", "Q3"]);
 });

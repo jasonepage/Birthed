@@ -20,6 +20,7 @@ import { realpathSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { loadConfig, loadDotEnv } from "./config.js";
+import { PEOPLE_PER_DATE, hivePeoplePath } from "./wall/history.js";
 
 const WIKIDATA = "https://query.wikidata.org/sparql";
 const COMMONS = "https://commons.wikimedia.org/wiki/Special:FilePath";
@@ -223,17 +224,102 @@ async function everyone(url: string, key: string, userAgent: string, write: bool
   console.log(`${changed} rows updated`);
 }
 
+// ---------------------------------------------------------------------------
+// The people the hive files, and only them.
+//
+//   npm run portraits -- --hive
+//   npm run portraits -- --hive --write
+//
+// docs/the-wall.md section 16 left faces unbuilt with image_file empty on
+// every row. The hive files twelve people a date, so twelve a date is what
+// gets a face: 366 dates at twelve is at most 4,392 people, about twenty two
+// queries against the query service instead of a hundred and thirty, and a
+// few thousand files on the site instead of twenty five thousand. The people
+// are read through hivePeoplePath, the same string history.ts asks with, so
+// the faces on disk are exactly the tiles that can draw one.
+// ---------------------------------------------------------------------------
+
+const DAYS_IN_MONTH = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+/** Every month and day of the year, February 29 included. */
+export function everyDate(): Array<{ month: number; day: number }> {
+  const out: Array<{ month: number; day: number }> = [];
+  for (let month = 1; month <= 12; month++) {
+    for (let day = 1; day <= (DAYS_IN_MONTH[month - 1] ?? 31); day++) out.push({ month, day });
+  }
+  return out;
+}
+
+/**
+ * The people the hive files, across every date, each once. A person is
+ * born on one date, so the only way a duplicate arrives is a row filed
+ * under two dates by mistake, and one row per identifier is what the write
+ * function expects.
+ */
+export function uniquePeople(pages: PersonRow[][]): PersonRow[] {
+  const seen = new Set<string>();
+  const out: PersonRow[] = [];
+  for (const page of pages) {
+    for (const person of page) {
+      if (seen.has(person.wikidata_qid)) continue;
+      seen.add(person.wikidata_qid);
+      out.push(person);
+    }
+  }
+  return out;
+}
+
+async function hivePeople(url: string, key: string): Promise<PersonRow[]> {
+  const pages: PersonRow[][] = [];
+  for (const { month, day } of everyDate()) {
+    const response = await fetch(`${url}/rest/v1/${hivePeoplePath(month, day)}`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: "application/json" },
+    });
+    if (!response.ok) throw new Error(`people for ${month}/${day} failed with ${response.status}`);
+    pages.push((await response.json()) as PersonRow[]);
+  }
+  return uniquePeople(pages);
+}
+
+async function hive(url: string, key: string, userAgent: string, write: boolean): Promise<void> {
+  const people = await hivePeople(url, key);
+  console.log(`${people.length} people across the year, at most ${PEOPLE_PER_DATE} a date`);
+
+  const found: Array<{ qid: string; file: string | null }> = [];
+  for (let start = 0; start < people.length; start += QIDS_PER_QUERY) {
+    const batch = people.slice(start, start + QIDS_PER_QUERY);
+    const files = await fetchPortraits(batch.map((p) => p.wikidata_qid), userAgent);
+    for (const person of batch) {
+      found.push({ qid: person.wikidata_qid, file: files.get(person.wikidata_qid) ?? null });
+    }
+    console.log(`  ${Math.min(start + QIDS_PER_QUERY, people.length)} of ${people.length}, ${found.filter((f) => f.file).length} with a picture`);
+    await sleep(PAUSE_MS);
+  }
+
+  const have = found.filter((f) => f.file !== null).length;
+  console.log(`\n${have} of ${people.length} have a picture on Wikidata (${Math.round((have / people.length) * 100)} percent)`);
+
+  if (!write) {
+    console.log("Nothing written. Add --write to store them, then run `npm run faces` in web/ to download them.");
+    return;
+  }
+  const changed = await writeImages(url, key, found);
+  console.log(`${changed} rows updated`);
+}
+
 async function main(): Promise<void> {
   await loadDotEnv();
   const args = process.argv.slice(2);
   const all = args.includes("--all");
+  const onlyHive = args.includes("--hive");
   const write = args.includes("--write");
   const nums = args.filter((a) => /^\d+$/.test(a)).map(Number);
   const month = nums[0];
   const day = nums[1];
-  if (!all && (month === undefined || day === undefined)) {
+  if (!all && !onlyHive && (month === undefined || day === undefined)) {
     console.error("usage: npm run portraits -- <month> <day> [--out path.json]");
-    console.error("       npm run portraits -- --all --write");
+    console.error("       npm run portraits -- --hive --write     the twelve people a date the hive files");
+    console.error("       npm run portraits -- --all --write      everybody");
     process.exit(1);
   }
   const outAt = args.indexOf("--out");
@@ -243,6 +329,10 @@ async function main(): Promise<void> {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || process.env.SUPABASE_ANON_KEY?.trim();
   if (!key) throw new Error("Set SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY in worker/.env");
 
+  if (onlyHive) {
+    await hive(config.supabaseUrl, key, config.userAgent, write);
+    return;
+  }
   if (all) {
     await everyone(config.supabaseUrl, key, config.userAgent, write);
     return;
