@@ -74,7 +74,11 @@ export const TOP_PEOPLE = 3;
 // Rows as the database holds them
 // ---------------------------------------------------------------------------
 
-export interface EventRow { id: number | string; event_year: number | null; description: string; source_url: string | null }
+export interface EventRow {
+  id: number | string; event_year: number | null; description: string; source_url: string | null;
+  /** Held back from the date page and the share card by the events importer's word screen. Not from the hive; see planHistory. */
+  suppressed?: boolean;
+}
 export interface FactRow { id: number | string; fact: string; source_url: string | null }
 export interface CultureRow {
   id: number | string; event_date: string; context_string: string | null; source_url: string | null; origin: string;
@@ -106,15 +110,40 @@ function subjectKey(kind: SubjectKind, id: string): string {
   return `subject:${kind}:${id}`;
 }
 
+/** Why a row was left out of the pool, counted so a silent drop is not silent. */
+export interface Dropped {
+  /** The row carries no link, so there is nothing for a receipt to point at. */
+  noLink: number;
+  /** The row has fewer than twenty characters to quote. */
+  shortQuotation: number;
+  /** The row makes no headline at all. */
+  noHeadline: number;
+}
+
 /**
  * The stories one date's history makes. Pure.
  *
  * A row with no link or fewer than twenty characters to quote is skipped:
- * a story on the wall has a receipt or it is not on the wall. A lead line a
- * person wrote becomes the headline, with the row's own sentence as the
- * quotation, so the tile reads well and the receipt still quotes the page.
+ * a story on the wall has a receipt or it is not on the wall. It is skipped
+ * out loud: `dropped`, when given, counts each reason, and run prints it.
+ * Measured on September 10, 2026, on the three open dates, that count was
+ * nought, nought and nought; every row that was missing from the hive was
+ * missing for the reason below. A lead line a person wrote becomes the
+ * headline, with the row's own sentence as the quotation, so the tile reads
+ * well and the receipt still quotes the page.
+ *
+ * A suppressed event files like any other event. The flag is the events
+ * importer's word screen, and it exists for the date page and the share
+ * card, where a birthday reader should not be handed a plane crash. The
+ * hive asks a different question, what mattered about the date, and on
+ * September 10 the screen was holding back the answer: the Charlie Kirk
+ * assassination, Hurricane Irma, and forty seven of the eighty five rows on
+ * September 11. Nathan's call, September 10, 2026: they enter the pool at
+ * the ordinary history priority, competing for an unbacked slot like any
+ * other history, and never as a pick, because mayLead already keeps a
+ * killing out of the first eight and the screen agrees with it.
  */
-export function planHistory(wallDate: string, history: DateHistory): HistoryStory[] {
+export function planHistory(wallDate: string, history: DateHistory, dropped?: Dropped): HistoryStory[] {
   const lines = new Map(history.leadLines.map((l) => [`${l.subject_kind}:${l.subject_id}`, l.line]));
   const out: HistoryStory[] = [];
   const seen = new Set<string>();
@@ -122,7 +151,9 @@ export function planHistory(wallDate: string, history: DateHistory): HistoryStor
   const push = (story: Omit<HistoryStory, "wallDate" | "urlKey">): void => {
     const urlKey = subjectKey(story.subjectKind, story.subjectId);
     if (seen.has(urlKey)) return;
-    if (story.url === "" || story.quotation.length < 20 || story.headline === "") return;
+    if (story.url === "") { if (dropped) dropped.noLink += 1; return; }
+    if (story.quotation.length < 20) { if (dropped) dropped.shortQuotation += 1; return; }
+    if (story.headline === "") { if (dropped) dropped.noHeadline += 1; return; }
     seen.add(urlKey);
     out.push({ wallDate, urlKey, ...story });
   };
@@ -139,7 +170,7 @@ export function planHistory(wallDate: string, history: DateHistory): HistoryStor
       headline: fitHeadline(`${year}${text}`),
       url: e.source_url ?? "", outlet: hostOf(e.source_url ?? ""),
       quotation: sentence.slice(0, 1000),
-      priority: (picked || line !== undefined) && mayLead(sentence) ? PRIORITY_PICK : PRIORITY_HISTORY,
+      priority: (picked || line !== undefined) && mayLead(sentence) && e.suppressed !== true ? PRIORITY_PICK : PRIORITY_HISTORY,
     });
   }
 
@@ -216,7 +247,9 @@ export function monthDayOf(value: string): string {
 
 export async function readHistory(db: Db, month: number, day: number): Promise<DateHistory> {
   const [events, facts, culture, people, selected, leads] = await Promise.all([
-    rows<EventRow>(db, `historical_events?select=id,event_year,description,source_url&event_month=eq.${month}&event_day=eq.${day}&suppressed=eq.false&order=event_year.asc,id.asc`),
+    // Suppressed rows too. The screen is the date page's, not the hive's;
+    // planHistory says why.
+    rows<EventRow>(db, `historical_events?select=id,event_year,description,source_url,suppressed&event_month=eq.${month}&event_day=eq.${day}&order=event_year.asc,id.asc`),
     rows<FactRow>(db, `birth_facts?select=id,fact,source_url&birth_month=eq.${month}&birth_day=eq.${day}&birth_year=eq.0&region_key=eq.&verified=eq.true&order=id.asc`),
     // Every published row, screened here rather than by the database.
     //
@@ -252,8 +285,15 @@ export async function run(db: Db, options: { now?: Date; dry?: boolean } = {}): 
   for (const wallDate of openDates(now.getTime())) {
     const [, m, d] = wallDate.split("-").map(Number) as [number, number, number];
     const history = await readHistory(db, m, d);
-    const stories = planHistory(wallDate, history);
+    const dropped: Dropped = { noLink: 0, shortQuotation: 0, noHeadline: 0 };
+    const stories = planHistory(wallDate, history, dropped);
     planned += stories.length;
+    // A row left out is said so, per date and per reason, every run. A stage
+    // that drops rows quietly looks exactly like one that drops none.
+    const left = dropped.noLink + dropped.shortQuotation + dropped.noHeadline;
+    if (left > 0) {
+      console.log(`wall history ${wallDate}: ${left} rows left out, ${dropped.noLink} with no link, ${dropped.shortQuotation} with under twenty characters to quote, ${dropped.noHeadline} with no headline`);
+    }
     if (options.dry) {
       for (const s of stories) console.log(`  ${wallDate} p${s.priority} ${s.subjectKind}: ${s.headline}`);
       continue;

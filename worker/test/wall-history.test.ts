@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 
-import { PRIORITY_HISTORY, PRIORITY_PERSON, PRIORITY_PICK, mayLead, monthDay, monthDayOf, planHistory, type DateHistory } from "../src/wall/history.js";
+import { PRIORITY_HISTORY, PRIORITY_PERSON, PRIORITY_PICK, mayLead, monthDay, monthDayOf, planHistory, type DateHistory, type Dropped } from "../src/wall/history.js";
 import { allocate, type StoryInput } from "../src/wall/allocator.js";
 
 function history(overrides: Partial<DateHistory> = {}): DateHistory {
@@ -129,4 +129,48 @@ test("the culture screen keeps this date's rows and drops every other date, what
   ];
   const kept = rows.filter((r) => monthDayOf(r.event_date) === monthDay(9, 9)).map((r) => r.id);
   assert.deepEqual(kept, rows.filter((r) => r.keep).map((r) => r.id));
+});
+
+// ---------------------------------------------------------------------------
+// What is left out is said out loud, and the date page's screen is not the
+// hive's. September 10, 2026.
+// ---------------------------------------------------------------------------
+
+test("a row left out is counted by reason rather than dropped in silence", () => {
+  const dropped: Dropped = { noLink: 0, shortQuotation: 0, noHeadline: 0 };
+  const stories = planHistory("2026-09-04", history({
+    events: [
+      { id: 1, event_year: 1957, description: "Ford unveiled the Edsel to the public.", source_url: null },
+      { id: 2, event_year: 1888, description: "Ford unveiled the Edsel to the public.", source_url: "" },
+      { id: 3, event_year: 1200, description: "Short.", source_url: "https://en.wikipedia.org/wiki/September_4" },
+      { id: 4, event_year: 1201, description: "Ford unveiled the Edsel to the public.", source_url: "https://en.wikipedia.org/wiki/September_4" },
+    ],
+    facts: [], culture: [], people: [], leadLines: [],
+  }), dropped);
+  assert.equal(stories.length, 1);
+  assert.deepEqual(dropped, { noLink: 2, shortQuotation: 1, noHeadline: 0 });
+  // Without a counter the answer is the same; only the silence differs.
+  assert.equal(planHistory("2026-09-04", history()).length, planHistory("2026-09-04", history(), { noLink: 0, shortQuotation: 0, noHeadline: 0 }).length);
+});
+
+test("a suppressed event files like any other history and never as a pick", () => {
+  const stories = planHistory("2026-09-10", history({
+    events: [
+      // The row that started this: held back from the date page by the word
+      // screen, on the hive with its own link and its own sentence.
+      { id: 13782, event_year: 2025, description: "American right-wing political activist Charlie Kirk is assassinated while onstage at Utah Valley University in Orem, Utah.", source_url: "https://en.wikipedia.org/wiki/September_10", suppressed: true },
+      // Suppressed for a reason mayLead does not know, and picked by
+      // Wikipedia: still not a pick on the hive, because the screen said no.
+      { id: 2, event_year: 1960, description: "A plain sentence the word screen would pass, held back by a person.", source_url: "https://en.wikipedia.org/wiki/September_10", suppressed: true },
+      { id: 3, event_year: 1960, description: "The same year's ordinary event, which is a pick.", source_url: "https://en.wikipedia.org/wiki/September_10", suppressed: false },
+    ],
+    facts: [], culture: [], people: [], leadLines: [], selectedYears: new Set([1960]),
+  }));
+  const byKey = new Map(stories.map((s) => [s.urlKey, s]));
+  const kirk = byKey.get("subject:historical_event:13782")!;
+  assert.ok(kirk, "it is in the pool");
+  assert.equal(kirk.priority, PRIORITY_HISTORY);
+  assert.equal(kirk.url, "https://en.wikipedia.org/wiki/September_10");
+  assert.equal(byKey.get("subject:historical_event:2")!.priority, PRIORITY_HISTORY, "suppressed, so not a pick even when picked");
+  assert.equal(byKey.get("subject:historical_event:3")!.priority, PRIORITY_PICK);
 });
