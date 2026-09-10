@@ -484,10 +484,13 @@ function tileClass(rect: { w: number; h: number }): string {
 }
 
 /** The fields a buzz posts: the story, and the date page to come back to. */
-function tapFields(story: WallStory, hive: boolean): string {
+/** Where a buzz lands the reader afterwards: the date page, the full screen hive, or the story's own receipt. */
+export type TapBack = "day" | "hive" | "receipt";
+
+function tapFields(story: WallStory, back: TapBack): string {
   const { month, day } = parts(story.wallDate);
   return `<input type="hidden" name="s" value="${story.id}"><input type="hidden" name="m" value="${month}"><input type="hidden" name="d" value="${day}">`
-    + (hive ? `<input type="hidden" name="v" value="hive">` : "");
+    + (back === "day" ? "" : `<input type="hidden" name="v" value="${back}">`);
 }
 
 /** The reader's own mark, hidden until wallMarks reveals it for the stories this browser backed. */
@@ -503,8 +506,8 @@ function mine(voice: Voice): string {
  * guesses that. A headline opens the story, because that is what a
  * headline does everywhere else, and the thing that votes says what it is.
  */
-function buzzForm(story: WallStory, voice: Voice, hive: boolean = false): string {
-  return `<form class="wbuzz" method="post" action="/boost">${tapFields(story, hive)}`
+function buzzForm(story: WallStory, voice: Voice, back: TapBack = "day"): string {
+  return `<form class="wbuzz" method="post" action="/boost">${tapFields(story, back)}`
     + `<button type="submit" aria-label="${escapeHtml(`${voice.button}: ${story.headline}`)}">${voice.button}</button></form>`;
 }
 
@@ -514,7 +517,7 @@ function footer(story: WallStory, live: boolean, voice: Voice, hive: boolean): s
   // an ellipsis when the tile is narrow. No tier chip: the tile's colour is
   // its tier, the legend says so, and a chip beside the outlet was what
   // pushed a phone tile down to one line of headline.
-  return `<span class="wfoot">${live ? buzzForm(story, voice, hive) : ""}${count === "" ? "" : `<span class="wn">${count}</span>`}<span class="wo">${escapeHtml(story.outlet)}</span></span>`;
+  return `<span class="wfoot">${live ? buzzForm(story, voice, hive ? "hive" : "day") : ""}${count === "" ? "" : `<span class="wn">${count}</span>`}<span class="wo">${escapeHtml(story.outlet)}</span></span>`;
 }
 
 /**
@@ -947,8 +950,20 @@ ${history}
  * what it means, every source with its quotation, and every check ever run.
  * No score, no name, nothing about who submitted or boosted it.
  */
-export function storyBody(story: WallStory, day: WallDay): string {
+export interface ReceiptOptions {
+  /**
+   * Draw the buzz control. Only serve.ts sets this, for a receipt it renders
+   * at request time on an open date, and only then if the date is taking
+   * boosts by the clock. A baked receipt never carries a form, for the same
+   * reason a baked date page never does.
+   */
+  interactive?: boolean;
+}
+
+export function storyBody(story: WallStory, day: WallDay, now: number = Date.now(), options: ReceiptOptions = {}): string {
   const { month, day: d } = parts(story.wallDate);
+  const voice = voiceFor(month, d);
+  const live = options.interactive === true && takingBoosts(day, now) && story.status !== "false";
   const status = story.status === "placed"
     ? `On the hive, ${story.rect!.w} by ${story.rect!.h} modules at column ${story.rect!.mx}, row ${story.rect!.my}.`
     : story.status === "false"
@@ -959,15 +974,24 @@ export function storyBody(story: WallStory, day: WallDay): string {
   const falseNote = story.status === "false" && story.falseNote
     ? `<p class="wfalsenote">${escapeHtml(story.falseNote)}</p>`
     : "";
-  return `<p class="wback"><a href="/${slug(month, d)}/">&larr; ${escapeHtml(monthName(month))} ${d}</a> &middot; the wall for ${escapeHtml(longDate(day))}</p>
+  // The one control, the count and the sentences, the same as a tile: a
+  // reader who followed a headline here to read the sources should not have
+  // to go back to vote on what they just read. The mark lands on this
+  // element by id, the way it lands on a tile.
+  const control = live
+    ? `<p class="wfacts wreceiptbuzz" id="w-${story.id}">${buzzForm(story, voice, "receipt")}${mine(voice)}</p>
+${countLine(day, now, voice)}${afterwords(voice)}`
+    : `<p class="wfacts" id="w-${story.id}">${mine(voice)}</p>`;
+  return `<p class="wback"><a href="/${slug(month, d)}/">&larr; ${escapeHtml(monthName(month))} ${d}</a> &middot; the hive for ${escapeHtml(longDate(day))}</p>
 <h1 class="wtitle">${escapeHtml(story.headline)}</h1>
 <p class="wlink"><a href="${escapeHtml(story.url)}" rel="nofollow noopener">${escapeHtml(story.url)}</a></p>
 <p class="wfacts">${chip(story.tier)} ${escapeHtml(tierMeaning(story.tier))} A tier is not a verdict.</p>
-<p class="wfacts">${units(story.support, voiceFor(month, d)) === "" ? "Nobody has backed it yet." : `${units(story.support, voiceFor(month, d))}.`} Submitted ${escapeHtml(eastern(story.submittedAt))}.${story.placedAt ? ` Placed ${escapeHtml(eastern(story.placedAt))}.` : ""}</p>
+<p class="wfacts">${units(story.support, voice) === "" ? "Nobody has backed it yet." : `${units(story.support, voice)}.`} Submitted ${escapeHtml(eastern(story.submittedAt))}.${story.placedAt ? ` Placed ${escapeHtml(eastern(story.placedAt))}.` : ""}</p>
 <p class="wfacts">${status}</p>
+${control}
 ${falseNote}
 <h2 class="section">Sources</h2>
-<p class="wnote">The wording on the wall is the source's, never a person's. A check confirms a link resolves and that the page contains the quotation, by exact match. Nothing here decides what is true.</p>
+<p class="wnote">The wording on the hive is the source's, never a person's. A check confirms a link resolves and that the page contains the quotation, by exact match. Nothing here decides what is true.</p>
 ${story.sources.map(sourceBlock).join("\n")}`;
 }
 
@@ -1003,6 +1027,11 @@ export const WALL_STYLE = `
 .wmore[open] > summary::before { content: "\\2212"; }
 .wmore > summary:hover { color: #FFD98A; }
 /* The full screen page: the hive as big as the window allows, and little else. */
+.wreceiptbuzz { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 10px 0 0; }
+/* The mark's outline is for a tile; on the receipt the words are enough. */
+.wstory .wfacts { outline: none !important; }
+.wreceiptbuzz .wmine { margin: 0; }
+.wstory .wcount { margin: 10px 0 0; }
 .whive { margin: 0; }
 .whive h2.section { margin: 10px 0 6px; font-size: 18px; }
 .wrap.hivepage { max-width: none; padding: 16px 16px 40px; }

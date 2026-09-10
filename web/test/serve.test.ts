@@ -436,13 +436,15 @@ test("an open date page reads the wall at request time, falls back to the baked 
 // Boosting from the web. docs/the-wall.md section 13.
 // ---------------------------------------------------------------------------
 
-import { readTap, tappedFrom } from "../src/serve.js";
+import { readTap, receiptFor, tappedFrom } from "../src/serve.js";
 
 test("a posted tap is a story and a date, and nothing else gets through", () => {
   assert.deepEqual(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9"), {
-    storyId: "11111111-1111-1111-1111-111111111111", month: 9, day: 9, hive: false,
+    storyId: "11111111-1111-1111-1111-111111111111", month: 9, day: 9, back: "day",
   });
-  assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=hive")!.hive, true);
+  assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=hive")!.back, "hive");
+  assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=receipt")!.back, "receipt");
+  assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=elsewhere")!.back, "day");
   assert.equal(readTap("s=not-a-story&m=9&d=9"), null);
   assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=13&d=9"), null);
   assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=0"), null);
@@ -588,6 +590,83 @@ test("a tap posts to the database, comes back to the date with its word, sets th
   // A GET is not a tap: nothing a reader reaches by browsing writes anything.
   assert.equal((await realFetch(`${base}/boost`)).status, 404);
   assert.equal((await realFetch(`${base}/boost`, { method: "PUT" })).status, 405);
+});
+
+test("a receipt on an open date is drawn live with the buzz control, and a buzz from it comes back to it", async (t) => {
+  const root = resolve("test-site-receipt");
+  await rm(root, { recursive: true, force: true });
+  await mkdir(root, { recursive: true });
+  const open = openWallDates();
+  const [openKey, openDate] = [...open.entries()][1]!;
+  const [openMonth, openDay] = openKey.split("-").map(Number) as [number, number];
+  const openSlug = `${["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"][openMonth - 1]}-${openDay}`;
+
+  const realFetch = globalThis.fetch;
+  const previousKey = process.env.SUPABASE_ANON_KEY;
+  process.env.SUPABASE_ANON_KEY = "test-key";
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    if (!url.includes("supabase")) return realFetch(input, init);
+    if (url.endsWith("/rpc/wall_cast_web_boost")) {
+      return new Response(JSON.stringify({ result: "kept", support: 13, allowance: 3, left: 2, backed: ["11111111-1111-1111-1111-111111111111"] }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (url.endsWith("/rpc/wall_web_standing")) {
+      return new Response(JSON.stringify({ allowance: 3, left: 2, backed: ["11111111-1111-1111-1111-111111111111"] }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    const rows = wallRows(openDate);
+    return new Response(JSON.stringify(url.includes("wall_days") ? rows.day : rows.stories), {
+      status: 200, headers: { "Content-Type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  const server = start({ root, port: 0 });
+  await new Promise((done) => server.once("listening", done));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const base = `http://127.0.0.1:${address.port}`;
+  t.after(async () => {
+    server.close();
+    globalThis.fetch = realFetch;
+    if (previousKey === undefined) delete process.env.SUPABASE_ANON_KEY; else process.env.SUPABASE_ANON_KEY = previousKey;
+    forgetWalls();
+    await rm(root, { recursive: true, force: true });
+  });
+  forgetWalls();
+
+  // No baked file exists for this story, and the page is still there,
+  // because the date is open and the wall was read for it.
+  const receiptPath = `/${openSlug}/wall/11111111-1111-1111-1111-111111111111/`;
+  const page = await realFetch(`${base}${receiptPath}`);
+  assert.equal(page.status, 200);
+  const html = await page.text();
+  assert.ok(html.includes("Fresh headline from the live read"));
+  assert.ok(html.includes('<form class="wbuzz" method="post" action="/boost">'), "the receipt offers the buzz");
+  assert.ok(html.includes('name="v" value="receipt"'));
+  assert.ok(html.includes('id="wkept"'), "and the sentences the redirect reveals");
+  assert.ok(html.includes("the hive for"));
+
+  // A buzz from the receipt lands back on the receipt, with its word.
+  const posted = await realFetch(`${base}/boost`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: `s=11111111-1111-1111-1111-111111111111&m=${openMonth}&d=${openDay}&v=receipt`,
+    redirect: "manual",
+  });
+  assert.equal(posted.status, 303);
+  assert.equal(posted.headers.get("location"), `${receiptPath}?tapped=kept#wkept`);
+  const token = (posted.headers.get("set-cookie") ?? "").split(";")[0]!;
+  const landed = await realFetch(`${base}${receiptPath}?tapped=kept`, { headers: { Cookie: token } });
+  assert.equal(landed.headers.get("cache-control"), "no-store");
+  const marked = await landed.text();
+  assert.ok(marked.includes("#w-11111111-1111-1111-1111-111111111111 .wmine{display:block}"), "the receipt carries the reader's own mark");
+  assert.ok(marked.includes('.wleft::after{content:"Two buzzes left today."}'));
+
+  // A story the wall does not have falls through to the files, and there is none.
+  assert.equal((await realFetch(`${base}/${openSlug}/wall/22222222-2222-2222-2222-222222222222/`)).status, 404);
+  // A path that is not a receipt is not one.
+  assert.equal(receiptFor("/september-9/wall/not-a-story/"), null);
+  assert.equal(receiptFor("/nowhere-9/wall/11111111-1111-1111-1111-111111111111/"), null);
+  assert.deepEqual(receiptFor("/september-9/wall/11111111-1111-1111-1111-111111111111/index.html"), { month: 9, day: 9, id: "11111111-1111-1111-1111-111111111111" });
 });
 
 test("a flood of taps from one address is refused before the database is touched", async (t) => {

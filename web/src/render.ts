@@ -2,7 +2,7 @@
 // without a network and without a browser.
 
 import { DayPage, Person, monthName, neighbours, slug, everyDate } from "./model.js";
-import { WALL_STYLE, hivePath, storyBody, wallSection, type WallDay, type WallStory } from "./wall.js";
+import { WALL_STYLE, hivePath, storyBody, wallSection, type ReceiptOptions, type WallDay, type WallStory } from "./wall.js";
 import { CHART_NAME, coverName, SongOfTheYear } from "./songs.js";
 import { calendar } from "./calendar.js";
 import { type CulturalEvent, textOf } from "./culture.js";
@@ -2492,19 +2492,19 @@ ${FOOT}`;
  * on purpose, and it carries noindex because a receipt is for a reader who
  * followed a tile, not for a search result.
  */
-export function renderStoryPage(story: WallStory, day: WallDay): string {
+export function renderStoryPage(story: WallStory, day: WallDay, now: number = Date.now(), options: ReceiptOptions = {}): string {
   const name = `${monthName(day.month)} ${day.day}`;
   const canonical = `${SITE}/${slug(day.month, day.day)}/wall/${story.id}/`;
   const hue = dayHue(day.month);
-  return `${head(`${story.headline}, on the wall for ${name}, ${day.year}`,
-    `A story on the Birthed wall for ${name}, ${day.year}, with its sources, quotations and every check run on them.`,
+  return `${head(`${story.headline}, on the hive for ${name}, ${day.year}`,
+    `A story on the Birthed hive for ${name}, ${day.year}, with its sources, quotations and every check run on them.`,
     canonical, undefined, true)}
 <div class="day wstory" style="--day:${hue.day};--day-soft:${hue.soft}">
 <div class="daybar">
 <a class="mark" href="/">Birthed</a>
 <span class="barend"><a class="get" href="/about/">About</a></span>
 </div>
-${storyBody(story, day)}
+${storyBody(story, day, now, options)}
 </div>
 ${FOOT}`;
 }

@@ -31,8 +31,8 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { extname, join, normalize, resolve, sep } from "node:path";
 
 import { everyDate, monthName, slug } from "./model.js";
-import { ASK_SLOTS, TODAY, resultId, resultMarkup, undoForm, type Remembered } from "./render.js";
-import { emptyWallDay, fetchWallDay, openWallDates, replaceWall, hivePath, wallKey, wallMarks, wallSection, type WallDay } from "./wall.js";
+import { ASK_SLOTS, TODAY, renderStoryPage, resultId, resultMarkup, undoForm, type Remembered } from "./render.js";
+import { emptyWallDay, fetchWallDay, openWallDates, replaceWall, hivePath, wallKey, wallMarks, wallSection, type TapBack, type WallDay } from "./wall.js";
 
 
 const TYPES: Record<string, string> = {
@@ -748,8 +748,8 @@ export interface Tap {
   storyId: string;
   month: number;
   day: number;
-  /** The full screen hive page, when the tap came from it. */
-  hive: boolean;
+  /** Where the reader is sent back to: the date page, the full screen hive, or the story's receipt. */
+  back: TapBack;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -767,7 +767,8 @@ export function readTap(body: string): Tap | null {
   if (!UUID.test(storyId)) return null;
   if (!Number.isInteger(month) || month < 1 || month > 12) return null;
   if (!Number.isInteger(day) || day < 1 || day > 31) return null;
-  return { storyId, month, day, hive: form.get("v") === "hive" };
+  const v = form.get("v");
+  return { storyId, month, day, back: v === "hive" || v === "receipt" ? v : "day" };
 }
 
 /**
@@ -979,7 +980,11 @@ async function handle(
       return;
     }
     const said = await castWebBoost(tap.storyId, token);
-    const where = tap.hive ? hivePath(tap.month, tap.day) : `/${slug(tap.month, tap.day)}/`;
+    const where = tap.back === "hive"
+      ? hivePath(tap.month, tap.day)
+      : tap.back === "receipt"
+        ? `/${slug(tap.month, tap.day)}/wall/${tap.storyId}/`
+        : `/${slug(tap.month, tap.day)}/`;
     response.writeHead(303, {
       Location: `${where}?tapped=${said}#${TAP_FRAGMENT[said]}`,
       "Cache-Control": "no-store",
@@ -1097,6 +1102,36 @@ async function handle(
     }
   }
 
+  // A receipt on an open date, drawn from the wall as it is right now. The
+  // baked receipts are a build old: a story filed since the deploy has none,
+  // and a check run since the deploy is not on the one it has. The three
+  // open dates are already read and cached for the date page, so their
+  // receipts cost nothing extra to draw live, and the buzz control is on
+  // them for the reader who came to read the sources before deciding. A
+  // sealed date's receipt is the baked file, which is final.
+  const receipt = method === "GET" || method === "HEAD" ? receiptFor(path) : null;
+  if (receipt !== null) {
+    const now = Date.now();
+    const tapped = tappedFrom(query);
+    const address = String(request.headers["x-forwarded-for"] ?? "").split(",")[0]?.trim()
+      || request.socket.remoteAddress || "unknown";
+    const fresh = tapped !== null && underLimit(address);
+    const wall = await liveWall(receipt.month, receipt.day, now, fresh, false);
+    const story = wall?.day.stories.find((s) => s.id === receipt.id);
+    if (wall !== undefined && wall !== null && story !== undefined) {
+      const token = tokenFromCookie(request.headers.cookie);
+      const standing = token === null ? null : await wallStanding(wall.day.wallDate, token);
+      const marks = standing === null ? "" : wallMarks(standing, wall.day, now);
+      response.writeHead(200, {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": marks === "" ? "public, max-age=20, must-revalidate" : "no-store",
+        ...securityFor(path),
+      });
+      response.end(method === "HEAD" ? undefined : renderStoryPage(story, wall.day, now, { interactive: true }) + marks);
+      return;
+    }
+  }
+
   const full = resolvePath(root, path);
   const file = full === null ? null : await fileFor(full);
 
@@ -1140,9 +1175,12 @@ async function handle(
     // away. Gating both on the token was wrong, because somebody can tell the
     // site their year before they ever answer anything, and then be asked for
     // it again on every page.
+    // Since September 10, 2026 the only marks are the hive's: the year
+    // picker and the remembrance answers are off the page, so the by cookie
+    // and my_answers are no longer read on the way in. yearMarks stays
+    // below, unused, with the route that still answers /year.
     const readable = method === "GET" && file.endsWith(".html");
     const token = readable ? tokenFromCookie(request.headers.cookie) : null;
-    const born = readable ? yearFromCookie(request.headers.cookie) : null;
     // The one request that follows a tap. It is allowed a fresh wall read,
     // past the twenty second cache, so the count and the mark the reader
     // just made are on the page they land on. Rate limited per address like
@@ -1151,12 +1189,11 @@ async function handle(
     const fresh = tapped !== null && underLimit(
       String(request.headers["x-forwarded-for"] ?? "").split(",")[0]?.trim() || request.socket.remoteAddress || "unknown",
     );
-    const marked = token === null && born === null && tapped === null ? null : dateFor(path);
+    const marked = token === null && tapped === null ? null : dateFor(path);
     if (marked !== null) {
       const now = Date.now();
       const wall = await liveWall(marked.month, marked.day, now, fresh, marked.hive);
-      let marks = (token === null ? "" : await myMarks(marked.month, marked.day, token))
-        + yearMarks(slug(marked.month, marked.day), born);
+      let marks = "";
       // The reader's own taps and count, for a browser that has a token and
       // a date whose wall is open. A browser with no token yet sees the
       // section's own words, which are right for a browser that has done
@@ -1228,26 +1265,6 @@ async function handle(
 }
 
 /**
- * What this browser said about this date, as one style block, or "".
- *
- * The pixel problem, in one function. A reader answers ten rows, the page
- * looks identical afterwards, and there is no trace of them when they come
- * back. On r/place you saw your own colour go on the grid and it was still
- * there the next day, and that difference is the whole of why answering here
- * felt like less than placing a pixel. See docs/the-pixel-problem.md.
- *
- * **Nothing here is about anybody else.** No counts, no totals, no other
- * token's answers. It is one browser being shown what it already told us,
- * which is the only thing this site can hand back today without touching the
- * seal or inventing a score. A number that moved would be a direction, and a
- * direction is a weapon on a site carrying September 11.
- *
- * A style block rather than rewritten rows, because the words then arrive once
- * instead of being baked into a hundred and fifty rows that almost nobody will
- * ever see, and because a page that fails to get an answer here is exactly the
- * page it was built as.
- */
-/**
  * The year picker, put away once the year is in a cookie.
  *
  * The site asks "born in?" on every date page, and kept asking after it had
@@ -1271,52 +1288,6 @@ export function yearMarks(slug: string, year: number | null): string {
     `.on-${slug} .yearset{display:block}` +
     `.on-${slug} .yearask:target ~ .yearset,.on-${slug} .yearset:has(~ .yearask:target){display:none}` +
     `.on-${slug} .yearsetv::after{content:"the ${decade}"}`;
-}
-
-async function myMarks(month: number, day: number, token: string): Promise<string> {
-  const key = process.env.SUPABASE_ANON_KEY;
-  if (!key) return "";
-  let rows: { subject_kind: string; subject_id: string; depth: string }[];
-  try {
-    const response = await fetch(`${projectBase()}/rest/v1/rpc/my_answers`, {
-      method: "POST",
-      headers: {
-        apikey: key,
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({ month_in: month, day_in: day, voter_token_in: token }),
-    });
-    if (!response.ok) return "";
-    rows = (await response.json()) as { subject_kind: string; subject_id: string; depth: string }[];
-  } catch {
-    return "";
-  }
-  if (!Array.isArray(rows) || rows.length === 0) return "";
-
-  // The reader's own three words back, in their own terms. Not a judgement of
-  // the row and not a tally: it is a quotation of the button they pressed.
-  const said: Record<string, string> = {
-    remember: "You remembered this.",
-    heard: "You had heard of it.",
-    never: "You had never heard of it.",
-  };
-
-  const rules: string[] = [];
-  for (const row of rows) {
-    const words = said[row.depth];
-    if (words === undefined) continue;
-    // The identifiers come out of our own database and are used inside a
-    // selector, so anything that could close one is dropped rather than
-    // escaped. A row whose id is not the shape we write is not marked, which
-    // costs one mark and cannot produce a stylesheet somebody else wrote.
-    const id = `r-${row.subject_kind}-${row.subject_id}`;
-    if (!/^[A-Za-z0-9_-]+$/.test(id)) continue;
-    rules.push(`#${id} .mine{display:block}#${id} .mine::after{content:"${words}"}`);
-  }
-  if (rules.length === 0) return "";
-  return `<style>${rules.join("")}</style>`;
 }
 
 /**
@@ -1409,6 +1380,16 @@ export function withWall(html: string, section: string | null): string {
 /** For tests: forget every fresh wall. */
 export function forgetWalls(): void {
   wallCache.clear();
+}
+
+/** The receipt a request path names, or null: "/september-9/wall/<uuid>/". */
+export function receiptFor(requestPath: string): { month: number; day: number; id: string } | null {
+  const match = /^\/([a-z]+-\d{1,2})\/wall\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/?(?:index\.html)?$/.exec(requestPath);
+  if (match === null) return null;
+  for (const d of everyDate()) {
+    if (slug(d.month, d.day) === match[1]) return { month: d.month, day: d.day, id: match[2]! };
+  }
+  return null;
 }
 
 /** The date a request path names, or null. The hive page names its date too. */

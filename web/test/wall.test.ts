@@ -120,6 +120,23 @@ test("the receipt shows the headline, the link, the tier, every quotation and ev
   assert.ok(!/verified truth|fact checked/i.test(html));
 });
 
+test("a baked receipt carries no form, and a live one carries the buzz and the mark's anchor", () => {
+  const s = story({ status: "pool", rect: null, placedAt: null, support: 0 });
+  const baked = renderStoryPage(s, day([s]));
+  assert.ok(!baked.includes("<form"), "a baked receipt never offers a buzz");
+  assert.ok(baked.includes(`id="w-${s.id}"`), "but the mark has somewhere to land");
+  const live = renderStoryPage(s, day([s]), LIVE_NOW, { interactive: true });
+  assert.equal((live.match(/<form class="wbuzz"/g) ?? []).length, 1);
+  assert.ok(live.includes('name="v" value="receipt"'));
+  assert.ok(live.includes("Three buzzes left today."));
+  assert.ok(live.includes("You buzzed this"));
+  // A story shown false takes no buzz, on the receipt as on the tile.
+  const stamped = story({ status: "false", falseAt: "2026-09-10T10:00:00Z" });
+  assert.ok(!renderStoryPage(stamped, day([stamped]), LIVE_NOW, { interactive: true }).includes("<form"));
+  // After the date seals, none either.
+  assert.ok(!renderStoryPage(s, day([s]), Date.parse("2026-09-12T00:00:00Z"), { interactive: true }).includes("<form"));
+});
+
 test("the receipt says nothing about who submitted or boosted", () => {
   const s = story();
   const html = renderStoryPage(s, day([s]));
