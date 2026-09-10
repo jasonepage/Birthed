@@ -55,7 +55,10 @@ test("a date page without a hive yet says when its first one opens", () => {
   const html = renderDayPage(PAGE);
   assert.ok(html.includes('class="wall wpromise"'));
   assert.ok(html.includes("September 9 has no hive yet. Its first one opens on September 8,"));
-  assert.ok(!html.includes('class="wboard'), "no board is drawn for a promise");
+  // A blank board is drawn with the opening date on it, and no tiles.
+  assert.ok(html.includes('class="wboard wblank"'));
+  assert.ok(html.includes("First hive opens September 8,"));
+  assert.ok(!html.includes('class="wtile'));
 });
 
 test("a tile sits at its stored anchor and size, and links to its receipt", () => {
@@ -401,7 +404,8 @@ test("tomorrow has an empty hive with the hour it opens, not a missing section",
   assert.equal(emptyWallDay("2026-01-10").liveAt, "2026-01-10T05:00:00.000Z");
   const html = wallSection(tomorrow, "September 10", Date.parse("2026-09-10T01:00:00Z"), { interactive: true });
   assert.ok(html.includes('class="wboard wblank"'));
-  assert.ok(html.includes("Opens at midnight Eastern, about 3 hours from now."));
+  assert.ok(html.includes("Opens at midnight Eastern</b>"));
+  assert.ok(html.includes("about 3 hours from now."));
   assert.ok(html.includes("Tomorrow's hive."));
   assert.ok(!html.includes("<form"), "nothing to buzz before the date arrives");
 });

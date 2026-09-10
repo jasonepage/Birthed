@@ -752,11 +752,13 @@ function songRow(story: WallStory, live: boolean, voice: Voice): string {
 function stateLine(day: WallDay, now: number): string {
   const closes = day.closedAt ?? day.closesAt;
   const closed = Date.parse(closes) <= now;
+  const notYet = now < Date.parse(day.liveAt);
   // The third day is the one after the date, and the close is the midnight
   // that ends it.
   const after = new Date(Date.UTC(day.year, day.month - 1, day.day + 1));
   const ending = `${monthName(after.getUTCMonth() + 1)} ${after.getUTCDate()}, ${after.getUTCFullYear()}`;
   if (closed) return `Sealed at midnight Eastern ending ${ending}. Permanent.`;
+  if (notYet) return `Opens tonight at midnight Eastern. Seals at midnight Eastern ending ${ending}, then permanent.`;
   return `Open. Seals at midnight Eastern ending ${ending}, then permanent.`;
 }
 
@@ -860,9 +862,14 @@ export function promise(name: string, month: number, day: number, now: number): 
   if (candidate < todayKey) year = y + 1;
   const before = new Date(Date.UTC(year, month - 1, day - 1));
   const opens = `${monthName(before.getUTCMonth() + 1)} ${before.getUTCDate()}, ${before.getUTCFullYear()}`;
+  // The blank board is drawn, with the opening date on it, so a date with
+  // no hive yet looks like a hive waiting rather than a paragraph.
   return `<section class="wall wpromise" aria-labelledby="wallhead">
-<h2 class="section" id="wallhead">The hive for ${escapeHtml(name)}</h2>
+<p class="whead"><span class="section" id="wallhead">The hive for ${escapeHtml(name)}</span> <span class="wstate">Not open yet.</span></p>
 <p class="wlede">${escapeHtml(name)} has no hive yet. Its first one opens on ${opens} at midnight Eastern, takes everything with a birthday that day and the buzzes people give it, and seals two days later, for good. Every date gets one a year, and they stack.</p>
+<div class="wboard wblank" role="img" aria-label="An empty hive. The first one for ${escapeHtml(name)} opens ${opens}.">
+<p class="wnothing"><b>First hive opens ${opens}</b><span>at midnight Eastern. Everything below takes buzzes then.</span></p>
+</div>
 </section>`;
 }
 
@@ -1036,14 +1043,17 @@ ${HISTORY_START}${history}${HISTORY_END}
   // The hive, always drawn, even empty: an empty hive with the hour it opens
   // is a promise, and a missing section was a page that looked like nothing
   // was ever going to happen here.
+  // An empty board is still a board: a faint grid of the modules nothing
+  // has filled yet, and one line set large saying why. Three reasons, three
+  // lines; the small line under each is the same sentence as before.
   const empty = onWall.length === 0
     ? `<p class="wnothing">${notYet
-      ? `Opens at midnight Eastern, ${hoursUntil(day.liveAt, now)} from now. What people ${voice.past} lands here.`
+      ? `<b>Opens at midnight Eastern</b><span>That is ${hoursUntil(day.liveAt, now)} from now. What people ${voice.past} lands here.</span>`
       : closed
-        ? "Nothing reached the hive before it sealed."
-        : `Nothing on the hive yet. What people ${voice.past} lands here.`}</p>`
+        ? `<b>Nothing reached the hive</b><span>Nothing reached the hive before it sealed.</span>`
+        : `<b>Nothing on the hive yet</b><span>What people ${voice.past} lands here.</span>`}</p>`
     : "";
-  const board = `<div class="wboard${onWall.length === 0 ? " wblank" : ""}" role="list" aria-label="The hive, ${onWall.length} stories" style="--side:${view.side}">
+  const board = `<div class="wboard${onWall.length === 0 ? " wblank" : ""}${closed ? " wsealed" : ""}" role="list" aria-label="The hive, ${onWall.length} stories" style="--side:${view.side}">
 ${tiles}${empty}
 </div>`;
 
@@ -1375,8 +1385,25 @@ export const WALL_STYLE = `
 @media (min-width: 900px) {
   .wall:not(.whive) .wboard { width: 880px; max-width: none; margin-left: -100px; margin-right: -100px; }
 }
-.wboard.wblank { display: grid; place-items: center; aspect-ratio: 16 / 7; }
-.wnothing { grid-column: 1 / -1; grid-row: 1 / -1; align-self: center; justify-self: center; margin: 0; padding: 0 12%; text-align: center; font-size: 15px; line-height: 1.5; color: #827B75; text-wrap: pretty; }
+/* The empty board. A faint grid of the modules nothing has filled, the
+   centre cleared for the words, so a hive that has not opened, or sealed
+   with nothing on it, or does not exist yet, looks like a board waiting
+   rather than a box with a sentence in it. Gradients, not an image: the
+   page sends img-src 'self' and a data address is an image. */
+.wboard.wblank {
+  display: grid; place-items: center; aspect-ratio: 16 / 7; position: relative;
+  background:
+    radial-gradient(ellipse 62% 70% at 50% 50%, #100D16 38%, rgba(16, 13, 22, 0) 100%),
+    linear-gradient(rgba(255, 247, 238, .07) 1px, transparent 1px) 0 0 / calc(100% / 16) calc(100% / 16),
+    linear-gradient(90deg, rgba(255, 247, 238, .07) 1px, transparent 1px) 0 0 / calc(100% / 16) calc(100% / 16),
+    #100D16;
+}
+.wnothing { grid-column: 1 / -1; grid-row: 1 / -1; align-self: center; justify-self: center; margin: 0; padding: 0 8%; text-align: center; font-size: 14px; line-height: 1.5; color: #827B75; text-wrap: balance; max-width: 40ch; }
+.wnothing b { display: block; margin: 0 0 6px; font-family: Georgia, "Times New Roman", serif; font-weight: 800; font-size: clamp(20px, 5.4cqi, 30px); line-height: 1.15; color: #EFE0B8; }
+.wnothing span { display: block; }
+/* A sealed board is edged in honey, the one quiet sign on the picture
+   itself that this one is finished. A chip on the board covered a tile. */
+.wboard.wsealed { box-shadow: inset 0 0 0 1px rgba(255, 233, 176, .38); }
 .wfull { margin: 8px 0 0; text-align: right; font-size: 13px; }
 .wfull a { color: #A49BAE; text-decoration: none; border-bottom: 1px solid #3A3348; }
 .wfull a:hover { color: #FFD98A; border-color: #FFD98A; }
