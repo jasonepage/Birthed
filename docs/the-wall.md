@@ -935,6 +935,15 @@ promotes are the date's biggest history, and they are the rows whose "You were
 drew and the tile asks for its own. A reader with no birth year lends no lines,
 because `DayFeed` leaves the label nil and nothing downstream may invent one.
 
+**One small difference from the website, on purpose.** The website's feed is
+every story whose status is `pool` or `overflow`. The app's is every story
+that is not on the hive, which is the same set plus two shapes that should
+not exist: a story marked placed that holds no rectangle, and a story stamped
+false that holds none either. The website drops those silently and the app
+lists them without a button. The brief asked for every wall story not on the
+hive and that is what this is, and a story the database holds that no screen
+will draw is the kind of thing nobody finds until it matters.
+
 **The words.** THE HIVE, and a unit is a buzz. `HiveVoice` and `HiveDates` port
 `Voice` and `PLAIN_DATES`, so the same eight solemn dates speak plainly in the
 app and on the site, September 11 among them, and a test asserts each one.
