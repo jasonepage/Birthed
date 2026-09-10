@@ -2567,13 +2567,19 @@ ${FOOT}`;
  * each number one that has one, a face for each person who has one. Keyed
  * the way the worker keys the story, so the rule finds the tile.
  */
-export function picturesFor(songs: SongOfTheYear[], people: Person[]): Picture[] {
+export function picturesFor(songs: SongOfTheYear[], people: Person[], facesOnDisk: ReadonlySet<string> | null = null): Picture[] {
   const out: Picture[] = [];
   for (const song of songs) {
     if (song.hasArtwork === true) out.push({ subject: `song:${song.chartDate}`, path: `/covers/${coverName(song.song, song.artist)}.jpg` });
   }
   for (const person of people) {
-    if (person.hasImage === true) out.push({ subject: `person:${person.qid}`, path: `/faces/${faceName(person.qid)}.jpg` });
+    // The database saying a person has a picture is not the file being
+    // here: the column is filled by the importer and the files arrive with
+    // npm run faces, and between the two a tile drew the scrim for a face
+    // with nothing under it. Checked against the folder, the way the covers
+    // are, when the caller has listed it.
+    const file = `${faceName(person.qid)}.jpg`;
+    if (person.hasImage === true && (facesOnDisk === null || facesOnDisk.has(file))) out.push({ subject: `person:${person.qid}`, path: `/faces/${file}` });
   }
   return out;
 }

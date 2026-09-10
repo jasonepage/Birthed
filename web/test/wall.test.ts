@@ -747,3 +747,10 @@ test("every tile carries a kind mark: happened, born, song or news", () => {
   assert.ok(html.includes('class="wkind wk-song"'));
   assert.ok(html.indexOf("wk-song") < html.indexOf('class="wo"'), "the mark leads the footer");
 });
+
+test("a face is drawn only when its file is on disk, however the database feels about it", () => {
+  const people = [{ qid: "Q1", name: "A", birthYear: 1970, deathYear: null, description: "x", monthlyViews: 1, hasImage: true }];
+  assert.equal(picturesFor([], people).length, 1, "with no folder listed, the database is trusted");
+  assert.equal(picturesFor([], people, new Set()).length, 0, "an empty folder draws no face");
+  assert.deepEqual(picturesFor([], people, new Set(["Q1.jpg"])).map((p) => p.path), ["/faces/Q1.jpg"]);
+});

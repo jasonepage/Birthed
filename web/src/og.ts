@@ -89,6 +89,7 @@ async function main(): Promise<void> {
   // where "/covers/x.jpg" resolves to nothing.
   const wallFor = newestByDate(await fetchWall(url, key));
   const files = await readdir(join("static", "covers")).catch(() => [] as string[]);
+  const facesOnDisk = new Set(await readdir(join("static", "faces")).catch(() => [] as string[]));
   const covered = coverageByDay(withDownloadedCovers(await fetchChartWeeks(url, key), files));
   const thisYear = new Date().getUTCFullYear();
   const onDisk = (path: string): string => pathToFileURL(resolve("static", path.replace(/^\//, ""))).href;
@@ -106,7 +107,7 @@ async function main(): Promise<void> {
     let hive: CardHive | null = null;
     if (wall !== null) {
       const songs = songsForDate(covered, date.month, date.day, FIRST_CHART_YEAR, thisYear);
-      hive = { day: wall, pictures: new Map(picturesFor(songs, day.people).map((p) => [p.subject, onDisk(p.path)])) };
+      hive = { day: wall, pictures: new Map(picturesFor(songs, day.people, facesOnDisk).map((p) => [p.subject, onDisk(p.path)])) };
       if (wall.stories.some((s) => s.rect !== null)) hived++;
     }
     const highlight = cardHighlight(

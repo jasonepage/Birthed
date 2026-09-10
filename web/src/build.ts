@@ -16,7 +16,7 @@ import { DayPage, Person, everyDate, slug } from "./model.js";
 import { fetchWall, newestByDate, storyPath, wallKey } from "./wall.js";
 import { coverageByDay, fetchChartWeeks, songsForDate, withDownloadedCovers } from "./songs.js";
 import { buildSeed, factsByDay, factsForDate, fetchFacts, pickHighlights } from "./facts.js";
-import { isReady, picturesFor, renderCalendarPage, renderDayPage, renderNotFound, renderRobots, renderSitemap, renderHivePage, renderStoryPage } from "./render.js";
+import { faceName, isReady, picturesFor, renderCalendarPage, renderDayPage, renderNotFound, renderRobots, renderSitemap, renderHivePage, renderStoryPage } from "./render.js";
 import type { Picture } from "./wall.js";
 import { eventsByDay, eventsForDate, fetchEvents, fetchSealedMemory } from "./timeline.js";
 import { culturalByDate, culturalForDate, fetchCulturalEvents } from "./culture.js";
@@ -50,7 +50,7 @@ function config() {
   return { url, key };
 }
 
-async function fetchDay(month: number, day: number, url: string, key: string): Promise<DayPage> {
+async function fetchDay(month: number, day: number, url: string, key: string, facesOnDisk: ReadonlySet<string> = new Set()): Promise<DayPage> {
   const query = new URLSearchParams({
     select: "wikidata_qid,name,birth_year,death_year,short_description,monthly_views,image_file",
     birth_month: `eq.${month}`,
@@ -72,7 +72,9 @@ async function fetchDay(month: number, day: number, url: string, key: string): P
     deathYear: row.death_year,
     description: row.short_description,
     monthlyViews: row.monthly_views ?? 0,
-    hasImage: row.image_file !== null,
+    // Only a face that is here. The column says the importer found one;
+    // the folder says npm run faces fetched it.
+    hasImage: row.image_file !== null && facesOnDisk.has(`${faceName(row.wikidata_qid)}.jpg`),
   }));
   return { month, day, people };
 }
@@ -113,6 +115,9 @@ async function main(): Promise<void> {
     );
   }
   const covered = coverageByDay(weeks);
+  // The faces on disk, so a tile never draws a face that is not here.
+  const facesOnDisk = new Set(await readdir(join("static", "faces")).catch(() => [] as string[]));
+  console.log(`${facesOnDisk.size} faces in static/faces`);
   const thisYear = new Date().getUTCFullYear();
   console.log(`${weeks.length} chart weeks loaded`);
   if (weeks.length === 0) {
@@ -198,10 +203,10 @@ async function main(): Promise<void> {
   // written after this loop from the same songs and people.
   const picturesByKey = new Map<string, Picture[]>();
   await inBatches(dates, CONCURRENCY, async (date) => {
-    const page = await fetchDay(date.month, date.day, url, key);
+    const page = await fetchDay(date.month, date.day, url, key, facesOnDisk);
     if (page.people.length === 0) empty++;
     const songs = songsForDate(covered, date.month, date.day, FIRST_CHART_YEAR, thisYear);
-    picturesByKey.set(wallKey(date.month, date.day), picturesFor(songs, page.people));
+    picturesByKey.set(wallKey(date.month, date.day), picturesFor(songs, page.people, facesOnDisk));
     const found = factsForDate(factsFor, date.month, date.day);
     const happened = eventsForDate(eventsFor, date.month, date.day);
     const curated = culturalForDate(cultureFor, date.month, date.day);
