@@ -5,7 +5,7 @@ import { renderDayPage, renderHivePage, renderStoryPage } from "../src/render.js
 import {
   eastern,
   BEE, PLAIN, PLAIN_DATES, VIEW_MIN, allowanceOn, emptyWallDay, fetchWall, hivePath, newestByDate, storyPath, takingBoosts,
-  tapsLeftSentence, tierLabel, units, viewportFor, voiceFor, wallMarks, wallSection, pictureRules, songParts, subjectOf, takeTurns, FEED_SHOWN, type WallDay, type WallStory,
+  tapsLeftSentence, tierLabel, units, viewportFor, voiceFor, wallMarks, wallSection, pictureRules, songParts, subjectOf, takeTurns, FEED_SHOWN, tileKind, kindMark, type WallDay, type WallStory,
 } from "../src/wall.js";
 import { picturesFor } from "../src/render.js";
 
@@ -718,4 +718,19 @@ test("the feed shows a dozen rows and folds the rest behind one line that counts
   assert.equal((folded.match(/<li /g) ?? []).length, 30 - FEED_SHOWN);
   // A short feed has no fold to open.
   assert.ok(!wallSection(day(stories.slice(0, 5)), "September 9", LIVE).includes("wmore"));
+});
+
+test("every tile carries a kind mark: happened, born, song or news", () => {
+  assert.equal(tileKind({ subjectKind: null }), "news");
+  assert.equal(tileKind({ subjectKind: "person" }), "born");
+  assert.equal(tileKind({ subjectKind: "song" }), "song");
+  for (const kind of ["historical_event", "birth_fact", "cultural_event"]) assert.equal(tileKind({ subjectKind: kind }), "happened");
+  const mark = kindMark("born");
+  assert.ok(mark.includes('class="wkind wk-born"'));
+  assert.ok(mark.includes('stroke-width="1.7"'), "one stroke weight, the bar's");
+  assert.ok(mark.includes("Born on this date."), "a word for a screen reader");
+  const s = story({ rect: { mx: 3, my: 5, w: 4, h: 3 }, subjectKind: "song", subjectId: "1994-09-10" });
+  const html = wallSection(day([s]), "September 9");
+  assert.ok(html.includes('class="wkind wk-song"'));
+  assert.ok(html.indexOf("wk-song") < html.indexOf('class="wo"'), "the mark leads the footer");
 });

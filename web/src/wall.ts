@@ -615,13 +615,43 @@ function buzzForm(story: WallStory, voice: Voice, back: TapBack = "day"): string
     + `<button type="submit" aria-label="${escapeHtml(`${voice.button}: ${story.headline}`)}">${voice.button}</button></form>`;
 }
 
+/**
+ * What kind of thing a tile is, drawn as a small line mark so the board
+ * reads its mix at a glance: something that happened, somebody born, a
+ * number one song, or the day's news. Four, not one per table: a fact, an
+ * event and a release are all things that happened. Our own drawings at
+ * one stroke weight, the same box as the marks in the bar, and never an
+ * emoji, which is drawn differently by every phone.
+ */
+export type TileKind = "happened" | "born" | "song" | "news";
+
+export function tileKind(story: Pick<WallStory, "subjectKind">): TileKind {
+  if (story.subjectKind === null) return "news";
+  if (story.subjectKind === "person") return "born";
+  if (story.subjectKind === "song") return "song";
+  return "happened";
+}
+
+const KIND_WORD: Record<TileKind, string> = { happened: "Happened on this date", born: "Born on this date", song: "The number one song", news: "In the news today" };
+
+const KIND_MARK: Record<TileKind, string> = {
+  happened: `<circle cx="12" cy="12" r="8.6"/><path d="M12 7.6V12l3.2 2.1"/>`,
+  born: `<path d="M8.4 11.2h7.2v9.4H8.4zM12 3.6c1.8 1.9 2.7 3.2 2.7 4.4a2.7 2.7 0 0 1-5.4 0c0-1.2.9-2.5 2.7-4.4z"/>`,
+  song: `<circle cx="7.5" cy="17" r="2.9"/><circle cx="16.5" cy="15" r="2.9"/><path d="M10.4 17V6.2l9-2.2V15"/>`,
+  news: `<rect x="3.6" y="5" width="16.8" height="14" rx="2.4"/><path d="M7.2 9.2h5.6M7.2 12.4h9.6M7.2 15.6h9.6"/>`,
+};
+
+export function kindMark(kind: TileKind): string {
+  return `<span class="wkind wk-${kind}" title="${KIND_WORD[kind]}"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${KIND_MARK[kind]}</svg><span class="sr">${KIND_WORD[kind]}.</span></span>`;
+}
+
 function footer(story: WallStory, live: boolean, voice: Voice, hive: boolean): string {
   const count = units(story.support, voice);
   // The control first, then the count it changes, then the outlet, cut with
   // an ellipsis when the tile is narrow. No tier chip: the tile's colour is
   // its tier, the legend says so, and a chip beside the outlet was what
   // pushed a phone tile down to one line of headline.
-  return `<span class="wfoot">${live ? buzzForm(story, voice, hive ? "hive" : "day") : ""}${count === "" ? "" : `<span class="wn">${count}</span>`}<span class="wo">${escapeHtml(story.outlet)}</span></span>`;
+  return `<span class="wfoot">${kindMark(tileKind(story))}${live ? buzzForm(story, voice, hive ? "hive" : "day") : ""}${count === "" ? "" : `<span class="wn">${count}</span>`}<span class="wo">${escapeHtml(story.outlet)}</span></span>`;
 }
 
 /**
@@ -1532,6 +1562,9 @@ export const WALL_STYLE = `
   font-size: clamp(8px, calc(29cqi / var(--side, 16)), 13px);
 }
 .wfoot .wo { min-width: 0; overflow: hidden; text-overflow: ellipsis; opacity: .8; }
+/* The kind mark, first in the footer, the size of the button's type. */
+.wkind { display: inline-flex; flex: none; opacity: .85; }
+.wkind svg { display: block; width: clamp(12px, calc(38cqi / var(--side, 16)), 17px); height: auto; }
 .wfoot .wn { flex: none; font-weight: 700; }
 .wfoot .wbuzz button { font-size: clamp(8px, calc(30cqi / var(--side, 16)), 13px); }
 /* --more rather than --lines, because --lines is set inline on the tile and
