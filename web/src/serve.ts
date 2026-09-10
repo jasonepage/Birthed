@@ -1353,6 +1353,7 @@ async function handle(
         "Content-Type": "image/png",
         // One reader's own, like their marks and their anniversary.
         "Cache-Control": "no-store",
+        Vary: "Cookie",
         ...securityFor(path),
       });
       if (method === "HEAD") { response.end(); return; }
@@ -1363,8 +1364,12 @@ async function handle(
     if (plain !== null) {
       response.writeHead(200, {
         "Content-Type": "image/png",
-        // The shared picture, cached the way every other share image is.
-        "Cache-Control": "public, max-age=3600",
+        // The shared picture. One address answers two bodies here, so the
+        // cache has to be told what decides which, or a reader who looks
+        // before giving a year keeps the shared square for an hour and their
+        // own picture never arrives. must-revalidate for the same reason.
+        "Cache-Control": "public, max-age=3600, must-revalidate",
+        Vary: "Cookie",
         ...securityFor(path),
       });
       if (method === "HEAD") { response.end(); return; }
@@ -1547,10 +1552,21 @@ async function handle(
       if (wall !== null && standing !== null) {
         marks += wallMarks(standing, wall.day, now);
       }
-      // And the label on the save link, for a reader who has given a year on
-      // a date that has a board to save a picture of.
-      if (wall !== null) {
-        marks += yoursMark(slug(marked.month, marked.day), born);
+      // And the label on the save link, but only when the picture it promises
+      // is actually on disk for this reader.
+      //
+      // The label is decided from live state and the file behind it is a
+      // build artefact, and the two drift: the pictures are rendered for the
+      // dates within three days of the build, so four days after a deploy
+      // there are none for today, and the years rendered are 1930 to 2020
+      // while the cookie accepts 1900 to 2100. Promising a reader their own
+      // version and handing them the shared square is a small lie told in
+      // the one place this feature is visible, so the promise is made only
+      // when the file is there. One stat, on a request that is already
+      // reading the wall.
+      if (wall !== null && born !== null && wallDate !== undefined) {
+        const mine = await fileFor(join(personalRoot(), `${personalName(wallDate, born)}.png`));
+        if (mine !== null) marks += yoursMark(slug(marked.month, marked.day), born);
       }
       // An anniversary is reason enough to draw this reader their own page,
       // even on a date they have done nothing on today: it is the whole of
@@ -1596,8 +1612,11 @@ async function handle(
           response.writeHead(200, {
             "Content-Type": "text/html; charset=utf-8",
             // Briefly. The wall moves by the quarter hour and this is the
-            // same for every reader, so a short shared cache is right.
+            // same for every reader, so a short shared cache is right. Vary,
+            // because the reader's own copy of this page is decided by their
+            // cookies and a shared cache must not hand this one to them.
             "Cache-Control": "public, max-age=20, must-revalidate",
+            Vary: "Cookie",
             ...securityFor(path),
           });
           response.end(method === "HEAD" ? undefined : withWall(html, wall));

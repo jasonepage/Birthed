@@ -415,6 +415,43 @@ test("today's news is the last thing a reader's picture reaches for", () => {
   assert.equal(pickPersonal(day([news]), 1994)?.id, "news");
 });
 
+test("the pulled story's picture is set where the browser will decode it", () => {
+  const story = {
+    id: "11111111-2222-3333-4444-555555555555", wallDate: "2026-09-10", submittedAt: "2026-09-10T05:00:00Z",
+    headline: "Guy Ritchie, English filmmaker (born 1968), born 1968", url: "https://www.wikidata.org/wiki/Q192990",
+    outlet: "wikidata.org", status: "placed" as const, tier: "claimed" as const, support: 1, priority: 2,
+    placedAt: "2026-09-10T05:15:00Z", rect: { mx: 6, my: 6, w: 4, h: 3 }, falseAt: null, falseNote: null,
+    subjectKind: "person", subjectId: "Q192990", sources: [],
+  };
+  const day = { wallDate: "2026-09-10", year: 2026, month: 9, day: 10, opensAt: "2026-09-09T04:00:00Z", liveAt: "2026-09-10T04:00:00Z", closesAt: "2026-09-12T04:00:00Z", closedAt: null, stories: [story] };
+  const html = renderPersonalSquare({ month: 9, day: 10, people: [] },
+    { day, pictures: new Map([["person:Q192990", "data:image/jpeg;base64,AAAA"]]) }, 1994)!;
+  // In a style attribute the HTML parser decodes the escaped quote before CSS
+  // ever sees it. Inside a style element it does not, and the CSS parser reads
+  // an unquoted url beginning with an ampersand, which resolves against the
+  // page's opaque origin and silently draws nothing. That is the same empty
+  // box the file address gave, in the one place the fix for it did not reach.
+  assert.ok(html.includes(`style="background-image:url(&quot;data:image/jpeg;base64,AAAA&quot;)"`));
+  const styleBlock = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
+  assert.ok(!styleBlock.includes("data:image"), "no picture address inside the style element");
+  assert.ok(!styleBlock.includes("&quot;"), "and nothing in there relying on a character reference");
+});
+
+test("a four digit number in a headline is not mistaken for the story's year", () => {
+  const y = (headline: string, kind: string | null) => storyYear({ headline, subjectKind: kind }, 2026);
+  // Each of these used to return the first number it found and then state it
+  // as a fact about the reader's life in the largest type on the picture.
+  assert.equal(y("A crowd of 1500 watched the 1932 opening of the line", "historical_event"), null);
+  assert.equal(y("Matty Healy, singer in the band The 1975", "person"), null);
+  assert.equal(y("The 1948 Olympics drew fewer than the 1932 games", "birth_fact"), null);
+  // The shape the worker actually writes is still read.
+  assert.equal(y("On September 10, 1932, the Eighth Avenue Line opened in New York City.", "birth_fact"), 1932);
+  // A story a reader submitted carries no subject, like the news, but it can
+  // be about any year at all, so its own year wins over the day it was filed.
+  assert.equal(y("1989: the Berlin Wall falls", null), 1989);
+  assert.equal(y("Oil hits $100 a barrel for the first time since July", null), 2026);
+});
+
 test("a reader's birth year is in no file name this build writes", () => {
   const name = personalName("2026-09-10", 1994);
   assert.match(name, /^[0-9a-f]{32}$/);

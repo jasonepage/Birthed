@@ -496,9 +496,10 @@ export const LAST_BIRTH_YEAR = 2020;
  * `CLAUDE.md` section 6 records, so a four digit year here is a year.
  */
 export function storyYear(story: Pick<WallStory, "headline" | "subjectKind">, wallYear: number): number | null {
-  // The day's news, which is the one kind with no subject at all.
-  if (story.subjectKind === null) return wallYear;
-  // "1792: The Hope Diamond is stolen", "2007: Britney's comeback".
+  // "1792: The Hope Diamond is stolen", "2007: Britney's comeback". Tried
+  // before anything else, including the news default below: a story a reader
+  // submitted with a link carries no subject either, and one of those can be
+  // about any year at all.
   const led = /^(\d{4}):\s/.exec(story.headline);
   if (led !== null) return Number(led[1]);
   // "Guy Ritchie, English filmmaker (born 1968), born 1968". The last one is
@@ -506,10 +507,21 @@ export function storyYear(story: Pick<WallStory, "headline" | "subjectKind">, wa
   // end and a year inside somebody's description cannot win.
   const born = /born (\d{4})\s*$/.exec(story.headline);
   if (born !== null) return Number(born[1]);
-  // "On September 10, 1932, the Eighth Avenue Line opened". A fact about the
-  // date states its year in the sentence and there is only ever one.
-  const inside = /\b(1[0-9]{3}|20[0-9]{2})\b/.exec(story.headline);
-  if (inside !== null) return Number(inside[1]);
+  // "On September 10, 1932, the Eighth Avenue Line opened." The worker writes
+  // a fact about the date in exactly this shape, so it is matched by that
+  // shape rather than by looking for a number.
+  //
+  // **There is no last resort that takes the first four digit number it
+  // finds.** There was, and it is the kind of wrong this picture cannot
+  // carry: "A crowd of 1500 watched the 1932 opening" gave 1500, and a
+  // person described as being in the band The 1975 gave 1975, each of them
+  // then set in 36 point type as a fact about the reader's life. A story
+  // whose year cannot be read is not pulled out at all, which is right.
+  const dated = /^On [A-Z][a-z]+ \d{1,2}, (\d{4}),/.exec(story.headline);
+  if (dated !== null) return Number(dated[1]);
+  // The day's news happened today. Last, so a headline that states its own
+  // year is never overwritten by the date it was filed on.
+  if (story.subjectKind === null) return wallYear;
   return null;
 }
 
@@ -608,10 +620,18 @@ export function renderPersonalSquare(page: DayPage, hive: CardHive, birthYear: n
   }
   /* The picture only appears when there is one. A tone block standing in for
      a missing photograph is a large empty rectangle, and most stories on most
-     boards have no picture at all. */
+     boards have no picture at all.
+     The address itself is set on the element rather than here. A style
+     element is raw text, so character references inside it are never
+     decoded: an escaped double quote stays as its six literal characters,
+     the CSS parser then reads an unquoted url beginning with an ampersand,
+     and it resolves against nothing. That is the same silent empty box the
+     file address gave, in the one place the fix for it did not reach. In a
+     style attribute the HTML parser decodes the escape first, which is why
+     every tile on the board has always been fine. */
   .pulled .shot {
     flex: 0 0 138px; width: 138px; height: 138px; border-radius: 12px; overflow: hidden;
-    background: url(&quot;${escapeHtml(pic ?? "")}&quot;) center / cover;
+    background-position: center; background-size: cover;
   }
   .pulled .said { min-width: 0; flex: 1 1 auto; }
   .pulled .yrmark { color: ${ACCENT}; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 24px; margin-bottom: 10px; }
@@ -633,7 +653,7 @@ export function renderPersonalSquare(page: DayPage, hive: CardHive, birthYear: n
 ${squareTiles(hive, view, voice, pulled.id)}
   </div>
   <div class="pulled">
-    ${pic === undefined ? "" : `<div class="shot"></div>`}
+    ${pic === undefined ? "" : `<div class="shot" style="background-image:url(&quot;${escapeHtml(pic)}&quot;)"></div>`}
     <div class="said">
       <p class="yrmark">${year}</p>
       <p class="hl">${escapeHtml(pulled.headline)}</p>

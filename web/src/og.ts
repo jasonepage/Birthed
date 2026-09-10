@@ -21,7 +21,7 @@ import { factsByDay, factsForDate, fetchFacts } from "./facts.js";
 import { everyDate, slug, type DayPage, type Person } from "./model.js";
 import { cardHighlight, FIRST_BIRTH_YEAR, LAST_BIRTH_YEAR, personalName, renderPersonalSquare, renderShareCard, renderSquare, SQUARE_SIDE, type CardHive } from "./share.js";
 import { eventsByDay, eventsForDate, fetchEvents } from "./timeline.js";
-import { fetchWall, newestByDate, wallKey } from "./wall.js";
+import { fetchWall, newestByDate, subjectOf, wallKey } from "./wall.js";
 import { coverageByDay, fetchChartWeeks, songsForDate, withDownloadedCovers } from "./songs.js";
 import { picturesFor } from "./render.js";
 import { readFile, readdir } from "node:fs/promises";
@@ -178,7 +178,17 @@ async function main(): Promise<void> {
     let hive: CardHive | null = null;
     if (wall !== null) {
       const songs = songsForDate(covered, date.month, date.day, FIRST_CHART_YEAR, thisYear);
-      const found = picturesFor(songs, day.people, facesOnDisk);
+      // Only the subjects that are actually on a tile. picturesFor answers for
+      // every chart week and every one of the forty people it was handed, and
+      // a board draws at most a dozen, so without this the kept bytes converge
+      // on the whole of static/ once every date has a wall: 177 megabytes of
+      // pictures is about 247 megabytes of base64 held for the life of the
+      // process, beside a Chromium already measured at 700.
+      const onTiles = new Set(wall.stories
+        .filter((s) => s.rect !== null && (s.status === "placed" || s.status === "false"))
+        .map((s) => subjectOf(s))
+        .filter((s): s is string => s !== null));
+      const found = picturesFor(songs, day.people, facesOnDisk).filter((p) => onTiles.has(p.subject));
       hive = { day: wall, pictures: new Map(await Promise.all(found.map(async (p) => [p.subject, await picture(p.path)] as const))) };
       if (wall.stories.some((s) => s.rect !== null)) hived++;
     }

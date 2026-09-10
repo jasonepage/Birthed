@@ -1065,6 +1065,12 @@ test("a birth year alone is enough to change the label, and to stop the page bei
   const openSlug = `${monthName(openMonth).toLowerCase()}-${openDay}`;
   await mkdir(join(root, openSlug), { recursive: true });
   await writeFile(join(root, openSlug, "index.html"), BAKED, "utf8");
+  // The label promises a picture, so the picture has to be there.
+  const personal = resolve("test-personal-label");
+  await rm(personal, { recursive: true, force: true });
+  await mkdir(personal, { recursive: true });
+  await writeFile(join(personal, `${personalName(openDate, 1994)}.png`), "MINE", "utf8");
+  process.env.PERSONAL_ROOT = personal;
 
   const realFetch = globalThis.fetch;
   const previousKey = process.env.SUPABASE_ANON_KEY;
@@ -1088,7 +1094,9 @@ test("a birth year alone is enough to change the label, and to stop the page bei
     globalThis.fetch = realFetch;
     if (previousKey === undefined) delete process.env.SUPABASE_ANON_KEY; else process.env.SUPABASE_ANON_KEY = previousKey;
     forgetWalls();
+    delete process.env.PERSONAL_ROOT;
     await rm(root, { recursive: true, force: true });
+    await rm(personal, { recursive: true, force: true });
   });
 
   forgetWalls();
@@ -1103,6 +1111,16 @@ test("a birth year alone is enough to change the label, and to stop the page bei
   const sharedBody = await shared.text();
   assert.ok(!sharedBody.includes(".wsavemine{display:inline}"), "a reader who never said keeps the shared words");
   assert.match(shared.headers.get("cache-control") ?? "", /max-age=20/, "and the shared page is still shared");
+  assert.equal(shared.headers.get("vary"), "Cookie", "a shared cache is told what decides the body");
+
+  // A year nothing was rendered for gets no promise. The label is decided
+  // live and the picture is a build artefact, so four days after a deploy,
+  // or for a year outside the rendered range, the file is simply not there.
+  // Saying "Save your version" and handing over the shared square is a lie
+  // told in the one place this feature is visible.
+  forgetWalls();
+  const unrendered = await realFetch(`${base}/${openSlug}/`, { headers: { cookie: "by=1911" } });
+  assert.ok(!(await unrendered.text()).includes(".wsavemine{display:inline}"), "no picture, no promise");
 });
 
 test("a reader's own picture is never served as a file, even if the folders overlap", async (t) => {
