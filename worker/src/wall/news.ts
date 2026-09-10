@@ -22,7 +22,7 @@ import { fileURLToPath } from "node:url";
 
 import { loadConfig, loadDotEnv } from "../config.js";
 import { insert, rows, type Db } from "./db.js";
-import { decodeEntities, fold, ownerOf, type OwnerRow } from "./page.js";
+import { decodeEntities, fetchPage, fold, meta, ownerOf, pageContains, type Fetched, type OwnerRow } from "./page.js";
 import { normalizeUrl, outletOf } from "./url.js";
 
 // ---------------------------------------------------------------------------
@@ -140,9 +140,38 @@ function element(xml: string, name: string): string | null {
   return inner;
 }
 
-/** Plain words from a feed field: tags gone, entities decoded, whitespace folded. */
+/**
+ * Plain words from a feed field: tags gone, entities decoded, whitespace
+ * folded.
+ *
+ * Some feeds carry markup inside CDATA, where the tags are literal and are
+ * stripped first. The Guardian's carry markup escaped as entities, so the
+ * tags only appear after the entities are decoded, and the old order, strip
+ * then decode, handed back "<p>Lambie, a veteran and Tasmanian senator ..."
+ * as the quotation. No article page contains "<p>", so every Guardian
+ * source failed its check from the day the feed was added: thirty of thirty
+ * on the open walls on September 10, 2026. So when decoding uncovers tags,
+ * they are stripped and the text is decoded once more, because content that
+ * was escaped twice has its own entities escaped twice as well.
+ */
 export function plain(text: string): string {
-  return fold(decodeEntities(text.replace(/<[^>]*>/g, " ")));
+  let s = decodeEntities(text.replace(/<[^>]*>/g, " "));
+  if (/<[a-zA-Z/!][^>]*>/.test(s)) s = decodeEntities(s.replace(/<[^>]*>/g, " "));
+  return fold(s);
+}
+
+/**
+ * A feed excerpt with its truncation mark removed. Variety, The Verge and
+ * NASA send the first few dozen words of the article and end them with
+ * "[…]", and the article page has the words and never the mark, so the
+ * exact match failed on the last three characters of every one of them:
+ * twenty seven sources, one verified, on the open walls on September 10,
+ * 2026. Taking the mark off leaves fewer of the source's words and never
+ * different ones, which is the same rule fitHeadline already applies. Only
+ * a trailing mark is touched.
+ */
+export function withoutTruncationMark(text: string): string {
+  return fold(text).replace(/\s*(\[\s*(…|\.\.\.)\s*\]|…|\.\.\.)\s*$/u, "").trim();
 }
 
 /** Every item in an RSS or Atom document that has a title and a link. */
@@ -243,7 +272,7 @@ export function planNews(feedItems: Array<{ feed: Feed; items: FeedItem[] }>, no
       // The screen runs on the source's own title rather than on the cut
       // one, so a pattern near the end is still there to be seen.
       if (!mayMatter(item.title)) continue;
-      let quotation = fold(item.description);
+      let quotation = withoutTruncationMark(item.description);
       if (quotation.length < 20) quotation = headline;
       if (headline === "" || quotation.length < 20) continue;
       seen.add(key);
@@ -254,6 +283,77 @@ export function planNews(feedItems: Array<{ feed: Feed; items: FeedItem[] }>, no
       });
     }
   }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// The quotation, taken from the page
+// ---------------------------------------------------------------------------
+
+/** Where a story's quotation came from, for the log and for the tests. */
+export type QuotationOrigin = "feed" | "page description" | "page headline" | "feed, page unread" | "feed, nothing on the page";
+
+/**
+ * The quotation a new story is filed with, given its page. Pure.
+ *
+ * The feed's own description when the page contains it, because it is the
+ * outlet's lede and reads best on a receipt. Otherwise the page's own
+ * description, then the page's own headline, which is the rule
+ * wall_submit_story applies to a link a person pastes: the page is asked
+ * what it says about itself and that is quoted. Every candidate is held to
+ * pageContains before it is taken, the same exact match with whitespace
+ * folded that the checker will run a quarter hour later, so nothing is
+ * stored here that the checker could disagree with. When the page could not
+ * be read the feed's words are kept and the checker retries on its own
+ * schedule; when the page offers nothing quotable the feed's words are kept
+ * and the story fails its check and stays in the pool, which is right: a
+ * page that will not say what it says is not a receipt.
+ */
+export function quotationFor(feedQuotation: string, page: Fetched): { quotation: string; origin: QuotationOrigin } {
+  const feed = fold(feedQuotation);
+  if (page.body === null || page.status === null || page.status < 200 || page.status >= 400) {
+    return { quotation: feed, origin: "feed, page unread" };
+  }
+  if (feed.length >= 20 && pageContains(page.body, feed)) return { quotation: feed, origin: "feed" };
+  const description = meta(page.body, "og:description") ?? meta(page.body, "description") ?? meta(page.body, "twitter:description");
+  if (description !== null && description.length >= 20 && pageContains(page.body, description)) {
+    return { quotation: description.slice(0, 1000), origin: "page description" };
+  }
+  const headline = meta(page.body, "og:title") ?? titleOf(page.body);
+  if (headline !== null && headline.length >= 20 && pageContains(page.body, headline)) {
+    return { quotation: headline.slice(0, 1000), origin: "page headline" };
+  }
+  return { quotation: feed, origin: "feed, nothing on the page" };
+}
+
+/** The title element's text, or null. */
+function titleOf(html: string): string | null {
+  const found = /<title\b[^>]*>([\s\S]*?)<\/title\s*>/i.exec(html);
+  if (found?.[1] === undefined) return null;
+  const value = fold(decodeEntities(found[1]));
+  return value === "" ? null : value;
+}
+
+/**
+ * Each new story's page read once and its quotation settled. The reader is
+ * an argument so the tests hand in pages rather than a network. One page at
+ * a time, for the same reason the checker reads one at a time: these are
+ * other people's servers.
+ */
+export async function withPageQuotations(
+  planned: PlannedStory[],
+  read: (url: string) => Promise<Fetched> = (url) => fetchPage(url),
+  log: (line: string) => void = () => {},
+): Promise<PlannedStory[]> {
+  const out: PlannedStory[] = [];
+  const origins = new Map<QuotationOrigin, number>();
+  for (const story of planned) {
+    const page = await read(story.url);
+    const { quotation, origin } = quotationFor(story.quotation, page);
+    origins.set(origin, (origins.get(origin) ?? 0) + 1);
+    out.push({ ...story, quotation });
+  }
+  if (planned.length > 0) log(`wall news: quotations ${[...origins.entries()].map(([k, n]) => `${n} ${k}`).join(", ")}`);
   return out;
 }
 
@@ -299,7 +399,16 @@ export async function run(db: Db, options: { now?: Date; dry?: boolean; userAgen
     // The trigger fills the window; the values sent are placeholders it replaces.
     const at = now.toISOString();
     await insert(db, "wall_days", [{ wall_date: wallDate, opens_at: at, live_at: at, closes_at: at }], { ignoreDuplicates: true });
-    const mine = planned.filter((p) => p.wallDate === wallDate);
+    // Only a page not already on this date is read. A feed carries an
+    // article for days, and reading it again every quarter hour to settle a
+    // quotation that was settled on the first run is the checker's old
+    // mistake, recheck.ts, made over again in the seeder.
+    const already = new Set((await rows<{ url_key: string }>(db, `wall_stories?select=url_key&wall_date=eq.${wallDate}`)).map((r) => r.url_key));
+    const mine = await withPageQuotations(planned.filter((p) => p.wallDate === wallDate && !already.has(p.urlKey)), undefined, console.log);
+    if (mine.length === 0) {
+      console.log(`wall news ${wallDate}: nothing new`);
+      continue;
+    }
     // A page already on this date is that story; ignoring the duplicate is
     // the same rule wall_submit_story applies, and the row that comes back
     // is only the new ones.
