@@ -3,7 +3,9 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
 
-import { openDates, redirectFor, resolvePath, securityFor, start, todaySlug, todayStylesheet, yearMarks } from "../src/serve.js";
+import { openDates, pictureFor, redirectFor, resolvePath, securityFor, start, todaySlug, todayStylesheet, yearMarks } from "../src/serve.js";
+import { personalName } from "../src/share.js";
+import { monthName } from "../src/model.js";
 
 const ROOT = resolve("out");
 
@@ -948,4 +950,90 @@ test("a flood of taps from one address is refused before the database is touched
   }
   assert.ok(statuses.filter((s) => s === 400).length >= 30, `${statuses.filter((s) => s === 400).length} refused`);
   assert.ok(reached <= 40, `${reached} reached the database`);
+});
+
+/**
+ * A reader's own picture of a hive, and the two ways it must not leak a year.
+ *
+ * The address names only the date. Which picture comes back is decided by the
+ * `by` cookie and by nothing a reader could copy out of the page, and the
+ * answer is never stored, because it is one reader's own the way their marks
+ * and their anniversary already are.
+ */
+test("a reader's own picture is chosen by the cookie, never by the address", async (t) => {
+  const root = resolve("test-site-yours");
+  const personal = resolve("test-personal");
+  await rm(root, { recursive: true, force: true });
+  await rm(personal, { recursive: true, force: true });
+  await mkdir(join(root, "og"), { recursive: true });
+  await mkdir(personal, { recursive: true });
+  // A date that cannot be open, whichever day this suite runs on: the three
+  // open dates are today in Eastern and the two either side of it.
+  const closedKey = [...openWallDates(Date.now()).keys()];
+  const closed = [...Array(12).keys()].map((m) => `${m + 1}-15`).find((k) => !closedKey.includes(k))!;
+  const [cm, cd] = closed.split("-").map(Number) as [number, number];
+  const shutSlug = `${monthName(cm).toLowerCase()}-${cd}`;
+  await writeFile(join(root, "og", `${shutSlug}-square.png`), "PLAIN", "utf8");
+
+  // The date has to be an open one for a reader's own picture to exist at
+  // all, because that is the window og.ts renders.
+  const open = [...openWallDates(Date.now()).entries()];
+  const [key, wallDate] = open[1]!;
+  assert.notEqual(key, closed, "the open date and the shut one must be different dates");
+  const [month, day] = key.split("-").map(Number) as [number, number];
+  const dated = `${monthName(month).toLowerCase()}-${day}`;
+  await writeFile(join(personal, `${personalName(wallDate, 1994)}.png`), "MINE", "utf8");
+  await writeFile(join(root, "og", `${dated}-square.png`), "PLAIN-OPEN", "utf8");
+
+  process.env.PERSONAL_ROOT = personal;
+  const server = start({ root, port: 0 });
+  await new Promise((done) => server.once("listening", done));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const base = `http://127.0.0.1:${address.port}`;
+  t.after(async () => {
+    server.close();
+    delete process.env.PERSONAL_ROOT;
+    await rm(root, { recursive: true, force: true });
+    await rm(personal, { recursive: true, force: true });
+  });
+
+  // A reader who has given a year gets their own, and it is never stored.
+  const mine = await fetch(`${base}/${dated}/yours.png`, { headers: { cookie: "by=1994" } });
+  assert.equal(mine.status, 200);
+  assert.equal(mine.headers.get("content-type"), "image/png");
+  assert.equal(mine.headers.get("cache-control"), "no-store");
+  assert.equal(await mine.text(), "MINE");
+
+  // A reader who has not gets the shared square, and that one caches.
+  const plain = await fetch(`${base}/${dated}/yours.png`);
+  assert.equal(plain.status, 200);
+  assert.equal(await plain.text(), "PLAIN-OPEN");
+  assert.match(plain.headers.get("cache-control") ?? "", /max-age=3600/);
+
+  // A year nothing was rendered for is the shared square rather than a miss,
+  // so the link under the board is never broken.
+  const odd = await fetch(`${base}/${dated}/yours.png`, { headers: { cookie: "by=1901" } });
+  assert.equal(odd.status, 200);
+  assert.equal(await odd.text(), "PLAIN-OPEN");
+
+  // A date whose hive is not open has no reader's picture at all.
+  const shut = await fetch(`${base}/${shutSlug}/yours.png`, { headers: { cookie: "by=1994" } });
+  assert.equal(await shut.text(), "PLAIN");
+
+  // And the folder the pictures live in is not reachable by asking for it,
+  // which is why it is not under the site root.
+  const direct = await fetch(`${base}/personal/${personalName(wallDate, 1994)}.png`);
+  assert.equal(direct.status, 404);
+  const climbed = await fetch(`${base}/../test-personal/${personalName(wallDate, 1994)}.png`);
+  assert.ok(climbed.status === 404 || climbed.status === 400);
+});
+
+test("no address on this site carries a birth year", () => {
+  assert.deepEqual(pictureFor("/september-10/yours.png"), { month: 9, day: 10 });
+  // There is no shape of this path that takes a year, which is the point.
+  assert.equal(pictureFor("/september-10/yours-1994.png"), null);
+  assert.equal(pictureFor("/september-10/yours.png?by=1994"), null);
+  assert.equal(pictureFor("/february-31/yours.png"), null);
+  assert.equal(pictureFor("/september-10/"), null);
 });

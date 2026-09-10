@@ -257,6 +257,134 @@ test("a card is handed its pictures as bytes, never as an address that needs an 
   }
 });
 
+import { ageLine, personalName, pickPersonal, renderPersonalSquare, storyYear } from "../src/share.js";
+
+test("a story's year is read from every shape the worker writes, and nothing else", () => {
+  const y = (headline: string, kind: string | null) => storyYear({ headline, subjectKind: kind }, 2026);
+  assert.equal(y("1792: The Hope Diamond is stolen along with other French crown jewels", "historical_event"), 1792);
+  assert.equal(y("2007: Britney's comeback performance went badly.", "cultural_event"), 2007);
+  assert.equal(y("Guy Ritchie, English filmmaker (born 1968), born 1968", "person"), 1968);
+  assert.equal(y("On September 10, 1932, the Eighth Avenue Line opened in New York City", "birth_fact"), 1932);
+  // The day's news happened today, so it takes the wall's own year.
+  assert.equal(y("Oil hits $100 a barrel for the first time since July", null), 2026);
+  // A person whose description carries a year is still read from the end,
+  // which is where the worker puts the one it means.
+  assert.equal(y("Bashar al-Assad, President of Syria from 2000 to 2024, born 1965", "person"), 1965);
+  // Nothing to state is null, and a story with no year is never pulled out.
+  assert.equal(y("In standard calendar years, September 11 is the 254th day", "birth_fact"), null);
+});
+
+test("the two age lines, including the year the reader arrived", () => {
+  assert.equal(ageLine(2007, 1994), "You were 13 when this happened.");
+  assert.equal(ageLine(1995, 1994), "You were 1 when this happened.");
+  assert.equal(ageLine(1994, 1994), "This happened the year you were born.");
+  assert.equal(ageLine(1792, 1994), "202 years before you were born.");
+  assert.equal(ageLine(1993, 1994), "1 year before you were born.");
+});
+
+test("the story a reader's picture pulls out is the one the board would pick", () => {
+  const at = (over: Record<string, unknown>) => ({
+    id: String(over.id), wallDate: "2026-09-10", submittedAt: "2026-09-10T05:00:00Z", headline: "",
+    url: "https://example.com/x", outlet: "example.com", status: "placed" as const, tier: "claimed" as const,
+    support: 0, priority: 1, placedAt: "2026-09-10T05:15:00Z", rect: { mx: 2, my: 2, w: 3, h: 3 },
+    falseAt: null, falseNote: null, subjectKind: "historical_event", subjectId: "1", sources: [], ...over,
+  });
+  const day = (stories: ReturnType<typeof at>[]) => ({
+    wallDate: "2026-09-10", year: 2026, month: 9, day: 10, opensAt: "2026-09-09T04:00:00Z",
+    liveAt: "2026-09-10T04:00:00Z", closesAt: "2026-09-12T04:00:00Z", closedAt: null, stories,
+  });
+  const old = at({ id: "a", headline: "1089: The first synod of pope Urban II starts in Melfi" });
+  const mine = at({ id: "b", headline: "2007: Britney's comeback performance went badly." });
+  const buzzed = at({ id: "c", headline: "1570: Spanish Jesuit missionaries land in Virginia", support: 3 });
+  const undated = at({ id: "d", headline: "In standard calendar years this is the 254th day", subjectKind: "birth_fact" });
+
+  // Inside the reader's own life beats older, which is the sentence this
+  // product is built on.
+  assert.equal(pickPersonal(day([old, mine]), 1994)?.id, "b");
+  // A buzz beats it, the way a buzz beats everything on this board.
+  assert.equal(pickPersonal(day([old, mine, buzzed]), 1994)?.id, "c");
+  // A reader born after every story on the board still gets one.
+  assert.equal(pickPersonal(day([old, mine]), 2015)?.id, "a");
+  // A story with no year it can state is never pulled out, and a board of
+  // nothing but those has no picture rather than a made up number.
+  assert.equal(pickPersonal(day([undated]), 1994), null);
+  assert.equal(renderPersonalSquare({ month: 9, day: 10, people: [] }, { day: day([undated]), pictures: new Map() }, 1994), null);
+});
+
+test("a reader's picture shows the board, the story it pulled out and their own arithmetic", () => {
+  const story = {
+    id: "11111111-2222-3333-4444-555555555555", wallDate: "2026-09-10", submittedAt: "2026-09-10T05:00:00Z",
+    headline: "2007: Britney's comeback performance went badly.", url: "https://en.wikipedia.org/wiki/Chris_Crocker",
+    outlet: "en.wikipedia.org", status: "placed" as const, tier: "claimed" as const, support: 0, priority: 3,
+    placedAt: "2026-09-10T05:15:00Z", rect: { mx: 6, my: 6, w: 4, h: 3 }, falseAt: null, falseNote: null,
+    subjectKind: "cultural_event", subjectId: "17e569aa", sources: [],
+  };
+  const other = { ...story, id: "22222222-2222-3333-4444-555555555555", headline: "1089: The first synod of pope Urban II", rect: { mx: 2, my: 2, w: 4, h: 3 }, subjectId: "other" };
+  const day = { wallDate: "2026-09-10", year: 2026, month: 9, day: 10, opensAt: "2026-09-09T04:00:00Z", liveAt: "2026-09-10T04:00:00Z", closesAt: "2026-09-12T04:00:00Z", closedAt: null, stories: [story, other] };
+  const html = renderPersonalSquare({ month: 9, day: 10, people: [] }, { day, pictures: new Map() }, 1994)!;
+  assert.ok(html.includes("You were 13 when this happened."));
+  assert.ok(html.includes("Britney"));
+  assert.ok(html.includes("September 10"));
+  // The one it pulled is lit and the rest of the board dims rather than goes,
+  // because the point is that this one came off that board.
+  assert.ok(html.includes(`class="t lit"`) || html.includes(" lit\""));
+  assert.ok(html.includes(" dim"));
+});
+
+test("more buzzes wins over higher priority, the way the board itself orders", () => {
+  const at = (over: Record<string, unknown>) => ({
+    id: String(over.id), wallDate: "2026-09-10", submittedAt: "2026-09-10T05:00:00Z", headline: "",
+    url: "https://example.com/x", outlet: "example.com", status: "placed" as const, tier: "claimed" as const,
+    support: 0, priority: 1, placedAt: "2026-09-10T05:15:00Z", rect: { mx: 2, my: 2, w: 3, h: 3 },
+    falseAt: null, falseNote: null, subjectKind: "historical_event", subjectId: "1", sources: [], ...over,
+  });
+  const day = (stories: ReturnType<typeof at>[]) => ({
+    wallDate: "2026-09-10", year: 2026, month: 9, day: 10, opensAt: "2026-09-09T04:00:00Z",
+    liveAt: "2026-09-10T04:00:00Z", closesAt: "2026-09-12T04:00:00Z", closedAt: null, stories,
+  });
+  // Two buzzes at the lowest priority against one buzz at the highest. The
+  // first version of this scored only whether support was more than nought
+  // and then let priority decide, which handed the picture to the one buzz.
+  const two = at({ id: "two", headline: "1967: The people of Gibraltar vote to remain a British dependency", support: 2, priority: 0 });
+  const one = at({ id: "one", headline: "2007: Britney's comeback performance went badly.", support: 1, priority: 3, subjectKind: "cultural_event" });
+  assert.equal(pickPersonal(day([one, two]), 1994)?.id, "two");
+});
+
+test("today's news is the last thing a reader's picture reaches for", () => {
+  const at = (over: Record<string, unknown>) => ({
+    id: String(over.id), wallDate: "2026-09-10", submittedAt: "2026-09-10T05:00:00Z", headline: "",
+    url: "https://example.com/x", outlet: "example.com", status: "placed" as const, tier: "claimed" as const,
+    support: 0, priority: 1, placedAt: "2026-09-10T05:15:00Z", rect: { mx: 2, my: 2, w: 3, h: 3 },
+    falseAt: null, falseNote: null, subjectKind: "historical_event", subjectId: "1", sources: [], ...over,
+  });
+  const day = (stories: ReturnType<typeof at>[]) => ({
+    wallDate: "2026-09-10", year: 2026, month: 9, day: 10, opensAt: "2026-09-09T04:00:00Z",
+    liveAt: "2026-09-10T04:00:00Z", closesAt: "2026-09-12T04:00:00Z", closedAt: null, stories,
+  });
+  // The real September 10: the buzzes are on a story from that morning, which
+  // would tell a reader born in 1994 they were 32, which is their age and not
+  // a discovery. The 2007 tile under it tells them they were 13.
+  const news = at({ id: "news", headline: "Grief, fury, conspiracy: inside Turning Point USA", support: 2, priority: 0, subjectKind: null, subjectId: null });
+  const britney = at({ id: "britney", headline: "2007: Britney's comeback performance went badly.", support: 0, priority: 3, subjectKind: "cultural_event" });
+  assert.equal(pickPersonal(day([news, britney]), 1994)?.id, "britney");
+  assert.equal(ageLine(2007, 1994), "You were 13 when this happened.");
+  // A board with nothing but today still makes a picture rather than none.
+  assert.equal(pickPersonal(day([news]), 1994)?.id, "news");
+});
+
+test("a reader's birth year is in no file name this build writes", () => {
+  const name = personalName("2026-09-10", 1994);
+  assert.match(name, /^[0-9a-f]{32}$/);
+  assert.ok(!name.includes("1994"));
+  assert.ok(!name.includes("94"), "not even the last two digits fall out of it by accident");
+  // Same date and year, same file, so the builder and the server agree
+  // without passing anything between them.
+  assert.equal(personalName("2026-09-10", 1994), name);
+  assert.notEqual(personalName("2026-09-10", 1995), name);
+  assert.notEqual(personalName("2026-09-11", 1994), name);
+});
+
+
 
 
 import { calendar, isLeapYear, renderAdd, renderHome, renderPrivacy, renderSupport } from "../src/pages.js";

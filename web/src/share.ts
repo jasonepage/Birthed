@@ -8,6 +8,8 @@
 // Rendered as HTML at 1200 by 630, which is what every platform crops to, and
 // screenshotted at build time so the shipped artefact is a plain PNG.
 
+import { createHash } from "node:crypto";
+
 import type { Fact } from "./facts.js";
 import { DayPage, monthName } from "./model.js";
 import { escapeHtml } from "./render.js";
@@ -468,6 +470,195 @@ export function renderSquare(page: DayPage, highlight: Highlight | null = null, 
     return hiveSquare(page, hive);
   }
   return emptySquare(page, highlight);
+}
+
+// ---------------------------------------------------------------------------
+// The personal square
+// ---------------------------------------------------------------------------
+
+/** The earliest and latest birth year a picture is rendered for. */
+export const FIRST_BIRTH_YEAR = 1930;
+export const LAST_BIRTH_YEAR = 2020;
+
+/**
+ * The year a story is about, or null when it does not carry one.
+ *
+ * Four shapes, because the worker writes four and they are all it writes:
+ * history and a release lead with the year and a colon, a person's row ends
+ * with "born" and the year, a fact about the date names the year inside a
+ * sentence, and the day's news is the wall's own year because it happened
+ * today. Anything that does not match is null and is never pulled out, which
+ * is the right answer: an age against a story with no date is a made up
+ * number.
+ *
+ * A year before the common era never reaches this. The events importer
+ * refuses those outright rather than filing them under the same number, which
+ * `CLAUDE.md` section 6 records, so a four digit year here is a year.
+ */
+export function storyYear(story: Pick<WallStory, "headline" | "subjectKind">, wallYear: number): number | null {
+  // The day's news, which is the one kind with no subject at all.
+  if (story.subjectKind === null) return wallYear;
+  // "1792: The Hope Diamond is stolen", "2007: Britney's comeback".
+  const led = /^(\d{4}):\s/.exec(story.headline);
+  if (led !== null) return Number(led[1]);
+  // "Guy Ritchie, English filmmaker (born 1968), born 1968". The last one is
+  // the worker's own, appended after the description, so it is read from the
+  // end and a year inside somebody's description cannot win.
+  const born = /born (\d{4})\s*$/.exec(story.headline);
+  if (born !== null) return Number(born[1]);
+  // "On September 10, 1932, the Eighth Avenue Line opened". A fact about the
+  // date states its year in the sentence and there is only ever one.
+  const inside = /\b(1[0-9]{3}|20[0-9]{2})\b/.exec(story.headline);
+  if (inside !== null) return Number(inside[1]);
+  return null;
+}
+
+/**
+ * What the picture says about a story and the reader, in one sentence.
+ *
+ * Two lines, and the second one is not the consolation prize. Most tiles on
+ * most boards are older than any reader: September 10 carries 1089, 1570 and
+ * 1967, and for somebody born in 1994 exactly one tile on it falls inside
+ * their life. A product that only spoke to the inside case would say nothing
+ * at all to most readers about most of the board, and "937 years before you
+ * were born" is the better thing to post anyway.
+ *
+ * The year the reader has their birthday is its own sentence rather than an
+ * age of nought, which reads as an error.
+ */
+export function ageLine(year: number, birthYear: number): string {
+  if (year === birthYear) return "This happened the year you were born.";
+  if (year > birthYear) {
+    const age = year - birthYear;
+    return `You were ${age === 1 ? "1" : String(age)} when this happened.`;
+  }
+  const before = birthYear - year;
+  return `${before === 1 ? "1 year" : `${before} years`} before you were born.`;
+}
+
+/**
+ * The one story a reader's picture pulls out.
+ *
+ * **Today's news comes last, and that is the one place this picture departs
+ * from the board's own order.** A story filed today carries today's year, so
+ * the line it produces is "you were 32 when this happened" for every reader
+ * on every news-led date, which is the reader's current age dressed up as a
+ * discovery. It is the dullest sentence the arithmetic can make and the news
+ * is exactly what takes the buzzes, so left alone it would win most days.
+ * September 10 is the case: two buzzes on a story from that morning, and
+ * under it a 2007 tile that tells a reader born in 1994 they were 13.
+ *
+ * The board's own answer is still the plain square, which orders the way the
+ * board orders. This one is the reader's, and its job is to say something
+ * about their life. So: anything with a year that is not today first, then
+ * most backed, then inside the reader's own life, then the board's priority.
+ * Today's news is kept as a last resort rather than dropped, because a board
+ * of nothing but today is better served by a dull true sentence than by no
+ * picture.
+ *
+ * A story with no year it can state is never pulled out at all.
+ */
+export function pickPersonal(day: WallDay, birthYear: number): WallStory | null {
+  const onWall = day.stories.filter((s) => s.rect !== null && (s.status === "placed" || s.status === "false"));
+  const dated = onWall.filter((s) => storyYear(s, day.year) !== null);
+  if (dated.length === 0) return null;
+  // Written as a chain rather than as one number, because the first version
+  // scored "has any support at all" and let priority decide between two
+  // stories that both had some. On September 10 that handed the picture to a
+  // one buzz tile over a two buzz one, which is the opposite of the rule the
+  // whole board runs on.
+  const inside = (s: WallStory): boolean => storyYear(s, day.year)! >= birthYear;
+  const notToday = (s: WallStory): boolean => storyYear(s, day.year)! !== day.year;
+  return [...dated].sort((a, b) =>
+    Number(notToday(b)) - Number(notToday(a))
+    || b.support - a.support
+    || Number(inside(b)) - Number(inside(a))
+    || b.priority - a.priority)[0] ?? null;
+}
+
+/**
+ * The square a reader who has told the site their birth year gets.
+ *
+ * The same board, smaller, with one story lifted off it and the reader's own
+ * arithmetic under it. The rest of the tiles dim rather than disappear,
+ * because the point of the picture is that this one came off that board.
+ *
+ * **The year is not in this file's name and is not in the address that serves
+ * it.** It is one reader's own, the way their marks and their anniversary
+ * are, and `serve.ts` answers the request `no-store` and reads the year from
+ * the cookie rather than from anything a link could carry.
+ */
+export function renderPersonalSquare(page: DayPage, hive: CardHive, birthYear: number): string | null {
+  const pulled = pickPersonal(hive.day, birthYear);
+  if (pulled === null) return null;
+  const name = `${monthName(page.month)} ${page.day}`;
+  const voice = voiceFor(page.month, page.day);
+  const onWall = hive.day.stories.filter((s) => s.rect !== null && (s.status === "placed" || s.status === "false"));
+  const view = viewportFor(onWall.map((s) => s.rect!));
+  const year = storyYear(pulled, hive.day.year)!;
+  const subject = subjectOf(pulled);
+  const pic = subject === null ? undefined : hive.pictures.get(subject);
+  return `<!doctype html>
+<html><head><meta charset="utf-8"><style>${squareStyle(view, 640)}
+  .top { margin-bottom: 12px; }
+  .top h1 { font-size: 46px; }
+  .pulled {
+    position: relative; width: 100%; margin-top: 30px; padding-top: 28px; border-top: 1px solid #2A2434;
+    display: flex; gap: 26px; align-items: flex-start;
+  }
+  /* The picture only appears when there is one. A tone block standing in for
+     a missing photograph is a large empty rectangle, and most stories on most
+     boards have no picture at all. */
+  .pulled .shot {
+    flex: 0 0 138px; width: 138px; height: 138px; border-radius: 12px; overflow: hidden;
+    background: url(&quot;${escapeHtml(pic ?? "")}&quot;) center / cover;
+  }
+  .pulled .said { min-width: 0; flex: 1 1 auto; }
+  .pulled .yrmark { color: ${ACCENT}; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 24px; margin-bottom: 10px; }
+  .pulled .hl {
+    font-family: Georgia, "Times New Roman", serif; font-weight: 700; font-size: 30px; line-height: 1.22; text-wrap: pretty;
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; margin-bottom: 16px;
+  }
+  .pulled .age { font-size: 36px; font-weight: 700; color: #FFE9B0; line-height: 1.2; text-wrap: pretty; }
+  .foot { padding-top: 16px; }
+</style></head>
+<body>
+  <div class="bloom"></div>
+  <div class="top">
+    <span class="kicker">The hive for</span>
+    <h1>${name}</h1>
+    <span class="yr">${hive.day.year}</span>
+  </div>
+  <div class="board">
+${squareTiles(hive, view, voice, pulled.id)}
+  </div>
+  <div class="pulled">
+    ${pic === undefined ? "" : `<div class="shot"></div>`}
+    <div class="said">
+      <p class="yrmark">${year}</p>
+      <p class="hl">${escapeHtml(pulled.headline)}</p>
+      <p class="age">${ageLine(year, birthYear)}</p>
+    </div>
+  </div>
+  <div class="foot">
+    <span class="line">${squareLine(hive, voice)}</span>
+    <span class="mark">birthed.app</span>
+  </div>
+</body></html>`;
+}
+
+/**
+ * What one reader's picture is called on disk.
+ *
+ * The year is hashed rather than written, and the file lives outside `out/`
+ * so nothing under it is reachable by asking for a path. Both halves are
+ * deliberate: `serve.ts` reads the year from the cookie and streams the
+ * bytes at an address that names only the date, so there is no link anywhere
+ * that carries a reader's birth year, nothing to paste that would carry it,
+ * and nothing in a log or a referrer either.
+ */
+export function personalName(wallDate: string, birthYear: number): string {
+  return createHash("sha256").update(`${wallDate}:${birthYear}`).digest("hex").slice(0, 32);
 }
 
 /** The size the square is rendered and shipped at, for the head tags and the shooter. */

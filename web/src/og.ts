@@ -19,7 +19,7 @@ import { join } from "node:path";
 import { chromium } from "playwright";
 import { factsByDay, factsForDate, fetchFacts } from "./facts.js";
 import { everyDate, slug, type DayPage, type Person } from "./model.js";
-import { cardHighlight, renderShareCard, renderSquare, SQUARE_SIDE, type CardHive } from "./share.js";
+import { cardHighlight, FIRST_BIRTH_YEAR, LAST_BIRTH_YEAR, personalName, renderPersonalSquare, renderShareCard, renderSquare, SQUARE_SIDE, type CardHive } from "./share.js";
 import { eventsByDay, eventsForDate, fetchEvents } from "./timeline.js";
 import { fetchWall, newestByDate, wallKey } from "./wall.js";
 import { coverageByDay, fetchChartWeeks, songsForDate, withDownloadedCovers } from "./songs.js";
@@ -28,6 +28,27 @@ import { readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 
 const OUT = join("out", "og");
+/**
+ * Where a reader's own picture goes, and it is deliberately not under `out/`.
+ *
+ * Everything under `out/` is reachable by asking for its path, and these are
+ * one reader's own. `serve.ts` opens them by name and streams the bytes at an
+ * address that carries only the date; nothing routes to this folder.
+ */
+const PERSONAL = process.env.PERSONAL_ROOT ?? "personal";
+
+/**
+ * How far either side of today a date gets pictures for every birth year.
+ *
+ * Three days each way, which is the three open dates and a little slack, so a
+ * deploy on Monday still has the right pictures on Thursday. It is a window
+ * rather than every date because the arithmetic is one picture per date per
+ * birth year: 91 years across seven dates is a few hundred files and about a
+ * minute, and across all 366 it would be 33,000 files, ten gigabytes and half
+ * an hour of build. A date outside the window falls back to the plain square,
+ * which is the right thing to fall back to.
+ */
+const PERSONAL_DAYS = 3;
 const WIDTH = 1200;
 const HEIGHT = 630;
 
@@ -140,6 +161,15 @@ async function main(): Promise<void> {
 
   let written = 0;
   let squares = 0;
+  let personal = 0;
+  await mkdir(PERSONAL, { recursive: true });
+  // The window, as real dates, so it crosses a month end and a year end the
+  // way the wall's own arithmetic does.
+  const middle = Date.now();
+  const inWindow = new Set<string>();
+  for (let offset = -PERSONAL_DAYS; offset <= PERSONAL_DAYS; offset++) {
+    inWindow.add(new Date(middle + offset * 86_400_000).toISOString().slice(0, 10));
+  }
   let carrying = 0;
   let hived = 0;
   for (const date of everyDate()) {
@@ -170,11 +200,25 @@ async function main(): Promise<void> {
     const tall = await square.screenshot({ type: "png", clip: { x: 0, y: 0, width: SQUARE_SIDE, height: SQUARE_SIDE } });
     await writeFile(join(OUT, `${slug(date.month, date.day)}-square.png`), tall);
     squares++;
+    // And, for a date whose hive is near enough to today to be worth sharing,
+    // one picture per birth year, each with the story its reader's own
+    // arithmetic picked out of that board.
+    if (hive !== null && inWindow.has(wall!.wallDate)) {
+      for (let born = FIRST_BIRTH_YEAR; born <= LAST_BIRTH_YEAR; born++) {
+        const html = renderPersonalSquare(day, hive, born);
+        if (html === null) continue;
+        await square.setContent(html, { waitUntil: "load" });
+        const mine = await square.screenshot({ type: "png", clip: { x: 0, y: 0, width: SQUARE_SIDE, height: SQUARE_SIDE } });
+        await writeFile(join(PERSONAL, `${personalName(wall!.wallDate, born)}.png`), mine);
+        personal++;
+      }
+    }
     if (written % 30 === 0) console.log(`  ${written} of 366`);
   }
 
   await browser.close();
   console.log(`wrote ${written} share images and ${squares} squares into ${OUT}`);
+  console.log(`wrote ${personal} readers\u2019 own pictures into ${PERSONAL}`);
   console.log(`${hived} of them show a hive, ${carrying} say what happened, ${written - carrying} are names only`);
 }
 

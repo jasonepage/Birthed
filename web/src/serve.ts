@@ -34,6 +34,7 @@ import { everyDate, monthName, slug } from "./model.js";
 import { ASK_SLOTS, TODAY, renderStoryPage, resultId, resultMarkup, undoForm, type Remembered } from "./render.js";
 import { ASK_MAX, emptyWallDay, fetchWallDay, openWallDates, replaceWall, hivePath, wallKey, wallMarks, wallSection, withChecks, type Anniversary, type TapBack, type WallDay } from "./wall.js";
 import { answer as findAnswer } from "./find.js";
+import { personalName } from "./share.js";
 
 
 const TYPES: Record<string, string> = {
@@ -112,6 +113,15 @@ const SECURITY: Record<string, string> = {
  */
 export function projectBase(): string {
   return (process.env.SUPABASE_URL ?? "https://lunqqhjwqrpbujwxwdzk.supabase.co").replace(/\/+$/, "");
+}
+
+/**
+ * Where the readers' own pictures are, which is deliberately not under the
+ * site root: everything under that is reachable by asking for its path, and
+ * these are one reader's own. og.ts writes them here by the same name.
+ */
+export function personalRoot(): string {
+  return resolve(process.env.PERSONAL_ROOT ?? "personal");
 }
 
 function apiOrigin(): string {
@@ -1318,6 +1328,51 @@ async function handle(
     return;
   }
 
+  // A reader's own picture of a hive.
+  //
+  // Rendered ahead of time, one per birth year on the dates whose hive is
+  // near enough to today to be worth sharing, and picked here by the `by`
+  // cookie. No browser runs in this process: Chromium wants more memory
+  // sitting idle than this instance has in total, and the render would land
+  // on the one process that serves every page.
+  //
+  // Answered `no-store`, and the address names only the date, so nothing a
+  // reader could copy, and nothing in a log or a referrer, carries the year.
+  // A request with no year, or one on a date with no picture rendered, gets
+  // the plain square instead of a miss, so the link under the board is never
+  // broken.
+  const wanted = method === "GET" || method === "HEAD" ? pictureFor(path) : null;
+  if (wanted !== null) {
+    const born = yearFromCookie(request.headers.cookie);
+    const wallDate = openWallDates(Date.now()).get(wallKey(wanted.month, wanted.day));
+    const mine = born === null || wallDate === undefined
+      ? null
+      : await fileFor(join(personalRoot(), `${personalName(wallDate, born)}.png`));
+    if (mine !== null) {
+      response.writeHead(200, {
+        "Content-Type": "image/png",
+        // One reader's own, like their marks and their anniversary.
+        "Cache-Control": "no-store",
+        ...securityFor(path),
+      });
+      if (method === "HEAD") { response.end(); return; }
+      createReadStream(mine).pipe(response);
+      return;
+    }
+    const plain = await fileFor(resolve(join(root, "og", `${slug(wanted.month, wanted.day)}-square.png`)));
+    if (plain !== null) {
+      response.writeHead(200, {
+        "Content-Type": "image/png",
+        // The shared picture, cached the way every other share image is.
+        "Cache-Control": "public, max-age=3600",
+        ...securityFor(path),
+      });
+      if (method === "HEAD") { response.end(); return; }
+      createReadStream(plain).pipe(response);
+      return;
+    }
+  }
+
   if (path === "/today.css") {
     response.writeHead(200, {
       "Content-Type": "text/css; charset=utf-8",
@@ -1682,6 +1737,23 @@ export function receiptFor(requestPath: string): { month: number; day: number; i
   if (match === null) return null;
   for (const d of everyDate()) {
     if (slug(d.month, d.day) === match[1]) return { month: d.month, day: d.day, id: match[2]! };
+  }
+  return null;
+}
+
+/**
+ * The date whose picture a request asks for, or null.
+ *
+ * One address a date, "/september-10/yours.png", and it never names a year.
+ * What comes back depends on the `by` cookie the request carries and on
+ * nothing else, which is why there is no year in the path to leave in a
+ * link, a log or a referrer, and why the answer is `no-store`.
+ */
+export function pictureFor(requestPath: string): { month: number; day: number } | null {
+  const match = /^\/([a-z]+-\d{1,2})\/yours\.png$/.exec(requestPath);
+  if (match === null) return null;
+  for (const d of everyDate()) {
+    if (slug(d.month, d.day) === match[1]) return { month: d.month, day: d.day };
   }
   return null;
 }
