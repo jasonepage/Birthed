@@ -744,7 +744,7 @@ function songRow(story: WallStory, live: boolean, voice: Voice): string {
   const count = units(story.support, voice);
   const control = live && story.status !== "false" ? buzzForm(story, voice) : "";
   return `<li id="w-${story.id}"${subjectAttr(story)}>`
-    + `<a class="wart" href="${storyPath(story)}" title="${escapeHtml(story.headline)}"><span class="wyr">${year}</span></a>`
+    + `<a class="wart" href="${storyPath(story)}" title="${escapeHtml(story.headline)}"><span class="wyr"${year === "" ? "" : ` id="${year}"`}>${year}</span></a>`
     + `<span class="wsongt">${escapeHtml(title)}</span>`
     + `<span class="wsongf">${control}${count === "" ? "" : `<span class="wn">${count}</span>`}${mine(voice)}</span></li>`;
 }
@@ -1493,7 +1493,8 @@ export const WALL_STYLE = `
 .wtile.tiny .wn { z-index: 1; }
 /* The strip of number ones under the feed. */
 .wsongs { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
-.wsongs li { display: flex; flex-direction: column; gap: 6px; background: #17141F; border-radius: 12px; padding: 8px; font-size: 13px; line-height: 1.35; --wbtn: #E7A83A; --wbtn-ink: #2A1A08; --wmark: #E7A83A; --wink: #E7A83A; }
+.wsongs li { display: flex; flex-direction: column; gap: 6px; background: #17141F; border-radius: 12px; padding: 8px; font-size: 13px; line-height: 1.35; scroll-margin-top: 72px; --wbtn: #E7A83A; --wbtn-ink: #2A1A08; --wmark: #E7A83A; --wink: #E7A83A; }
+.wsongs li:target { box-shadow: 0 0 0 2px #EF5680; }
 .wsongs .wart {
   /* width: 100% is not decoration. In a column flex box an aspect-ratio
      box with no width takes its width from its height, which is nothing,

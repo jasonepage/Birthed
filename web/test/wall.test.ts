@@ -364,11 +364,19 @@ test("a date with no hive yet lists its history under the promise, without butto
   assert.ok(html.includes("When its hive opens, every one of these takes buzzes."));
 });
 
-test("the number one songs stay behind one line", () => {
+test("the number one songs are one strip, baked under the feed until the worker files them, never drawn twice", () => {
   const songs = [{ year: 2001, chartDate: "2001-09-08", song: "A Song", artist: "A Band" }];
   const html = renderDayPage(PAGE, songs);
-  assert.ok(html.includes('<details class="rest">'));
-  assert.ok(html.includes("<summary>The number one song on September 9 in 1 year</summary>"));
+  assert.ok(!html.includes('<details class="rest">'), "the folded section is gone");
+  assert.equal((html.match(/class="wsongs"/g) ?? []).length, 1, "one strip");
+  assert.ok(html.includes('<li id="2001" data-subject="song:2001-09-08">'));
+  assert.ok(html.includes("&quot;A Song&quot; by A Band"));
+  assert.ok(!html.includes("<form"), "no buttons before the worker has filed the songs");
+  // Once the worker has filed a song story, the strip is the stories and the baked one is not drawn beside it.
+  const filed = story({ id: "aaaaaaaa-0000-0000-0000-000000000009", status: "pool", rect: null, placedAt: null, support: 0, subjectKind: "song", subjectId: "2001-09-08", headline: "2001: A Song by A Band was the number one song" });
+  const later = renderDayPage(PAGE, songs, [], [], [], null, new Map(), new Map(), day([story(), filed]));
+  assert.equal((later.match(/class="wsongs"/g) ?? []).length, 1, "still one strip");
+  assert.ok(later.includes('id="2001"'), "the year is still an address");
 });
 
 // ---------------------------------------------------------------------------
@@ -638,7 +646,7 @@ test("the number ones in the pool are a strip of covers under the feed, not sixt
   const order = [backed.id, newer.id, older.id].map((id) => strip.indexOf(`id="w-${id}"`));
   assert.ok(order[0]! < order[1]! && order[1]! < order[2]!, "most backed first, then newest year");
   assert.ok(strip.includes('data-subject="song:1994-09-10"'));
-  assert.ok(strip.includes('<span class="wyr">1994</span>'), "the year sits on the cover");
+  assert.ok(strip.includes('<span class="wyr" id="1994">1994</span>'), "the year sits on the cover");
   const shown = /<span class="wsongt">([^<]*)<\/span>/.exec(strip)?.[1] ?? "";
   assert.ok(shown.includes("Boyz II Men") && !shown.includes("was the number one song"), `the song and artist, not the whole sentence: ${shown}`);
   assert.equal((strip.match(/<form class="wbuzz"/g) ?? []).length, 3, "one button each while the date is live");

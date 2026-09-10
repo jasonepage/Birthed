@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ASK_SLOTS, askCandidates, renderDayPage, renderCalendarPage, renderRobots, renderSitemap, escapeHtml, isReady, undoForm, resultMarkup } from "../src/render.js";
+import { ASK_SLOTS, askCandidates, renderDayPage, renderCalendarPage, renderRobots, renderSitemap, escapeHtml, isReady, undoForm, resultMarkup, songSection } from "../src/render.js";
 import { everyDate, neighbours, slug } from "../src/model.js";
 
 const page = {
@@ -691,7 +691,7 @@ test("every song year is its own address on the date page", () => {
   // ends at the id. Matched without the closing bracket: what this guards is
   // that the year is an address, not what else the tag carries.
   assert.match(html, /<li id="1990"/);
-  assert.match(html, /<a href="#1990">1990<\/a>/);
+  assert.match(html, /<a class="wart" href="#1990"/);
   assert.match(html, /<li id="1989"/);
   assert.match(html, /scroll-margin-top/);
 });
@@ -917,11 +917,11 @@ test("the year wraps at both ends rather than running off it", () => {
   assert.match(lastDay, /<link rel="next" href="https:\/\/birthed\.app\/january-1\/">/);
 });
 
-test("a decade jump exists for every decade the date actually charted in", () => {
+test("the dial's decade jumps point at real years, in the section kept off the page", () => {
   const songs = [1959, 1962, 1971, 1988, 1994, 2003, 2011, 2024].map((year) => ({
     year, chartDate: `${year}-09-06`, song: `song ${year}`, artist: "somebody",
   }));
-  const html = renderDayPage(page, songs);
+  const html = songSection(songs, "September 4");
   for (const decade of [1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020]) {
     assert.ok(html.includes(`${decade}s</a>`), `no jump for the ${decade}s`);
   }
@@ -937,7 +937,7 @@ test("a date with only a couple of decades gets no bar at all", () => {
   const songs = [2020, 2024].map((year) => ({
     year, chartDate: `${year}-02-29`, song: `song ${year}`, artist: "somebody",
   }));
-  assert.ok(!renderDayPage(page, songs).includes('class="decades"'));
+  assert.ok(!songSection(songs, "September 4").includes('class="decades"'));
 });
 
 // ---------------------------------------------------------------------------

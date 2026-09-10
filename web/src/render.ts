@@ -1735,7 +1735,10 @@ function jsonLd(page: DayPage, canonical: string): string {
  * seventeen leap years and says nothing about the others. Nothing is filled
  * in from a nearby week.
  */
-function songSection(songs: SongOfTheYear[], name: string): string {
+// Off the date page since September 10, 2026: the strip under the feed is
+// the one place the number ones live now, because the two together drew
+// the same sixty covers twice. Kept for the dial, in case it comes back.
+export function songSection(songs: SongOfTheYear[], name: string): string {
   if (songs.length === 0) return "";
 
   // A wall of covers rather than a list of rows.
@@ -2039,7 +2042,28 @@ export function faceName(qid: string): string {
  * purpose, because to a reader they are the same thing: something with a
  * birthday today.
  */
-export function historyRows(rows: TimelineRow[], people: Person[]): string {
+/**
+ * The number ones as a strip of covers, baked, with no buttons: the stand in
+ * for the strip the wall draws from the song stories, on a date the worker
+ * has not filed yet. Same shape, same classes, so the picture rules find
+ * the covers by data-subject either way. Every year is its own address,
+ * "/september-5/#1990", because "number one song on September 5 1990" is a
+ * thing people type and the answer is on this page.
+ */
+export function songStrip(songs: SongOfTheYear[], name: string): string {
+  if (songs.length === 0) return "";
+  const rows = songs.map((song) => `<li id="${song.year}" data-subject="song:${escapeHtml(song.chartDate)}">
+<a class="wart" href="#${song.year}" title="${escapeHtml(song.song)} by ${escapeHtml(song.artist)}"><span class="wyr">${song.year}</span></a>
+<span class="wsongt">&quot;${escapeHtml(song.song)}&quot; by ${escapeHtml(song.artist)}</span>
+</li>`).join("\n");
+  return `<h3 class="wsub small">The number one song on ${escapeHtml(name)}, every year</h3>
+<p class="wnote">The week's number one on this date, ${songs[songs.length - 1]?.year} to ${songs[0]?.year}. When the hive opens, every one of these takes buzzes too.</p>
+<ul class="wsongs">
+${rows}
+</ul>`;
+}
+
+export function historyRows(rows: TimelineRow[], people: Person[], songs: SongOfTheYear[] = [], name: string = ""): string {
   const events = rows.map((row) => `<li id="r-${row.kind}-${escapeHtml(row.id)}" class="hist">
 <span class="fyr">${row.year === null ? "" : row.year}</span>
 <span class="fbody">${row.sourceUrl
@@ -2055,10 +2079,12 @@ export function historyRows(rows: TimelineRow[], people: Person[]): string {
 </span>
 </li>`);
   const all = [...events, ...born];
-  if (all.length === 0) return "";
+  const strip = songStrip(songs, name);
+  if (all.length === 0) return strip;
   return `<ul class="wlist hist">
 ${all.join("\n")}
-</ul>`;
+</ul>
+${strip}`;
 }
 
 /**
@@ -2495,12 +2521,9 @@ ${barEnd()}
 ${pictureRules(picturesFor(songs, page.people))}
 ${wallSection(wall, name, Date.now(), {
     date: { month: page.month, day: page.day },
-    history: historyRows([...picked, ...rest], page.people),
+    history: historyRows([...picked, ...rest], page.people, songs, name),
   })}
-${songs.length > 0 ? `<details class="rest">
-<summary>The number one song on ${escapeHtml(name)} in ${songs.length} year${songs.length === 1 ? "" : "s"}</summary>
-${songSection(songs, name)}
-</details>` : ""}
+${songs.length > 0 ? `<p class="credit">Chart positions are from the ${escapeHtml(CHART_NAME)}, compiled by Wikipedia and released under Creative Commons Attribution ShareAlike. ${songs.some((song) => song.hasArtwork) ? "Cover art comes from the iTunes Search API. " : ""}Birthed is not affiliated with Billboard, Wikipedia or Apple.</p>` : ""}
 ${feedCredits(timeline, name, searched, timeline.length - searched - curatedCount, curatedCount)}
 ${count === 0 ? `<p class="credit">Nobody imported for this date yet.</p>` : `<p class="credit">Names, years and descriptions of the ${count} people come from Wikidata, under Creative Commons Zero. Credit to Wikipedia and Wikidata.</p>`}
 </div>
