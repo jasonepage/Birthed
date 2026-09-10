@@ -443,3 +443,47 @@ test("a story with no outlet and no kind is its own outlet rather than everybody
   assert.equal(board.length, 3, "three stories with nothing said about them are three stories");
   assert.equal(PER_OUTLET_UNBACKED, 2, "and this is the cap they would have breached");
 });
+
+test("today still gets its tiles when every history story outranks it", () => {
+  // The correction. The list arrives sorted by support then priority, and
+  // every history story outranks every news story on priority, so a cap
+  // alone gave today nothing at all: on the real September 9, sixty four
+  // history stories took all eight tiles and the day's news took none. That
+  // is a board of pure wire copy with the sign reversed, on a wall whose
+  // whole reason for staying open three days is today.
+  const stories: StoryInput[] = [];
+  for (let i = 0; i < 40; i++) stories.push(historyStory(`event-${i}`, "historical_event", 1));
+  for (let i = 0; i < 12; i++) stories.push(historyStory(`person-${i}`, "person", 2));
+  for (let i = 0; i < 10; i++) stories.push(historyStory(`fact-${i}`, "birth_fact", 1));
+  for (let i = 0; i < 136; i++) stories.push(newsStory(`news-${i}`, `outlet-${i % 9}.com`));
+  stories.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
+
+  const board = varied(stories, 8).slice(0, 8);
+  const news = board.filter((s) => s.subjectKind === null);
+  assert.equal(news.length, NEWS_UNBACKED, "today's news is reserved slots, not merely capped");
+  assert.equal(board.length, 8);
+});
+
+test("and the reservation never costs a slot when there is no news to put in it", () => {
+  const stories = Array.from({ length: 20 }, (_, i) => historyStory(`event-${i}`, "historical_event"));
+  const board = varied(stories, 8).slice(0, 8);
+  assert.equal(board.length, 8, "a date with no news yet still fills its board");
+  assert.ok(board.every((s) => s.subjectKind !== null));
+});
+
+test("no one kind of history takes more than its share of the board", () => {
+  const stories: StoryInput[] = [];
+  for (let i = 0; i < 12; i++) stories.push(historyStory(`person-${i}`, "person", 2));
+  for (let i = 0; i < 40; i++) stories.push(historyStory(`event-${i}`, "historical_event", 1));
+  stories.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
+  const board = varied(stories, 8).slice(0, 8);
+  const people = board.filter((s) => s.subjectKind === "person").length;
+  const events = board.filter((s) => s.subjectKind === "historical_event").length;
+  // The caps take two of each and the fill takes the rest, so with only two
+  // kinds available an even board is the best there is. What must never
+  // happen is the kind that outranks taking most of the board while the
+  // other one has forty candidates waiting.
+  assert.ok(people <= 4, `twelve birthdays outranked forty events and took ${people} tiles`);
+  assert.ok(events >= 4, `forty events got ${events} tiles behind twelve birthdays`);
+  assert.equal(board.length, 8);
+});

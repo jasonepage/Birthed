@@ -99,7 +99,7 @@ export const NEWS_UNBACKED = 3;
 /** How many unbacked tiles any one outlet may hold. The date's history is exempt: every event shares one encyclopedia and that says nothing about variety. */
 export const PER_OUTLET_UNBACKED = 2;
 /** How many unbacked tiles any one kind of history may hold, so a board is not eight birthdays. */
-export const PER_KIND_UNBACKED = 3;
+export const PER_KIND_UNBACKED = 2;
 
 /**
  * Boost units per module of target area, above the minimum. One, because on
@@ -383,40 +383,83 @@ export function contains(outer: Rect, inner: Rect): boolean {
  */
 export function varied(unbacked: StoryInput[], limit: number): StoryInput[] {
   if (limit <= 0 || unbacked.length === 0) return unbacked;
+  const isNews = (s: StoryInput): boolean => (s.subjectKind ?? null) === null;
+
+  // A reservation and not only a cap, which is the correction. The list
+  // arrives sorted by support and then priority, and every history story
+  // outranks every news story on priority, so a cap alone left today with
+  // nothing at all: on the real September 9, sixty four history stories took
+  // all eight tiles and the day's news took none. That is the same failure as
+  // a board of pure wire copy with the sign reversed, on a wall whose entire
+  // reason for staying open three days is today.
+  const newsAvailable = unbacked.filter(isNews).length;
+  const newsSlots = Math.min(NEWS_UNBACKED, newsAvailable, limit);
+  const historySlots = limit - newsSlots;
+
   const taken = new Set<string>();
   const chosen: StoryInput[] = [];
   let news = 0;
+  let history = 0;
   const byOutlet = new Map<string, number>();
   const byKind = new Map<string, number>();
 
   for (const story of unbacked) {
     if (chosen.length >= limit) break;
-    const kind = story.subjectKind ?? null;
-    const outlet = story.outlet ?? story.id;
-    if (kind === null) {
-      // The day's news. Capped as a whole, and capped again per outlet, so
-      // one newsroom's feed cannot take the board.
-      if (news >= NEWS_UNBACKED) continue;
+    if (isNews(story)) {
+      // The day's news, held to its reservation and capped again per outlet
+      // so one newsroom's feed cannot take what today is given.
+      const outlet = story.outlet ?? story.id;
+      if (news >= newsSlots) continue;
       if ((byOutlet.get(outlet) ?? 0) >= PER_OUTLET_UNBACKED) continue;
-    } else if ((byKind.get(kind) ?? 0) >= PER_KIND_UNBACKED) {
-      // The date's own history, capped by kind rather than by outlet: every
-      // event on a date shares one encyclopedia and that is not a variety
-      // problem, eight birthdays in a row is.
-      continue;
-    }
-    chosen.push(story);
-    taken.add(story.id);
-    if (kind === null) {
       news += 1;
       byOutlet.set(outlet, (byOutlet.get(outlet) ?? 0) + 1);
     } else {
+      // The date's own history, capped by kind rather than by outlet: every
+      // event on a date shares one encyclopedia and that is not a variety
+      // problem, eight birthdays in a row is.
+      const kind = story.subjectKind ?? "";
+      if (history >= historySlots) continue;
+      if ((byKind.get(kind) ?? 0) >= PER_KIND_UNBACKED) continue;
+      history += 1;
       byKind.set(kind, (byKind.get(kind) ?? 0) + 1);
     }
+    chosen.push(story);
+    taken.add(story.id);
   }
 
+  // The fill. A slot the caps could not fill is filled rather than left
+  // empty, because a varied board is worth something and an empty one is
+  // not. But it does not simply take the next in line, which would undo the
+  // variety it just bought: with no news on a date the caps chose two people
+  // and two events and a plain fill handed the other four slots back to the
+  // people, because they sorted first. So it takes from whichever kind is
+  // thinnest on the board so far, in the order the list already had.
   const rest = unbacked.filter((s) => !taken.has(s.id));
-  const fill = rest.slice(0, Math.max(0, limit - chosen.length));
-  const after = rest.slice(fill.length);
+  const seen = new Map<string, number>();
+  const kindOf = (s: StoryInput): string => s.subjectKind ?? "news";
+  for (const story of chosen) seen.set(kindOf(story), (seen.get(kindOf(story)) ?? 0) + 1);
+
+  const fill: StoryInput[] = [];
+  const used = new Set<string>();
+  while (chosen.length + fill.length < limit) {
+    let best: StoryInput | undefined;
+    let fewest = Number.POSITIVE_INFINITY;
+    for (const story of rest) {
+      if (used.has(story.id)) continue;
+      const count = seen.get(kindOf(story)) ?? 0;
+      if (count < fewest) {
+        fewest = count;
+        best = story;
+        if (count === 0) break;
+      }
+    }
+    if (best === undefined) break;
+    used.add(best.id);
+    fill.push(best);
+    seen.set(kindOf(best), (seen.get(kindOf(best)) ?? 0) + 1);
+  }
+
+  const after = rest.filter((s) => !used.has(s.id));
   return [...chosen, ...fill, ...after];
 }
 
