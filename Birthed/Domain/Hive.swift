@@ -468,6 +468,71 @@ enum HiveCopy {
 
     static let openTheHive = "Open the hive full screen"
 
+    // MARK: The typed field, docs/the-wall.md section 15
+
+    /// The question over the field. A recall task rather than a recognition
+    /// task: everybody has an answer to this before they open the app.
+    static func ask(dateName: String) -> String {
+        "What mattered about \(dateName)?"
+    }
+
+    static let askPlaceholder = "A name, a place, a few words"
+
+    /// Under the field, so the reader knows what typing costs: nothing.
+    static func askHint(voice: HiveVoice) -> String {
+        "The hive finds the story among what is filed for the date. Nothing is spent until you confirm,"
+            + " and a \(voice.one) cannot be taken back."
+    }
+
+    static let find = "Find"
+
+    /// Over the chips. A blank box with a cursor intimidates people, and the
+    /// chips are a way in for somebody with no answer yet.
+    static let orStartFrom = "Or start from what is already on the hive:"
+
+    static let found = "Is this the one?"
+
+    static let severalFound = "A few stories say that. Which one did you mean?"
+
+    /// A query of stop words alone. Not a miss: it never asked anything.
+    static let tooCommon = "Those words are too common to search on. Try a name, a place or what happened."
+
+    /// The miss, and it is the front door to submission rather than an
+    /// error. If people keep typing about something the feeds did not carry,
+    /// that is the only editorial signal here that comes from a person.
+    static func miss(dateName: String) -> String {
+        "Nothing filed for \(dateName) says that. If you have a link to it, add it and it is filed for the date."
+    }
+
+    static let addWithLink = "Add a story with a link"
+
+    /// The heading on the confirmation. The confirmation is not optional:
+    /// a silent wrong match spends something permanent on what the reader
+    /// did not mean.
+    static func confirm(voice: HiveVoice) -> String {
+        "Spend one \(voice.one) on this?"
+    }
+
+    static let irreversible = "What is spent cannot be taken back."
+
+    static let notThisOne = "Not this one"
+
+    /// After the database has taken it.
+    static let counted = "That counts. The hive redraws on the quarter hour, so a bigger tile takes a few"
+        + " minutes to show; your mark is there now."
+
+    /// A story shown false is still the story the reader meant, so it is
+    /// found and shown, and this is what the confirmation says instead of a
+    /// button.
+    static func takesNone(voice: HiveVoice) -> String {
+        "This story has been shown false and takes no \(voice.many)."
+    }
+
+    /// A story this install already backed, on the confirmation.
+    static func alreadyBacked(voice: HiveVoice) -> String {
+        "\(voice.mark). One story takes one \(voice.one) from this account."
+    }
+
     /// A refusal from the server, in the reader's terms.
     ///
     /// The server's own sentences start with "wall:" and are plain by design;
