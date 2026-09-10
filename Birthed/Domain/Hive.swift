@@ -286,6 +286,33 @@ enum HiveFeed {
         return "\(kind):\(id)"
     }
 
+    /// The reader's own age line for every subject the timeline drew.
+    ///
+    /// A story that took a place on the hive is not drawn again in the feed
+    /// under it, so the line that would have been on its row goes on its
+    /// tile instead. "You were 7" is the one thing this app has that nothing
+    /// else does, and the tile is the biggest thing on the screen.
+    ///
+    /// The first line for a subject wins. Two timeline rows for one subject
+    /// should not happen, and if they do the reader sees the one the
+    /// timeline put first rather than the one that happened to be last.
+    static func ageLines(items: [DayFeed.Item]) -> [String: String] {
+        var out: [String: String] = [:]
+        for item in items {
+            guard let subject = item.subject, let line = item.ageLabel else { continue }
+            if out[subject.key] == nil { out[subject.key] = line }
+        }
+        return out
+    }
+
+    /// The line for one story, when the timeline drew its subject and the
+    /// reader gave a birth year. Nil the rest of the time, which includes
+    /// every news story, because the day's news has no subject.
+    static func ageLine(for story: WallStory, lines: [String: String]) -> String? {
+        guard let key = subjectKey(story) else { return nil }
+        return lines[key]
+    }
+
     /// The feed, built.
     ///
     /// `items` is the timeline in the order `DayFeed` put it in, and that

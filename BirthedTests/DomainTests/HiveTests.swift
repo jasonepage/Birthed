@@ -382,6 +382,35 @@ final class HiveTests: XCTestCase {
         XCTAssertEqual(rows.map(\.id), ["a", "b"])
     }
 
+    func testTheAgeLineFollowsAPromotedStoryOntoItsTile() {
+        let items = [
+            item("event-1", subject: RememberSubject(kind: .historicalEvent, id: "1")),
+            item("person-Q42", subject: RememberSubject(kind: .person, id: "Q42")),
+            item("fact-7"),
+        ]
+        let lines = HiveFeed.ageLines(items: items)
+        XCTAssertEqual(lines["historical_event:1"], "You were 7")
+        XCTAssertEqual(lines["person:Q42"], "You were 7")
+        XCTAssertEqual(lines.count, 2, "a row with no subject cannot lend its line to a tile")
+
+        let promoted = story("hist", status: .placed, rect: WallRect(mx: 6, my: 6, w: 4, h: 3),
+                             subject: ("historical_event", "1"))
+        XCTAssertEqual(HiveFeed.ageLine(for: promoted, lines: lines), "You were 7")
+        XCTAssertNil(HiveFeed.ageLine(for: story("news"), lines: lines), "the day's news has no age")
+        XCTAssertNil(HiveFeed.ageLine(for: story("other", subject: ("person", "Q9")), lines: lines),
+                     "a subject the timeline did not draw")
+    }
+
+    func testAReaderWithNoBirthYearLendsNoAgeLines() {
+        // DayFeed leaves ageLabel nil when there is no birth year, and nothing
+        // downstream may invent one.
+        let bare = DayFeed.Item(id: "event-1", kind: .event, kicker: "ON THIS DAY", year: 1999,
+                                ageLabel: nil, text: "Something happened", detail: "1999",
+                                sourceURL: nil, fact: nil,
+                                subject: RememberSubject(kind: .historicalEvent, id: "1"))
+        XCTAssertTrue(HiveFeed.ageLines(items: [bare]).isEmpty)
+    }
+
     // MARK: The three columns the app did not read
 
     func testARowCarriesItsPriorityAndItsSubjectAndAnOlderRowStillReads() {
