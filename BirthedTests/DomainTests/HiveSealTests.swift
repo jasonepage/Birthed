@@ -135,6 +135,91 @@ final class HiveSealTests: XCTestCase {
         XCTAssertNotNil(many.note(on: WallDate(year: years.upperBound - 1, month: 1, day: 1)!), "the newest stayed")
     }
 
+    // MARK: The anniversary
+
+    func testAnAnniversaryIsTheSameDayInAnEarlierYearAndNothingElse() {
+        var notes = HiveNotes()
+        let seals = at("2026-09-11T04:00:00Z")
+        for key in ["2024-09-10", "2025-09-10", "2026-09-10", "2025-09-11", "2025-10-10"] {
+            notes.record(storyID: "s-\(key)", headline: "Headline \(key)",
+                         on: WallDate(key: key)!, sealsAt: seals)
+        }
+
+        let today = WallDate(key: "2026-09-10")!
+        let found = notes.anniversaries(of: today)
+        XCTAssertEqual(found.map(\.wallDate), ["2025-09-10", "2024-09-10"], "newest first")
+        XCTAssertFalse(found.contains { $0.wallDate == "2026-09-10" }, "today is not its own anniversary")
+        XCTAssertFalse(found.contains { $0.wallDate == "2025-09-11" }, "another day")
+        XCTAssertFalse(found.contains { $0.wallDate == "2025-10-10" }, "another month")
+
+        // A date nobody buzzed on has none.
+        XCTAssertTrue(notes.anniversaries(of: WallDate(key: "2026-03-03")!).isEmpty)
+    }
+
+    func testFebruary29HasAnAnniversaryOnFebruary29() {
+        // Asked as a month and a day, not by subtracting a year, because a
+        // year before February 29, 2028 is a date that does not exist and the
+        // reader born on it is exactly the reader this product is for.
+        var notes = HiveNotes()
+        notes.record(storyID: "leap", headline: "A leap day", on: WallDate(key: "2024-02-29")!,
+                     sealsAt: at("2024-03-02T05:00:00Z"))
+        let found = notes.anniversaries(of: WallDate(key: "2028-02-29")!)
+        XCTAssertEqual(found.map(\.storyID), ["leap"])
+    }
+
+    func testTheAnniversaryLineCountsYearsAndTakesTheDatesVoice() {
+        let from = WallDate(key: "2025-09-10")!
+        XCTAssertEqual(
+            HiveCopy.anniversaryLine(from: from, to: WallDate(key: "2026-09-10")!, voice: .bee),
+            "You buzzed this, one year ago today"
+        )
+        XCTAssertEqual(
+            HiveCopy.anniversaryLine(from: from, to: WallDate(key: "2027-09-10")!, voice: .bee),
+            "You buzzed this, two years ago today"
+        )
+        // A solemn date speaks plainly here too.
+        XCTAssertEqual(
+            HiveCopy.anniversaryLine(from: WallDate(key: "2025-09-11")!, to: WallDate(key: "2026-09-11")!, voice: .plain),
+            "You backed this, one year ago today"
+        )
+        // Past ten it uses numerals rather than a word it does not have.
+        XCTAssertEqual(
+            HiveCopy.anniversaryLine(from: WallDate(key: "2015-09-10")!, to: WallDate(key: "2026-09-10")!, voice: .bee),
+            "You buzzed this, 11 years ago today"
+        )
+        // The same year is not an anniversary and says nothing at all.
+        XCTAssertEqual(HiveCopy.anniversaryLine(from: from, to: from, voice: .bee), "")
+
+        for line in [HiveCopy.anniversaryHead, HiveCopy.anniversaryNote,
+                     HiveCopy.anniversaryLine(from: from, to: WallDate(key: "2026-09-10")!, voice: .plain)] {
+            for banned in ["wall", "square", "boost", "remember"] {
+                XCTAssertFalse(line.lowercased().contains(banned), "\"\(line)\" says \(banned)")
+            }
+        }
+    }
+
+    func testTheAnniversaryIsNeverANumber() {
+        // Sections 6 and 8 refuse every score. Nothing the anniversary says
+        // carries a count, a rank or a total, so a change that quietly added
+        // one fails here.
+        var notes = HiveNotes()
+        notes.record(storyID: "s", headline: "Headline", on: WallDate(key: "2025-09-10")!,
+                     sealsAt: at("2025-09-12T04:00:00Z"))
+        notes.reconcile(with: WallDay(wallDate: WallDate(key: "2025-09-10")!,
+                                      opensAt: at("2025-09-09T04:00:00Z"),
+                                      liveAt: at("2025-09-10T04:00:00Z"),
+                                      closesAt: at("2025-09-12T04:00:00Z"),
+                                      closedAt: nil,
+                                      stories: []),
+                        now: at("2025-09-13T04:00:00Z"))
+        // The note that survives may hold a place, because the morning after
+        // uses it, and the anniversary line must still not say it.
+        let line = HiveCopy.anniversaryLine(from: WallDate(key: "2025-09-10")!,
+                                            to: WallDate(key: "2026-09-10")!, voice: .bee)
+        XCTAssertFalse(line.contains(where: \.isNumber), "no digits in the line the reader sees")
+        XCTAssertFalse(HiveCopy.anniversaryNote.contains(where: \.isNumber))
+    }
+
     // MARK: What the banner says
 
     func testTheBannerSaysOnlyWhatIsKnown() {

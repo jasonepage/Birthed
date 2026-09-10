@@ -4,6 +4,7 @@ import { test } from "node:test";
 import { renderDayPage, renderHivePage, renderStoryPage } from "../src/render.js";
 import {
   eastern,
+  yearsAgo,
   BEE, PLAIN, PLAIN_DATES, VIEW_MIN, allowanceOn, emptyWallDay, fetchWall, hivePath, newestByDate, storyPath, takingBoosts,
   tapsLeftSentence, tierLabel, units, viewportFor, voiceFor, wallMarks, wallSection, pictureRules, songParts, subjectOf, takeTurns, FEED_SHOWN, tileKind, kindMark, type WallDay, type WallStory,
 } from "../src/wall.js";
@@ -798,4 +799,62 @@ test("the receipt draws its buzz control in an element the reader's mark can lan
   assert.ok(block.includes('class="wbuzz"'), "the control is inside it");
   assert.ok(block.includes('class="wmine"'), "and so is the mark the rule reveals");
   assert.ok(wallMarks({ left: 2, allowance: 3, backed: [s.id] }, day([s]), now).includes(`#w-${s.id} .wmine{display:block}`));
+});
+
+test("the anniversary is drawn to one browser, links to the receipt, and is never a number", () => {
+  const now = Date.parse("2026-09-09T18:00:00Z");
+  const d = day([story({ id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", support: 4 })]);
+
+  // Nobody's anniversary is drawn without one.
+  const plain = wallSection(d, "September 9", now, { interactive: true, date: { month: 9, day: 9 } });
+  assert.ok(!plain.includes("You were here"));
+
+  const html = wallSection(d, "September 9", now, {
+    interactive: true, date: { month: 9, day: 9 },
+    anniversary: [
+      { storyId: "11111111-1111-1111-1111-111111111111", headline: "What mattered last year", wallDate: "2025-09-09" },
+      { storyId: "22222222-2222-2222-2222-222222222222", headline: "And the year before", wallDate: "2024-09-09" },
+    ],
+  });
+  assert.ok(html.includes("You were here"));
+  assert.ok(html.includes("You buzzed this, one year ago today"));
+  assert.ok(html.includes("You buzzed this, two years ago today"));
+  assert.ok(html.includes("What mattered last year"));
+  // The link is to the story's own receipt under its own year's date, which
+  // the build keeps after a newer wall takes the hive on the date page.
+  assert.ok(html.includes('href="/september-9/wall/11111111-1111-1111-1111-111111111111/"'));
+  assert.ok(html.includes("Only you can see this. It is on this browser and it is not a score."));
+
+  // Sections 6 and 8 refuse every score, so nothing in the block carries a
+  // count, a rank or a total. The only digits allowed are the ones inside
+  // identifiers and addresses.
+  const block = html.slice(html.indexOf('<section class="wanniv"'));
+  const visible = block.slice(0, block.indexOf("</section>"))
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ");
+  assert.ok(!/\d/.test(visible), `a number reached the anniversary: ${visible}`);
+
+  // A headline is the source's own wording, so it is escaped like every
+  // other one on the page. This is why it is drawn here rather than written
+  // into a style rule, where escapeHtml would not apply.
+  const nasty = wallSection(d, "September 9", now, {
+    interactive: true, date: { month: 9, day: 9 },
+    anniversary: [{ storyId: "11111111-1111-1111-1111-111111111111", headline: '</style><script>x</script>"', wallDate: "2025-09-09" }],
+  });
+  assert.ok(!nasty.includes("<script>"), "a headline cannot close an element or open one");
+  assert.ok(nasty.includes("&lt;/style&gt;"));
+});
+
+test("how long ago is counted in years, because that is the only span an anniversary has", () => {
+  assert.equal(yearsAgo("2025-09-09", "2026-09-09"), "one year ago today");
+  assert.equal(yearsAgo("2024-09-09", "2026-09-09"), "two years ago today");
+  assert.equal(yearsAgo("2016-09-09", "2026-09-09"), "ten years ago today");
+  // Past ten, numerals rather than a word this site does not have.
+  assert.equal(yearsAgo("2015-09-09", "2026-09-09"), "11 years ago today");
+  // The same year, and a future one, are not anniversaries and say nothing.
+  assert.equal(yearsAgo("2026-09-09", "2026-09-09"), "");
+  assert.equal(yearsAgo("2027-09-09", "2026-09-09"), "");
+  // February 29 is an ordinary case here: the years subtract and the month
+  // and day were already matched by the database.
+  assert.equal(yearsAgo("2024-02-29", "2028-02-29"), "four years ago today");
 });

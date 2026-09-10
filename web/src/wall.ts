@@ -912,6 +912,32 @@ export interface WallOptions {
    * reaches a server. docs/the-wall.md, the last entry in section 16.
    */
   undo?: WallStory | null;
+  /**
+   * What this browser backed on this same day in earlier years, newest
+   * first. docs/the-wall.md section 15.
+   *
+   * Drawn by the server into the section rather than written by wallMarks as
+   * a style rule, which is what the brief for it asked for and is a
+   * deliberate departure. A headline is the source's own wording and can
+   * carry a quotation mark or the characters that end a style element, and
+   * inside a CSS `content:` string escapeHtml does not apply and a headline
+   * containing `</style>` ends the stylesheet and spills the rest of the page.
+   * `foundBlock` already draws one reader's own stories into this section on
+   * a request that is never stored, and this is that same shape. The count
+   * and the marks stay in wallMarks, where they are generated text.
+   *
+   * Only ever on a request answered `no-store`, and only ever this browser's
+   * own. No count, no rank, nobody else's.
+   */
+  anniversary?: Anniversary[];
+}
+
+/** One buzz this browser cast on this day in an earlier year. */
+export interface Anniversary {
+  storyId: string;
+  headline: string;
+  /** "2025-09-10". */
+  wallDate: string;
 }
 
 export function wallSection(day: WallDay | null, name: string, now: number = Date.now(), options: WallOptions = {}): string {
@@ -1094,6 +1120,53 @@ ${rows}
 </div>`;
 }
 
+/**
+ * How long ago, in words. "one year ago today", "two years ago today".
+ *
+ * Years, because that is the only span this can be: the anniversary is the
+ * same month and day in an earlier year, so the difference is always a whole
+ * number of years and never a number of days. Plain numerals past ten, which
+ * this site will not reach for another decade.
+ */
+export function yearsAgo(from: string, to: string): string {
+  const was = Number(from.slice(0, 4));
+  const now = Number(to.slice(0, 4));
+  const gap = now - was;
+  if (!Number.isFinite(gap) || gap < 1) return "";
+  const words = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+  const said = gap < words.length ? words[gap]! : String(gap);
+  return `${said} ${gap === 1 ? "year" : "years"} ago today`;
+}
+
+/**
+ * What this browser backed on this day in earlier years.
+ *
+ * docs/the-wall.md section 15: not a score and not karma, which sections 6
+ * and 8 refuse. A memory, shown only to the person who made it. So there is
+ * no count on it, no rank, no total and nothing about anybody else: the
+ * headline they backed, when, and a link to the receipt that is still there.
+ *
+ * A story keeps its receipt page after a newer wall takes the hive on the
+ * date page, which is what the build already promises, so the link works
+ * years later.
+ */
+function anniversaryBlock(entries: Anniversary[], day: WallDay, voice: Voice): string {
+  if (entries.length === 0) return "";
+  const rows = entries.map((entry) => {
+    const { month, day: d } = parts(entry.wallDate);
+    const when = yearsAgo(entry.wallDate, day.wallDate);
+    return `<li><span class="wannivwhen">You ${voice.past} this, ${escapeHtml(when)}</span>`
+      + `<a href="/${slug(month, d)}/wall/${entry.storyId}/">${escapeHtml(entry.headline)}</a></li>`;
+  }).join("\n");
+  return `<section class="wanniv" aria-labelledby="wannivhead">
+<h2 class="section" id="wannivhead">You were here</h2>
+<p class="wnote">Only you can see this. It is on this browser and it is not a score.</p>
+<ul class="wannivlist">
+${rows}
+</ul>
+</section>`;
+}
+
 function wallBody(day: WallDay | null, name: string, now: number, options: WallOptions): string {
   const history = options.history ?? "";
   if (day === null) {
@@ -1161,6 +1234,7 @@ ${tiles}${empty}
 ${countLine(day, now, voice, live)}${afterwords(voice, name, options.undo ?? null, "hive")}
 ${board}
 ${legend}
+${anniversaryBlock(options.anniversary ?? [], day, voice)}
 </section>`;
   }
 
@@ -1230,6 +1304,7 @@ ${board}
 <div class="wafter">${onWall.length > 0 ? legend : ""}${full}</div>
 ${under}
 </section>
+${anniversaryBlock(options.anniversary ?? [], day, voice)}
 <section class="feed2" aria-labelledby="feedhead">
 <h2 class="section" id="feedhead">Today's feed</h2>
 <p class="wnote">Everything with a birthday on ${escapeHtml(name)}, today's and every year's. ${feedNote}</p>
@@ -1732,6 +1807,29 @@ export const WALL_STYLE = `
    one: the buzz is the thing this page wants you to press, and the undo is
    the thing that should be findable and never inviting. It sits on the
    sentence that says a buzz counted, and nowhere else. */
+/* The anniversary. docs/the-wall.md section 15: a memory, shown to the one
+   person who made it, and never a number. Quiet on purpose. It is the last
+   thing under the hive rather than the first thing on the page, because it is
+   about a date that is over and the page is about one that is not. */
+.wanniv { margin: 22px 0 0; }
+.wanniv .wnote { margin: 2px 0 10px; }
+.wannivlist { margin: 0; padding: 0; list-style: none; }
+.wannivlist li {
+  /* display:block explicitly. The site's list rules put a row into flex, and
+     inherited that turned the label and the headline into two columns. */
+  display: block; margin: 0 0 8px; padding: 10px 13px; border-radius: 10px;
+  background: #171227; border: 1px solid #2A2434;
+}
+.wannivwhen {
+  display: block; margin: 0 0 3px; color: #E7A83A;
+  font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+}
+.wannivlist a {
+  display: block; color: #E9E1DB; font-family: Georgia, "Times New Roman", serif;
+  font-weight: 700; font-size: 16px; line-height: 1.35; text-decoration: none;
+}
+.wannivlist a:hover { text-decoration: underline; text-underline-offset: 2px; }
+.wannivlist a:focus-visible { outline: 2px solid #E7A83A; outline-offset: 2px; border-radius: 3px; }
 .wsaid > p { margin: 0; }
 .wundoline { margin: 10px 0 0; }
 .wundo { display: inline; margin: 0; }

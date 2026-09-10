@@ -1505,3 +1505,67 @@ identifier and is deliberately not acted on: a sealed hive is two days behind
 today, and taking a reader to a date they cannot buzz on needs a screen that
 can show a date that is over. That is the archive, and it is not built.
 Section 13 already lists it as still ahead.
+
+### The anniversary, later the same day
+
+Section 15 designed this and this is it: what you backed a year ago today,
+shown to you and to nobody else, never as a number. It is the other end of
+the same thing the morning after opened. A buzz stops being a vote and
+becomes a time capsule with the reader's own name on it, which is what makes
+one worth spending today.
+
+**No new table.** The boost row already has the wall date on it, and a wall
+date is a real calendar date with a year, so the same month and day in an
+earlier year is a query. On the website it is one more answer from
+`wall_web_standing`, which is already called once for any reader carrying a
+token and already answers "what has this browser done here"; on the phone it
+is the notes `HiveNotes` already keeps.
+
+**It is not a score and it is nobody else's.** Sections 6 and 8 refuse every
+accuracy, karma, reputation and influence formula, and section 13's line
+about what the reversal does not license still holds. There is no count on
+it, no rank, no total, and nothing about another reader. A test on each side
+sweeps the block and fails if a digit reaches it.
+
+**February 29 is asked about as a month and a day.** Both sides match the
+month and the day and compare the years, rather than subtracting a year from
+the date, because a year before February 29, 2028 is a date that does not
+exist and the reader born on it is exactly the reader this product is for.
+
+**On the website it is drawn into the section, not written over it, and that
+is a departure from what this was asked for.** The brief said one more rule
+in `wallMarks`. `wallMarks` writes a style block, and a headline is the
+source's own wording: inside a CSS `content:` string `escapeHtml` does not
+apply, and a headline carrying the characters that end a style element would
+end the stylesheet and spill the rest of the page. `foundBlock` already draws
+one reader's own stories into this section on a request answered `no-store`,
+and this is that same shape. The count and the marks stay in `wallMarks`,
+where what they write is generated text and never a source's words. This
+reordered one pair of awaits in serve.ts: the reader's standing is read
+before the section rather than after it, and the wall date it needs comes
+from the clock, which is where `liveWall` gets it too, so it costs no extra
+round trip.
+
+**Two differences between the phone and the website, named rather than
+found.** The website shows every buzz this browser cast on the date in
+earlier years, because the database has every one. The phone shows one a
+date, because that is what a note holds: the newest buzz on that date.
+Widening a note to carry all three is what closes it. And the website's
+headline is a link to the story's receipt, which is a file the build keeps
+after a newer wall takes the hive on the date page; the phone's is not,
+because `WallStoryView` resolves a story out of the day that is loaded, so a
+story from an earlier year would draw "no longer filed for this date", and
+its buzz control reads this year's clock and would offer a button on a hive
+that sealed a year ago. What that needs is a read for one story by
+identifier and a receipt that takes the story's own date as the one that
+decides whether it takes a buzz. Neither difference is deliberate design and
+both are small; both are here so the next session does not have to work out
+why.
+
+**A reader with an anniversary and nothing else gets their own page.** The
+date page is shared and cached for twenty seconds, and one reader's own
+memory is not shareable, so a request carrying one is answered `no-store`
+like every other request that draws something only its reader may see. Before
+this, only marks, a tap or a find did that; an anniversary now does too,
+because on the day it appears it may be the whole of what the reader came
+back for.

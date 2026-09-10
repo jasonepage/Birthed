@@ -712,6 +712,31 @@ enum HiveCopy {
         return counts[n]
     }
 
+    // MARK: The anniversary, docs/the-wall.md section 15
+
+    /// The heading over what this install backed on this day in earlier
+    /// years. Second person and quiet: it is one person's own memory and
+    /// nobody else can see it.
+    static let anniversaryHead = "You were here"
+
+    /// Under the heading. It says the two things that make it not a score:
+    /// only this reader sees it, and there is no number in it.
+    static let anniversaryNote = "Only you can see this. It is on this phone and it is not a score."
+
+    /// "You buzzed this, one year ago today".
+    ///
+    /// Years, because the anniversary is the same month and day in an earlier
+    /// year, so the difference is always a whole number of years and never a
+    /// number of days. Plain numerals past ten, which this app will not reach
+    /// for another decade.
+    static func anniversaryLine(from: WallDate, to: WallDate, voice: HiveVoice) -> String {
+        let gap = to.year - from.year
+        guard gap >= 1 else { return "" }
+        let words = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
+        let said = gap < words.count ? words[gap] : "\(gap)"
+        return "You \(voice.past) this, \(said) \(gap == 1 ? "year" : "years") ago today"
+    }
+
     // MARK: Find it for me, docs/the-wall.md section 15 past the miss
 
     /// The button under the miss. It is offered beside the link button, not

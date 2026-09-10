@@ -32,7 +32,7 @@ import { extname, join, normalize, resolve, sep } from "node:path";
 
 import { everyDate, monthName, slug } from "./model.js";
 import { ASK_SLOTS, TODAY, renderStoryPage, resultId, resultMarkup, undoForm, type Remembered } from "./render.js";
-import { ASK_MAX, emptyWallDay, fetchWallDay, openWallDates, replaceWall, hivePath, wallKey, wallMarks, wallSection, withChecks, type TapBack, type WallDay } from "./wall.js";
+import { ASK_MAX, emptyWallDay, fetchWallDay, openWallDates, replaceWall, hivePath, wallKey, wallMarks, wallSection, withChecks, type Anniversary, type TapBack, type WallDay } from "./wall.js";
 import { answer as findAnswer } from "./find.js";
 
 
@@ -929,7 +929,7 @@ async function forgetWebBoost(storyId: string, token: string): Promise<Tapped> {
  * it backed. Null on any failure, which costs the reader their marks and
  * the count for one page view and nothing else.
  */
-async function wallStanding(wallDate: string, token: string | null): Promise<{ left: number; allowance: number; backed: string[] } | null> {
+async function wallStanding(wallDate: string, token: string | null): Promise<{ left: number; allowance: number; backed: string[]; anniversary: Anniversary[] } | null> {
   const key = process.env.SUPABASE_ANON_KEY;
   if (!key) return null;
   try {
@@ -944,9 +944,26 @@ async function wallStanding(wallDate: string, token: string | null): Promise<{ l
       body: JSON.stringify({ wall_date_in: wallDate, voter_token_in: token }),
     });
     if (!response.ok) return null;
-    const answer = (await response.json()) as { left?: unknown; allowance?: unknown; backed?: unknown };
+    const answer = (await response.json()) as { left?: unknown; allowance?: unknown; backed?: unknown; anniversary?: unknown };
     if (typeof answer?.left !== "number" || typeof answer?.allowance !== "number" || !Array.isArray(answer?.backed)) return null;
-    return { left: answer.left, allowance: answer.allowance, backed: answer.backed.filter((b): b is string => typeof b === "string") };
+    // The anniversary is newer than some deployed copies of the function, so
+    // its absence is an empty list and never a failed read: a reader whose
+    // project has not run the migration loses a memory, not a page.
+    const anniversary = Array.isArray(answer?.anniversary)
+      ? answer.anniversary.flatMap((row): Anniversary[] => {
+        if (typeof row !== "object" || row === null) return [];
+        const { story_id: id, headline, wall_date: date } = row as Record<string, unknown>;
+        if (typeof id !== "string" || !UUID.test(id)) return [];
+        if (typeof headline !== "string" || headline === "") return [];
+        if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return [];
+        return [{ storyId: id, headline, wallDate: date }];
+      })
+      : [];
+    return {
+      left: answer.left, allowance: answer.allowance,
+      backed: answer.backed.filter((b): b is string => typeof b === "string"),
+      anniversary,
+    };
   } catch {
     return null;
   }
@@ -1429,17 +1446,33 @@ async function handle(
     const marked = token === null && tapped === null && found === null ? null : dateFor(path);
     if (marked !== null) {
       const now = Date.now();
-      const wall = await liveWall(marked.month, marked.day, now, fresh, marked.hive, found, undoOn);
+      // The reader's own buzzes are read before the section rather than after
+      // it, because the section now depends on one of them: the anniversary
+      // is drawn into it, not written over it as a style rule. The wall date
+      // comes from the clock rather than from the read, which is where
+      // liveWall gets it too, so this costs no extra round trip.
+      //
+      // The count and the marks are still a style block on top, because the
+      // section they land on is the shared one and they are one reader's
+      // alone. Section 13.
+      const wallDate = openWallDates(now).get(wallKey(marked.month, marked.day));
+      const standing = wallDate !== undefined && token !== null ? await wallStanding(wallDate, token) : null;
+      const wall = await liveWall(
+        marked.month, marked.day, now, fresh, marked.hive, found, undoOn, standing?.anniversary ?? [],
+      );
       let marks = "";
       // The reader's own taps and count, for a browser that has a token and
       // a date whose wall is open. A browser with no token yet sees the
       // section's own words, which are right for a browser that has done
       // nothing.
-      if (wall !== null && token !== null) {
-        const standing = await wallStanding(wall.day.wallDate, token);
-        if (standing !== null) marks += wallMarks(standing, wall.day, now);
+      if (wall !== null && standing !== null) {
+        marks += wallMarks(standing, wall.day, now);
       }
-      if (marks !== "" || tapped !== null || found !== null) {
+      // An anniversary is reason enough to draw this reader their own page,
+      // even on a date they have done nothing on today: it is the whole of
+      // what they came back for.
+      const anniversary = (standing?.anniversary.length ?? 0) > 0;
+      if (marks !== "" || anniversary || tapped !== null || found !== null) {
         let html: string | null = null;
         try {
           html = await readFile(file, "utf8");
@@ -1578,6 +1611,7 @@ const wallCache = new Map<string, { at: number; day: WallDay | null }>();
 async function liveWall(
   month: number, day: number, now: number = Date.now(), fresh: boolean = false, hive: boolean = false,
   found: string[] | null = null, undoOn: string | null = null,
+  anniversary: Anniversary[] = [],
 ): Promise<{ section: string; day: WallDay } | null> {
   const key = process.env.SUPABASE_ANON_KEY;
   if (!key) return null;
@@ -1616,7 +1650,7 @@ async function liveWall(
   // never the page.
   const undo = undoOn === null ? null : read.stories.find((s) => s.id === undoOn) ?? null;
   return {
-    section: wallSection(wall, `${monthName(month)} ${day}`, now, { interactive: true, hive, date: { month, day }, found: stories, undo }),
+    section: wallSection(wall, `${monthName(month)} ${day}`, now, { interactive: true, hive, date: { month, day }, found: stories, undo, anniversary }),
     day: wall,
   };
 }

@@ -187,6 +187,22 @@ final class WallService {
         return WallBudget.allowance(castOn: WallClock.easternDate(of: now), wallDate: day.wallDate)
     }
 
+    /// What this install backed on the date being shown, in earlier years.
+    ///
+    /// docs/the-wall.md section 15. Read from what is already on the phone,
+    /// so it costs no request: the note carries the headline, and the receipt
+    /// for a story from an earlier year is still there. Shown to this install
+    /// and to nobody else, and never as a number.
+    var anniversaries: [HiveNote] {
+        guard let date = day?.wallDate ?? loadedFor.flatMap({ calendar in
+            // A date with no hive at all still has a year: today's, by the
+            // server's clock, which is what an anniversary is measured back
+            // from.
+            WallDate(year: WallClock.easternDate(of: now).year, month: calendar.month, day: calendar.day)
+        }) else { return [] }
+        return notes.anniversaries(of: date)
+    }
+
     /// True when this install has already buzzed the story, which is both the
     /// mark it shows and the reason another tap spends nothing.
     func hasBuzzed(_ story: WallStory) -> Bool {

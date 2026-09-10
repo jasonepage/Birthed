@@ -70,6 +70,7 @@ struct HiveView: View {
                     underTheBoard(phase: phase)
                     legend
                 }
+                anniversary
                 addButton
             } else if wall.failed {
                 Text("The hive did not load.")
@@ -92,6 +93,68 @@ struct HiveView: View {
         }
         .sheet(isPresented: $fullScreen) {
             HiveFullScreenView(date: date, palette: palette, ageLines: ageLines)
+        }
+    }
+
+    // MARK: The anniversary, docs/the-wall.md section 15
+
+    /// What this install backed on this day in earlier years.
+    ///
+    /// A memory, shown to the one person who made it, and never a number.
+    /// Sections 6 and 8 refuse every score and this is not one: there is no
+    /// count on it, no rank, no total, and nothing about anybody else. It is
+    /// the last thing under the hive rather than the first thing on the
+    /// screen, because it is about a date that is over and the screen is
+    /// about one that is not.
+    ///
+    /// It reads what is on the phone and asks the network nothing. The tap
+    /// opens the receipt, which is still there: a story keeps its own page
+    /// after a newer hive takes the date.
+    @ViewBuilder
+    private var anniversary: some View {
+        let notes = wall.anniversaries
+        if !notes.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(HiveCopy.anniversaryHead.uppercased())
+                    .font(.caption.weight(.heavy))
+                    .kerning(2.0)
+                    .foregroundStyle(HivePalette.amber)
+                Text(HiveCopy.anniversaryNote)
+                    .font(.caption2)
+                    .foregroundStyle(palette.type.opacity(0.45))
+                // Not a link, and that is a difference from the website,
+                // named rather than left to be found. The website links to
+                // the receipt because that page is a file that is still on
+                // disk years later. Here `WallStoryView` resolves a story out
+                // of the day that is loaded, which is this year's, so a story
+                // from an earlier year would draw "no longer filed for this
+                // date", and its buzz control reads this year's clock and
+                // would offer a button on a hive that sealed a year ago. What
+                // it needs is a read for one story by identifier and a
+                // receipt that knows the story's own date decides whether it
+                // takes a buzz. Until then this says what the reader backed
+                // and does not pretend to be a door.
+                ForEach(notes, id: \.wallDate) { note in
+                    if let from = note.date, let to = wall.day?.wallDate {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(HiveCopy.anniversaryLine(from: from, to: to, voice: voice).uppercased())
+                                .font(.system(size: 10, weight: .heavy))
+                                .kerning(1.4)
+                                .foregroundStyle(HivePalette.amber)
+                            Text(note.headline)
+                                .font(.system(size: 16, weight: .semibold, design: .serif))
+                                .foregroundStyle(palette.type)
+                                .multilineTextAlignment(.leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(11)
+                        .background(Theme.card, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+            }
+            .padding(.top, 6)
         }
     }
 

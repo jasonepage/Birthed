@@ -187,6 +187,29 @@ struct HiveNotes: Equatable {
         byDate[day.wallDate.key] = note
     }
 
+    /// What this install backed on the same day in earlier years, newest
+    /// first. docs/the-wall.md section 15.
+    ///
+    /// The same month and day in an earlier year, compared as a month and a
+    /// day rather than by subtracting a year, because subtracting a year from
+    /// February 29 lands on a date that does not exist and the reader born on
+    /// it is exactly the reader this product is for. The website's query does
+    /// the same thing for the same reason.
+    ///
+    /// One story a date, because that is what a note holds: the newest buzz
+    /// on that date. The website shows every one, because the database has
+    /// every one. Widening a note to carry all three is what closes that
+    /// difference if it ever matters, and it is written down here rather than
+    /// left to be rediscovered.
+    func anniversaries(of date: WallDate) -> [HiveNote] {
+        byDate.values
+            .filter { note in
+                guard let on = note.date else { return false }
+                return on.month == date.month && on.day == date.day && on.year < date.year
+            }
+            .sorted { $0.wallDate > $1.wallDate }
+    }
+
     /// The newest dates only. Keys are "2026-09-10", so sorting them as text
     /// sorts them in time.
     private mutating func trim() {

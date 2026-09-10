@@ -696,6 +696,87 @@ test("a receipt on an open date is drawn live with the buzz control, and a buzz 
   assert.deepEqual(receiptFor("/september-9/wall/11111111-1111-1111-1111-111111111111/index.html"), { month: 9, day: 9, id: "11111111-1111-1111-1111-111111111111" });
 });
 
+test("a year later the date page tells this browser what it backed, and tells nobody else", async (t) => {
+  const root = resolve("test-site-anniversary");
+  await rm(root, { recursive: true, force: true });
+  const open = openWallDates();
+  const [openKey, openDate] = [...open.entries()][1]!;
+  const [openMonth, openDay] = openKey.split("-").map(Number) as [number, number];
+  const openSlug = `${["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"][openMonth - 1]}-${openDay}`;
+  await mkdir(join(root, openSlug), { recursive: true });
+  await writeFile(join(root, openSlug, "index.html"), BAKED, "utf8");
+
+  const realFetch = globalThis.fetch;
+  const previousKey = process.env.SUPABASE_ANON_KEY;
+  process.env.SUPABASE_ANON_KEY = "test-key";
+  const lastYear = `${Number(openDate.slice(0, 4)) - 1}${openDate.slice(4)}`;
+  let standing: Record<string, unknown> = {
+    allowance: 3, left: 3, backed: [],
+    anniversary: [{ story_id: "99999999-9999-9999-9999-999999999999", headline: "What mattered last year", wall_date: lastYear }],
+  };
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    if (!url.includes("supabase")) return realFetch(input, init);
+    if (url.endsWith("/rpc/wall_web_standing")) {
+      return new Response(JSON.stringify(standing), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    const rows = wallRows(openDate);
+    return new Response(JSON.stringify(url.includes("wall_days") ? rows.day : rows.stories), {
+      status: 200, headers: { "Content-Type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  const server = start({ root, port: 0 });
+  await new Promise((done) => server.once("listening", done));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const base = `http://127.0.0.1:${address.port}`;
+  const token = "bt=aaaaaaaaaaaaaaaaaaaaaaaa";
+
+  t.after(async () => {
+    server.close();
+    globalThis.fetch = realFetch;
+    if (previousKey === undefined) delete process.env.SUPABASE_ANON_KEY; else process.env.SUPABASE_ANON_KEY = previousKey;
+    forgetWalls();
+    await rm(root, { recursive: true, force: true });
+  });
+
+  // A browser carrying a token, on a date it backed something on a year ago.
+  // It has spent nothing today, so there are no marks: the anniversary alone
+  // is reason enough to draw this reader their own page.
+  forgetWalls();
+  const mine = await realFetch(`${base}/${openSlug}/`, { headers: { Cookie: token } });
+  assert.equal(mine.status, 200);
+  assert.equal(mine.headers.get("cache-control"), "no-store", "one reader's own memory is never stored");
+  const page = await mine.text();
+  assert.ok(page.includes("You were here"));
+  assert.ok(page.includes("You buzzed this, one year ago today"));
+  assert.ok(page.includes("What mattered last year"));
+  // The link is to the story's own receipt, which the build keeps after a
+  // newer wall takes the hive on this date page.
+  assert.ok(page.includes(`href="/${openSlug}/wall/99999999-9999-9999-9999-999999999999/"`));
+
+  // A browser with no cookie is a browser that has done nothing, and it gets
+  // the shared page with nobody's memory on it.
+  forgetWalls();
+  const stranger = await realFetch(`${base}/${openSlug}/`);
+  const shared = await stranger.text();
+  assert.ok(!shared.includes("You were here"), "nobody else sees it");
+  assert.equal(stranger.headers.get("cache-control"), "public, max-age=20, must-revalidate");
+
+  // A misshapen row from the database is dropped rather than drawn, and an
+  // older deployment that answers without the field at all is an empty list
+  // and never a failed read.
+  forgetWalls();
+  standing = { allowance: 3, left: 3, backed: [], anniversary: [{ story_id: "nope", headline: "x", wall_date: "2025-09-09" }] };
+  assert.ok(!(await (await realFetch(`${base}/${openSlug}/`, { headers: { Cookie: token } })).text()).includes("You were here"));
+  forgetWalls();
+  standing = { allowance: 3, left: 3, backed: [] };
+  const older = await realFetch(`${base}/${openSlug}/`, { headers: { Cookie: token } });
+  assert.equal(older.status, 200, "a project that has not run the migration still serves the page");
+  assert.ok(!(await older.text()).includes("You were here"));
+});
+
 test("a buzz can be taken back for thirty seconds, and only by the browser that cast it", async (t) => {
   const root = resolve("test-site-undo");
   await rm(root, { recursive: true, force: true });
