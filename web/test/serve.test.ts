@@ -1046,3 +1046,92 @@ test("a reader who has given a year is told the picture will be theirs", () => {
   assert.ok(!mark.includes("1994"));
   assert.equal(yoursMark("september-4", null), "", "and nothing for a reader who never said");
 });
+
+/**
+ * The label on the save link, on a real request with a real wall read.
+ *
+ * A unit test on `yoursMark` says the rule is right. This says the rule
+ * actually reaches the page, which is a different claim and the one that
+ * broke first: the birth year had stopped being a reason to draw a reader
+ * their own copy of a date page when the year picker came off, so the mark
+ * was computed and never sent.
+ */
+test("a birth year alone is enough to change the label, and to stop the page being cached", async (t) => {
+  const root = resolve("test-site-label");
+  await rm(root, { recursive: true, force: true });
+  const open = openWallDates();
+  const [openKey, openDate] = [...open.entries()][1]!;
+  const [openMonth, openDay] = openKey.split("-").map(Number) as [number, number];
+  const openSlug = `${monthName(openMonth).toLowerCase()}-${openDay}`;
+  await mkdir(join(root, openSlug), { recursive: true });
+  await writeFile(join(root, openSlug, "index.html"), BAKED, "utf8");
+
+  const realFetch = globalThis.fetch;
+  const previousKey = process.env.SUPABASE_ANON_KEY;
+  process.env.SUPABASE_ANON_KEY = "test-key";
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    if (!url.includes("supabase")) return realFetch(input, init);
+    const rows = wallRows(openDate);
+    return new Response(JSON.stringify(url.includes("wall_days") ? rows.day : rows.stories), {
+      status: 200, headers: { "Content-Type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  const server = start({ root, port: 0 });
+  await new Promise((done) => server.once("listening", done));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const base = `http://127.0.0.1:${address.port}`;
+  t.after(async () => {
+    server.close();
+    globalThis.fetch = realFetch;
+    if (previousKey === undefined) delete process.env.SUPABASE_ANON_KEY; else process.env.SUPABASE_ANON_KEY = previousKey;
+    forgetWalls();
+    await rm(root, { recursive: true, force: true });
+  });
+
+  forgetWalls();
+  const mine = await realFetch(`${base}/${openSlug}/`, { headers: { cookie: "by=1994" } });
+  const mineBody = await mine.text();
+  assert.ok(mineBody.includes(`.on-${openSlug} .wsavemine{display:inline}`), "the reader's own label is revealed");
+  assert.equal(mine.headers.get("cache-control"), "no-store", "a page carrying one reader's own words is never cached");
+  assert.ok(!mineBody.includes("1994"), "and the year itself is nowhere on it");
+
+  forgetWalls();
+  const shared = await realFetch(`${base}/${openSlug}/`);
+  const sharedBody = await shared.text();
+  assert.ok(!sharedBody.includes(".wsavemine{display:inline}"), "a reader who never said keeps the shared words");
+  assert.match(shared.headers.get("cache-control") ?? "", /max-age=20/, "and the shared page is still shared");
+});
+
+test("a reader's own picture is never served as a file, even if the folders overlap", async (t) => {
+  // Deliberately the wrong arrangement: the pictures inside the site root,
+  // which is what a deployment with one environment variable wrong would do.
+  const root = resolve("test-site-overlap");
+  const personal = join(root, "personal");
+  await rm(root, { recursive: true, force: true });
+  await mkdir(personal, { recursive: true });
+  await writeFile(join(root, "404.html"), "<p>nope</p>", "utf8");
+  const open = openWallDates(Date.now());
+  const [, wallDate] = [...open.entries()][1]!;
+  const hashed = personalName(wallDate, 1994);
+  await writeFile(join(personal, `${hashed}.png`), "MY-OWN-PICTURE", "utf8");
+
+  process.env.PERSONAL_ROOT = personal;
+  const server = start({ root, port: 0 });
+  await new Promise((done) => server.once("listening", done));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const base = `http://127.0.0.1:${address.port}`;
+  t.after(async () => {
+    server.close();
+    delete process.env.PERSONAL_ROOT;
+    await rm(root, { recursive: true, force: true });
+  });
+
+  const direct = await fetch(`${base}/personal/${hashed}.png`);
+  assert.equal(direct.status, 404, "asking for the file by name gets nothing");
+  const listed = await fetch(`${base}/personal/`);
+  assert.equal(listed.status, 404, "and neither does asking for the folder");
+});

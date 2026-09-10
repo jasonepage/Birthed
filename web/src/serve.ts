@@ -1444,7 +1444,17 @@ async function handle(
   }
 
   const full = resolvePath(root, path);
-  const file = full === null ? null : await fileFor(full);
+  // Nothing inside the readers' own pictures is ever served as a file, even
+  // if somebody points the two roots at the same place.
+  //
+  // The default layout already puts that folder outside the site root, so
+  // this changes nothing in production. It is here because "outside the site
+  // root" is a fact about two environment variables, and a deployment that
+  // got them wrong would hand out every reader's picture with no error
+  // anywhere to notice it by, which is the same shape as the policy header
+  // that contradicted its page. A rule beats an arrangement.
+  const inPersonal = full !== null && (full === personalRoot() || full.startsWith(personalRoot() + sep));
+  const file = full === null || inPersonal ? null : await fileFor(full);
 
   if (file !== null) {
     // The one read that draws a result, and the only one that ever calls the
