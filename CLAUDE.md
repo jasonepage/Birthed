@@ -538,6 +538,57 @@ as a shelf, not a plan.
   them they are stories with the button, and the baked rows are not drawn
   twice.
 
+### The hive on iOS, decided September 10, 2026
+
+- **One tap is one unit in the app too.** Nathan's call, and
+  `docs/the-wall.md` section 4 was edited before the code that depended on
+  it, because the document wins. The one, two or three unit conviction sizing
+  is gone from the product. The database still accepts one to three and no
+  client sends more than one.
+- **One story takes one buzz from one install, and that rule is the client's.**
+  The budget trigger counts units against the day and does not care which
+  story they land on, so without this the three taps could all land on one
+  story and the conviction sizing would be back through the side door.
+  `WallService.buzz` refuses it and the tap never leaves the phone. The
+  website's `already` is the same rule in the same kind of place.
+- **The mark is the device's own memory.** `wall_boosts.booster_id` is
+  revoked from the app's role on purpose, `wall_units_left` returns a number,
+  and `wall_web_standing` is the website's browser token and refuses an
+  authenticated caller. So `HiveMarks` lives in `UserDefaults`, the way this
+  account's own remembrance answers already do. A reinstall forgets the mark
+  and never the vote. Making it survive means a `wall_my_boosts` migration
+  that was not written. Do not reach for `wall_web_standing`.
+- **The window on the board is a port and is held to the website's answers.**
+  `WallBoard.viewport` is `viewportFor` from `web/src/wall.ts`, halved in
+  floating point because that is what the website does. `HiveTests` asserts
+  values printed from that function, including a spread whose centre lands on
+  a half module, where whole number division gives a different origin. If the
+  website's rule changes, both change together or neither does.
+- **One feed on the Today tab, and it is `DayFeed` with the buzz hung off
+  it.** This year's news at the top, the reader's own timeline in its own
+  order with a count and a button on any row the worker filed a story for,
+  then anything filed the timeline did not draw. A story on the hive is not
+  repeated below it; its tile carries the reader's age line instead, which is
+  the one thing this app has that the website does not.
+- **The board is the hive and a unit is a buzz, except on the eight dates in
+  `HiveDates`.** `HiveCopy` holds every sentence and each takes a voice.
+  `WallCopy` was retired rather than renamed so an old sentence cannot survive
+  by being referenced. A story nobody backed shows no count, never a nought. A
+  test sweeps every reachable sentence for wall, square, boost and remember.
+- **`HivePalette` is the honey, and `StagePalette.forScheme` was not touched.**
+  Seven files including both share cards read that one.
+- **The three answer game came off the Today tab, and so did its clock.**
+  Taking only the buttons would have left a second clock and a second budget
+  ticking beside the hive's, which is the thing section 13 named. Nothing is
+  dropped from the database and `/remember` still answers.
+- **Open:** a sealed date still reorders by memory and the sentence that
+  explained it said "remembered", so it came off and nothing replaced it.
+  Either that order needs a sentence in the hive's words or it belongs to the
+  archive rather than to Today.
+- **Nothing in that session was compiled.** No Swift toolchain in the
+  container or in the shell on the Mac, and the proxy refuses
+  `download.swift.org`. Every rule has a test and not one has been run.
+
 ### Search, decided September 5, 2026
 
 - **A date page with fewer than eight people carries `noindex` and stays out of the sitemap.** It is still built and still loads. A new domain that hands a crawler 366 URLs with most of them empty teaches the crawler that the site is thin, and that judgement is made once and is expensive to undo. The threshold is eight rather than `FR-022`'s ten because a few real dates have fewer people with English Wikipedia articles.
