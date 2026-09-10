@@ -258,6 +258,21 @@ const STYLE = `
    answer is not singled out here at all and the shape does the talking. */
 /* Said above a sealed date's list, because the page has visibly rearranged and
    nothing else on it explains why. */
+/* The date's history, folded. A details element rather than anything with a
+   script: it opens on a tap in every browser, a crawler reads what is inside
+   it, and the server marks it open on the one request that lands a reader on
+   a row inside it. */
+.rest { margin: 34px 0 0; border-top: 1px solid #241E2E; padding-top: 6px; }
+.rest > summary {
+  cursor: pointer; list-style: none; padding: 12px 0; font-family: Georgia, "Times New Roman", serif;
+  font-weight: 800; font-size: 19px; line-height: 1.3; color: #FFF7EE;
+}
+.rest > summary::-webkit-details-marker { display: none; }
+.rest > summary::before { content: "+"; display: inline-block; width: 22px; color: #A49BAE; font-weight: 700; }
+.rest[open] > summary::before { content: "\\2212"; }
+.rest > summary:hover { color: #FFD98A; }
+.remember { margin: 30px 0 0; }
+.remember h2.section { margin-bottom: 2px; }
 .memorynote {
   margin: 26px 0 -8px; font-size: 13px; color: ${QUIET};
   border-left: 2px solid var(--day-soft, #C6B0F5); padding-left: 12px;
@@ -2755,6 +2770,26 @@ ${credit}`;
  */
 const DICE = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="4.6"/><circle cx="8.4" cy="8.4" r="1.35" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.35" fill="currentColor" stroke="none"/><circle cx="15.6" cy="15.6" r="1.35" fill="currentColor" stroke="none"/></svg>`;
 
+/**
+ * The one line that stands in for the date's history until a reader opens
+ * it. Decided September 10, 2026: the wall is the main mechanic, so the
+ * imported history moves under it, into one block a reader opens with a tap
+ * and a crawler reads whole. The counts are the reason to open it, and they
+ * are the same counts the page description already carries. "What came out"
+ * is folded in here rather than cut: its rows can be answered like any
+ * other, and cutting the section would have taken those answers with it.
+ */
+export function restSummary(name: string, events: number, releases: number, songYears: number, people: number): string {
+  const parts: string[] = [];
+  if (events > 0) parts.push(`${events} thing${events === 1 ? "" : "s"} that happened`);
+  if (releases > 0) parts.push(`${releases} release${releases === 1 ? "" : "s"}`);
+  if (songYears > 0) parts.push(`the number one song in ${songYears} year${songYears === 1 ? "" : "s"}`);
+  if (people > 0) parts.push(`${people} ${people === 1 ? "person" : "people"} born on it`);
+  if (parts.length === 0) return `The rest of ${escapeHtml(name)}`;
+  const list = parts.length === 1 ? parts[0]! : `${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}`;
+  return `The rest of ${escapeHtml(name)}: ${list}.`;
+}
+
 export function renderDayPage(
   page: DayPage,
   songs: SongOfTheYear[] = [],
@@ -2956,6 +2991,11 @@ export function renderDayPage(
 </span>
 </div>
 ${AFTER}
+<h1>${name}</h1>
+${wallSection(wall, name)}
+${openingBand(page, songs, culture, highlight)}
+<section class="remember" aria-labelledby="remhead">
+<h2 class="section" id="remhead">What people remember of ${escapeHtml(name)}</h2>
 <p class="state"><span class="dot" aria-hidden="true"></span>
 <span class="sen senpast"><b>Open.</b> Closes tonight, then sealed until next year.</span>
 <span class="sen sennow"><b>Open.</b> Closes tomorrow night, then sealed until next year.</span>
@@ -2963,19 +3003,20 @@ ${AFTER}
 <span class="sen senshut"><b>Sealed.</b> Opens again on ${monthName(previous.month)} ${previous.day}, for three days.</span>
 </p>
 <div class="fuse" aria-hidden="true"><span></span></div>
-<h1>${name}</h1>
 <p class="mechanic">
 <span class="sen senopen">Everything below happened on this date. Say which ones you <b>remember</b>. When it shuts, what people remembered rises to the top and stays there for a year.</span>
 <span class="sen senshut">Everything below happened on this date. For three days a year it takes answers about what people <b>remember</b> of it, and when it shuts, what they remembered rises to the top and stays there for a year.</span>
 </p>
 <p class="also">The three open dates right now: <a href="/yesterday/">yesterday</a> <a href="/today/">today</a> <a href="/tomorrow/">tomorrow</a>.</p>
-${wallSection(wall, name)}
 ${askSection(asked, songs, page.month, page.day)}
-${openingBand(page, songs, culture, highlight)}
+</section>
+<details class="rest">
+<summary>${restSummary(name, timeline.length, culture.length, songs.length, count)}</summary>
 ${cultureSection(culture, name)}
 ${memoryNote}${feedSection(picked, rest, timeline.length, name, searched, timeline.length - searched - curatedCount, curatedCount, page.month, page.day, memory !== null, askedKeys, memory)}
 ${songSection(songs, name)}
 ${peopleRail(page, name)}
+</details>
 <nav class="pager cards">
 <a href="/${slug(previous.month, previous.day)}/">
 <p class="dir">&larr; The day before</p>

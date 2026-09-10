@@ -1432,7 +1432,12 @@ async function withResult(
   }
   if (!html.includes(anchor)) return null;
   const inside = resultMarkup(counts) + undoForm(kept.kind, kept.id, date.month, date.day);
-  return html.replace(anchor, () => `id="${marked}">${inside}</p>`);
+  // The row just answered sits inside the folded history, and the redirect
+  // lands on it. A closed details element would leave the reader looking at
+  // nothing, so the one request that follows an answer opens it.
+  return html
+    .replace('<details class="rest">', '<details class="rest" open>')
+    .replace(anchor, () => `id="${marked}">${inside}</p>`);
 }
 
 /**

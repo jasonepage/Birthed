@@ -282,3 +282,34 @@ test("a tile is drawn at the height it has, and the headline gets the lines it c
   const tall = wallSection(day([story({ rect: { mx: 0, my: 0, w: 6, h: 5 } })]), "September 9", LIVE_NOW);
   assert.ok(tall.includes("--lines:7"));
 });
+
+// ---------------------------------------------------------------------------
+// The wall leads the page, decided September 10, 2026
+// ---------------------------------------------------------------------------
+
+import { restSummary } from "../src/render.js";
+
+test("the wall leads the date page, and the imported history is folded under it with its counts", () => {
+  const s = story({ rect: { mx: 3, my: 5, w: 4, h: 3 } });
+  const people = [1, 2, 3].map((n) => ({ qid: `Q${n}`, name: `Person ${n}`, birthYear: 1950 + n, deathYear: null, description: "did things", monthlyViews: 100 }));
+  const html = renderDayPage({ month: 9, day: 9, people }, [], [], [], [], null, new Map(), new Map(), day([s]));
+  const h1 = html.indexOf("<h1>September 9</h1>");
+  const wallAt = html.indexOf('class="wall"');
+  const rememberAt = html.indexOf('class="remember"');
+  const restAt = html.indexOf('<details class="rest">');
+  const peopleAt = html.indexOf('class="section">Who shares it');
+  assert.ok(h1 > 0 && h1 < wallAt, "the name, then the wall");
+  assert.ok(wallAt < rememberAt, "the wall before the remembrance question");
+  assert.ok(rememberAt < restAt, "the remembrance question before the folded history");
+  assert.ok(restAt < peopleAt, "the people are inside the fold");
+  assert.ok(html.indexOf("</details>") > peopleAt, "and the fold closes after them");
+  assert.ok(html.includes("<summary>The rest of September 9: 3 people born on it.</summary>"));
+  // The remembrance copy itself is untouched.
+  assert.ok(html.includes('class="sen senopen">Everything below happened on this date. Say which ones you <b>remember</b>.'));
+});
+
+test("the summary line counts what is inside, in the order the page draws it", () => {
+  assert.equal(restSummary("September 9", 45, 12, 67, 60), "The rest of September 9: 45 things that happened, 12 releases, the number one song in 67 years, and 60 people born on it.");
+  assert.equal(restSummary("September 9", 1, 0, 0, 1), "The rest of September 9: 1 thing that happened, and 1 person born on it.");
+  assert.equal(restSummary("September 9", 0, 0, 0, 0), "The rest of September 9");
+});
