@@ -450,7 +450,9 @@ test("the typed field is on the live section only, posts a plain form to /find, 
   assert.ok(live.includes(`name="q" type="text" maxlength="${ASK_MAX}"`));
   assert.ok(live.includes('name="m" value="9"') && live.includes('name="d" value="9"'));
   assert.ok(live.includes(">Find</button>"));
-  assert.ok(live.includes("Typing spends nothing."));
+  // Said under the board now, so the field sits right above the hive.
+  assert.ok(live.includes("Typing spends nothing:"));
+  assert.ok(live.indexOf("Typing spends nothing:") > live.indexOf('class="wboard'), "the note is under the board");
   // No script anywhere near it: a form and a button and nothing else.
   assert.ok(!/<script|onsubmit|oninput/i.test(live));
   // The miss is the front door to submission rather than a dead end.

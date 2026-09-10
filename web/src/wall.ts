@@ -931,7 +931,6 @@ function askForm(day: WallDay, name: string, voice: Voice): string {
   return `<form class="wask" id="ask" method="post" action="/find">
 <label class="wasklabel" for="askq">What mattered about ${escapeHtml(name)}?</label>
 <div class="waskrow"><input class="input" id="askq" name="q" type="text" maxlength="${ASK_MAX}" placeholder="A name, a place, a few words" autocomplete="off"><input type="hidden" name="m" value="${month}"><input type="hidden" name="d" value="${d}"><button type="submit">Find</button></div>
-<p class="wnote">Typing spends nothing. The hive finds the story among what is filed for ${escapeHtml(name)} and shows it back before a ${voice.one} is spent. What you type is matched and not kept.</p>
 </form>`;
 }
 
@@ -1061,11 +1060,19 @@ ${folded.map((s) => listRow(s, live, voice)).join("\n")}
       ? "The hive has sealed, so the feed takes no more."
       : `When the hive opens, every one of these takes ${voice.many}.`;
 
+  // One sentence. The hive is the first thing under the name now, and every
+  // line above it is a line the board sits under, so the mechanic is said
+  // once and the rest is said under the board.
   const lede = live
-    ? `${voice.imperative} what you think will still matter about ${escapeHtml(name)} years from now. Each ${voice.one} makes it bigger on the hive, and you get a few a day.`
+    ? `${voice.imperative} what you think will still matter about ${escapeHtml(name)} years from now.`
     : notYet
       ? `Tomorrow's hive. When the date arrives, the ${voice.many} people give decide how much of the hive each story holds.`
-      : `What people here thought would still matter about ${escapeHtml(name)}. Each story is a link to a source, in the source's own words. Support decided how much of the hive it holds.`;
+      : `What people here thought would still matter about ${escapeHtml(name)}, sized by how many backed each story.`;
+  const under = live
+    ? `<p class="wnote wunder">Each ${voice.one} makes its story bigger on the hive, and you get a few a day. Typing spends nothing: the hive finds the story among what is filed for ${escapeHtml(name)} and shows it back before a ${voice.one} is spent. What you type is matched and not kept.</p>`
+    : closed
+      ? `<p class="wnote wunder">Each story is a link to a source, in the source's own words.</p>`
+      : "";
 
   const songStrip = songs.length === 0 ? "" : `<h3 class="wsub small">The number one song, every year</h3>
 <p class="wnote">${live ? `A ${voice.one} on a song counts the same as one on anything else.` : "The week's number one on this date, back to 1959."}</p>
@@ -1073,13 +1080,15 @@ ${folded.map((s) => listRow(s, live, voice)).join("\n")}
 ${songs.map((s) => songRow(s, live, voice)).join("\n")}
 </ul>`;
 
+  // The hive is the hero: the name, one line saying what the hive is, one
+  // sentence, the field and the count right above the board, and the board.
+  // Everything that explains sits under it. Decided September 10, 2026.
   return `<section class="wall" aria-labelledby="wallhead">
-<h2 class="section" id="wallhead">The hive for ${escapeHtml(longDate(day))}</h2>
-<p class="wstate">${stateLine(day, now)}</p>
+<p class="whead"><span class="section" id="wallhead">The hive for ${escapeHtml(longDate(day))}</span> <span class="wstate">${stateLine(day, now)}</span></p>
 <p class="wlede">${lede}</p>
-${countLine(day, now, voice)}${live ? askForm(day, name, voice) : ""}${foundBlock(options.found ?? [], day, live, voice)}${afterwords(voice, name)}
+${live ? askForm(day, name, voice) : ""}${countLine(day, now, voice)}${foundBlock(options.found ?? [], day, live, voice)}${afterwords(voice, name)}
 ${board}
-${full}
+${under}${full}
 ${onWall.length > 0 ? legend : ""}
 </section>
 <section class="feed2" aria-labelledby="feedhead">
@@ -1120,7 +1129,7 @@ export function wallMarks(standing: { left: number; allowance: number; backed: s
     if (!/^[0-9a-f-]{36}$/.test(id)) continue;
     // The mark takes a line, so the headline gives one up rather than
     // showing the top of a line it cannot finish.
-    rules.push(`#w-${id} .wmine{display:block}#w-${id} .wmeta .wmine{display:inline}#w-${id} .wh{-webkit-line-clamp:calc(var(--lines, 3) - 1)}#w-${id}{outline:3px solid var(--wink, #2A1A08);outline-offset:-3px}`);
+    rules.push(`#w-${id} .wmine{display:block}#w-${id} .wmeta .wmine{display:inline}#w-${id} .wh{-webkit-line-clamp:calc(var(--lines, 3) + var(--more, 0) - 1)}#w-${id}{outline:3px solid var(--wink, #2A1A08);outline-offset:-3px}`);
   }
   if (rules.length === 0) return "";
   return `<style>${rules.join("")}</style>`;
@@ -1306,15 +1315,33 @@ ${story.sources.map(sourceBlock).join("\n")}`;
 
 /** Appended to the site stylesheet. Colours follow the day's own hue. */
 export const WALL_STYLE = `
-.wall { margin: 26px 0 0; }
+.wall { margin: 8px 0 0; }
 .wall h2.section { margin-top: 26px; }
-.wstate { margin: 0 0 4px; font-size: 13px; font-weight: 600; color: #C9C2D4; }
-.wlede { margin: 0 0 14px; color: #B9B2AD; font-size: 15px; line-height: 1.4; max-width: 58ch; text-wrap: pretty; }
+/* The hive is the hero, September 10, 2026. What sits between the date's
+   name and the board is one line naming the hive and its clock, one sentence,
+   the field and the count. The heading is a line rather than a second
+   headline: the name above it is the headline, and thirty two point type
+   twice in a row was a screen with no board on it. */
+.whead { margin: 0 0 6px; font-size: 13px; line-height: 1.5; color: #C9C2D4; }
+.whead .section { font-family: Georgia, "Times New Roman", serif; font-weight: 800; font-size: 15px; color: #FFF7EE; margin-right: 6px; }
+.wstate { display: block; margin: 0; font-size: 13px; font-weight: 600; color: #A49BAE; }
+.wlede { margin: 0 0 12px; color: #B9B2AD; font-size: 15px; line-height: 1.4; max-width: 58ch; text-wrap: pretty; }
+.wunder { margin: 10px 0 0; max-width: 62ch; }
 .wboard {
   display: grid; grid-template-columns: repeat(var(--side, 16), minmax(0, 1fr)); grid-template-rows: repeat(var(--side, 16), minmax(0, 1fr));
   gap: 2px; width: 100%; max-width: 100%; aspect-ratio: 1 / 1; margin: 0 auto;
   padding: 2px; box-sizing: border-box; border-radius: 10px; background: #100D16;
   box-shadow: inset 0 0 0 1px rgba(255, 247, 238, .08);
+}
+/* Bigger than the column. On a phone the board runs edge to edge, because
+   a gutter either side of the one picture on the page is forty pixels of
+   nothing; on a wide screen it is wider than the prose beside it, the way a
+   photograph in an article is. The full screen page sizes its own. */
+@media (max-width: 760px) {
+  .wall:not(.whive) .wboard { width: calc(100% + 40px); max-width: none; margin-left: -20px; margin-right: -20px; border-radius: 0; }
+}
+@media (min-width: 900px) {
+  .wall:not(.whive) .wboard { width: 880px; max-width: none; margin-left: -100px; margin-right: -100px; }
 }
 .wboard.wblank { display: grid; place-items: center; aspect-ratio: 16 / 7; }
 .wnothing { grid-column: 1 / -1; grid-row: 1 / -1; align-self: center; justify-self: center; margin: 0; padding: 0 12%; text-align: center; font-size: 15px; line-height: 1.5; color: #827B75; text-wrap: pretty; }
@@ -1458,7 +1485,8 @@ export const WALL_STYLE = `
 /* Type scales with the window, not the board: a twelve module window draws
    each module a third larger than the whole board would, and the words
    follow. */
-.wtile.mid .wh, .wtile.big .wh { font-size: clamp(10px, calc(38cqi / var(--side, 16)), 19px); -webkit-line-clamp: var(--lines, 3); }
+.wtile.mid .wh, .wtile.big .wh { font-size: clamp(10px, calc(38cqi / var(--side, 16)), 22px); -webkit-line-clamp: calc(var(--lines, 3) + var(--more, 0)); }
+.wtile.mid, .wtile.big { padding: clamp(5px, calc(14cqi / var(--side, 16)), 14px) clamp(6px, calc(16cqi / var(--side, 16)), 16px); }
 .wfoot {
   flex: none; flex-wrap: nowrap; white-space: nowrap; overflow: hidden; margin-top: 0; min-width: 0;
   font-size: clamp(8px, calc(29cqi / var(--side, 16)), 13px);
@@ -1466,8 +1494,12 @@ export const WALL_STYLE = `
 .wfoot .wo { min-width: 0; overflow: hidden; text-overflow: ellipsis; opacity: .8; }
 .wfoot .wn { flex: none; font-weight: 700; }
 .wfoot .wbuzz button { font-size: clamp(8px, calc(30cqi / var(--side, 16)), 13px); }
-@container (min-width: 480px) { .wtile.wh3 { --lines: 4; } }
-.wcount { margin: 0 0 12px; font-size: 15px; font-weight: 600; color: #E9E1DB; }
+/* --more rather than --lines, because --lines is set inline on the tile and
+   an inline value beats any rule here, which is why a wide board drew three
+   lines in a tile that had room for five. */
+@container (min-width: 480px) { .wtile.wh3 { --more: 1; } }
+@container (min-width: 720px) { .wtile.wh3 { --more: 2; } }
+.wcount { margin: 0 0 10px; font-size: 15px; font-weight: 600; color: #E9E1DB; }
 .wsaid {
   display: none; margin: 0 0 14px; padding: 13px 15px; border-radius: 12px;
   background: #171227; border: 1px solid #2A2434; color: #E9E1DB; font-size: 14px; line-height: 1.5;
@@ -1479,7 +1511,7 @@ export const WALL_STYLE = `
 .wlist .wmine { margin-left: 6px; }
 /* The typed field, docs/the-wall.md section 15. A form like the buzz, and
    the confirmation is drawn under it on the one request that follows. */
-.wask { margin: 0 0 14px; }
+.wask { margin: 0 0 12px; }
 .wasklabel { display: block; margin: 0 0 8px; font-family: Georgia, "Times New Roman", serif; font-weight: 800; font-size: 19px; color: #FFF7EE; }
 .waskrow { display: flex; gap: 8px; align-items: stretch; }
 .wask .input { flex: 1; min-width: 0; padding: 11px 14px; border-radius: 12px; }
