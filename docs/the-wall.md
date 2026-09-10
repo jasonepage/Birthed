@@ -71,11 +71,23 @@ Three units on today's date. One unit on yesterday's date. None on tomorrow's.
 Because a date is live on its own day and again the day after, one person can
 put at most four units on any single date across its whole life.
 
-Units are spendable one, two or three on a single story, which is how somebody
-says they are certain rather than just interested.
+**One tap is one unit, on the web and in the app.** Decided September 10, 2026
+by Nathan, and it replaces the rule this section carried until that evening,
+that units were spendable one, two or three on a single story as a way of
+saying somebody was certain rather than merely interested. The web shipped one
+unit a tap that day and section 13 recorded that the conviction sizing stayed
+in the app. It does not. Two products with two rules for the same button is not
+the dead simple thing this was asked to be, and a reader who moves between the
+phone and the site should not have to learn the same button twice. What is lost
+is the way somebody said they were certain; what stands in its place is that
+they had three taps that day and chose to spend one here. Section 14 records
+the app catching up.
 
 **The limit is server authoritative.** Scarcity is the engine of the whole
-thing, and a limit the client enforces is not a limit.
+thing, and a limit the client enforces is not a limit. The database still
+accepts one, two or three units in a single call, because `wall_cast_boost` and
+the budget trigger were built that way and narrowing them would edit a written
+history for nothing. No client sends more than one.
 
 ---
 
