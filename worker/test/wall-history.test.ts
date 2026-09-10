@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 
-import { PRIORITY_HISTORY, PRIORITY_PERSON, PRIORITY_PICK, mayLead, monthDay, monthDayOf, planHistory, type DateHistory, type Dropped } from "../src/wall/history.js";
+import { PRIORITY_HISTORY, PRIORITY_PERSON, PRIORITY_PICK, PRIORITY_SONG, mayLead, monthDay, monthDayOf, planHistory, planSongs, songsOn, type DateHistory, type Dropped, type SongRow } from "../src/wall/history.js";
 import { allocate, type StoryInput } from "../src/wall/allocator.js";
 
 function history(overrides: Partial<DateHistory> = {}): DateHistory {
@@ -173,4 +173,48 @@ test("a suppressed event files like any other history and never as a pick", () =
   assert.equal(kirk.url, "https://en.wikipedia.org/wiki/September_10");
   assert.equal(byKey.get("subject:historical_event:2")!.priority, PRIORITY_HISTORY, "suppressed, so not a pick even when picked");
   assert.equal(byKey.get("subject:historical_event:3")!.priority, PRIORITY_PICK);
+});
+
+// ---------------------------------------------------------------------------
+// The number one songs become pixels. docs/the-wall.md section 16.
+// ---------------------------------------------------------------------------
+
+const WEEKS: SongRow[] = [
+  { chart_date: "1994-09-10", song: "I'll Make Love to You", artist: "Boyz II Men", source_url: "https://en.wikipedia.org/wiki/List_of_Billboard_Hot_100_number_ones_of_1994" },
+  { chart_date: "1994-09-17", song: "I'll Make Love to You", artist: "Boyz II Men", source_url: "https://en.wikipedia.org/wiki/List_of_Billboard_Hot_100_number_ones_of_1994" },
+  { chart_date: "2026-09-05", song: "Older", artist: "Somebody", source_url: "https://en.wikipedia.org/wiki/List_of_Billboard_Hot_100_number_ones_of_2026" },
+  { chart_date: "2026-09-12", song: "Newer", artist: "Somebody Else", source_url: "https://en.wikipedia.org/wiki/List_of_Billboard_Hot_100_number_ones_of_2026" },
+  { chart_date: "2024-03-02", song: "Leap", artist: "Year", source_url: "https://en.wikipedia.org/wiki/List_of_Billboard_Hot_100_number_ones_of_2024" },
+  { chart_date: "2023-03-04", song: "Not a leap", artist: "Year", source_url: "https://en.wikipedia.org/wiki/List_of_Billboard_Hot_100_number_ones_of_2023" },
+];
+
+test("the song on a date is the first issue on or after it and no more than six days after, newest year first", () => {
+  const on = songsOn(WEEKS, 9, 10);
+  assert.deepEqual(on.map((s) => [s.year, s.chart_date, s.song]), [
+    [2026, "2026-09-12", "Newer"],
+    [1994, "1994-09-10", "I'll Make Love to You"],
+  ]);
+  // The issue dated on the day itself covers the day.
+  assert.equal(songsOn(WEEKS, 9, 5)[0]!.song, "Older");
+  // Seven days after is not covered: 1994-09-17 does not answer September 3.
+  assert.deepEqual(songsOn(WEEKS, 9, 3).map((s) => s.year), [2026]);
+  // February 29 exists in 2024 and not in 2023, so 2023 is left out rather than given March's chart.
+  assert.deepEqual(songsOn(WEEKS, 2, 29).map((s) => s.year), [2024]);
+});
+
+test("a song story is keyed by its issue, quotes the table's own song and artist, and files at the news's priority", () => {
+  const stories = planSongs("2026-09-10", songsOn(WEEKS, 9, 10));
+  assert.equal(stories.length, 2);
+  const boyz = stories[1]!;
+  assert.equal(boyz.urlKey, "subject:song:1994-09-10");
+  assert.equal(boyz.subjectKind, "song");
+  assert.equal(boyz.subjectId, "1994-09-10");
+  assert.equal(boyz.headline, `1994: "I'll Make Love to You" by Boyz II Men was the number one song`);
+  assert.equal(boyz.quotation, `"I'll Make Love to You" Boyz II Men`);
+  assert.equal(boyz.url, "https://en.wikipedia.org/wiki/List_of_Billboard_Hot_100_number_ones_of_1994");
+  assert.equal(boyz.outlet, "en.wikipedia.org");
+  assert.equal(boyz.priority, PRIORITY_SONG);
+  assert.ok(PRIORITY_SONG < PRIORITY_HISTORY, "a song waits behind the date's history");
+  // The same issue never files twice, and the other kinds of history keep their own keys.
+  assert.equal(new Set(stories.map((s) => s.urlKey)).size, stories.length);
 });

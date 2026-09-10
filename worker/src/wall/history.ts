@@ -33,7 +33,7 @@ import { insert, rows, type Db } from "./db.js";
 import { fitHeadline, openDates } from "./news.js";
 import { fold } from "./page.js";
 
-export type SubjectKind = "historical_event" | "birth_fact" | "cultural_event" | "person";
+export type SubjectKind = "historical_event" | "birth_fact" | "cultural_event" | "person" | "song";
 
 export interface HistoryStory {
   wallDate: string;
@@ -64,6 +64,14 @@ export function mayLead(text: string): boolean {
 export const PRIORITY_PICK = 3;
 export const PRIORITY_PERSON = 2;
 export const PRIORITY_HISTORY = 1;
+/**
+ * A song files at the news's own priority. Sixty odd number ones share a
+ * date, and at history priority they would take every unbacked slot the
+ * kind cap allows before a single event did. At nought they wait behind
+ * the date's history and beside the day's news, and one buzz beats all of
+ * that, which is how a song reaches the hive: somebody says so.
+ */
+export const PRIORITY_SONG = 0;
 
 /** How many people a date files; the rest stay on their own table. */
 export const PEOPLE_PER_DATE = 12;
@@ -224,6 +232,90 @@ export function planHistory(wallDate: string, history: DateHistory, dropped?: Dr
 }
 
 // ---------------------------------------------------------------------------
+// The number one songs. docs/the-wall.md section 16: "not a pixel yet"
+// becomes a pixel.
+// ---------------------------------------------------------------------------
+
+export const CHART_NAME = "Billboard Hot 100";
+/** Days a weekly chart covers, counting the issue date itself. The same rule as web/src/songs.ts. */
+const CHART_WINDOW = 7;
+
+export interface SongRow { chart_date: string; song: string; artist: string; source_url: string }
+
+function addDays(isoDate: string, days: number): string {
+  const date = new Date(`${isoDate}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * The number one song on a calendar date in every year that has one, newest
+ * year first. A chart week covers the six days before its issue date and
+ * the issue itself, the rule `coverageByDay` in web/src/songs.ts applies and
+ * CLAUDE.md records: the first issue dated on or after the date and no more
+ * than six days after it. A year with no covering issue is left out rather
+ * than given the nearest one, so February 29 has only leap years, and 1958,
+ * which is not imported, has nothing. Absent beats wrong.
+ */
+export function songsOn(weeks: SongRow[], month: number, day: number): Array<SongRow & { year: number }> {
+  const covered = new Map<string, SongRow>();
+  for (const week of weeks) {
+    for (let back = 0; back < CHART_WINDOW; back += 1) {
+      const covers = addDays(week.chart_date, -back);
+      if (!covered.has(covers)) covered.set(covers, week);
+    }
+  }
+  const out: Array<SongRow & { year: number }> = [];
+  const years = new Set(weeks.map((w) => Number(w.chart_date.slice(0, 4))));
+  for (const year of [...years].sort((a, b) => b - a)) {
+    const iso = `${year}-${monthDay(month, day)}`;
+    // A date that does not exist in this year, February 29 mostly.
+    if (new Date(`${iso}T00:00:00Z`).toISOString().slice(0, 10) !== iso) continue;
+    const week = covered.get(iso);
+    if (week !== undefined) out.push({ ...week, year });
+  }
+  return out;
+}
+
+/**
+ * The stories a date's number ones make. Pure.
+ *
+ * Keyed by the issue date, which is the one thing that names a chart week.
+ * The headline is the sentence a person says, "the number one song the week
+ * I was born". The receipt is Wikipedia's list for that year, the page the
+ * row was read from, and the quotation is the song and the artist as that
+ * table prints them, in quotation marks and then the name. That pairing is
+ * how every year list is laid out and it has not been checked from here
+ * against a rendered page, because this session had no network; the source
+ * is marked imported and the checker leaves it alone, the same as every
+ * other history row. If a rendered table proves the pairing wrong, the fix
+ * is here and not in the match rule.
+ */
+export function planSongs(wallDate: string, songs: Array<SongRow & { year: number }>): HistoryStory[] {
+  const out: HistoryStory[] = [];
+  const seen = new Set<string>();
+  for (const s of songs) {
+    const urlKey = subjectKey("song", s.chart_date);
+    if (seen.has(urlKey) || s.source_url === "" || s.song.trim() === "") continue;
+    seen.add(urlKey);
+    out.push({
+      wallDate, urlKey,
+      subjectKind: "song", subjectId: s.chart_date,
+      headline: fitHeadline(`${s.year}: "${fold(s.song)}" by ${fold(s.artist)} was the number one song`),
+      url: s.source_url, outlet: hostOf(s.source_url),
+      quotation: fold(`"${s.song}" ${s.artist}`).slice(0, 1000),
+      priority: PRIORITY_SONG,
+    });
+  }
+  return out;
+}
+
+/** Every Hot 100 week, read once per run and shared by the three open dates. */
+export async function readSongs(db: Db): Promise<SongRow[]> {
+  return rows<SongRow>(db, `chart_weeks?select=chart_date,song,artist,source_url&chart_name=eq.${encodeURIComponent(CHART_NAME)}&order=chart_date.asc`);
+}
+
+// ---------------------------------------------------------------------------
 // Reading a date
 // ---------------------------------------------------------------------------
 
@@ -282,11 +374,20 @@ export async function run(db: Db, options: { now?: Date; dry?: boolean } = {}): 
   const now = options.now ?? new Date();
   let planned = 0;
   let written = 0;
+  // The chart is one table for every date, so it is read once. A read that
+  // fails costs the songs and nothing else: the date's events and people
+  // still file, and the log says what was missed.
+  let weeks: SongRow[] = [];
+  try {
+    weeks = await readSongs(db);
+  } catch (error: unknown) {
+    console.error(`wall history: the chart could not be read, so no songs file this run: ${error instanceof Error ? error.message : error}`);
+  }
   for (const wallDate of openDates(now.getTime())) {
     const [, m, d] = wallDate.split("-").map(Number) as [number, number, number];
     const history = await readHistory(db, m, d);
     const dropped: Dropped = { noLink: 0, shortQuotation: 0, noHeadline: 0 };
-    const stories = planHistory(wallDate, history, dropped);
+    const stories = [...planHistory(wallDate, history, dropped), ...planSongs(wallDate, songsOn(weeks, m, d))];
     planned += stories.length;
     // A row left out is said so, per date and per reason, every run. A stage
     // that drops rows quietly looks exactly like one that drops none.
