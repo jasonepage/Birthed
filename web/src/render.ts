@@ -2,7 +2,7 @@
 // without a network and without a browser.
 
 import { DayPage, Person, monthName, neighbours, slug, everyDate } from "./model.js";
-import { WALL_STYLE, hivePath, storyBody, wallSection, type ReceiptOptions, type WallDay, type WallStory } from "./wall.js";
+import { WALL_STYLE, hivePath, pictureRules, storyBody, wallSection, type Picture, type ReceiptOptions, type WallDay, type WallStory } from "./wall.js";
 import { CHART_NAME, coverName, SongOfTheYear } from "./songs.js";
 import { calendar } from "./calendar.js";
 import { type CulturalEvent, textOf } from "./culture.js";
@@ -2492,6 +2492,7 @@ export function renderDayPage(
 ${barEnd()}
 </div>
 <h1>${name}</h1>
+${pictureRules(picturesFor(songs, page.people))}
 ${wallSection(wall, name, Date.now(), {
     date: { month: page.month, day: page.day },
     history: historyRows([...picked, ...rest], page.people),
@@ -2538,7 +2539,23 @@ ${FOOT}`;
  * three open dates, the same as the date page. noindex, because it is a
  * view of the date page and not a second page about the date.
  */
-export function renderHivePage(day: WallDay, month: number, d: number): string {
+/**
+ * Every picture the build has on disk for a date's subjects: a cover for
+ * each number one that has one, a face for each person who has one. Keyed
+ * the way the worker keys the story, so the rule finds the tile.
+ */
+export function picturesFor(songs: SongOfTheYear[], people: Person[]): Picture[] {
+  const out: Picture[] = [];
+  for (const song of songs) {
+    if (song.hasArtwork === true) out.push({ subject: `song:${song.chartDate}`, path: `/covers/${coverName(song.song, song.artist)}.jpg` });
+  }
+  for (const person of people) {
+    if (person.hasImage === true) out.push({ subject: `person:${person.qid}`, path: `/faces/${faceName(person.qid)}.jpg` });
+  }
+  return out;
+}
+
+export function renderHivePage(day: WallDay, month: number, d: number, pictures: Picture[] = []): string {
   const name = `${monthName(month)} ${d}`;
   const canonical = `${SITE}${hivePath(month, d)}`;
   const hue = dayHue(month);
@@ -2551,6 +2568,7 @@ export function renderHivePage(day: WallDay, month: number, d: number): string {
 <span class="barnav"><a class="here" href="/${slug(month, d)}/">${escapeHtml(name)}</a></span>
 <span class="barend"><a class="get" href="/${slug(month, d)}/">Back to the day</a></span>
 </div>
+${pictureRules(pictures)}
 ${wallSection(day, name, Date.now(), { hive: true, date: { month, day: d } })}
 </div>
 ${FOOT}`;

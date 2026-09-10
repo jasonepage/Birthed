@@ -16,7 +16,8 @@ import { DayPage, Person, everyDate, slug } from "./model.js";
 import { fetchWall, newestByDate, storyPath, wallKey } from "./wall.js";
 import { coverageByDay, fetchChartWeeks, songsForDate, withDownloadedCovers } from "./songs.js";
 import { buildSeed, factsByDay, factsForDate, fetchFacts, pickHighlights } from "./facts.js";
-import { isReady, renderCalendarPage, renderDayPage, renderNotFound, renderRobots, renderSitemap, renderHivePage, renderStoryPage } from "./render.js";
+import { isReady, picturesFor, renderCalendarPage, renderDayPage, renderNotFound, renderRobots, renderSitemap, renderHivePage, renderStoryPage } from "./render.js";
+import type { Picture } from "./wall.js";
 import { eventsByDay, eventsForDate, fetchEvents, fetchSealedMemory } from "./timeline.js";
 import { culturalByDate, culturalForDate, fetchCulturalEvents } from "./culture.js";
 import { fetchLeadLines } from "./lead.js";
@@ -193,10 +194,14 @@ async function main(): Promise<void> {
       : `${memory.size} sealed dates will be laid out in the order their own people remembered them`,
   );
 
+  // The pictures each date has on disk, kept for the hive page, which is
+  // written after this loop from the same songs and people.
+  const picturesByKey = new Map<string, Picture[]>();
   await inBatches(dates, CONCURRENCY, async (date) => {
     const page = await fetchDay(date.month, date.day, url, key);
     if (page.people.length === 0) empty++;
     const songs = songsForDate(covered, date.month, date.day, FIRST_CHART_YEAR, thisYear);
+    picturesByKey.set(wallKey(date.month, date.day), picturesFor(songs, page.people));
     const found = factsForDate(factsFor, date.month, date.day);
     const happened = eventsForDate(eventsFor, date.month, date.day);
     const curated = culturalForDate(cultureFor, date.month, date.day);
@@ -235,7 +240,7 @@ async function main(): Promise<void> {
     const [month, d] = key.split("-").map(Number) as [number, number];
     const directory = join(OUT, slug(month, d), "hive");
     await mkdir(directory, { recursive: true });
-    await writeFile(join(directory, "index.html"), renderHivePage(day, month, d), "utf8");
+    await writeFile(join(directory, "index.html"), renderHivePage(day, month, d, picturesByKey.get(key) ?? []), "utf8");
     hives++;
   }
   if (hives > 0) console.log(`wrote ${hives} hive pages`);

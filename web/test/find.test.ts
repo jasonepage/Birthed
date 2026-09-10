@@ -21,7 +21,7 @@ function story(id: string, headline: string, outlet: string, minute: number, ext
     submittedAt: new Date(Date.UTC(2026, 8, 9, 12, minute)).toISOString(),
     headline, url: `https://example.org/${id}`, outlet,
     status: "pool", tier: "claimed", support: 0, priority: 0, placedAt: null, rect: null,
-    falseAt: null, falseNote: null, sources: [],
+    falseAt: null, falseNote: null, subjectKind: null, subjectId: null, sources: [],
     ...extra,
   };
 }

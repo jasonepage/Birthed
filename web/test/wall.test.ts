@@ -5,8 +5,9 @@ import { renderDayPage, renderHivePage, renderStoryPage } from "../src/render.js
 import {
   eastern,
   BEE, PLAIN, PLAIN_DATES, VIEW_MIN, allowanceOn, emptyWallDay, fetchWall, hivePath, newestByDate, storyPath, takingBoosts,
-  tapsLeftSentence, tierLabel, units, viewportFor, voiceFor, wallMarks, wallSection, type WallDay, type WallStory,
+  tapsLeftSentence, tierLabel, units, viewportFor, voiceFor, wallMarks, wallSection, pictureRules, songParts, subjectOf, type WallDay, type WallStory,
 } from "../src/wall.js";
+import { picturesFor } from "../src/render.js";
 
 const PAGE = { month: 9, day: 9, people: [] };
 
@@ -26,6 +27,8 @@ function story(overrides: Partial<WallStory> = {}): WallStory {
     rect: { mx: 8, my: 7, w: 2, h: 1 },
     falseAt: null,
     falseNote: null,
+    subjectKind: null,
+    subjectId: null,
     sources: [{
       id: "s1", url: "https://www.example.org/news/river-crossing", outlet: "example.org", owner: "Example Media",
       headline: "Council approves the river crossing after a decade of study",
@@ -588,4 +591,94 @@ test("a period is said plainly", () => {
   assert.equal(spanWords("2026-09-09T14:00:00Z", "2026-09-09T15:00:00Z"), "about an hour");
   assert.equal(spanWords("2026-09-09T14:00:00Z", "2026-09-10T01:00:00Z"), "about 11 hours");
   assert.equal(spanWords("2026-09-09T14:00:00Z", "2026-09-12T14:00:00Z"), "about 3 days");
+});
+
+// ---------------------------------------------------------------------------
+// Pictures on tiles, and the number ones as a strip. docs/the-wall.md
+// section 16, Nathan's ask on September 10, 2026.
+// ---------------------------------------------------------------------------
+
+const LIVE = Date.parse("2026-09-09T16:00:00Z");
+
+function song(id: string, year: number, chartDate: string, support: number = 0, overrides: Partial<WallStory> = {}): WallStory {
+  return story({
+    id, headline: `${year}: "I'll Make Love to You" by Boyz II Men was the number one song`,
+    url: `https://en.wikipedia.org/wiki/List_of_Billboard_Hot_100_number_ones_of_${year}`, outlet: "en.wikipedia.org",
+    status: "pool", tier: "claimed", support, priority: 0, placedAt: null, rect: null,
+    subjectKind: "song", subjectId: chartDate, ...overrides,
+  });
+}
+
+test("a tile and a row carry the subject the worker filed them under, and news carries none", () => {
+  const placedSong = song("aaaaaaaa-0000-0000-0000-000000000001", 1994, "1994-09-10", 3, { status: "placed", rect: { mx: 6, my: 6, w: 3, h: 3 }, placedAt: "2026-09-09T15:00:00Z" });
+  const html = wallSection(day([placedSong, story({ id: "bbbbbbbb-0000-0000-0000-000000000002" })]), "September 9", LIVE);
+  assert.ok(html.includes(`id="w-${placedSong.id}"`) && html.includes('data-subject="song:1994-09-10"'));
+  const news = html.slice(html.indexOf('id="w-bbbbbbbb'), html.indexOf('id="w-bbbbbbbb') + 200);
+  assert.ok(!news.includes("data-subject"), "the day's news has no subject and gets no picture");
+  assert.equal(subjectOf({ subjectKind: null, subjectId: null }), null);
+  assert.equal(subjectOf({ subjectKind: "person", subjectId: "Q42" }), "person:Q42");
+});
+
+test("the number ones in the pool are a strip of covers under the feed, not sixty rows in it", () => {
+  const older = song("aaaaaaaa-0000-0000-0000-000000000001", 1994, "1994-09-10");
+  const newer = song("aaaaaaaa-0000-0000-0000-000000000002", 2026, "2026-09-12");
+  const backed = song("aaaaaaaa-0000-0000-0000-000000000003", 1971, "1971-09-11", 2);
+  const news = story({ id: "bbbbbbbb-0000-0000-0000-000000000002", status: "pool", rect: null, placedAt: null });
+  const html = wallSection(day([older, newer, backed, news]), "September 9", LIVE, { interactive: true });
+  const feed = html.slice(html.indexOf('<ul class="wlist">'), html.indexOf("</ul>"));
+  assert.ok(feed.includes(`id="w-${news.id}"`));
+  assert.ok(!feed.includes("subject:song") && !feed.includes(`id="w-${older.id}"`), "no song sits in the feed list");
+  const strip = html.slice(html.indexOf('<ul class="wsongs">'), html.indexOf("</ul>", html.indexOf('<ul class="wsongs">')));
+  const order = [backed.id, newer.id, older.id].map((id) => strip.indexOf(`id="w-${id}"`));
+  assert.ok(order[0]! < order[1]! && order[1]! < order[2]!, "most backed first, then newest year");
+  assert.ok(strip.includes('data-subject="song:1994-09-10"'));
+  assert.ok(strip.includes('<span class="wyr">1994</span>'), "the year sits on the cover");
+  const shown = /<span class="wsongt">([^<]*)<\/span>/.exec(strip)?.[1] ?? "";
+  assert.ok(shown.includes("Boyz II Men") && !shown.includes("was the number one song"), `the song and artist, not the whole sentence: ${shown}`);
+  assert.equal((strip.match(/<form class="wbuzz"/g) ?? []).length, 3, "one button each while the date is live");
+  // A hive with no songs filed draws no strip and no heading for one.
+  assert.ok(!wallSection(day([news]), "September 9", LIVE).includes("wsongs"));
+});
+
+test("the picture rules name a tile by its subject and put nothing but a path on this domain in them", () => {
+  const css = pictureRules([
+    { subject: "song:1994-09-10", path: "/covers/0123456789abcdef.jpg" },
+    { subject: "person:Q42", path: "/faces/Q42.jpg" },
+  ]);
+  assert.ok(css.startsWith('<style class="wpics">') && css.endsWith("</style>"));
+  assert.ok(css.includes('[data-subject="song:1994-09-10"]{--pic:url("/covers/0123456789abcdef.jpg")}'));
+  assert.ok(css.includes('[data-subject="person:Q42"]{--pic:url("/faces/Q42.jpg")}'));
+  assert.ok(css.includes('.wtile[data-subject="song:1994-09-10"],.wtile[data-subject="person:Q42"]{color:#FFF7EE'), "one shared rule for the light type and the scrim");
+  assert.equal(pictureRules([]), "");
+  // A subject or a path with quotes or a closing tag in it cannot break out of the rule.
+  const odd = pictureRules([{ subject: `song:1994"]}</style><script>`, path: `/covers/x.jpg")}` }]);
+  assert.ok(!odd.includes("<script>") && !odd.includes("</style><"));
+});
+
+test("the build lists a cover for every number one it has on disk, and a face for every person with one", () => {
+  const pictures = picturesFor(
+    [
+      { year: 1994, chartDate: "1994-09-10", song: "I'll Make Love to You", artist: "Boyz II Men", hasArtwork: true },
+      { year: 1993, chartDate: "1993-09-11", song: "Dreamlover", artist: "Mariah Carey", hasArtwork: false },
+    ],
+    [
+      { qid: "Q42", name: "Somebody", birthYear: 1950, deathYear: null, description: null, monthlyViews: 0, hasImage: true },
+      { qid: "Q43", name: "Nobody", birthYear: 1950, deathYear: null, description: null, monthlyViews: 0, hasImage: false },
+    ],
+  );
+  assert.deepEqual(pictures.map((p) => p.subject), ["song:1994-09-10", "person:Q42"]);
+  assert.match(pictures[0]!.path, /^\/covers\/[0-9a-f]{16}\.jpg$/);
+  assert.equal(pictures[1]!.path, "/faces/Q42.jpg");
+  // And the page carries them beside the wall, so a live section finds them too.
+  const html = renderDayPage({ month: 9, day: 10, people: [] }, [
+    { year: 1994, chartDate: "1994-09-10", song: "I'll Make Love to You", artist: "Boyz II Men", hasArtwork: true },
+  ]);
+  assert.ok(html.includes('<style class="wpics">[data-subject="song:1994-09-10"]'));
+  const hive = renderHivePage(day([]), 9, 9, [{ subject: "song:1994-09-10", path: "/covers/abc.jpg" }]);
+  assert.ok(hive.includes('<style class="wpics">'));
+});
+
+test("the year and the song come back out of the headline the worker wrote", () => {
+  assert.deepEqual(songParts(`1994: "I'll Make Love to You" by Boyz II Men was the number one song`), { year: "1994", title: `"I'll Make Love to You" by Boyz II Men` });
+  assert.equal(songParts("Council approves the river crossing"), null);
 });

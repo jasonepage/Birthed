@@ -87,6 +87,14 @@ export interface WallStory {
   rect: { mx: number; my: number; w: number; h: number } | null;
   falseAt: string | null;
   falseNote: string | null;
+  /**
+   * The imported row this story stands for, or null for the day's news:
+   * "song" and an issue date, "person" and a Wikidata identifier, and so on.
+   * The worker writes both. Together they are the tile's data-subject, which
+   * is what a baked picture rule matches; see pictureRules.
+   */
+  subjectKind: string | null;
+  subjectId: string | null;
   sources: WallSource[];
 }
 
@@ -149,6 +157,7 @@ interface StoryRow {
   status: WallStatus; tier: WallTier; support: number; priority: number | null; placed_at: string | null;
   anchor_mx: number | null; anchor_my: number | null; w_modules: number | null; h_modules: number | null;
   false_at: string | null; false_note: string | null;
+  subject_kind?: string | null; subject_id?: string | null;
 }
 interface SourceRow {
   id: string; story_id: string; url: string; outlet: string; owner: string; headline: string; quotation: string;
@@ -168,7 +177,7 @@ export async function fetchWall(url: string, key: string): Promise<WallDay[]> {
   const days = await rows<DayRow>(url, key, "wall_days?select=wall_date,opens_at,live_at,closes_at,closed_at&order=wall_date.asc");
   if (days.length === 0) return [];
   const stories = await rows<StoryRow>(url, key,
-    "wall_stories?select=id,wall_date,submitted_at,headline,url,outlet,status,tier,support,priority,placed_at,anchor_mx,anchor_my,w_modules,h_modules,false_at,false_note&order=wall_date.asc,submitted_at.asc,id.asc");
+    "wall_stories?select=id,wall_date,submitted_at,headline,url,outlet,status,tier,support,priority,placed_at,anchor_mx,anchor_my,w_modules,h_modules,false_at,false_note,subject_kind,subject_id&order=wall_date.asc,submitted_at.asc,id.asc");
   const sources = await rows<SourceRow>(url, key,
     "wall_sources?select=id,story_id,url,outlet,owner,headline,quotation,verified_at,added_at&order=added_at.asc,id.asc");
   const checks = await rows<CheckRow>(url, key,
@@ -199,6 +208,7 @@ export async function fetchWall(url: string, key: string): Promise<WallDay[]> {
         ? null
         : { mx: s.anchor_mx, my: s.anchor_my, w: s.w_modules, h: s.h_modules },
       falseAt: s.false_at, falseNote: s.false_note,
+      subjectKind: s.subject_kind ?? null, subjectId: s.subject_id ?? null,
       sources: sourcesByStory.get(s.id) ?? [],
     });
     storiesByDate.set(s.wall_date, list);
@@ -223,8 +233,62 @@ function storyFrom(s: StoryRow, sources: WallSource[]): WallStory {
       ? null
       : { mx: s.anchor_mx, my: s.anchor_my, w: s.w_modules, h: s.h_modules },
     falseAt: s.false_at, falseNote: s.false_note,
+    subjectKind: s.subject_kind ?? null, subjectId: s.subject_id ?? null,
     sources,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Pictures on tiles
+// ---------------------------------------------------------------------------
+
+/** "song:1994-09-10", "person:Q123": the subject a picture is for, as the tile carries it. */
+export function subjectOf(story: Pick<WallStory, "subjectKind" | "subjectId">): string | null {
+  if (story.subjectKind === null || story.subjectId === null) return null;
+  return `${story.subjectKind}:${story.subjectId}`;
+}
+
+function subjectAttr(story: Pick<WallStory, "subjectKind" | "subjectId">): string {
+  const subject = subjectOf(story);
+  return subject === null ? "" : ` data-subject="${escapeHtml(subject)}"`;
+}
+
+export interface Picture {
+  /** The subject, as subjectOf gives it. */
+  subject: string;
+  /** A path on this domain: "/covers/abc.jpg", "/faces/Q123.jpg". Never another host; the page sends img-src 'self'. */
+  path: string;
+}
+
+/**
+ * The style block that puts pictures on the tiles and rows of a date, baked
+ * by build.ts beside the wall region rather than inside it.
+ *
+ * The wall section is swapped live by serve.ts on the open dates and the
+ * live read has no idea which song has a cover on disk; the build does,
+ * because it read the chart and listed static/covers. So the build writes
+ * one rule per subject that has a picture, keyed by the data-subject the
+ * worker's story carries, and whatever section is in the page, baked or
+ * live, the tile for that subject draws its picture. The same trick as the
+ * reader's own marks and the remaining count: the shared section carries
+ * the structure and a style block lays the particular on top.
+ *
+ * Two rules, not one per picture with its colours repeated: one setting
+ * --pic per subject, and one list selector giving every pictured subject
+ * the light type and the scrim the tile needs over a photograph.
+ */
+export function pictureRules(pictures: Picture[]): string {
+  if (pictures.length === 0) return "";
+  const safe = (text: string): string => text.replace(/["\\]/g, "").replace(/[^A-Za-z0-9:_./-]/g, "");
+  const each = pictures.map((p) => `[data-subject="${safe(p.subject)}"]{--pic:url("${safe(p.path)}")}`).join("");
+  const all = pictures.map((p) => `.wtile[data-subject="${safe(p.subject)}"]`).join(",");
+  return `<style class="wpics">${each}${all}{color:#FFF7EE;--wink:#FFF7EE;--wbtn:#FFE9B0;--wbtn-ink:#2A1A08;--wmark:#FFE9B0;--scrim:linear-gradient(to top,rgba(20,12,4,.94) 0%,rgba(20,12,4,.62) 48%,rgba(20,12,4,.18) 100%)}</style>`;
+}
+
+/** "1994", "\"Song\" by Artist" out of the headline the worker wrote for a song, or null. */
+export function songParts(headline: string): { year: string; title: string } | null {
+  const found = /^(\d{4}): (.+) was the number one song$/.exec(headline);
+  return found === null ? null : { year: found[1]!, title: found[2]! };
 }
 
 /**
@@ -250,7 +314,7 @@ export async function fetchWallDay(url: string, key: string, wallDate: string, t
     if (d === undefined) return null;
 
     const storiesResponse = await fetch(
-      `${url}/rest/v1/wall_stories?select=id,wall_date,submitted_at,headline,url,outlet,status,tier,support,priority,placed_at,anchor_mx,anchor_my,w_modules,h_modules,false_at,false_note,`
+      `${url}/rest/v1/wall_stories?select=id,wall_date,submitted_at,headline,url,outlet,status,tier,support,priority,placed_at,anchor_mx,anchor_my,w_modules,h_modules,false_at,false_note,subject_kind,subject_id,`
       + `wall_sources(id,story_id,url,outlet,owner,headline,quotation,verified_at,added_at,wall_checks(source_id,checked_at,kind,passed,http_status,detail))`
       + `&wall_date=eq.${wallDate}&order=submitted_at.asc,id.asc&wall_sources.order=added_at.asc&wall_sources.wall_checks.order=checked_at.asc`,
       { headers, signal: controller.signal },
@@ -578,11 +642,11 @@ function tile(story: WallStory, live: boolean, voice: Voice, view: Viewport, hiv
     const inner = size === "tiny"
       ? `<span class="wn">${count}</span>`
       : `<span class="wo">${escapeHtml(story.outlet)}</span> <span class="wn">${count}</span>`;
-    return `<a class="${classes}" id="w-${story.id}" href="${receipt}" style="${style}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${inner}${stamp}</a>`;
+    return `<a class="${classes}" id="w-${story.id}" href="${receipt}" style="${style}"${subjectAttr(story)} title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${inner}${stamp}</a>`;
   }
 
   const takes = live && story.status !== "false";
-  return `<div class="${classes}" id="w-${story.id}" style="${style}" role="listitem">`
+  return `<div class="${classes}" id="w-${story.id}" style="${style}"${subjectAttr(story)} role="listitem">`
     + `<a class="wh" href="${receipt}" title="${escapeHtml(label)} The receipt: every source, every quotation, every check.">${escapeHtml(story.headline)}</a>`
     + `${mine(voice)}${footer(story, takes, voice, hive)}${stamp}</div>`;
 }
@@ -592,7 +656,25 @@ function listRow(story: WallStory, live: boolean, voice: Voice): string {
   const count = units(story.support, voice);
   const meta = `<span class="wmeta">${escapeHtml(story.outlet)} ${chip(story.tier)}${count === "" ? "" : ` ${count}`}${mine(voice)}</span>`;
   const control = live && story.status !== "false" ? ` ${buzzForm(story, voice)}` : "";
-  return `<li id="w-${story.id}"><a href="${storyPath(story)}">${escapeHtml(story.headline)}</a> ${meta}${control}</li>`;
+  return `<li id="w-${story.id}"${subjectAttr(story)}><a href="${storyPath(story)}">${escapeHtml(story.headline)}</a> ${meta}${control}</li>`;
+}
+
+/**
+ * One song in the strip under the feed: its cover, when the build found
+ * one, with the year on it, then the song and the one button. The cover
+ * opens the receipt, the way a headline does. A song with no cover is the
+ * made tile the covers wall already draws for records Apple does not carry.
+ */
+function songRow(story: WallStory, live: boolean, voice: Voice): string {
+  const parts = songParts(story.headline);
+  const year = parts?.year ?? "";
+  const title = parts?.title ?? story.headline;
+  const count = units(story.support, voice);
+  const control = live && story.status !== "false" ? buzzForm(story, voice) : "";
+  return `<li id="w-${story.id}"${subjectAttr(story)}>`
+    + `<a class="wart" href="${storyPath(story)}" title="${escapeHtml(story.headline)}"><span class="wyr">${year}</span></a>`
+    + `<span class="wsongt">${escapeHtml(title)}</span>`
+    + `<span class="wsongf">${control}${count === "" ? "" : `<span class="wn">${count}</span>`}${mine(voice)}</span></li>`;
 }
 
 function stateLine(day: WallDay, now: number): string {
@@ -863,9 +945,17 @@ ${HISTORY_START}${history}${HISTORY_END}
   // The feed: everything in the pool, most backed first, then the date's own
   // history ahead of the feeds, then arrival. All of it, no fold: a reddit
   // reads its feed and so does this. Decided September 10, 2026.
-  const waiting = day.stories
+  const inPool = day.stories
     .filter((s) => s.status === "pool" || s.status === "overflow")
     .sort((a, b) => b.support - a.support || b.priority - a.priority || a.submittedAt.localeCompare(b.submittedAt) || a.id.localeCompare(b.id));
+  // The number ones are their own strip under the feed rather than sixty
+  // rows in it: a wall of covers is how the date page already shows them,
+  // and a cover with a year on it says more in less room than the sentence
+  // does. Same pool, same button, same one buzz. Newest year first, the
+  // most backed ahead of that.
+  const songs = inPool.filter((s) => s.subjectKind === "song")
+    .sort((a, b) => b.support - a.support || (songParts(b.headline)?.year ?? "").localeCompare(songParts(a.headline)?.year ?? ""));
+  const waiting = inPool.filter((s) => s.subjectKind !== "song");
   const view = viewportFor(onWall.map((s) => s.rect!));
   const tiles = onWall.map((s) => tile(s, live, voice, view, hive)).join("\n");
   const notYet = now < Date.parse(day.liveAt);
@@ -926,6 +1016,12 @@ ${waiting.map((s) => listRow(s, live, voice)).join("\n")}
       ? `Tomorrow's hive. When the date arrives, the ${voice.many} people give decide how much of the hive each story holds.`
       : `What people here thought would still matter about ${escapeHtml(name)}. Each story is a link to a source, in the source's own words. Support decided how much of the hive it holds.`;
 
+  const songStrip = songs.length === 0 ? "" : `<h3 class="wsub small">The number one song, every year</h3>
+<p class="wnote">${live ? `A ${voice.one} on a song counts the same as one on anything else.` : "The week's number one on this date, back to 1959."}</p>
+<ul class="wsongs">
+${songs.map((s) => songRow(s, live, voice)).join("\n")}
+</ul>`;
+
   return `<section class="wall" aria-labelledby="wallhead">
 <h2 class="section" id="wallhead">The hive for ${escapeHtml(longDate(day))}</h2>
 <p class="wstate">${stateLine(day, now)}</p>
@@ -940,6 +1036,7 @@ ${onWall.length > 0 ? legend : ""}
 <p class="wnote">Everything with a birthday on ${escapeHtml(name)}: the day's news, and what happened, who was born and what came out on this date before. ${feedNote}</p>
 ${feedList}
 ${HISTORY_START}${stood}${HISTORY_END}
+${songStrip}
 </section>`;
 }
 
@@ -1209,6 +1306,31 @@ export const WALL_STYLE = `
 .wtile.w-reported { background: #E7A83A; }
 .wtile.w-seen_direct { background: #B05A0C; color: #FFF3DC; --wink: #FFF3DC; --wbtn: #FFE9B0; --wbtn-ink: #2A1A08; --wmark: #FFE9B0; }
 .wtile:hover { outline: 2px solid var(--wink); outline-offset: -2px; }
+/* A picture, when the page's picture rules name one for this tile's subject:
+   the cover or the face fills the tile and a scrim darkens the bottom so the
+   headline reads over it. A tile no rule names has --pic unset and draws as
+   it always did. */
+.wtile::before, .wtile::after { content: ""; position: absolute; inset: 0; pointer-events: none; }
+.wtile::before { background: var(--pic, none) center / cover no-repeat; }
+.wtile::after { background: var(--scrim, none); }
+.wtile > * { position: relative; z-index: 1; }
+.wtile.tiny .wn { z-index: 1; }
+/* The strip of number ones under the feed. */
+.wsongs { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.wsongs li { display: flex; flex-direction: column; gap: 6px; background: #17141F; border-radius: 12px; padding: 8px; font-size: 13px; line-height: 1.35; --wbtn: #E7A83A; --wbtn-ink: #2A1A08; --wmark: #E7A83A; --wink: #E7A83A; }
+.wsongs .wart {
+  display: block; aspect-ratio: 1; border-radius: 8px; overflow: hidden; position: relative; text-decoration: none;
+  background: #241E2E var(--pic, none) center / cover no-repeat;
+}
+.wsongs .wart:hover { outline: 2px solid #E7A83A; outline-offset: -2px; }
+.wsongs .wyr {
+  position: absolute; left: 6px; bottom: 6px; padding: 2px 7px; border-radius: 999px;
+  background: rgba(20,12,4,.82); color: #FFE9B0; font-family: Georgia, "Times New Roman", serif; font-weight: 800; font-size: 13px;
+}
+.wsongs .wsongt { font-weight: 600; color: #E9E1DB; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.wsongs .wsongf { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #9C9490; }
+.wsongs .wsongf .wn { font-weight: 700; }
+.wsongs .wmine { display: none; }
 .wchip {
   display: inline-block; padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 700;
   letter-spacing: .04em; text-transform: uppercase; vertical-align: middle;
