@@ -1,17 +1,20 @@
 import SwiftUI
 
 /// One story and its whole receipt: every source, its quotation, every
-/// check ever run, and the boost control. docs/the-wall.md section 5: every
-/// story has a receipt, kept and visible, and nothing here decides what is
-/// true.
+/// check ever run, and the one control that spends a buzz. docs/the-wall.md
+/// section 5: every story has a receipt, kept and visible, and nothing here
+/// decides what is true.
 ///
-/// The boost control shows how many units are left on this date, offers
-/// one, two or three, and says plainly when the budget is spent or the date
-/// has closed. A double tap is one request: the service holds the request
-/// identifier while the first is in flight and the database returns the
-/// first boost for a repeat.
+/// **The receipt carries the button too.** A reader who came here to check
+/// the sources should not have to go back to the hive to vote. One tap is one
+/// unit, section 4 as amended, and a story this install has already backed
+/// shows the mark where the button was.
 ///
-/// No name, no score, nothing about who submitted or boosted. Section 6.
+/// A double tap is one request: the service holds the request identifier
+/// while the first is in flight and the database returns the first buzz for a
+/// repeat.
+///
+/// No name, no score, nothing about who submitted or backed it. Section 6.
 struct WallStoryView: View {
     let storyID: String
     let date: CalendarDate
@@ -23,9 +26,10 @@ struct WallStoryView: View {
 
     @State private var refusal: String?
     @State private var working = false
-    @State private var lastSpent: Int?
+    @State private var spent = false
 
     private var story: WallStory? { wall.story(storyID) }
+    private var voice: HiveVoice { wall.voice }
 
     var body: some View {
         NavigationStack {
@@ -34,13 +38,13 @@ struct WallStoryView: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 14) {
                             headline(story)
-                            boostControl(story)
+                            buzzControl(story)
                             sources(story)
                         }
                         .padding(20)
                     }
                 } else {
-                    Text("This story is no longer on this date's wall.")
+                    Text("This story is no longer filed for this date.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .padding()
@@ -78,10 +82,11 @@ struct WallStoryView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Text(WallCopy.tierNote)
+            Text(HiveCopy.legend)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
-            Text("\(WallCopy.boosts(story.support)). Submitted \(eastern(story.submittedAt))."
+            Text((HiveCopy.count(story.support, voice: voice).map { "\($0). " } ?? "")
+                 + "Submitted \(eastern(story.submittedAt))."
                  + (story.placedAt.map { " Placed \(eastern($0))." } ?? ""))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -97,48 +102,57 @@ struct WallStoryView: View {
         }
     }
 
-    // MARK: Boosting
+    // MARK: The one control that spends a buzz
 
-    private func boostControl(_ story: WallStory) -> some View {
+    private func buzzControl(_ story: WallStory) -> some View {
         let phase = wall.phase ?? .closed
         let left = wall.unitsLeft ?? 0
-        let canBoost = phase == .live && story.status != .shownFalse && left > 0
+        let buzzed = wall.hasBuzzed(story)
+        let canBuzz = phase == .live && story.status != .shownFalse && left > 0 && !buzzed
         return VStack(alignment: .leading, spacing: 8) {
-            Text("BOOST")
+            Text(voice.button.uppercased())
                 .font(.caption.weight(.heavy))
                 .kerning(2.0)
-                .foregroundStyle(Theme.accent)
+                .foregroundStyle(HivePalette.amber)
+
             Text(story.status == .shownFalse
-                 ? "This story has been shown false and takes no boosts."
-                 : WallCopy.unitsLeft(left, phase: phase))
-                .font(.footnote.weight(left == 0 || !canBoost ? .semibold : .regular))
+                 ? "This story has been shown false and takes no \(voice.many)."
+                 : buzzed
+                    ? "\(voice.mark). One story takes one \(voice.one) from this account."
+                    : HiveCopy.allowance(left, allowance: wall.allowance, phase: phase, voice: voice))
+                .font(.footnote.weight(left == 0 || !canBuzz ? .semibold : .regular))
                 .foregroundStyle(.secondary)
                 .contentTransition(.numericText())
-            if canBoost {
-                HStack(spacing: 8) {
-                    ForEach(1...3, id: \.self) { units in
-                        Button {
-                            Task { await cast(story, units: units) }
-                        } label: {
-                            Text(units == 1 ? "1 boost" : "\(units) boosts")
-                                .font(.subheadline.weight(.semibold))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 10)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(Theme.accent)
-                        .disabled(working || wall.isBoosting(story) || !WallBudget.canSpend(units, left: left))
-                    }
+
+            if canBuzz {
+                Button {
+                    Task { await cast(story) }
+                } label: {
+                    Text(voice.button)
+                        .font(.subheadline.weight(.semibold))
+                        // The colour is on the words rather than on the
+                        // button: a prominent button sets its own label
+                        // white, and white on amber is not a contrast.
+                        .foregroundStyle(HivePalette.ink)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
                 }
-                Text("Spend more on a story you are certain will still matter. What is spent cannot be taken back.")
+                .buttonStyle(.borderedProminent)
+                .tint(HivePalette.amber)
+                .disabled(working || wall.isBuzzing(story))
+
+                Text("What is spent cannot be taken back.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
-            if let lastSpent {
-                Text(lastSpent == 1 ? "1 boost placed." : "\(lastSpent) boosts placed.")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(Theme.accent)
+
+            if spent {
+                Text("That counts. The hive redraws on the quarter hour, so a bigger tile takes a few"
+                     + " minutes to show; your mark is there now.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
+
             if let refusal {
                 Text(refusal)
                     .font(.footnote)
@@ -147,16 +161,21 @@ struct WallStoryView: View {
         }
         .padding(14)
         .background(Theme.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .onAppear {
+            // A tap on a tile that the service refused opens this page with
+            // the sentence already made. Shown once, then cleared.
+            if let line = wall.lastRefusal { refusal = line }
+        }
     }
 
-    private func cast(_ story: WallStory, units: Int) async {
+    private func cast(_ story: WallStory) async {
         guard !working else { return }
         working = true
         refusal = nil
         defer { working = false }
         do {
-            try await wall.boost(story: story, units: units)
-            lastSpent = units
+            try await wall.buzz(story: story)
+            spent = true
             await wall.load(date: date)
         } catch {
             refusal = error.localizedDescription
@@ -169,7 +188,7 @@ struct WallStoryView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Sources")
                 .font(.system(.title3, design: .serif, weight: .heavy))
-            Text(WallCopy.receiptNote)
+            Text(HiveCopy.receiptNote)
                 .font(.caption)
                 .foregroundStyle(.secondary)
             if story.sources.isEmpty {

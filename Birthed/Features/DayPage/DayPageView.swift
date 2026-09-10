@@ -1,7 +1,19 @@
 import SwiftUI
 
-/// The Today tab: everything about a date, in one feed, with the reader's age
-/// on each item.
+/// The Today tab: the hive, then everything about a date in one feed, with
+/// the reader's age on each item.
+///
+/// **One feed and one verb.** docs/the-wall.md section 13 and section 14:
+/// everything with a birthday on a date is a pixel. The day's news sits at
+/// the top as this year's rows, the reader's own timeline follows in the
+/// order `DayFeed` put it in, and a row whose subject the worker filed as a
+/// story carries that story's count and its Buzz button. A story that took a
+/// place on the hive is not repeated here; its tile carries the age line.
+///
+/// **The three answer remembrance game is off this tab.** No "I remember it",
+/// no birth year question, no counts. `RememberRow`, `RememberService` and
+/// the tables are untouched and nothing is dropped from the database; this
+/// screen simply does not draw them.
 ///
 /// `FR-020` through `FR-027` and `FR-030` still hold: names and years,
 /// attribution on the page, and two arrows to walk to another date. What
@@ -30,13 +42,8 @@ struct DayPageView: View {
     /// One player for the whole feed, so a second tap means "this instead"
     /// rather than "both at once".
     @State private var preview = PreviewPlayer()
-    /// The one row showing its four answers, by handle.
-    ///
-    /// Held here rather than in the row for the same reason the player is:
-    /// opening a second one has to close the first. Four buttons under every
-    /// row turned the feed into a form, and two sets of four on screen is most
-    /// of the way back to that.
-    @State private var askingAbout: String?
+    /// The story whose receipt is open, from a tap on a feed row.
+    @State private var openingStory: WallStory?
 
     let onOpenSettings: () -> Void
 
@@ -70,11 +77,11 @@ struct DayPageView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     header
-                    // The wall, above the feed. docs/the-wall.md section 2:
-                    // the wall is the live layer, the feed underneath it is
-                    // that date's history. One surface, one date, two
-                    // layers. Nothing below this line changes because of it.
-                    WallView(date: model.date, palette: palette)
+                    // The hive, above the feed, and it is handed the age
+                    // lines because a story it promoted is not drawn again
+                    // below and its "You were 7" goes on the tile instead.
+                    HiveView(date: model.date, palette: palette,
+                             ageLines: HiveFeed.ageLines(items: feed))
                     content
                     attribution
                 }
@@ -130,6 +137,9 @@ struct DayPageView: View {
             .sheet(isPresented: $showingAttributions) {
                 AttributionsView()
             }
+            .sheet(item: $openingStory) { story in
+                WallStoryView(storyID: story.id, date: model.date, palette: palette)
+            }
             .sheet(item: $sharingFact) { fact in
                 ShareCardPicker(
                     choices: [FoundFactsSection.shareChoice(
@@ -175,35 +185,15 @@ struct DayPageView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-            if let line = rememberLine {
-                Text(line)
-                    .font(.footnote)
-                    .foregroundStyle(palette.type.opacity(0.5))
-            }
-
-            // The page has visibly rearranged and a reader who was not here
-            // last week has no way to know why, so it says so once.
-            if remember.edition?.isSealed == true {
-                Text(RememberCopy.orderedByMemory)
-                    .font(.footnote)
-                    .foregroundStyle(palette.type.opacity(0.42))
-            }
-
-            // What is left, said once at the top rather than on every row.
-            //
-            // The only number this feature shows anybody before a date seals,
-            // and it is the reader's own: it says nothing about what anybody
-            // answered and cannot bias a single tap. It is a budget and not a
-            // score. Nobody is ranked by it, spending all ten earns nothing,
-            // and spending none costs nothing.
-            if let left = remember.answersLeft,
-               remember.isOpen(month: model.date.month, day: model.date.day) {
-                Text(RememberCopy.left(left))
-                    .font(.footnote.weight(left == 0 ? .semibold : .regular))
-                    .foregroundStyle(palette.type.opacity(left == 0 ? 0.62 : 0.45))
-                    .contentTransition(.numericText())
-                    .animation(.snappy(duration: 0.25), value: left)
-            }
+            // The date's own clock, its own budget and its sentence about
+            // what people remembered all came off this tab with the three
+            // answers. The page ran two games on two clocks, and section 14
+            // settles that there is one game and the hive's clock is it.
+            // Nothing is dropped from the database: `RememberService` still
+            // loads and the sealed order below is still the sealed order. The
+            // sentence that used to explain that rearrangement is a named
+            // open question rather than a reworded dodge of the one word the
+            // acceptance forbids.
 
             if !feed.isEmpty { counts }
         }
@@ -303,43 +293,25 @@ struct DayPageView: View {
         }
     }
 
-    /// What this date is doing about answers: closing at some point, or
-    /// closed already and holding what it decided.
-    ///
-    /// A sealed page says what it decided and when, permanently. That is the
-    /// year one version of time travel and it exists from the first day: next
-    /// year the same date reopens on top of this one, and the difference
-    /// between the two editions is a measurement of collective forgetting that
-    /// cannot be scraped from anywhere, because it does not exist anywhere.
-    ///
-    /// In year one there is nothing to compare against, and a page that says
-    /// so honestly is better than one that draws a trend from a single point.
-    private var rememberLine: String? {
-        if let edition = remember.edition, let sealedAt = edition.sealedAt {
-            return SealText.line(sealedAt: sealedAt, people: edition.people)
-        }
-        guard remember.isOpen(month: model.date.month, day: model.date.day),
-              let closes = RememberWindow.closes(month: model.date.month, day: model.date.day,
-                                                 windowDays: remember.windowDays)
-        else { return nil }
-        return SealText.openLine(closes: closes)
-    }
-
     // MARK: The feed
 
     @ViewBuilder
     private var content: some View {
         let items = feed
-        // Bound outside the switch, the way `items` already is, because a
+        // The one feed: this year's news, then the timeline, then anything
+        // the worker filed that the timeline did not draw. `HiveFeed` decides
+        // all of it and is tested; nothing here works anything out.
+        let rows = wall.feed(items: items)
+        // Bound outside the switch, the way `rows` already is, because a
         // result builder is not the place to work anything out.
-        let shown = showingAll ? items : Array(items.prefix(Self.firstLook))
+        let shown = showingAll ? rows : Array(rows.prefix(Self.firstLook))
         switch model.state {
-        case .loading where items.isEmpty:
+        case .loading where items.isEmpty && rows.isEmpty:
             ProgressView()
                 .controlSize(.large)
                 .frame(maxWidth: .infinity, minHeight: 220)
 
-        case let .failed(message) where items.isEmpty:
+        case let .failed(message) where items.isEmpty && rows.isEmpty:
             // NFR-021: a failed request explains itself and offers a retry.
             messageCard(symbol: "wifi.exclamationmark", title: "This day did not load", body: message) {
                 Button("Try again") { Task { await reload() } }
@@ -347,7 +319,7 @@ struct DayPageView: View {
                     .tint(Theme.accent)
             }
 
-        case .empty where items.isEmpty:
+        case .empty where items.isEmpty && rows.isEmpty:
             messageCard(
                 symbol: "calendar",
                 title: "Nothing here yet",
@@ -365,39 +337,46 @@ struct DayPageView: View {
             // screen was doing the same thing. Nothing is dropped: the rest is
             // one tap away and the tap is the only thing standing in front of
             // it.
-            ForEach(Array(shown.enumerated()), id: \.element.id) { index, item in
+            ForEach(Array(shown.enumerated()), id: \.element.id) { index, row in
                 VStack(alignment: .leading, spacing: 0) {
                     if index > 0 { hairline }
-                    FeedRow(item: item, palette: palette, isLead: index == 0,
-                            // The front page lead, and only on a date that has
-                            // sealed. On an open date nothing has earned the
-                            // top of the page yet, and setting a row large
-                            // because it happened to be dealt first would be
-                            // putting a headline on a story nobody chose.
-                            isSealedLead: index == 0 && remember.edition?.isSealed == true,
-                            onLike: { fact in Task { await factsService.toggleLike(fact) } },
-                            onShare: { fact in
-                                sharingFact = fact
-                                Task { await factsService.recordShareOpen(fact.id) }
-                            },
-                            onOpen: { url in openURL(url) },
-                            playing: item.kind != .film && item.previewURL != nil
-                                     && item.previewURL == preview.nowPlaying,
-                            onPlay: { url in preview.toggle(url) })
-                    // Only a row with a handle the database would recognise.
-                    // A row without one draws nothing rather than collecting
-                    // answers against a guess. See `RememberSubject`.
-                    if let subject = item.subject {
-                        RememberRow(subject: subject, month: model.date.month, day: model.date.day,
-                                    palette: palette, expanded: $askingAbout)
+                    if let item = row.item {
+                        FeedRow(item: item, palette: palette, isLead: index == 0,
+                                // The front page lead, and only on a date that
+                                // has sealed. On an open date nothing has
+                                // earned the top of the page yet, and setting
+                                // a row large because it happened to be dealt
+                                // first would be putting a headline on a story
+                                // nobody chose.
+                                isSealedLead: index == 0 && remember.edition?.isSealed == true,
+                                onLike: { fact in Task { await factsService.toggleLike(fact) } },
+                                onShare: { fact in
+                                    sharingFact = fact
+                                    Task { await factsService.recordShareOpen(fact.id) }
+                                },
+                                onOpen: { url in openURL(url) },
+                                playing: item.kind != .film && item.previewURL != nil
+                                         && item.previewURL == preview.nowPlaying,
+                                onPlay: { url in preview.toggle(url) })
+                    } else if let story = row.story {
+                        // A story with no timeline row of its own: the day's
+                        // news, and anything the worker filed that the
+                        // timeline did not draw.
+                        HiveStoryRow(story: story, palette: palette,
+                                     onOpen: { openingStory = story })
+                    }
+                    // The one verb, on any row the worker filed a story for.
+                    if let story = row.story {
+                        HiveRowBuzz(story: story, date: model.date, palette: palette,
+                                    onOpen: { openingStory = story })
                     }
                 }
                 .padding(.horizontal, 22)
-                .onAppear { if let fact = item.fact { factsService.noteSeen(fact.id) } }
+                .onAppear { if let fact = row.item?.fact { factsService.noteSeen(fact.id) } }
             }
 
-            if !showingAll, items.count > Self.firstLook {
-                moreButton(hidden: items.count - Self.firstLook)
+            if !showingAll, rows.count > Self.firstLook {
+                moreButton(hidden: rows.count - Self.firstLook)
             }
         }
     }
@@ -487,7 +466,7 @@ struct DayPageView: View {
         // A new date is a new day's worth of rows, so it opens at its own
         // first dozen rather than inheriting the last date's expansion.
         showingAll = false
-        askingAbout = nil
+        openingStory = nil
         // Two awaits in a row rather than two child tasks. Both callees live
         // on the main actor, so running them as children would carry nothing
         // Sendable and buy no time.
@@ -504,7 +483,7 @@ struct DayPageView: View {
         // The arrows do not go through `reload`, so this has to be said in
         // both places or a date walked to opens already expanded.
         showingAll = false
-        askingAbout = nil
+        openingStory = nil
         await model.move(byDays: days, readerBirthYear: readerBirthYear)
         await factsService.readDay(month: model.date.month, day: model.date.day)
         await remember.load(month: model.date.month, day: model.date.day)

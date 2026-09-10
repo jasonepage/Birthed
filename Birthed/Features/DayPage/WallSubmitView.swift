@@ -35,7 +35,7 @@ struct WallSubmitView: View {
                 .padding(20)
             }
             .background(Theme.canvas)
-            .navigationTitle(preview == nil ? "Add a story" : "On the wall's list")
+            .navigationTitle(preview == nil ? "Add a story" : "Filed for this date")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -76,7 +76,7 @@ struct WallSubmitView: View {
             .tint(Theme.accent)
             .disabled(working || address == nil || wallDate == nil)
             if wallDate == nil {
-                Text("That date is not open. A wall takes stories the day before, the day itself and the day after.")
+                Text("That date is not open. A hive takes stories the day before, the day itself and the day after.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
