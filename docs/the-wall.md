@@ -1300,3 +1300,16 @@ only companies that see anything about a reader. Hotlinking announces every
 visitor to the Guardian and NPR in exchange for a thumbnail, and copying the
 pictures here is re-hosting a newspaper's photographs. Both are decisions
 with the privacy page open beside them, and neither was made.
+
+**The feed takes turns and folds at a dozen.** Nathan, the same evening,
+after scrolling it: a hundred and fifty rows in one order is not a feed
+anybody spends a buzz from. Most backed first, still and always. Under that
+`takeTurns` in `web/src/wall.ts` deals the kinds in rotation, the day's news,
+then something that happened, then somebody born, then a fact, then a
+release, so the first dozen rows are a sample of the day; then one line,
+"Show all 150", and the rest behind it. No model orders the feed. A model
+ranking was raised and set aside: it costs on every open date every quarter
+hour, it sits close to the line section 5 draws about a model deciding, and
+the typed field already answers "I do not want to scroll." If the turn
+taking feed still reads as a wall, that is the next thing to argue, with
+Jason in the room.

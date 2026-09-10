@@ -5,7 +5,7 @@ import { renderDayPage, renderHivePage, renderStoryPage } from "../src/render.js
 import {
   eastern,
   BEE, PLAIN, PLAIN_DATES, VIEW_MIN, allowanceOn, emptyWallDay, fetchWall, hivePath, newestByDate, storyPath, takingBoosts,
-  tapsLeftSentence, tierLabel, units, viewportFor, voiceFor, wallMarks, wallSection, pictureRules, songParts, subjectOf, type WallDay, type WallStory,
+  tapsLeftSentence, tierLabel, units, viewportFor, voiceFor, wallMarks, wallSection, pictureRules, songParts, subjectOf, takeTurns, FEED_SHOWN, type WallDay, type WallStory,
 } from "../src/wall.js";
 import { picturesFor } from "../src/render.js";
 
@@ -681,4 +681,39 @@ test("the build lists a cover for every number one it has on disk, and a face fo
 test("the year and the song come back out of the headline the worker wrote", () => {
   assert.deepEqual(songParts(`1994: "I'll Make Love to You" by Boyz II Men was the number one song`), { year: "1994", title: `"I'll Make Love to You" by Boyz II Men` });
   assert.equal(songParts("Council approves the river crossing"), null);
+});
+
+// ---------------------------------------------------------------------------
+// The feed a reader can use: kinds take turns, a dozen shown, the rest folded.
+// ---------------------------------------------------------------------------
+
+function pooled(id: string, kind: string | null, support: number = 0, priority: number = 0): WallStory {
+  return story({ id, headline: `${kind ?? "news"} ${id}`, status: "pool", rect: null, placedAt: null, support, priority, subjectKind: kind, subjectId: kind === null ? null : id });
+}
+
+test("under the backed stories the kinds take turns, news first, and a kind that runs out is skipped", () => {
+  const input = [
+    pooled("h1", "historical_event"), pooled("h2", "historical_event"), pooled("h3", "historical_event"),
+    pooled("n1", null), pooled("n2", null),
+    pooled("p1", "person"),
+    pooled("b1", null, 2), pooled("h9", "historical_event", 1),
+  ];
+  const out = takeTurns(input).map((s) => s.id);
+  assert.deepEqual(out, ["b1", "h9", "n1", "h1", "p1", "n2", "h2", "h3"]);
+  // Within a kind the order it came in is kept, which is the pool's own order.
+  assert.deepEqual(takeTurns([pooled("h2", "historical_event"), pooled("h1", "historical_event")]).map((s) => s.id), ["h2", "h1"]);
+  assert.deepEqual(takeTurns([]), []);
+});
+
+test("the feed shows a dozen rows and folds the rest behind one line that counts them", () => {
+  const stories: WallStory[] = [];
+  for (let i = 0; i < 30; i++) stories.push(pooled(`aaaaaaaa-0000-0000-0000-0000000000${String(i).padStart(2, "0")}`, i % 3 === 0 ? null : i % 3 === 1 ? "historical_event" : "person"));
+  const html = wallSection(day(stories), "September 9", LIVE);
+  const open = html.slice(html.indexOf('<ul class="wlist">'), html.indexOf("</ul>"));
+  assert.equal((open.match(/<li /g) ?? []).length, FEED_SHOWN);
+  assert.ok(html.includes("<summary>Show all 30</summary>"));
+  const folded = html.slice(html.indexOf('<details class="wmore">'), html.indexOf("</details>"));
+  assert.equal((folded.match(/<li /g) ?? []).length, 30 - FEED_SHOWN);
+  // A short feed has no fold to open.
+  assert.ok(!wallSection(day(stories.slice(0, 5)), "September 9", LIVE).includes("wmore"));
 });

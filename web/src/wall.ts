@@ -285,6 +285,46 @@ export function pictureRules(pictures: Picture[]): string {
   return `<style class="wpics">${each}${all}{color:#FFF7EE;--wink:#FFF7EE;--wbtn:#FFE9B0;--wbtn-ink:#2A1A08;--wmark:#FFE9B0;justify-content:flex-end;--scrim:linear-gradient(to top,rgba(20,12,4,.94) 0%,rgba(20,12,4,.62) 48%,rgba(20,12,4,.18) 100%)}</style>`;
 }
 
+/** How many feed rows are shown before the fold. A dozen is a screen on a phone and a sample of every kind. */
+export const FEED_SHOWN = 12;
+
+/**
+ * The feed in the order a reader can use. Pure.
+ *
+ * Most backed first, always: a buzz is the one thing that outranks
+ * everything. Under that the kinds take turns, the day's news, then
+ * something that happened, then somebody born, then a fact, then a
+ * release, round again, so the first dozen rows are a sample of the whole
+ * day rather than forty encyclopedia events in a row followed by seventy
+ * headlines. Inside a kind the order is the one the pool already had, the
+ * date's picks ahead of the rest and then arrival. The same instinct as the
+ * allocator's variety pass and the app's Today feed, which mixes the kinds
+ * so they take turns. No model: it is arithmetic, and it costs nothing.
+ */
+export function takeTurns(stories: WallStory[]): WallStory[] {
+  const backed = stories.filter((s) => s.support > 0);
+  const rest = stories.filter((s) => s.support === 0);
+  const byKind = new Map<string, WallStory[]>();
+  for (const story of rest) {
+    const kind = story.subjectKind ?? "news";
+    const list = byKind.get(kind) ?? [];
+    list.push(story);
+    byKind.set(kind, list);
+  }
+  // News leads the rotation because today is the one thing the wall is for;
+  // after that the kinds in the order the date page tells them.
+  const order = ["news", "historical_event", "person", "birth_fact", "cultural_event", ...[...byKind.keys()].filter((k) => !["news", "historical_event", "person", "birth_fact", "cultural_event"].includes(k)).sort()];
+  const queues = order.map((k) => byKind.get(k) ?? []).filter((q) => q.length > 0);
+  const mixed: WallStory[] = [];
+  while (queues.some((q) => q.length > 0)) {
+    for (const queue of queues) {
+      const next = queue.shift();
+      if (next !== undefined) mixed.push(next);
+    }
+  }
+  return [...backed, ...mixed];
+}
+
 /** "1994", "\"Song\" by Artist" out of the headline the worker wrote for a song, or null. */
 export function songParts(headline: string): { year: string; title: string } | null {
   const found = /^(\d{4}): (.+) was the number one song$/.exec(headline);
@@ -955,7 +995,7 @@ ${HISTORY_START}${history}${HISTORY_END}
   // most backed ahead of that.
   const songs = inPool.filter((s) => s.subjectKind === "song")
     .sort((a, b) => b.support - a.support || (songParts(b.headline)?.year ?? "").localeCompare(songParts(a.headline)?.year ?? ""));
-  const waiting = inPool.filter((s) => s.subjectKind !== "song");
+  const waiting = takeTurns(inPool.filter((s) => s.subjectKind !== "song"));
   const view = viewportFor(onWall.map((s) => s.rect!));
   const tiles = onWall.map((s) => tile(s, live, voice, view, hive)).join("\n");
   const notYet = now < Date.parse(day.liveAt);
@@ -996,10 +1036,21 @@ ${legend}
   // anything for the date, the baked history stands in, so tomorrow's page
   // is not a countdown and nothing else.
   const unfiled = day.stories.length === 0;
+  // A dozen rows, then the rest behind one line. A reader who wants the
+  // whole day opens it once; a reader with three buzzes to spend does not
+  // scroll a hundred and fifty rows to find one worth spending on.
+  const shown = waiting.slice(0, FEED_SHOWN);
+  const folded = waiting.slice(FEED_SHOWN);
   const feedList = waiting.length > 0
     ? `<ul class="wlist">
-${waiting.map((s) => listRow(s, live, voice)).join("\n")}
-</ul>`
+${shown.map((s) => listRow(s, live, voice)).join("\n")}
+</ul>` + (folded.length === 0 ? "" : `
+<details class="wmore">
+<summary>Show all ${waiting.length}</summary>
+<ul class="wlist">
+${folded.map((s) => listRow(s, live, voice)).join("\n")}
+</ul>
+</details>`)
     : unfiled && history !== ""
       ? ""
       : `<p class="wnote wnofeed">Everything filed for ${escapeHtml(name)} is on the hive.</p>`;
