@@ -1001,3 +1001,175 @@ and the website were not touched. The app's read path is unchanged except for
 three columns added to one select. `DayFeed`'s ranking, the yearly seal and
 the sealed lead are as they were. Nothing was deleted from the live database
 and no migration was written.
+
+---
+
+## 15. The ballot, not the button, September 10, 2026
+
+The wall shipped to a phone and to a browser and then somebody looked at it.
+The board was ten beige rectangles carrying a Professor Layton release date,
+a column about jumping in Zelda, where to buy Kacey Musgraves tickets and a
+question about whether the Seahawks can repeat. Three of the ten were from
+one video game site. None of the ten were about September 9. Under it, a
+feed of forty more of the same.
+
+The reaction was that the mechanic was not working. It was working exactly
+as built. A person handed that ballot and asked to spend one of three
+permanent, irreversible votes on what will still matter years from now
+answers correctly by spending nothing. **The scarcity was never the problem.
+The candidates were.** Everything in this section follows from that sentence.
+
+**The history seeder had thrown on every tick since the day it shipped.**
+This is the whole of why the board was wire copy.
+`cultural_events.event_date` is a date column and `readHistory` asked the
+automatic interface for `event_date=like.*-09-09`, which builds
+`event_date LIKE '%-09-09'`, which Postgres refuses outright: there is no
+`date ~~ text` operator, so it answers 42883. The 400 threw out of the
+`Promise.all` holding all five reads, took the whole date's history with it,
+and `tick.ts` caught it, wrote one line to a cron log and carried on to the
+news. On September 9 that is 129 stories in the pool, every one of them from
+a news feed, against 40 events, 72 people, 10 facts and 11 cultural rows
+sitting in the tables unread. Section 13's promise that everything with a
+birthday on a date is a pixel has never once been true in production.
+
+The date is screened in code now. Three hundred and ninety three published
+rows in the whole table, so reading them and keeping this month and day
+costs less than being clever, and it cannot ask a date column to match text
+again. The schema, the unique index the upsert needs, the `wall_days`
+trigger and the whole write path were checked against the live project
+during the diagnosis and are all correct. The seeder never reached them.
+
+**A stage that fails on every run looks exactly like a stage that failed
+once.** `tick.ts` is right to let one half fail without stopping the other,
+and that is not the same as this being visible. The only record of a day of
+total failure was a log line in a Render cron job that nobody reads. Nothing
+in the product could answer "has the history seeder ever succeeded." That is
+the second bug and it is not fixed here.
+
+**Variety is now a rule, because order alone was deciding the board.** The
+allocator took the eight unbacked tiles in support then priority then
+arrival order, and priority for a news story is zero, so among seventy news
+stories the eight biggest things about the date were chosen by which feed
+item was parsed first. Fixing the history seeder makes this worse before
+better: history carries priority 1 to 3, so the board would have flipped
+from eight news tiles to eight encyclopedia events and today would have
+vanished from a wall whose entire reason for staying open three days is
+today.
+
+So `varied` in the allocator: at most three unbacked tiles are the day's
+news, at most two of those from one outlet, and at most three are any one
+kind of history. The date's history is deliberately not capped by outlet,
+because every event on a date cites the same encyclopedia and that says
+nothing about whether a board is varied; eight birthdays in a row does, and
+the kind cap is what catches it. Two rules keep these rules from doing harm:
+**one buzz beats all of them**, the same way it already beats every
+priority, so nothing anybody chose is ever held off the board; and a slot
+the caps cannot fill is filled in plain order rather than left empty,
+because a varied board is worth something and an empty one is not. `varied`
+decides order and never refusal, so a story it moves down still lands on a
+quiet date.
+
+**A ticket-buying guide is not a thing that happened.** The news seeder now
+screens headline shapes that are never an answer to the question the board
+asks: an opinion column, a question headline, a listicle, service
+journalism about where to buy something, a release date, a review. Both
+apostrophes, because half these feeds curl theirs and a screen that misses
+"Here's Where to Buy" is not a screen.
+
+It was written against the hundred and twenty nine headlines the live feeds
+actually filed for September 9, 2026, and both lists are pinned in
+`worker/test/wall-news.test.ts`: twelve it must catch and sixteen it must
+not. It catches every one of the first and none of the second. It is
+deliberately narrow because the costs are not symmetric: the junk costs one
+tile and a false positive costs the day's news, so in doubt it lets a
+headline through. This is not a deletion and nothing is removed from any
+table. Section 11 says the feed list is the vetting; this is the same
+vetting one level finer, applied before a row is written.
+
+**Fourteen feeds at five a date is seventy candidates, and that is still the
+open half of this.** The feed list grew from the six general ones section 12
+named to fourteen, including sports, entertainment, gaming and technology.
+The screen and the caps make the board survivable. They do not make a
+seventy item pool curated, and the feed list itself has never been argued
+about since it grew.
+
+### Designed and not built
+
+**Corroboration should decide the tier, and it would make the palette mean
+something.** Every one of the 129 stories on September 9 is `claimed`,
+because the news seeder files one source and nothing ever adds a second, and
+section 12 already recorded that nobody can. So the three tones of honey are
+decorative: a board drawn in the tier's colour is one colour, by accident,
+forever. But six independently owned feeds all running the Moldova story is
+the literal definition of `reported` in section 5, and `wall_outlet_owners`
+and `ownerOf` are already built to answer it. Clustering the same story
+across the feeds at seed time would give the board amber and deep honey,
+make the receipts real, and produce editorial judgment from a count rather
+than from a taste: how many independent newsrooms ran it is the most honest
+free proxy for whether a day mattered.
+
+It is not built here because a wrong merge is worse than a grey board. The
+schema already carries a headline and a quotation per source, so a merge
+fabricates no wording, but attaching a second outlet's story to the wrong
+event puts a receipt on the page whose two sources are about different
+things, and this document's entire discipline is that a receipt is exact.
+It needs a similarity rule argued on real headlines and pinned the way the
+headline screen now is, not a threshold somebody guessed at.
+
+**The typed field, and it is the better answer to all of this.** Jason's,
+September 10. Instead of "which of these forty things mattered," a field
+that asks "what mattered about September 9?" and finds the story the person
+means in the date's own pool. It turns a recognition task, which needs a
+good list, into a recall task, which does not: everybody has an answer
+before they open the app, and three buzzes stops being "pick three tiles"
+and becomes "say three things about today, permanently."
+
+The shape: a field, three chips under it drawn from the top of the board so
+somebody with no answer still has one, and a confirmation showing the story,
+its outlet and its tier before anything is spent. The confirmation is not
+optional. A buzz is scarce, permanent and irreversible, and a silent wrong
+match spends it on something the reader did not mean.
+
+Most matches are word overlap and need no model. The model earns its place
+on "the thing with Russia and the drones", and when it is called the fact
+finder's discipline applies exactly: **grounded search off**, because it is
+picking from a closed list rather than going to find things; it returns an
+identifier and never words, so the wording on the hive stays the source's;
+and an identifier not in the list it was handed is a miss rather than a
+match. It adjudicates nothing, so nothing here says a model decided what is
+true.
+
+The miss is the most valuable case and should be built on purpose. Somebody
+types something the feeds did not carry, and the app offers to add it with a
+link, which makes the field the front door to submission instead of
+requiring a URL in hand. And the unmatched phrases are the only editorial
+signal in this design that comes from a person: if people keep typing about
+something six feeds missed, the feed list is wrong and no weighting scheme
+would have found that out.
+
+Two things in it belong to Nathan and Jason rather than to a session. What
+happens to the text a person types, which is free text going to Google and
+attached to an account token, and whether unmatched phrases are kept at all.
+The second is genuinely close to the line the entry in `CLAUDE.md` about
+there being no analytics draws, and it should be argued with the privacy
+page open rather than slid in.
+
+**A buzz still has no consequence at either end.** The tile does not move
+for fifteen minutes, by design and honestly documented, and the date seals
+and the reader never hears about it again. The app can animate a tile toward
+its next size on the tap while the real rectangle settles on the tick,
+because it owns its view layer in a way the website does not. And the
+anniversary is the payoff this mechanic has been missing: what you backed on
+September 9, 2026, shown to you on September 9, 2027. Not a score and not
+karma, which sections 6 and 8 refuse. A memory, shown only to the person who
+made it, which is the private mark on the sealed page section 13 already
+allows. It is also what makes a buzz worth spending today, because it stops
+being a vote and becomes a time capsule with the reader's name on it.
+
+**Nothing in this section was run against the live feeds.** The worker's 291
+tests pass and the container this was written in cannot reach Supabase or
+any news page, so the seeder fix, the variety pass and the headline screen
+have been tested on fixtures and on real headlines copied out of the
+database, and not once against a tick. The next tick after this deploys is
+the test, and the thing to look at is whether September 9 gains history
+stories at all.
