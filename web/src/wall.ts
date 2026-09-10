@@ -800,9 +800,13 @@ function stateLine(day: WallDay, now: number): string {
   // that ends it.
   const after = new Date(Date.UTC(day.year, day.month - 1, day.day + 1));
   const ending = `${monthName(after.getUTCMonth() + 1)} ${after.getUTCDate()}, ${after.getUTCFullYear()}`;
-  if (closed) return `Sealed at midnight Eastern ending ${ending}. Permanent.`;
-  if (notYet) return `Opens tonight at midnight Eastern. Seals at midnight Eastern ending ${ending}, then permanent.`;
-  return `Open. Seals at midnight Eastern ending ${ending}, then permanent.`;
+  // The three words that carry the mechanic are set apart, so the clock line
+  // teaches them: a hive is open, it seals at a fixed hour, and then it is
+  // permanent. Nathan, September 10, 2026.
+  const key = (word: string): string => `<em class="wkey">${word}</em>`;
+  if (closed) return `<b>Sealed</b> at midnight Eastern ending ${ending}. ${key("Permanent")}.`;
+  if (notYet) return `<b>Opens tonight</b> at midnight Eastern. ${key("Seals")} at midnight Eastern ending ${ending}, then ${key("permanent")}.`;
+  return `<b>Open.</b> ${key("Seals")} at midnight Eastern ending ${ending}, then ${key("permanent")}.`;
 }
 
 /**
@@ -1154,16 +1158,12 @@ ${folded.map((s) => listRow(s, live, voice)).join("\n")}
   // One sentence. The hive is the first thing under the name now, and every
   // line above it is a line the board sits under, so the mechanic is said
   // once and the rest is said under the board.
+  // Only where a buzz can be spent. On every other page the clock line
+  // says what the hive is, and a second sentence saying it again was
+  // filler: Nathan, September 10, 2026.
   const lede = live
     ? `${voice.imperative} what you think will still matter about ${escapeHtml(name)} years from now.`
-    : notYet
-      ? `Tomorrow's hive. When the date arrives, the ${voice.many} people give decide how much of the hive each story holds.`
-      : closed
-        ? `What people here thought would still matter about ${escapeHtml(name)}, sized by how many backed each story.`
-        // Open by the clock but drawn without the forms: the baked page,
-        // served when the live read could not be made. Present tense, because
-        // the date is still taking buzzes even if this page cannot take one.
-        : `What people think will still matter about ${escapeHtml(name)}, sized by how many ${voice.past} each story so far.`;
+    : "";
   // One line under the board, and a link for anybody who wants the rest.
   // Nathan, September 10, 2026: three paragraphs of explanation under the
   // board was a wall of text, and the people who need it are on the About
@@ -1185,7 +1185,7 @@ ${songs.map((s) => songRow(s, live, voice)).join("\n")}
   // Everything that explains sits under it. Decided September 10, 2026.
   return `<section class="wall" aria-labelledby="wallhead">
 <p class="whead"><span class="section" id="wallhead">The hive for ${escapeHtml(longDate(day))}</span> <span class="wstate">${stateLine(day, now)}</span></p>
-<p class="wlede">${lede}</p>
+${lede === "" ? "" : `<p class="wlede">${lede}</p>`}
 ${live ? askForm(day, name, voice) : ""}${countLine(day, now, voice, live)}${foundBlock(options.found ?? [], day, live, voice)}${afterwords(voice, name)}
 ${board}
 ${under}${full}
@@ -1425,6 +1425,9 @@ export const WALL_STYLE = `
 .whead { margin: 0 0 6px; font-size: 13px; line-height: 1.5; color: #C9C2D4; }
 .whead .section { font-family: Georgia, "Times New Roman", serif; font-weight: 800; font-size: 15px; color: #FFF7EE; margin-right: 6px; }
 .wstate { display: block; margin: 0; font-size: 13px; font-weight: 600; color: #A49BAE; }
+.wstate b { color: #FFF7EE; font-weight: 800; }
+/* The coined words, underlined in honey. */
+.wstate .wkey { font-style: normal; color: #FFF7EE; text-decoration: underline; text-decoration-color: #E7A83A; text-decoration-thickness: 2px; text-underline-offset: 3px; }
 .wlede { margin: 0 0 12px; color: #B9B2AD; font-size: 15px; line-height: 1.4; max-width: 58ch; text-wrap: pretty; }
 .wunder { margin: 10px 0 0; max-width: 62ch; }
 .wboard {

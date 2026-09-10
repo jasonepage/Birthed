@@ -74,12 +74,13 @@ test("a tile sits at its stored anchor and size, and links to its receipt", () =
   assert.ok(html.includes("example.org"));
   assert.ok(html.includes("40 buzzes"));
   assert.ok(html.includes(">Reported<"));
-  assert.ok(html.includes("Open. Seals at midnight Eastern ending September 10, 2026"));
+  assert.ok(html.replace(/<[^>]+>/g, "").includes("Open. Seals at midnight Eastern ending September 10, 2026"));
+  assert.ok(html.includes('<em class="wkey">Seals</em>'), "the coined words are set apart");
 });
 
 test("a closed wall says it is permanent", () => {
   const html = wallSection(day([story()]), "September 9", Date.parse("2026-09-12T00:00:00Z"));
-  assert.ok(html.includes("Sealed at midnight Eastern ending September 10, 2026. Permanent."));
+  assert.ok(html.replace(/<[^>]+>/g, "").includes("Sealed at midnight Eastern ending September 10, 2026. Permanent."));
 });
 
 test("the pool and the overflow are the feed under the hive, all of it, backed first, then the date's own history, then arrival", () => {
@@ -264,7 +265,7 @@ test("the day before takes no taps, the day after takes one, and a closed wall t
 
   const early = wallSection(d, "September 9", before, { interactive: true });
   assert.ok(!early.includes("<form"), "no tap is offered before the date arrives");
-  assert.ok(early.includes("Tomorrow's hive. When the date arrives"));
+  assert.ok(early.replace(/<[^>]+>/g, "").includes("Opens tonight at midnight Eastern."));
   const late = wallSection(d, "September 9", after, { interactive: true });
   assert.ok(late.includes("<form"));
   assert.ok(late.includes("One buzz left today on this date. It closes tonight."));
@@ -414,7 +415,7 @@ test("tomorrow has an empty hive with the hour it opens, not a missing section",
   assert.ok(html.includes('class="wboard wblank"'));
   assert.ok(html.includes("Opens at midnight Eastern</b>"));
   assert.ok(html.includes("about 3 hours from now."));
-  assert.ok(html.includes("Tomorrow's hive."));
+  assert.ok(html.replace(/<[^>]+>/g, "").includes("Opens tonight at midnight Eastern."));
   assert.ok(!html.includes("<form"), "nothing to buzz before the date arrives");
 });
 
