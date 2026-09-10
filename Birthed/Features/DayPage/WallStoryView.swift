@@ -116,9 +116,9 @@ struct WallStoryView: View {
                 .foregroundStyle(HivePalette.amber)
 
             Text(story.status == .shownFalse
-                 ? "This story has been shown false and takes no \(voice.many)."
+                 ? HiveCopy.takesNone(voice: voice)
                  : buzzed
-                    ? "\(voice.mark). One story takes one \(voice.one) from this account."
+                    ? HiveCopy.alreadyBacked(voice: voice)
                     : HiveCopy.allowance(left, allowance: wall.allowance, phase: phase, voice: voice))
                 .font(.footnote.weight(left == 0 || !canBuzz ? .semibold : .regular))
                 .foregroundStyle(.secondary)
@@ -141,14 +141,13 @@ struct WallStoryView: View {
                 .tint(HivePalette.amber)
                 .disabled(working || wall.isBuzzing(story))
 
-                Text("What is spent cannot be taken back.")
+                Text(HiveCopy.irreversible)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
 
             if spent {
-                Text("That counts. The hive redraws on the quarter hour, so a bigger tile takes a few"
-                     + " minutes to show; your mark is there now.")
+                Text(HiveCopy.counted)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }

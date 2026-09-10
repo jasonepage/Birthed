@@ -41,6 +41,13 @@ struct HiveView: View {
         VStack(alignment: .leading, spacing: 10) {
             heading
             if let day = wall.day {
+                // The field first, and only while the date takes buzzes: its
+                // whole purpose is to spend one, and on any other phase it
+                // would find a story and have nothing to offer.
+                if day.phase(now: wall.now) == .live {
+                    HiveField(day: day, date: date, palette: palette,
+                              onOpen: { selected = $0 }, onAdd: { submitting = true })
+                }
                 HiveBoard(day: day, date: date, ageLines: ageLines, onOpen: { selected = $0 })
                 if !day.onHive.isEmpty {
                     fullScreenLink
@@ -153,7 +160,7 @@ struct HiveView: View {
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "link")
-                    Text("Add a story with a link")
+                    Text(HiveCopy.addWithLink)
                         .font(.subheadline.weight(.semibold))
                 }
                 .frame(maxWidth: .infinity)
@@ -163,6 +170,347 @@ struct HiveView: View {
             .buttonStyle(.plain)
             .foregroundStyle(palette.type)
             .padding(.top, 6)
+        }
+    }
+}
+
+// MARK: - The field
+
+/// The typed field, docs/the-wall.md section 15: ask what mattered about the
+/// date and find it among the stories already filed, instead of asking the
+/// reader to shop a list of two hundred headlines.
+///
+/// Three parts and each does a job. The field, with up to three chips under
+/// it drawn from the top of the board, because a blank box with a cursor
+/// intimidates people and the chips give somebody with no answer a way in.
+/// The result, which is never silent: what was found, its outlet and its
+/// tier. And the confirmation, which is not optional, because a buzz is
+/// scarce, permanent and irreversible and nothing may be spent without it.
+///
+/// A miss is not an error. It says so plainly and offers the link flow, so
+/// the field is the front door to submission rather than requiring a
+/// uniform resource locator in hand.
+///
+/// The matching, the chips, the ranking and every sentence are
+/// `HiveSearch` and `HiveCopy` in the domain, where they are tested against
+/// real headlines. This draws, and it holds the one rule a view has to hold:
+/// the buzz is cast only from the confirmation.
+private struct HiveField: View {
+    let day: WallDay
+    let date: CalendarDate
+    let palette: StagePalette
+    let onOpen: (WallStory) -> Void
+    let onAdd: () -> Void
+
+    @Environment(WallService.self) private var wall
+
+    @State private var query = ""
+    /// The query the reader actually asked, as distinct from what is in the
+    /// field. The answer follows this rather than every keystroke, so a
+    /// miss is said once the reader has finished saying the thing and not
+    /// halfway through a word.
+    @State private var asked: String?
+    /// The story awaiting confirmation. Set by a tap on a result or a chip,
+    /// never by the search itself.
+    @State private var picked: WallStory?
+    @State private var working = false
+    @State private var spent = false
+    @State private var refusal: String?
+
+    private var voice: HiveVoice { wall.voice }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            field
+            if let picked {
+                confirmation(picked)
+            } else if let asked {
+                result(HiveSearch.answer(query: asked, in: day.stories))
+            } else {
+                chips
+            }
+        }
+        .padding(14)
+        .background(palette.type.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .onChange(of: query) { _, _ in
+            // The answer on screen was for the words that were there. Once
+            // they change it is for nothing, and the chips come back until
+            // the reader asks again. A story already picked is left alone.
+            if picked == nil { asked = nil }
+        }
+    }
+
+    // MARK: The field
+
+    private var field: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(HiveCopy.ask(dateName: date.displayName()))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(palette.type)
+            HStack(spacing: 8) {
+                TextField(HiveCopy.askPlaceholder, text: $query)
+                    .textFieldStyle(.roundedBorder)
+                    // Names and places are what gets typed here, and
+                    // autocorrect rewrites those into words it knows.
+                    .autocorrectionDisabled()
+                    .submitLabel(.search)
+                    .onSubmit { ask() }
+                Button {
+                    ask()
+                } label: {
+                    Text(HiveCopy.find)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(HivePalette.ink)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(HivePalette.amber)
+                .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+            Text(HiveCopy.askHint(voice: voice))
+                .font(.caption)
+                .foregroundStyle(palette.type.opacity(0.45))
+        }
+    }
+
+    private func ask() {
+        picked = nil
+        spent = false
+        refusal = nil
+        asked = query
+    }
+
+    // MARK: The chips
+
+    @ViewBuilder
+    private var chips: some View {
+        let top = HiveSearch.chips(from: day.stories)
+        if !top.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(HiveCopy.orStartFrom)
+                    .font(.caption)
+                    .foregroundStyle(palette.type.opacity(0.45))
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(top) { story in
+                            Button {
+                                pick(story)
+                            } label: {
+                                Text(story.headline)
+                                    .font(.caption.weight(.semibold))
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                                    .frame(maxWidth: 220)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(HivePalette.fill(story.tier), in: Capsule())
+                                    .foregroundStyle(HivePalette.type(story.tier))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("\(story.headline). \(story.outlet). \(story.tier.label).")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func pick(_ story: WallStory) {
+        spent = false
+        refusal = nil
+        picked = story
+    }
+
+    // MARK: The result
+
+    @ViewBuilder
+    private func result(_ answer: HiveSearch.Answer) -> some View {
+        switch answer {
+        case .blank:
+            Text(HiveCopy.tooCommon)
+                .font(.footnote)
+                .foregroundStyle(palette.type.opacity(0.6))
+        case .miss:
+            VStack(alignment: .leading, spacing: 8) {
+                Text(HiveCopy.miss(dateName: date.displayName()))
+                    .font(.footnote)
+                    .foregroundStyle(palette.type.opacity(0.6))
+                Button(action: onAdd) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "link")
+                        Text(HiveCopy.addWithLink)
+                            .font(.subheadline.weight(.semibold))
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(HivePalette.amber)
+            }
+        case let .one(match):
+            VStack(alignment: .leading, spacing: 8) {
+                Text(HiveCopy.found)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(palette.type.opacity(0.6))
+                candidate(match.story)
+            }
+        case let .several(matches):
+            VStack(alignment: .leading, spacing: 8) {
+                Text(HiveCopy.severalFound)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(palette.type.opacity(0.6))
+                ForEach(matches) { match in
+                    candidate(match.story)
+                }
+            }
+        }
+    }
+
+    /// One found story: the headline, the outlet and the tier, and the mark
+    /// when this install already backed it. A tap picks it for confirmation
+    /// and spends nothing.
+    private func candidate(_ story: WallStory) -> some View {
+        Button {
+            pick(story)
+        } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(story.headline)
+                    .font(.system(size: 15, weight: .semibold, design: .serif))
+                    .foregroundStyle(palette.type)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 6) {
+                    Text(story.outlet)
+                    WallChip(tier: story.tier)
+                    if wall.hasBuzzed(story) {
+                        Text(voice.mark)
+                            .fontWeight(.heavy)
+                            .foregroundStyle(HivePalette.amber)
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(palette.type.opacity(0.55))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(10)
+            .background(Theme.card, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(story.headline). \(story.outlet). \(story.tier.label).")
+        .accessibilityHint("Shows it for confirmation. Nothing is spent yet.")
+    }
+
+    // MARK: The confirmation
+
+    /// The one place a buzz is cast from. The story, its outlet and its tier
+    /// are shown back before anything is spent, the same three things the
+    /// receipt shows, and the button says what it costs.
+    private func confirmation(_ story: WallStory) -> some View {
+        let live = wall.phase == .live
+        let left = wall.unitsLeft ?? 0
+        let buzzed = wall.hasBuzzed(story)
+        let canBuzz = live && story.status != .shownFalse && left > 0 && !buzzed && !spent
+        return VStack(alignment: .leading, spacing: 8) {
+            Text(HiveCopy.confirm(voice: voice).uppercased())
+                .font(.caption.weight(.heavy))
+                .kerning(2.0)
+                .foregroundStyle(HivePalette.amber)
+
+            // The headline opens the receipt, the way it does everywhere
+            // else, so a reader who wants the sources before spending has
+            // them one tap away.
+            Button {
+                onOpen(story)
+            } label: {
+                Text(story.headline)
+                    .font(.system(size: 17, weight: .semibold, design: .serif))
+                    .foregroundStyle(palette.type)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens the receipt: every source, every quotation, every check.")
+
+            HStack(spacing: 6) {
+                Text(story.outlet)
+                WallChip(tier: story.tier)
+            }
+            .font(.caption)
+            .foregroundStyle(palette.type.opacity(0.55))
+            Text(story.tier.meaning)
+                .font(.caption2)
+                .foregroundStyle(palette.type.opacity(0.5))
+
+            Text(story.status == .shownFalse
+                 ? HiveCopy.takesNone(voice: voice)
+                 : buzzed
+                    ? HiveCopy.alreadyBacked(voice: voice)
+                    : HiveCopy.allowance(left, allowance: wall.allowance, phase: wall.phase ?? .live, voice: voice))
+                .font(.footnote.weight(canBuzz ? .regular : .semibold))
+                .foregroundStyle(palette.type.opacity(0.6))
+                .contentTransition(.numericText())
+
+            if canBuzz {
+                Button {
+                    Task { await cast(story) }
+                } label: {
+                    Text(voice.button)
+                        .font(.subheadline.weight(.semibold))
+                        // The colour is on the words rather than on the
+                        // button: a prominent button sets its own label
+                        // white, and white on amber is not a contrast.
+                        .foregroundStyle(HivePalette.ink)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(HivePalette.amber)
+                .disabled(working || wall.isBuzzing(story))
+                .accessibilityLabel("\(voice.button): \(story.headline)")
+                Text(HiveCopy.irreversible)
+                    .font(.caption2)
+                    .foregroundStyle(palette.type.opacity(0.5))
+            }
+
+            if spent {
+                Text(HiveCopy.counted)
+                    .font(.footnote)
+                    .foregroundStyle(palette.type.opacity(0.6))
+            }
+
+            if let refusal {
+                Text(refusal)
+                    .font(.footnote)
+                    .foregroundStyle(palette.type.opacity(0.6))
+            }
+
+            Button {
+                picked = nil
+                spent = false
+                refusal = nil
+            } label: {
+                Text(HiveCopy.notThisOne)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(HivePalette.amber)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(12)
+        .background(Theme.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func cast(_ story: WallStory) async {
+        guard !working else { return }
+        working = true
+        refusal = nil
+        defer { working = false }
+        do {
+            try await wall.buzz(story: story)
+            spent = true
+            await wall.load(date: date)
+        } catch {
+            // The service holds the sentence in the reader's terms, and the
+            // error carries the same one; either is shown here rather than
+            // sending the reader to the receipt to read it.
+            refusal = wall.lastRefusal ?? error.localizedDescription
         }
     }
 }
