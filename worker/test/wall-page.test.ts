@@ -2,7 +2,7 @@ import { strict as assert } from "node:assert";
 import { execFileSync } from "node:child_process";
 import { test } from "node:test";
 
-import { decodeEntities, fold, meta, ownerOf, pageContains, pageText } from "../src/wall/page.js";
+import { HostSilence, PAGE_HEADERS, SILENT_STRIKES, decodeEntities, fold, meta, ownerOf, pageContains, pageText, type Fetched } from "../src/wall/page.js";
 import { normalizeUrl } from "../src/wall/url.js";
 
 // The quotation rule and the address key each exist twice: once here, for
@@ -103,4 +103,44 @@ test("the quotation rule in SQL agrees with the checker", {
   assert.equal(sql(`select site_name from wall_page_meta(${literal(PAGE)})`), "Al Jazeera");
   assert.equal(sql(`select wall_owner_of('edition.cnn.com')`), "Warner Bros. Discovery");
   assert.equal(sql(`select wall_owner_of('example.org')`), "example.org");
+});
+
+// ---------------------------------------------------------------------------
+// Hosts that do not answer. September 10, 2026: nine npr.org sources, nine
+// silences of fifteen seconds each, every tick.
+// ---------------------------------------------------------------------------
+
+const SILENT: Fetched = { status: null, body: null, finalUrl: null, detail: "no answer within 15 seconds" };
+const ANSWERED: Fetched = { status: 200, body: "<p>hello</p>", finalUrl: "https://www.npr.org/a", detail: "200" };
+const REFUSED: Fetched = { status: 403, body: "", finalUrl: "https://www.npr.org/a", detail: "403" };
+
+test("a host that answers nothing twice in a run is left alone for the rest of it", () => {
+  const silence = new HostSilence();
+  assert.equal(silence.skips("https://www.npr.org/2026/09/10/one"), false);
+  silence.record("https://www.npr.org/2026/09/10/one", SILENT);
+  assert.equal(silence.skips("https://www.npr.org/2026/09/10/two"), false, "one silence is a bad moment");
+  silence.record("https://www.npr.org/2026/09/10/two", SILENT);
+  assert.equal(silence.skips("https://www.npr.org/2026/09/10/three"), true, "two is a host");
+  assert.equal(SILENT_STRIKES, 2);
+  assert.deepEqual(silence.silenced(), ["www.npr.org"]);
+  // Another host is another host, and the feed host is not the article host.
+  assert.equal(silence.skips("https://feeds.npr.org/1001/rss.xml"), false);
+  assert.equal(silence.skips("https://www.theguardian.com/world"), false);
+});
+
+test("any answer at all, even a refusal, is not silence and clears the count", () => {
+  const silence = new HostSilence();
+  silence.record("https://www.npr.org/a", SILENT);
+  silence.record("https://www.npr.org/b", REFUSED);
+  silence.record("https://www.npr.org/c", SILENT);
+  assert.equal(silence.skips("https://www.npr.org/d"), false, "a 403 is an answer, and the count started over");
+  silence.record("https://www.npr.org/d", ANSWERED);
+  assert.deepEqual(silence.silenced(), []);
+});
+
+test("the page request says it is a browser and still says it is Birthed", () => {
+  assert.ok(PAGE_HEADERS["User-Agent"]!.startsWith("Mozilla/5.0"));
+  assert.ok(PAGE_HEADERS["User-Agent"]!.includes("Birthed"), "an operator reading a log can still find us");
+  assert.ok(!PAGE_HEADERS["User-Agent"]!.includes("node-fetch"), "the worker's own name for itself is for Wikidata");
+  assert.ok(PAGE_HEADERS["Accept-Language"]);
 });

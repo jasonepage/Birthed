@@ -36,7 +36,7 @@ async function main(): Promise<void> {
     console.error(`wall news failed: ${error instanceof Error ? error.message : error}`);
   }
   try {
-    await check(db, { userAgent: config.userAgent });
+    await check(db);
   } catch (error: unknown) {
     failed = true;
     console.error(`wall check failed: ${error instanceof Error ? error.message : error}`);

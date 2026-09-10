@@ -34,7 +34,7 @@ import { fileURLToPath } from "node:url";
 import { loadConfig, loadDotEnv } from "../config.js";
 import { allocate, type Rect, type StoryInput, type Tier } from "./allocator.js";
 import { insert, rows, update, type Db } from "./db.js";
-import { fetchPage, ownerOf, pageContains, type Fetched, type OwnerRow } from "./page.js";
+import { HostSilence, fetchPage, ownerOf, pageContains, type Fetched, type OwnerRow } from "./page.js";
 import { eligibleForWall, tierFor } from "./pool.js";
 import { NEVER_CHECKED, dueForCheck, shouldRecord, summarize } from "./recheck.js";
 import { outletOf } from "./url.js";
@@ -314,6 +314,8 @@ export interface RunReport {
   sourcesChecked: number;
   /** Sources the schedule left alone this run. Imported sources are not counted either way. */
   sourcesWaiting: number;
+  /** Sources that were due but whose host had already gone silent twice this run. Nothing is written for them. */
+  sourcesSilenced: number;
   /** Check rows written, across every date. */
   checksWritten: number;
   verified: number;
@@ -332,17 +334,21 @@ function chunk<T>(items: T[], size: number): T[][] {
   return out;
 }
 
-export async function run(db: Db, options: { now?: Date; date?: string; dry?: boolean; userAgent?: string; log?: (line: string) => void } = {}): Promise<RunReport> {
+export async function run(db: Db, options: { now?: Date; date?: string; dry?: boolean; log?: (line: string) => void } = {}): Promise<RunReport> {
   const now = options.now ?? new Date();
   const at = now.toISOString();
   const log = options.log ?? ((line: string) => console.log(line));
-  const userAgent = options.userAgent ?? "Mozilla/5.0 (compatible; Birthed/0.1; +https://birthed.app)";
+  // Pages are asked for the way a browser asks, PAGE_HEADERS in page.ts,
+  // whatever the worker's configured agent says; that one is for Wikidata.
+  // One silence tracker for the whole run, because a host that is not
+  // answering for yesterday's wall is not answering for today's either.
+  const silence = new HostSilence();
 
   const dayFilter = options.date
     ? `wall_date=eq.${options.date}`
     : `closes_at=gt.${encodeURIComponent(at)}&closed_at=is.null`;
   const days = await rows<DayRow>(db, `wall_days?select=wall_date,opens_at,live_at,closes_at,closed_at&${dayFilter}&order=wall_date.asc`);
-  const report: RunReport = { dates: days.map((d) => d.wall_date), sourcesChecked: 0, sourcesWaiting: 0, checksWritten: 0, verified: 0, failed: 0, graduated: 0, overflow: 0, retiered: 0 };
+  const report: RunReport = { dates: days.map((d) => d.wall_date), sourcesChecked: 0, sourcesWaiting: 0, sourcesSilenced: 0, checksWritten: 0, verified: 0, failed: 0, graduated: 0, overflow: 0, retiered: 0 };
   if (days.length === 0) {
     log("wall check: no open dates");
     return report;
@@ -387,7 +393,12 @@ export async function run(db: Db, options: { now?: Date; date?: string; dry?: bo
         report.sourcesWaiting += 1;
         continue;
       }
-      const fetched = await fetchPage(source.url, userAgent);
+      if (silence.skips(source.url)) {
+        report.sourcesSilenced += 1;
+        continue;
+      }
+      const fetched = await fetchPage(source.url);
+      silence.record(source.url, fetched);
       const judged = checkSource(source, fetched, at);
       if (shouldRecord(history, judged.checks)) checks.push(...judged.checks);
       dueCount += 1;
@@ -436,6 +447,11 @@ export async function run(db: Db, options: { now?: Date; date?: string; dry?: bo
       + `${settled.stories.filter((u) => u.status === "overflow").length} overflow, ${settled.owners.length} owners corrected`
       + (options.dry ? " (dry, nothing written)" : ""));
   }
+  // The hosts that went silent are the one thing in this log worth reading
+  // on the day a host starts refusing the worker, so they get their own line.
+  if (silence.silenced().length > 0) {
+    log(`wall check: ${report.sourcesSilenced} sources left unread because their host did not answer twice this run: ${silence.silenced().join(", ")}`);
+  }
   return report;
 }
 
@@ -454,8 +470,8 @@ async function main(): Promise<void> {
   const dry = args.includes("--dry");
   const config = loadConfig({ needsWrite: !dry });
   const db: Db = { url: config.supabaseUrl, key: config.serviceRoleKey };
-  const report = await run(db, { date: argument(args, "date"), dry, userAgent: config.userAgent });
-  console.log(`checked ${report.sourcesChecked} sources on ${report.dates.length} dates, ${report.sourcesWaiting} not yet due, `
+  const report = await run(db, { date: argument(args, "date"), dry });
+  console.log(`checked ${report.sourcesChecked} sources on ${report.dates.length} dates, ${report.sourcesWaiting} not yet due, ${report.sourcesSilenced} on silent hosts, `
     + `${report.checksWritten} check rows written: ${report.verified} verified, ${report.failed} not, `
     + `${report.graduated} graduated, ${report.overflow} overflow, ${report.retiered} changed tier`);
 }

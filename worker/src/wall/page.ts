@@ -119,16 +119,87 @@ export interface Fetched {
 }
 
 /**
+ * How a page is asked for. A browser's own identification, with Birthed
+ * named at the end so an operator reading a log can still find us.
+ *
+ * The worker's configured agent, "Birthed/0.1 (...) node-fetch", is right
+ * for the Wikidata query service, which asks to be told who is calling. It
+ * is the wrong thing to say to a news site. Measured on September 10, 2026:
+ * every one of nine npr.org article pages answered nothing within fifteen
+ * seconds, while feeds.npr.org answered the same worker at once, which is
+ * the shape of an article host screening by user agent rather than a
+ * network that is down. Whether this header gets through is unknown until
+ * a tick from Render says so; what is known is that the old one did not.
+ *
+ * Accept-Language is sent because some hosts answer a request with no
+ * language preference with a chooser page rather than the article.
+ */
+export const PAGE_USER_AGENT =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 Birthed/0.1 (+https://birthed.app)";
+
+export const PAGE_HEADERS: Record<string, string> = {
+  "User-Agent": PAGE_USER_AGENT,
+  Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5",
+  "Accept-Language": "en-US,en;q=0.9",
+};
+
+/** How many silent reads a host gets in one run before the rest of its pages are left for the next run. */
+export const SILENT_STRIKES = 2;
+
+/**
+ * A host that has not answered twice in one run is not asked again in that
+ * run. Nine npr.org sources at fifteen seconds each cost the checker over
+ * two minutes a tick to learn the same thing nine times, and a host that is
+ * screening the worker is not helped by being asked a seventh time in the
+ * same minute; that is the quickest way to be screened for good. A page
+ * left unread is not a failed check and is not written down as one: its
+ * schedule in recheck.ts sees no row and asks again next run. Only silence
+ * counts, a status of any kind is an answer.
+ */
+export class HostSilence {
+  private readonly strikes = new Map<string, number>();
+
+  constructor(private readonly limit: number = SILENT_STRIKES) {}
+
+  /** Whether a host has gone silent often enough to be left alone this run. */
+  skips(url: string): boolean {
+    return (this.strikes.get(hostOf(url)) ?? 0) >= this.limit;
+  }
+
+  /** Record what a read said. Silence counts against the host; an answer clears it. */
+  record(url: string, fetched: Fetched): void {
+    const host = hostOf(url);
+    if (fetched.status === null) this.strikes.set(host, (this.strikes.get(host) ?? 0) + 1);
+    else this.strikes.delete(host);
+  }
+
+  /** The hosts left alone, for the log. */
+  silenced(): string[] {
+    return [...this.strikes.entries()].filter(([, n]) => n >= this.limit).map(([host]) => host).sort();
+  }
+}
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host.toLowerCase();
+  } catch {
+    return url;
+  }
+}
+
+/**
  * One page, with a deadline, following redirects, as a browser would ask
  * for it. Every failure is a value rather than a throw, because every
- * outcome is written down as a check.
+ * outcome is written down as a check. Redirects are followed because the
+ * feeds carry canonical addresses and the sites answer them with a hop to
+ * www or to a section host; the address landed on is in the detail.
  */
-export async function fetchPage(url: string, userAgent: string, timeoutMs: number = 15000): Promise<Fetched> {
+export async function fetchPage(url: string, headers: Record<string, string> = PAGE_HEADERS, timeoutMs: number = 15000): Promise<Fetched> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(url, {
-      headers: { "User-Agent": userAgent, Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5" },
+      headers,
       redirect: "follow",
       signal: controller.signal,
     });
