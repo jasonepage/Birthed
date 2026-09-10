@@ -1114,7 +1114,7 @@ ${tiles}${empty}
   // The three chips and one clause. What each tier means is on the About
   // page and on every receipt; the legend's job here is only to say the
   // colours mean something.
-  const legend = `<p class="wlegend"><span class="wchip w-seen_direct" title="${escapeHtml(tierMeaning("seen_direct"))}">Seen directly</span> <span class="wchip w-reported" title="${escapeHtml(tierMeaning("reported"))}">Reported</span> <span class="wchip w-claimed" title="${escapeHtml(tierMeaning("claimed"))}">Claimed</span> A tile's colour is how well its story is sourced, not whether it is true.</p>`;
+  const legend = `<p class="wlegend"><span class="wchip w-seen_direct" title="${escapeHtml(tierMeaning("seen_direct"))}">Seen directly</span> <span class="wchip w-reported" title="${escapeHtml(tierMeaning("reported"))}">Reported</span> <span class="wchip w-claimed" title="${escapeHtml(tierMeaning("claimed"))}">Claimed</span> <span class="wlegendsay">Colour is how well a story is sourced, not whether it is true.</span></p>`;
 
   if (hive) {
     return `<section class="wall whive" aria-labelledby="wallhead">
@@ -1188,8 +1188,8 @@ ${songs.map((s) => songRow(s, live, voice)).join("\n")}
 ${lede === "" ? "" : `<p class="wlede">${lede}</p>`}
 ${live ? askForm(day, name, voice) : ""}${countLine(day, now, voice, live)}${foundBlock(options.found ?? [], day, live, voice)}${afterwords(voice, name)}
 ${board}
-${under}${full}
-${onWall.length > 0 ? legend : ""}
+<div class="wafter">${onWall.length > 0 ? legend : ""}${full}</div>
+${under}
 </section>
 <section class="feed2" aria-labelledby="feedhead">
 <h2 class="section" id="feedhead">Today's feed</h2>
@@ -1429,7 +1429,7 @@ export const WALL_STYLE = `
 /* The coined words, underlined in honey. */
 .wstate .wkey { font-style: normal; color: #FFF7EE; text-decoration: underline; text-decoration-color: #E7A83A; text-decoration-thickness: 2px; text-underline-offset: 3px; }
 .wlede { margin: 0 0 12px; color: #B9B2AD; font-size: 15px; line-height: 1.4; max-width: 58ch; text-wrap: pretty; }
-.wunder { margin: 10px 0 0; max-width: 62ch; }
+.wunder { margin: 8px 0 0; max-width: 62ch; }
 .wboard {
   display: grid; grid-template-columns: repeat(var(--side, 16), minmax(0, 1fr)); grid-template-rows: repeat(var(--side, 16), minmax(0, 1fr));
   gap: 2px; width: 100%; max-width: 100%; aspect-ratio: 1 / 1; margin: 0 auto;
@@ -1466,6 +1466,14 @@ export const WALL_STYLE = `
 /* A sealed board is edged in honey, the one quiet sign on the picture
    itself that this one is finished. A chip on the board covered a tile. */
 .wboard.wsealed { box-shadow: inset 0 0 0 1px rgba(255, 233, 176, .38); }
+/* Under the board: one row, the legend on the left and the full screen link
+   on the right, then the one line note. Three stacked lines of small grey
+   type at three different alignments was the awkward version. */
+.wafter { display: flex; align-items: center; justify-content: space-between; gap: 10px 18px; flex-wrap: wrap; margin: 10px 0 0; }
+.wafter .wlegend { margin: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.wafter .wlegend .wchip { margin: 0; }
+.wafter .wlegend .wlegendsay { margin-left: 4px; }
+.wafter .wfull { margin: 0; flex: none; }
 .wfull { margin: 8px 0 0; text-align: right; font-size: 13px; }
 .wfull a { color: #A49BAE; text-decoration: none; border-bottom: 1px solid #3A3348; }
 .wfull a:hover { color: #FFD98A; border-color: #FFD98A; }
@@ -1527,7 +1535,7 @@ export const WALL_STYLE = `
    third of the way down the window with room for them beneath it. */
 .wall:not(.whive) { display: flex; flex-direction: column; }
 .wall:not(.whive) > * { order: 0; }
-.wall:not(.whive) > .wunder, .wall:not(.whive) > .wfull, .wall:not(.whive) > .wlegend { order: 2; }
+.wall:not(.whive) > .wunder, .wall:not(.whive) > .wafter { order: 2; }
 .day:has(.wtile:target) .wall > .wsaids { order: 1; margin: 12px 0 0; }
 .wtile:target, .wlist li:target, .wsongs li:target {
   z-index: 3; scroll-margin-top: 34vh;
