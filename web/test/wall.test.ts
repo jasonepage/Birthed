@@ -244,7 +244,7 @@ test("the baked section carries no forms, and the interactive one carries a tap 
   assert.ok(live.includes("Three buzzes left today."));
   assert.ok(live.includes("You buzzed this"));
   // The evidence tiers keep their one line and nothing claims a model decided anything.
-  assert.ok(live.includes("a tier is not a verdict."));
+  assert.ok(live.includes("not whether it is true."));
   assert.ok(!/verified truth|fact checked|model/i.test(live));
 });
 
@@ -463,8 +463,8 @@ test("the typed field is on the live section only, posts a plain form to /find, 
   assert.ok(live.includes('name="m" value="9"') && live.includes('name="d" value="9"'));
   assert.ok(live.includes(">Find</button>"));
   // Said under the board now, so the field sits right above the hive.
-  assert.ok(live.includes("Typing spends nothing:"));
-  assert.ok(live.indexOf("Typing spends nothing:") > live.indexOf('class="wboard'), "the note is under the board");
+  assert.ok(live.includes("Typing spends nothing."));
+  assert.ok(live.indexOf("Typing spends nothing.") > live.indexOf('class="wboard'), "the note is under the board");
   // No script anywhere near it: a form and a button and nothing else.
   assert.ok(!/<script|onsubmit|oninput/i.test(live));
   // The miss is the front door to submission rather than a dead end.

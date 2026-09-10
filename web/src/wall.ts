@@ -1061,7 +1061,10 @@ ${tiles}${empty}
     ? `<p class="wfull"><a href="${hivePath(month, d)}">Open the hive full screen</a></p>`
     : "";
 
-  const legend = `<p class="wlegend"><span class="wchip w-seen_direct">Seen directly</span> ${escapeHtml(tierMeaning("seen_direct"))} <span class="wchip w-reported">Reported</span> ${escapeHtml(tierMeaning("reported"))} <span class="wchip w-claimed">Claimed</span> ${escapeHtml(tierMeaning("claimed"))} A tile's colour is its tier, and a tier is not a verdict. A headline opens its receipt: every source, every quotation, every check.</p>`;
+  // The three chips and one clause. What each tier means is on the About
+  // page and on every receipt; the legend's job here is only to say the
+  // colours mean something.
+  const legend = `<p class="wlegend"><span class="wchip w-seen_direct" title="${escapeHtml(tierMeaning("seen_direct"))}">Seen directly</span> <span class="wchip w-reported" title="${escapeHtml(tierMeaning("reported"))}">Reported</span> <span class="wchip w-claimed" title="${escapeHtml(tierMeaning("claimed"))}">Claimed</span> A tile's colour is how well its story is sourced, not whether it is true.</p>`;
 
   if (hive) {
     return `<section class="wall whive" aria-labelledby="wallhead">
@@ -1097,7 +1100,7 @@ ${folded.map((s) => listRow(s, live, voice)).join("\n")}
       : `<p class="wnote wnofeed">Everything filed for ${escapeHtml(name)} is on the hive.</p>`;
   const stood = unfiled ? history : "";
   const feedNote = live
-    ? `A ${voice.one} here counts the same as one on the hive, and the hive makes room for what people back.`
+    ? `A ${voice.one} here counts the same as one on the hive.`
     : closed
       ? "The hive has sealed, so the feed takes no more."
       : `When the hive opens, every one of these takes ${voice.many}.`;
@@ -1115,10 +1118,14 @@ ${folded.map((s) => listRow(s, live, voice)).join("\n")}
         // served when the live read could not be made. Present tense, because
         // the date is still taking buzzes even if this page cannot take one.
         : `What people think will still matter about ${escapeHtml(name)}, sized by how many ${voice.past} each story so far.`;
+  // One line under the board, and a link for anybody who wants the rest.
+  // Nathan, September 10, 2026: three paragraphs of explanation under the
+  // board was a wall of text, and the people who need it are on the About
+  // page anyway.
   const under = live
-    ? `<p class="wnote wunder">Each ${voice.one} makes its story bigger on the hive, and you get a few a day. Typing spends nothing: the hive finds the story among what is filed for ${escapeHtml(name)} and shows it back before a ${voice.one} is spent. What you type is matched and not kept.</p>`
+    ? `<p class="wnote wunder">A ${voice.one} makes its story bigger. Three a day. Typing spends nothing. <a href="/about/">How the hive works</a></p>`
     : closed
-      ? `<p class="wnote wunder">Each story is a link to a source, in the source's own words.</p>`
+      ? `<p class="wnote wunder">Every story is a link to its source. <a href="/about/">How the hive works</a></p>`
       : "";
 
   const songStrip = songs.length === 0 ? "" : `<h3 class="wsub small">The number one song, every year</h3>
@@ -1140,7 +1147,7 @@ ${onWall.length > 0 ? legend : ""}
 </section>
 <section class="feed2" aria-labelledby="feedhead">
 <h2 class="section" id="feedhead">Today's feed</h2>
-<p class="wnote">Everything with a birthday on ${escapeHtml(name)}: the day's news, and what happened, who was born and what came out on this date before. ${feedNote}</p>
+<p class="wnote">Everything with a birthday on ${escapeHtml(name)}, today's and every year's. ${feedNote}</p>
 ${feedList}
 ${HISTORY_START}${stood}${HISTORY_END}
 ${songStrip}
@@ -1530,6 +1537,8 @@ export const WALL_STYLE = `
 .wchip.w-seen_direct { background: #B05A0C; color: #FFF3DC; }
 .wempty, .wlegend, .wnote { font-size: 13px; color: #827B75; line-height: 1.45; }
 .wlegend { margin: 10px 0 0; }
+.wunder a, .wlegend a { color: #A49BAE; text-decoration: none; border-bottom: 1px solid #3A3348; }
+.wunder a:hover { color: #FFD98A; border-color: #FFD98A; }
 .wlegend .wchip { margin-right: 4px; }
 .wsub { font-family: Georgia, "Times New Roman", serif; font-weight: 800; font-size: 19px; margin: 26px 0 4px; }
 .wsub.small { font-size: 15px; margin-top: 14px; }

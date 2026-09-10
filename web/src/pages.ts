@@ -267,6 +267,17 @@ ${bornInStrip()}
 </section>
 
 <section class="col how">
+<h2 class="plain">What the colours mean</h2>
+<p class="lede">A tile's colour says how well its story is sourced. It never says whether the story is true.</p>
+<ul class="features">
+  <li><h3>Seen directly</h3><p>Video, a filing, a record or an official statement.</p></li>
+  <li><h3>Reported</h3><p>Two or more independently owned outlets.</p></li>
+  <li><h3>Claimed</h3><p>Somebody said it and nobody has confirmed it. A claimed story can be loud on the hive and never big.</p></li>
+  <li><h3>The receipt</h3><p>Tap any headline to open its receipt: every source, every quotation, and every check ever run on it. What you type in the search field is matched and not kept.</p></li>
+</ul>
+</section>
+
+<section class="col how">
 <h2 class="plain">Who made this</h2>
 <p class="lede">My name is Jason Evan Page and I built Birthed on my own. I made it because I wanted to know what people actually remember of a day, which is a different thing from what got written down about it, and nowhere kept that.</p>
 <p class="lede">It costs me money to run and it does not make any. There are no ads on it, there is nothing on it to buy, and there is no company behind it. I am not collecting birthdays to sell, and the <a href="/privacy/">privacy page</a> lists every single thing that is kept, down to the two cookies and what each one is for. If you find something on this site that does not match what that page says, write to me and I will fix it the same day.</p>
