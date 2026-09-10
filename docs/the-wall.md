@@ -1173,3 +1173,83 @@ have been tested on fixtures and on real headlines copied out of the
 database, and not once against a tick. The next tick after this deploys is
 the test, and the thing to look at is whether September 9 gains history
 stories at all.
+
+---
+
+## 16. The starved board, September 10, 2026
+
+Section 15 fixed the candidates. The next morning the board was still
+sports, entertainment and gaming, and the reason was upstream of the
+allocator: most of the world desk could not verify. Counted on the open
+walls, sources the checker fetches: theguardian.com 30 sources, 0 verified.
+variety.com 15 and 0. npr.org 9 and 0. theverge.com 5 and 0. nasa.gov 7
+and 1. Against bbc.com 17 of 17 and aljazeera.com 24 of 25. A story with no
+verified source never leaves the pool, section 12, so 66 stories from five
+outlets could not reach the board however much they mattered.
+
+**It was three failures, and two of them were ours.** The Guardian's feed
+escapes its description as entities, and `plain` in `news.ts` stripped tags
+before decoding them, so every Guardian quotation was stored as
+`<p>Lambie, a veteran and Tasmanian senator ...`. No article page contains
+`<p>`. Variety, The Verge and NASA send an excerpt ending in `[…]`, and the
+page has the words and never the mark, so the exact match failed on three
+characters. Neither was the page's fault and neither was the match rule's.
+The third is npr.org: the feed host answers the worker at once and the
+article host never answers within fifteen seconds, which is the shape of a
+host screening by user agent, and is not proven.
+
+**The quotation is taken from the page, at seed time, by the submit rule.**
+`quotationFor` in `news.ts`: the feed's own description when the page
+contains it, because the lede reads best on a receipt; otherwise the page's
+own description; otherwise the page's own headline. That is what
+`wall_submit_story` already does with a link a person pastes. Every
+candidate is held to `pageContains` before it is stored, the same exact
+match with whitespace folded that the checker runs a quarter hour later, so
+nothing is stored the checker could disagree with. A page that could not be
+read keeps the feed's words and the checker retries; a page with nothing
+quotable keeps the feed's words and fails, which is right. A trailing
+truncation mark comes off an excerpt first, fewer of the source's words and
+never different ones, the rule `fitHeadline` already applies. Only a page
+not already on the date is read. **The match rule in `page.ts` was not
+touched and is not to be touched for this.** Weakening it to make outlets
+pass would be the worst change available to this system.
+
+**Pages are asked for the way a browser asks.** `PAGE_HEADERS` in
+`page.ts`: a browser identification that still names Birthed at the end,
+and an Accept-Language. The worker's configured agent, which names
+node-fetch, stays for Wikidata, which asks to be told who is calling. And a
+host that answers nothing twice in one run is left alone for the rest of
+it, `HostSilence`: nine npr.org sources were costing every tick over two
+minutes to learn the same thing nine times. A page left unread gets no
+check row and is asked again next run. Whether npr.org now answers is
+unknown until a tick on Render says; if it still does not after a day, the
+honest choices are to drop its two feeds or to take the headless browser
+decision, and pretending a source that cannot be read is a source is not
+one of them.
+
+**The Charlie Kirk row was never dropped by the seeder.** It was
+`suppressed`, the events importer's word screen, which `readHistory`
+excluded. On the three open dates that flag held back 26 of 66, 18 of 48
+and 47 of 85 events; the count dropped for a missing link or a short
+quotation was nought on all three. The screen exists for the date page and
+the share card, where a birthday reader should not be handed a plane
+crash. The hive asks what mattered, and the screen was holding back the
+answer. Nathan's call: a suppressed event files like any other history, at
+the ordinary priority and never as a pick, since `mayLead` already keeps a
+killing out of the first eight. The date page and the share card are
+unchanged. And a row the seeder does leave out is now counted per date and
+per reason in the log, so a drop is never silent again.
+
+**The sixty six stale rows were left alone.** Rewriting a stored quotation
+under checks that were run against other words is the quiet edit this
+document forbids. The clean repair is to delete the never verified, never
+boosted news stories from those five outlets on the open dates so the next
+tick re-files them; the query was written, shown, and not run, because it
+deletes.
+
+**Nothing in this section was run against a tick.** Three hundred and
+twenty one worker tests pass, on fixtures that include a real Guardian
+address, its real feed description as sent, and a page body that does not
+contain it. The next tick is the test. Look for Guardian, Variety, Verge
+and NASA sources verifying, and for the line naming `www.npr.org` as a
+silent host.
