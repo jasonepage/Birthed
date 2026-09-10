@@ -340,6 +340,13 @@ export function songParts(headline: string): { year: string; title: string } | n
  * also a reason to serve the page as built.
  */
 export async function fetchWallDay(url: string, key: string, wallDate: string, timeoutMs: number = 3000): Promise<WallDay | null> {
+  // Without the checks. The worker writes two check rows per source every
+  // quarter hour, so a day's checks run to thousands of rows and megabytes
+  // by the afternoon, and the date page draws none of them. Reading them
+  // here was what pushed the live read past its three seconds and handed
+  // every reader the baked page, with no buttons and the wrong count. The
+  // receipt is the one page that shows checks, and it asks for its own
+  // story's through fetchChecksFor.
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -355,8 +362,8 @@ export async function fetchWallDay(url: string, key: string, wallDate: string, t
 
     const storiesResponse = await fetch(
       `${url}/rest/v1/wall_stories?select=id,wall_date,submitted_at,headline,url,outlet,status,tier,support,priority,placed_at,anchor_mx,anchor_my,w_modules,h_modules,false_at,false_note,subject_kind,subject_id,`
-      + `wall_sources(id,story_id,url,outlet,owner,headline,quotation,verified_at,added_at,wall_checks(source_id,checked_at,kind,passed,http_status,detail))`
-      + `&wall_date=eq.${wallDate}&order=submitted_at.asc,id.asc&wall_sources.order=added_at.asc&wall_sources.wall_checks.order=checked_at.asc`,
+      + `wall_sources(id,story_id,url,outlet,owner,headline,quotation,verified_at,added_at)`
+      + `&wall_date=eq.${wallDate}&order=submitted_at.asc,id.asc&wall_sources.order=added_at.asc`,
       { headers, signal: controller.signal },
     );
     if (!storiesResponse.ok) throw new Error(`wall: wall_stories answered ${storiesResponse.status}`);
@@ -371,6 +378,42 @@ export async function fetchWallDay(url: string, key: string, wallDate: string, t
         checks: (src.wall_checks ?? []).map((c) => ({ checkedAt: c.checked_at, kind: c.kind, passed: c.passed, httpStatus: c.http_status, detail: c.detail })),
       })))),
     };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * One story with its check history attached, read for its receipt alone.
+ * A few hundred rows for one story's sources rather than a day's worth,
+ * under the same deadline. A read that fails leaves the story as it was,
+ * with no checks, and the receipt says no checks have run rather than
+ * failing the page: the sources and the quotations are the receipt's
+ * substance and they are already in hand.
+ */
+export async function withChecks(url: string, key: string, story: WallStory, timeoutMs: number = 3000): Promise<WallStory> {
+  const ids = story.sources.map((s) => s.id);
+  if (ids.length === 0) return story;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(
+      `${url}/rest/v1/wall_checks?select=source_id,checked_at,kind,passed,http_status,detail&source_id=in.(${ids.join(",")})&order=checked_at.asc,id.asc`,
+      { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: "application/json" }, signal: controller.signal },
+    );
+    if (!response.ok) return story;
+    const rows = (await response.json()) as CheckRow[];
+    if (!Array.isArray(rows)) return story;
+    const bySource = new Map<string, WallCheck[]>();
+    for (const c of rows) {
+      if (typeof c?.source_id !== "string") continue;
+      const list = bySource.get(c.source_id) ?? [];
+      list.push({ checkedAt: c.checked_at, kind: c.kind, passed: c.passed, httpStatus: c.http_status, detail: c.detail });
+      bySource.set(c.source_id, list);
+    }
+    return { ...story, sources: story.sources.map((s) => ({ ...s, checks: bySource.get(s.id) ?? s.checks })) };
+  } catch {
+    return story;
   } finally {
     clearTimeout(timer);
   }
@@ -920,10 +963,13 @@ export function tapsLeftSentence(left: number, allowance: number, voice: Voice =
   return yesterday ? `${word} ${tap} left today on this date. It closes tonight.` : `${word} ${tap} left today.`;
 }
 
-function countLine(day: WallDay, now: number, voice: Voice): string {
+function countLine(day: WallDay, now: number, voice: Voice, live: boolean = true): string {
   // Before the date arrives the square itself says when it opens, and after
-  // it seals there is nothing to count.
-  if (!takingBoosts(day, now)) return "";
+  // it seals there is nothing to count. And only where a buzz can be spent:
+  // the baked page carries no forms, and a count on it is the allowance for
+  // a browser that has done nothing, shown to a reader who may have done
+  // everything.
+  if (!takingBoosts(day, now) || !live) return "";
   const allowance = allowanceOn(day, now);
   return `<p class="wcount"><span class="wleft"></span></p>` +
     `<style>.wleft::after{content:"${tapsLeftSentence(allowance, allowance, voice)}"}</style>`;
@@ -1069,7 +1115,7 @@ ${tiles}${empty}
   if (hive) {
     return `<section class="wall whive" aria-labelledby="wallhead">
 <h2 class="section" id="wallhead">${escapeHtml(longDate(day))}</h2>
-${countLine(day, now, voice)}${afterwords(voice, name)}
+${countLine(day, now, voice, live)}${afterwords(voice, name)}
 ${board}
 ${legend}
 </section>`;
@@ -1140,7 +1186,7 @@ ${songs.map((s) => songRow(s, live, voice)).join("\n")}
   return `<section class="wall" aria-labelledby="wallhead">
 <p class="whead"><span class="section" id="wallhead">The hive for ${escapeHtml(longDate(day))}</span> <span class="wstate">${stateLine(day, now)}</span></p>
 <p class="wlede">${lede}</p>
-${live ? askForm(day, name, voice) : ""}${countLine(day, now, voice)}${foundBlock(options.found ?? [], day, live, voice)}${afterwords(voice, name)}
+${live ? askForm(day, name, voice) : ""}${countLine(day, now, voice, live)}${foundBlock(options.found ?? [], day, live, voice)}${afterwords(voice, name)}
 ${board}
 ${under}${full}
 ${onWall.length > 0 ? legend : ""}

@@ -402,6 +402,12 @@ test("an open date page reads the wall at request time, falls back to the baked 
   await realFetch(`${base}/${openSlug}/`);
   assert.equal(calls.filter((c) => c.includes("wall_days")).length, 1, "one read per open date per twenty seconds");
 
+  // The day's read never asks for the checks: thousands of rows by the
+  // afternoon, and the date page draws none of them. That read is what
+  // used to push the live section past its deadline.
+  assert.ok(calls.length > 0);
+  assert.ok(calls.every((url) => !url.includes("wall_checks")), "the date page does not read the checks");
+
   // Down: the baked page, exactly.
   forgetWalls();
   mode = "down";

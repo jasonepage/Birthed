@@ -32,7 +32,7 @@ import { extname, join, normalize, resolve, sep } from "node:path";
 
 import { everyDate, monthName, slug } from "./model.js";
 import { ASK_SLOTS, TODAY, renderStoryPage, resultId, resultMarkup, undoForm, type Remembered } from "./render.js";
-import { ASK_MAX, emptyWallDay, fetchWallDay, openWallDates, replaceWall, hivePath, wallKey, wallMarks, wallSection, type TapBack, type WallDay } from "./wall.js";
+import { ASK_MAX, emptyWallDay, fetchWallDay, openWallDates, replaceWall, hivePath, wallKey, wallMarks, wallSection, withChecks, type TapBack, type WallDay } from "./wall.js";
 import { answer as findAnswer } from "./find.js";
 
 
@@ -1237,7 +1237,11 @@ async function handle(
         "Cache-Control": marks === "" ? "public, max-age=20, must-revalidate" : "no-store",
         ...securityFor(path),
       });
-      response.end(method === "HEAD" ? undefined : renderStoryPage(story, wall.day, now, { interactive: true }) + marks);
+      // The checks are read for this one story here, because the day's
+      // read leaves them out; see fetchWallDay.
+      const key = process.env.SUPABASE_ANON_KEY ?? "";
+      const told = method === "HEAD" ? story : await withChecks(projectBase(), key, story, WALL_TIMEOUT_MS);
+      response.end(method === "HEAD" ? undefined : renderStoryPage(told, wall.day, now, { interactive: true }) + marks);
       return;
     }
   }
