@@ -1313,3 +1313,24 @@ hour, it sits close to the line section 5 draws about a model deciding, and
 the typed field already answers "I do not want to scroll." If the turn
 taking feed still reads as a wall, that is the next thing to argue, with
 Jason in the room.
+
+### Every person on the date, later the same day
+
+Nathan looked at the Today tab on the phone and saw a Buzz button on Jack
+Ma and none on Cynthia Lennon, José Feliciano or Chris Columbus. Section 13
+capped the people the seeder files at twelve a date, the most looked up, and
+the phone only hangs a button on a row the worker filed a story for, so
+eighteen of the thirty people on September 10 could not be buzzed at all. A
+hive that is meant to find out who the most famous birthday is cannot start
+by taking names off the ballot. **The cap is gone: every person on the date
+is filed**, most looked up first, the first three still at the person
+priority. Faces are a different question, a folder size rather than a vote,
+so `worker/src/portraits.ts` fetches a face for the twelve most looked up on
+each date and no more.
+
+**Suggesting a person is not built.** A person can already add a story with
+a link in the app, and a Wikipedia page about somebody works as a link, but
+it files as news with no subject, so it is not a person born on the date,
+takes no face, and does not add anybody to `notable_people`. Doing it
+properly means matching a name to a Wikidata identifier and a row in that
+table, which is a schema and product decision for Nathan and Jason.
