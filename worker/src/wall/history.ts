@@ -196,16 +196,49 @@ export function planHistory(wallDate: string, history: DateHistory): HistoryStor
 // Reading a date
 // ---------------------------------------------------------------------------
 
+/** "09-09" for a month and a day, zero padded the way a date is written. */
+export function monthDay(month: number, day: number): string {
+  return `${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/**
+ * The month and day of a stored date, or "" when it is not one.
+ *
+ * The column is a date and the automatic interface hands it back as
+ * "1994-09-09", so this is the last ten characters' middle five. A value
+ * that is not shaped like a date returns "" and matches nothing, because a
+ * row filed under a date nobody can read is not a row to guess about.
+ */
+export function monthDayOf(value: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  return match === null ? "" : `${match[2]}-${match[3]}`;
+}
+
 export async function readHistory(db: Db, month: number, day: number): Promise<DateHistory> {
   const [events, facts, culture, people, selected, leads] = await Promise.all([
     rows<EventRow>(db, `historical_events?select=id,event_year,description,source_url&event_month=eq.${month}&event_day=eq.${day}&suppressed=eq.false&order=event_year.asc,id.asc`),
     rows<FactRow>(db, `birth_facts?select=id,fact,source_url&birth_month=eq.${month}&birth_day=eq.${day}&birth_year=eq.0&region_key=eq.&verified=eq.true&order=id.asc`),
-    rows<CultureRow>(db, `cultural_events?select=id,event_date,context_string,source_url,origin&status=eq.published&event_date=like.*-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}&order=event_date.asc,id.asc`),
+    // Every published row, screened here rather than by the database.
+    //
+    // `event_date` is a date column, and asking PostgREST for
+    // `event_date=like.*-09-09` builds `event_date LIKE '%-09-09'`, which
+    // Postgres refuses: there is no `date ~~ text` operator. That is a 400,
+    // `rows` throws it, the throw takes out the whole `Promise.all` below,
+    // and `tick.ts` catches it, writes one line to a log nobody reads and
+    // carries on to the news. The history seeder failed on every tick from
+    // the day it shipped and the only visible symptom was a wall made
+    // entirely of wire copy.
+    //
+    // Three hundred and ninety three published rows in the whole table, so
+    // reading all of them and keeping the ones on this month and day costs
+    // less than being clever. `monthDayOf` is the screen.
+    rows<CultureRow>(db, `cultural_events?select=id,event_date,context_string,source_url,origin&status=eq.published&order=event_date.asc,id.asc`),
     rows<PersonRow>(db, `notable_people?select=wikidata_qid,name,birth_year,death_year,short_description&birth_month=eq.${month}&birth_day=eq.${day}&adult_content=eq.false&order=notability_score.desc&limit=${PEOPLE_PER_DATE}`),
     rows<{ event_year: number }>(db, `selected_anniversaries?select=event_year&event_month=eq.${month}&event_day=eq.${day}`),
     rows<LeadLine>(db, "lead_lines?select=subject_kind,subject_id,line"),
   ]);
-  return { events, facts, culture, people, selectedYears: new Set(selected.map((s) => s.event_year)), leadLines: leads };
+  const onThisDate = culture.filter((c) => monthDayOf(c.event_date) === monthDay(month, day));
+  return { events, facts, culture: onThisDate, people, selectedYears: new Set(selected.map((s) => s.event_year)), leadLines: leads };
 }
 
 // ---------------------------------------------------------------------------

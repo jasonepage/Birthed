@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 
-import { PRIORITY_HISTORY, PRIORITY_PERSON, PRIORITY_PICK, mayLead, planHistory, type DateHistory } from "../src/wall/history.js";
+import { PRIORITY_HISTORY, PRIORITY_PERSON, PRIORITY_PICK, mayLead, monthDay, monthDayOf, planHistory, type DateHistory } from "../src/wall/history.js";
 import { allocate, type StoryInput } from "../src/wall/allocator.js";
 
 function history(overrides: Partial<DateHistory> = {}): DateHistory {
@@ -87,4 +87,46 @@ test("when the board has room and nobody has buzzed, the date's picks go on befo
   const placed = result.placed.map((p) => p.id);
   assert.deepEqual(placed.slice(0, 3), ["buzzed-news", "pick", "person"]);
   assert.ok(result.overflow.length > 0);
+});
+
+// The bug that kept every one of these stories off the hive for as long as
+// the seeder existed. `cultural_events.event_date` is a date column, and the
+// read asked the automatic interface for `event_date=like.*-09-09`, which
+// builds `event_date LIKE '%-09-09'` and which Postgres refuses outright:
+// there is no `date ~~ text` operator, so it answers 42883. That is a 400,
+// the read throws it, the throw takes the whole date's history with it, and
+// tick.ts logs one line and moves on to the news. The wall filled with wire
+// copy and nothing said why.
+//
+// The date is screened here now, so these assert the screen rather than a
+// query string, and the seeder no longer asks a date column to match text.
+
+test("a month and a day are written the way a stored date writes them", () => {
+  assert.equal(monthDay(9, 9), "09-09");
+  assert.equal(monthDay(12, 25), "12-25");
+  assert.equal(monthDay(1, 1), "01-01");
+});
+
+test("the month and day of a stored date, and nothing at all from a value that is not one", () => {
+  assert.equal(monthDayOf("1994-09-09"), "09-09");
+  assert.equal(monthDayOf("2026-12-25"), "12-25");
+  // The automatic interface can hand a date back with a time on it.
+  assert.equal(monthDayOf("1994-09-09T00:00:00+00:00"), "09-09");
+  // A row filed under something nobody can read matches no date rather than
+  // being guessed at.
+  assert.equal(monthDayOf(""), "");
+  assert.equal(monthDayOf("not a date"), "");
+  assert.equal(monthDayOf("09-09"), "");
+});
+
+test("the culture screen keeps this date's rows and drops every other date, whatever the year", () => {
+  const rows = [
+    { id: 1, event_date: "2015-09-09", keep: true },
+    { id: 2, event_date: "1977-09-09", keep: true },
+    { id: 3, event_date: "2015-09-08", keep: false },
+    { id: 4, event_date: "2015-10-09", keep: false },
+    { id: 5, event_date: "", keep: false },
+  ];
+  const kept = rows.filter((r) => monthDayOf(r.event_date) === monthDay(9, 9)).map((r) => r.id);
+  assert.deepEqual(kept, rows.filter((r) => r.keep).map((r) => r.id));
 });
