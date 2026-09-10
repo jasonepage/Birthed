@@ -13,6 +13,7 @@ import { DayPage, monthName } from "./model.js";
 import { escapeHtml } from "./render.js";
 import { cardHighlight, type Highlight } from "./highlight.js";
 import { splitDatePrefix, type DayEvent } from "./timeline.js";
+import { subjectOf, units, viewportFor, voiceFor, type WallDay, type WallStory } from "./wall.js";
 
 
 
@@ -52,8 +53,108 @@ const CANDLE = `<svg width="262" height="458" viewBox="380 120 264 800" xmlns="h
   </g>
 </svg>`;
 
-export function renderShareCard(page: DayPage, highlight: Highlight | null = null): string {
+/**
+ * The hive a card draws, when the date has one with tiles on it: the day,
+ * and where each pictured subject's file is, as an address the card's
+ * browser can load. og.ts hands file addresses into static/, because the
+ * card is screenshotted from a page with no origin and "/covers/x.jpg"
+ * resolves to nothing there.
+ */
+export interface CardHive {
+  day: WallDay;
+  pictures: Map<string, string>;
+}
+
+/**
+ * The card for a date that has a hive: the name on the left, the board on
+ * the right with its covers, so a link to a date looks like the board.
+ * Decided September 10, 2026. The tiles are the stored rectangles through
+ * the same viewport the page uses, drawn once more here rather than by
+ * reusing the page's markup, because the page's tiles are links and forms
+ * inside a container query and a card is a still picture at one size.
+ */
+function hiveCard(page: DayPage, hive: CardHive): string {
   const name = `${monthName(page.month)} ${page.day}`;
+  const day = hive.day;
+  const onWall = day.stories.filter((s) => s.rect !== null && (s.status === "placed" || s.status === "false"));
+  const view = viewportFor(onWall.map((s) => s.rect!));
+  const voice = voiceFor(page.month, page.day);
+  const sealed = day.closedAt !== null || Date.parse(day.closesAt) <= Date.now();
+  const backed = onWall.filter((s) => s.support > 0).length;
+  const tone: Record<WallStory["tier"], string> = { claimed: "#EFE0B8", reported: "#E7A83A", seen_direct: "#B05A0C" };
+  const tiles = onWall.map((s) => {
+    const r = s.rect!;
+    const subject = subjectOf(s);
+    const pic = subject === null ? undefined : hive.pictures.get(subject);
+    const pictured = pic !== undefined;
+    const style = `grid-column:${r.mx - view.ox + 1} / span ${r.w};grid-row:${r.my - view.oy + 1} / span ${r.h};background:${pictured ? `linear-gradient(to top, rgba(20,12,4,.94) 0%, rgba(20,12,4,.55) 50%, rgba(20,12,4,.1) 100%), url(&quot;${escapeHtml(pic)}&quot;) center / cover` : tone[s.tier]}`;
+    const lines = r.h <= 3 ? 3 : r.h === 4 ? 4 : 6;
+    const count = units(s.support, voice);
+    return `<div class="t${pictured || s.tier === "seen_direct" ? " light" : ""}" style="${style};--lines:${lines}"><span class="h">${escapeHtml(s.headline)}</span><span class="f">${count === "" ? "" : `<b>${count}</b> `}${escapeHtml(s.outlet)}</span></div>`;
+  }).join("\n");
+  const few = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
+  const word = (n: number): string => few[n] ?? String(n);
+  const line = sealed
+    ? `What ${onWall.length === 1 ? "one story" : `${onWall.length} stories`} people here thought would still matter. Sealed for good.`
+    : backed > 0
+      ? `${onWall.length} stories on the hive, ${word(backed)} of them ${voice.past}. Open until midnight Eastern.`
+      : `${onWall.length} stories on the hive. Open until midnight Eastern. What people ${voice.past === "buzzed" ? "buzz" : "back"} gets bigger.`;
+
+  return `<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    width: 1200px; height: 630px; overflow: hidden; background: ${INK};
+    color: ${CREAM}; display: flex; align-items: center; gap: 44px; padding: 0 56px 0 72px;
+    font: 400 24px/1.4 -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif; position: relative;
+  }
+  .bloom {
+    position: absolute; left: -260px; top: -300px; width: 900px; height: 900px;
+    border-radius: 50%; background: radial-gradient(circle, rgba(239,86,128,0.30), rgba(239,86,128,0) 60%);
+  }
+  .body { position: relative; flex: 1 1 auto; min-width: 0; }
+  .kicker { font-size: 20px; font-weight: 800; letter-spacing: 0.26em; color: ${ACCENT}; text-transform: uppercase; margin-bottom: 14px; }
+  h1 { font-family: Georgia, "Times New Roman", serif; font-weight: 800; font-size: 88px; line-height: 0.98; letter-spacing: -0.02em; margin-bottom: 8px; }
+  .yr { font-family: Georgia, "Times New Roman", serif; font-size: 40px; color: #EFE0B8; margin-bottom: 26px; }
+  .line { font-size: 24px; line-height: 1.4; color: #C9C2D4; max-width: 24ch; text-wrap: pretty; }
+  .foot { position: absolute; left: 72px; bottom: 42px; color: #7A7280; font-size: 22px; letter-spacing: 0.06em; font-weight: 600; }
+  .board {
+    position: relative; flex: 0 0 540px; width: 540px; height: 540px; padding: 3px; border-radius: 14px; background: #100D16;
+    display: grid; gap: 3px; grid-template-columns: repeat(${view.side}, 1fr); grid-template-rows: repeat(${view.side}, 1fr);
+    box-shadow: inset 0 0 0 1px rgba(255,247,238,.1), 0 30px 60px rgba(0,0,0,.5);
+    --m: ${(534 / view.side).toFixed(2)}px;
+  }
+  .t { position: relative; overflow: hidden; border-radius: 4px; color: #2A1A08; display: flex; flex-direction: column; justify-content: space-between; padding: calc(var(--m) * .16) calc(var(--m) * .18); }
+  .t.light { color: ${CREAM}; justify-content: flex-end; }
+  .t .h {
+    font-family: Georgia, "Times New Roman", serif; font-weight: 700; font-size: calc(var(--m) * .36); line-height: 1.2; text-wrap: pretty;
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--lines, 3); overflow: hidden;
+  }
+  .t .f { font-size: calc(var(--m) * .22); opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: calc(var(--m) * .1); }
+  .t .f b { font-weight: 800; }
+</style></head>
+<body>
+  <div class="bloom"></div>
+  <div class="body">
+    <p class="kicker">The hive for</p>
+    <h1>${name}</h1>
+    <p class="yr">${day.year}</p>
+    <p class="line">${line}</p>
+  </div>
+  <div class="board">
+${tiles}
+  </div>
+  <p class="foot">birthed.app</p>
+</body></html>`;
+}
+
+export function renderShareCard(page: DayPage, highlight: Highlight | null = null, hive: CardHive | null = null): string {
+  const name = `${monthName(page.month)} ${page.day}`;
+  // A date with a hive shows the hive. The card is the one piece of the
+  // site that travels on its own, and the board is the product now.
+  if (hive !== null && hive.day.stories.some((s) => s.rect !== null && (s.status === "placed" || s.status === "false"))) {
+    return hiveCard(page, hive);
+  }
   // No names at all when there is something that happened to say instead.
   //
   // Not a layout preference. The list is ordered by how much attention a

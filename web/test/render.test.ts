@@ -128,6 +128,28 @@ test("a name on the card cannot inject markup either", () => {
   assert.ok(card.includes("&lt;script&gt;"));
 });
 
+test("a date with a hive gets a card that draws the board, with its covers", () => {
+  const story = {
+    id: "11111111-2222-3333-4444-555555555555", wallDate: "2026-09-04", submittedAt: "2026-09-04T05:00:00Z",
+    headline: "1998: Google is founded", url: "https://en.wikipedia.org/wiki/September_4", outlet: "en.wikipedia.org",
+    status: "placed" as const, tier: "claimed" as const, support: 2, priority: 1, placedAt: "2026-09-04T05:15:00Z",
+    rect: { mx: 4, my: 4, w: 4, h: 3 }, falseAt: null, falseNote: null, subjectKind: "song", subjectId: "2007-09-08", sources: [],
+  };
+  const day = { wallDate: "2026-09-04", year: 2026, month: 9, day: 4, opensAt: "2026-09-03T04:00:00Z", liveAt: "2026-09-04T04:00:00Z", closesAt: "2026-09-06T04:00:00Z", closedAt: "2026-09-06T04:00:00Z", stories: [story] };
+  const card = renderShareCard(page, null, { day, pictures: new Map([["song:2007-09-08", "file:///static/covers/abc.jpg"]]) });
+  assert.ok(card.includes("The hive for"));
+  assert.ok(card.includes("September 4"));
+  assert.ok(card.includes("1998: Google is founded"));
+  assert.ok(card.includes("url(&quot;file:///static/covers/abc.jpg&quot;)"), "the cover is on the tile, quoted so the style attribute survives it");
+  assert.ok(card.includes("grid-column:3 / span 4;grid-row:4 / span 3"), "the same viewport the page uses");
+  assert.ok(card.includes("2 buzzes"));
+  assert.ok(card.includes("Sealed for good."));
+  assert.ok(!card.includes("You share it with"));
+  // A hive with nothing placed on it is not a picture, so the ordinary card stands.
+  const bare = renderShareCard(page, null, { day: { ...day, stories: [] }, pictures: new Map() });
+  assert.ok(bare.includes("Born on"));
+});
+
 test("an empty date still produces a card rather than a broken one", () => {
   const card = renderShareCard({ month: 3, day: 3, people: [] });
   assert.ok(card.includes("March 3"));
