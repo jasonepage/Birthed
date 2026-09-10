@@ -6,14 +6,18 @@
 //   node dist/src/wall/check.js --dry          # read and report, write nothing
 //
 // Runs on the worker's schedule, every fifteen minutes, beside the news
-// seeder. For every source on every open wall it fetches the page and writes
-// a check of kind resolves, on every run, including runs that change
-// nothing; then tests whether the page contains the stored quotation by
-// exact string match and writes a check of kind quotation. Exact match only.
-// No model is ever asked whether a quotation matches, and a quotation is
-// never rewritten to make it match. verified_at is set only by a passing
-// quotation check and is cleared by a failing one. A page that changes
-// after a pass gets a new failing row; the old row is never edited.
+// seeder. For every source on every open wall that recheck.ts says is due,
+// it fetches the page and judges a check of kind resolves, then tests
+// whether the page contains the stored quotation by exact string match and
+// judges a check of kind quotation. Exact match only. No model is ever asked
+// whether a quotation matches, and a quotation is never rewritten to make it
+// match. verified_at is set only by a passing quotation check and is cleared
+// by a failing one, on every read, whether or not the read is written down.
+// A read whose result differs from the last recorded one is always written;
+// a page that changes after a pass gets a new failing row and the old row is
+// never edited. A read that says what the last row already says is written
+// only as an occasional heartbeat, so a receipt stays a receipt. The
+// schedule and the heartbeat are recheck.ts, with the reasons.
 //
 // Then, per story, it recomputes the tier through tierFor, graduates stories
 // out of the pool under the pool rules including HOLD_HOURS, and hands the
@@ -21,8 +25,8 @@
 // tried again on the next run. A story stamped false keeps its rectangle and
 // is never grown.
 //
-// Two halves. checkSource and settle are pure and tested; run is the glue
-// that reads, fetches and writes.
+// Two halves. checkSource and settle are pure and tested, as is the policy
+// in recheck.ts; run is the glue that reads, fetches and writes.
 
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -32,6 +36,7 @@ import { allocate, type Rect, type StoryInput, type Tier } from "./allocator.js"
 import { insert, rows, update, type Db } from "./db.js";
 import { fetchPage, ownerOf, pageContains, type Fetched, type OwnerRow } from "./page.js";
 import { eligibleForWall, tierFor } from "./pool.js";
+import { NEVER_CHECKED, dueForCheck, shouldRecord, summarize } from "./recheck.js";
 import { outletOf } from "./url.js";
 
 // ---------------------------------------------------------------------------
@@ -307,12 +312,19 @@ export function settle(
 export interface RunReport {
   dates: string[];
   sourcesChecked: number;
+  /** Sources the schedule left alone this run. Imported sources are not counted either way. */
+  sourcesWaiting: number;
+  /** Check rows written, across every date. */
+  checksWritten: number;
   verified: number;
   failed: number;
   graduated: number;
   overflow: number;
   retiered: number;
 }
+
+/** The columns of a check row the schedule reads. */
+type HistoryRow = Pick<CheckRow, "source_id" | "kind" | "checked_at" | "passed">;
 
 function chunk<T>(items: T[], size: number): T[][] {
   const out: T[][] = [];
@@ -330,7 +342,7 @@ export async function run(db: Db, options: { now?: Date; date?: string; dry?: bo
     ? `wall_date=eq.${options.date}`
     : `closes_at=gt.${encodeURIComponent(at)}&closed_at=is.null`;
   const days = await rows<DayRow>(db, `wall_days?select=wall_date,opens_at,live_at,closes_at,closed_at&${dayFilter}&order=wall_date.asc`);
-  const report: RunReport = { dates: days.map((d) => d.wall_date), sourcesChecked: 0, verified: 0, failed: 0, graduated: 0, overflow: 0, retiered: 0 };
+  const report: RunReport = { dates: days.map((d) => d.wall_date), sourcesChecked: 0, sourcesWaiting: 0, checksWritten: 0, verified: 0, failed: 0, graduated: 0, overflow: 0, retiered: 0 };
   if (days.length === 0) {
     log("wall check: no open dates");
     return report;
@@ -347,27 +359,51 @@ export async function run(db: Db, options: { now?: Date; date?: string; dry?: bo
         `wall_sources?select=id,story_id,url,owner,quotation,verified_at,is_primary_doc,imported&story_id=in.(${ids.join(",")})&order=added_at.asc,id.asc`));
     }
 
-    // Every source, every run. One at a time: these are other people's
-    // servers and the wall is not in a hurry.
+    // What the rows already say about each source, so the schedule can ask
+    // when it was last read and what it said. Only the columns the policy
+    // reads; the detail column is the bulk of a row and is not needed here.
+    // Every row for the day's sources is read rather than the newest few,
+    // because the policy also needs to know whether a source has ever
+    // passed, and the volume is bounded by the policy itself once the rows
+    // written before it age out with their walls.
+    const priorChecks: HistoryRow[] = [];
+    for (const ids of chunk(sources.filter((s) => !s.imported).map((s) => s.id), 80)) {
+      priorChecks.push(...await rows<HistoryRow>(db,
+        `wall_checks?select=source_id,kind,checked_at,passed&source_id=in.(${ids.join(",")})&order=checked_at.asc,id.asc`));
+    }
+    const histories = summarize(priorChecks);
+
+    // One at a time: these are other people's servers and the wall is not
+    // in a hurry. Which sources are read at all is recheck.ts's decision.
     const checks: CheckRow[] = [];
+    let dueCount = 0;
     for (const source of sources) {
       // An imported source is the importer's own citation, read once when
       // the row was written. It is not fetched again and its verification
       // stands; the receipt says so. docs/the-wall.md section 13.
       if (source.imported) continue;
+      const history = histories.get(source.id) ?? NEVER_CHECKED;
+      if (!dueForCheck(history, source.verified_at, day.closes_at, at)) {
+        report.sourcesWaiting += 1;
+        continue;
+      }
       const fetched = await fetchPage(source.url, userAgent);
       const judged = checkSource(source, fetched, at);
-      checks.push(...judged.checks);
+      if (shouldRecord(history, judged.checks)) checks.push(...judged.checks);
+      dueCount += 1;
       report.sourcesChecked += 1;
       if (judged.verifiedAt !== null) report.verified += 1; else report.failed += 1;
       const before = source.verified_at;
       source.verified_at = judged.verifiedAt;
       // A pass moves verified_at to this check; a fail clears it. A fail on a
-      // source that was already clear writes nothing.
+      // source that was already clear writes nothing. This happens whether
+      // or not the check earned a row: for a passing source verified_at is
+      // also how the schedule knows when the page was last read.
       if (!options.dry && before !== judged.verifiedAt) {
         await update(db, "wall_sources", `id=eq.${source.id}`, { verified_at: judged.verifiedAt });
       }
     }
+    report.checksWritten += checks.length;
     if (!options.dry) {
       for (const batch of chunk(checks, 200)) await insert(db, "wall_checks", batch);
     }
@@ -395,7 +431,7 @@ export async function run(db: Db, options: { now?: Date; date?: string; dry?: bo
       }
     }
 
-    log(`wall check ${day.wall_date}: ${sources.length} sources, ${stories.length} stories, `
+    log(`wall check ${day.wall_date}: ${sources.length} sources, ${dueCount} read, ${checks.length} check rows written, ${stories.length} stories, `
       + `${settled.stories.filter((u) => u.status === "placed" && u.placed_at !== undefined).length} graduated, `
       + `${settled.stories.filter((u) => u.status === "overflow").length} overflow, ${settled.owners.length} owners corrected`
       + (options.dry ? " (dry, nothing written)" : ""));
@@ -419,7 +455,8 @@ async function main(): Promise<void> {
   const config = loadConfig({ needsWrite: !dry });
   const db: Db = { url: config.supabaseUrl, key: config.serviceRoleKey };
   const report = await run(db, { date: argument(args, "date"), dry, userAgent: config.userAgent });
-  console.log(`checked ${report.sourcesChecked} sources on ${report.dates.length} dates: ${report.verified} verified, ${report.failed} not, `
+  console.log(`checked ${report.sourcesChecked} sources on ${report.dates.length} dates, ${report.sourcesWaiting} not yet due, `
+    + `${report.checksWritten} check rows written: ${report.verified} verified, ${report.failed} not, `
     + `${report.graduated} graduated, ${report.overflow} overflow, ${report.retiered} changed tier`);
 }
 
