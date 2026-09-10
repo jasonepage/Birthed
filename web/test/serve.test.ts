@@ -535,7 +535,7 @@ test("a tap posts to the database, comes back to the date with its word, sets th
   const page = await landed.text();
   assert.ok(page.includes("Fresh headline from the live read"));
   assert.ok(page.includes('id="wkept"'), "the sentence for the word is on the page");
-  assert.ok(page.includes('.wleft::after{content:"Two taps left today."}'), "the count is this browser's own");
+  assert.ok(page.includes('.wleft::after{content:"Two buzzes left today."}'), "the count is this browser's own");
   assert.ok(page.includes("#w-11111111-1111-1111-1111-111111111111 .wmine{display:block}"), "the tapped story carries the reader's mark");
   assert.equal(calls.filter((c) => c.url.includes("wall_days")).length, 1, "the read went past the cache");
   const asked = calls.find((c) => c.url.endsWith("/rpc/wall_web_standing"))!;

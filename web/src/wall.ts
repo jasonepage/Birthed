@@ -328,14 +328,66 @@ export function tierMeaning(tier: WallTier): string {
   return "Somebody said it and nobody has confirmed it.";
 }
 
+// ---------------------------------------------------------------------------
+// The voice
+// ---------------------------------------------------------------------------
+
 /**
- * How many taps a story has, in the words a reader used to give them. A
- * story nobody has backed says nothing about taps at all: "0 boosts" on
- * seventy tiles was the whole of what the first wall communicated.
+ * The words the wall uses for one unit of support. Decided September 10,
+ * 2026: the mascot is a bee, so on the web a unit is a buzz. "You buzzed
+ * this", "Two buzzes left today", a button that says Buzz. The word is one
+ * place so the whole page changes together, and so it can be turned off.
  */
-export function units(n: number): string {
+export interface Voice {
+  /** The verb on the button: "Buzz", "Back this". */
+  button: string;
+  /** One unit, and more than one: "buzz", "buzzes". */
+  one: string;
+  many: string;
+  /** What the reader did: "buzzed", "backed". */
+  past: string;
+  /** The verb that opens the sentence above the board: "Buzz", "Tap". */
+  imperative: string;
+}
+
+export const BEE: Voice = { button: "Buzz", one: "buzz", many: "buzzes", past: "buzzed", imperative: "Buzz" };
+export const PLAIN: Voice = { button: "Back this", one: "tap", many: "taps", past: "backed", imperative: "Tap" };
+
+/**
+ * Dates that speak plainly. docs/the-wall.md section 9 left solemn dates
+ * open, with a curated list as one of the two options. This is that list,
+ * for the voice only: the wall still opens, still takes support, still
+ * seals. It only stops making the pun. Month and day, keyed the way the
+ * rest of the build keys a date. A start, to be edited by a person, and
+ * September 11 is the one the documents name.
+ */
+export const PLAIN_DATES: ReadonlySet<string> = new Set([
+  "9-11",  // September 11 attacks
+  "12-7",  // Pearl Harbor
+  "4-19",  // Oklahoma City
+  "4-20",  // Columbine
+  "12-14", // Sandy Hook
+  "6-12",  // Pulse
+  "10-1",  // Las Vegas
+  "5-24",  // Uvalde
+]);
+
+export function voiceFor(month: number, day: number): Voice {
+  return PLAIN_DATES.has(wallKey(month, day)) ? PLAIN : BEE;
+}
+
+function voiceOf(day: WallDay): Voice {
+  return voiceFor(day.month, day.day);
+}
+
+/**
+ * How much support a story has, in the reader's own word for it. A story
+ * nobody has backed says nothing at all: "0 boosts" on seventy tiles was
+ * the whole of what the first wall communicated.
+ */
+export function units(n: number, voice: Voice = BEE): string {
   if (n <= 0) return "";
-  return n === 1 ? "1 tap" : `${n} taps`;
+  return n === 1 ? `1 ${voice.one}` : `${n} ${voice.many}`;
 }
 
 // Built on first use rather than at module load. serve.ts imports render.ts,
@@ -393,67 +445,80 @@ function tileClass(rect: { w: number; h: number }): string {
   return "tiny";
 }
 
-/** The fields a tap posts: the story, and the date page to come back to. */
+/** The fields a buzz posts: the story, and the date page to come back to. */
 function tapFields(story: WallStory): string {
   const { month, day } = parts(story.wallDate);
   return `<input type="hidden" name="s" value="${story.id}"><input type="hidden" name="m" value="${month}"><input type="hidden" name="d" value="${day}">`;
 }
 
 /** The reader's own mark, hidden until wallMarks reveals it for the stories this browser backed. */
-const MINE = `<span class="wmine">You backed this</span>`;
-
-function footer(story: WallStory, live: boolean): string {
-  const outlet = live
-    ? `<a class="wo" href="${storyPath(story)}" title="The receipt: every source, every quotation, every check">${escapeHtml(story.outlet)}</a>`
-    : `<span class="wo">${escapeHtml(story.outlet)}</span>`;
-  const count = units(story.support);
-  // The count first, because it is the thing a tap changes, then the
-  // outlet, cut with an ellipsis when the tile is narrow. No tier chip: the
-  // tile's colour is its tier, the legend says so, and a chip beside the
-  // outlet was what pushed a phone tile down to one line of headline.
-  return `${MINE}<span class="wfoot">${count === "" ? "" : `<span class="wn">${count}</span>`}${outlet}</span>`;
+function mine(voice: Voice): string {
+  return `<span class="wmine">You ${voice.past} this</span>`;
 }
 
 /**
- * One tile. While the date is taking taps the headline is a button that
- * posts one unit; otherwise the whole tile links to its receipt. Either
- * way it sits at the anchor the server stored, at the size it stored.
+ * The one control that spends a unit: a small form with one button, in the
+ * tile's footer or at the end of a row. Decided September 10, 2026, after
+ * the first person to use the wall could not find the receipt: the
+ * headline had been the tap and the outlet name the link, and nobody
+ * guesses that. A headline opens the story, because that is what a
+ * headline does everywhere else, and the thing that votes says what it is.
  */
-function tile(story: WallStory, live: boolean): string {
+function buzzForm(story: WallStory, voice: Voice): string {
+  return `<form class="wbuzz" method="post" action="/boost">${tapFields(story)}`
+    + `<button type="submit" aria-label="${escapeHtml(`${voice.button}: ${story.headline}`)}">${voice.button}</button></form>`;
+}
+
+function footer(story: WallStory, live: boolean, voice: Voice): string {
+  const count = units(story.support, voice);
+  // The control first, then the count it changes, then the outlet, cut with
+  // an ellipsis when the tile is narrow. No tier chip: the tile's colour is
+  // its tier, the legend says so, and a chip beside the outlet was what
+  // pushed a phone tile down to one line of headline.
+  return `<span class="wfoot">${live ? buzzForm(story, voice) : ""}${count === "" ? "" : `<span class="wn">${count}</span>`}<span class="wo">${escapeHtml(story.outlet)}</span></span>`;
+}
+
+/**
+ * One tile. The headline links to the receipt. While the date is taking
+ * support, a button in the footer spends one unit. Either way it sits at
+ * the anchor the server stored, at the size it stored.
+ */
+function tile(story: WallStory, live: boolean, voice: Voice): string {
   const rect = story.rect!;
   const size = tileClass(rect);
-  const count = units(story.support);
+  const count = units(story.support, voice);
   const label = `${story.headline}. ${story.outlet}. ${tierLabel(story.tier)}${count === "" ? "" : `, ${count}`}.`
     + (story.status === "false" ? " Later shown false." : "");
   // How many lines of headline the height allows, a hint the stylesheet
-  // reads. Three modules hold four lines on a phone; taller tiles hold more.
+  // reads. Three modules hold three lines on a phone and four on a desktop;
+  // taller tiles hold more.
   const lines = rect.h <= 3 ? 3 : rect.h === 4 ? 5 : rect.h === 5 ? 7 : rect.h === 6 ? 9 : 11;
   const style = `grid-column:${rect.mx + 1} / span ${rect.w};grid-row:${rect.my + 1} / span ${rect.h};--lines:${lines}`;
   const stamp = story.status === "false" ? `<span class="wstamp">Shown false</span>` : "";
   const classes = `wtile ${size} w-${story.tier}${rect.h <= 3 ? " wh3" : ""}${story.status === "false" ? " wfalse" : ""}`;
-  const headline = size === "tiny"
-    ? `<span class="wn">${count}</span>`
-    : size === "small"
-      ? `<span class="wo">${escapeHtml(story.outlet)}</span> <span class="wn">${count}</span>`
-      : `<span class="wh">${escapeHtml(story.headline)}</span>`;
+  const receipt = storyPath(story);
 
-  if (live && story.status !== "false") {
-    return `<form class="${classes}" id="w-${story.id}" method="post" action="/boost" style="${style}" title="${escapeHtml(label)} Tap to back it.">${tapFields(story)}`
-      + `<button type="submit" class="wtap" aria-label="${escapeHtml(`Back this: ${story.headline}`)}">${headline}</button>`
-      + `${size === "tiny" || size === "small" ? MINE : footer(story, true)}${stamp}</form>`;
+  if (size === "tiny" || size === "small") {
+    // A stored rectangle from before the minimum existed. Too small for a
+    // headline; it links to its receipt and takes no control.
+    const inner = size === "tiny"
+      ? `<span class="wn">${count}</span>`
+      : `<span class="wo">${escapeHtml(story.outlet)}</span> <span class="wn">${count}</span>`;
+    return `<a class="${classes}" id="w-${story.id}" href="${receipt}" style="${style}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${inner}${stamp}</a>`;
   }
-  return `<a class="${classes}" id="w-${story.id}" href="${storyPath(story)}" style="${style}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">`
-    + `${headline}${size === "tiny" || size === "small" ? "" : footer(story, false)}${stamp}</a>`;
+
+  const takes = live && story.status !== "false";
+  return `<div class="${classes}" id="w-${story.id}" style="${style}" role="listitem">`
+    + `<a class="wh" href="${receipt}" title="${escapeHtml(label)} The receipt: every source, every quotation, every check.">${escapeHtml(story.headline)}</a>`
+    + `${mine(voice)}${footer(story, takes, voice)}${stamp}</div>`;
 }
 
-/** One row in the list under the board, a tap while the date takes them. */
-function listRow(story: WallStory, live: boolean): string {
-  const count = units(story.support);
-  const meta = `<span class="wmeta">${live ? `<a href="${storyPath(story)}" title="The receipt">${escapeHtml(story.outlet)}</a>` : escapeHtml(story.outlet)} ${chip(story.tier)}${count === "" ? "" : ` ${count}`}${MINE}</span>`;
-  if (live) {
-    return `<li id="w-${story.id}"><form class="wrow" method="post" action="/boost">${tapFields(story)}<button type="submit" class="wtapl" aria-label="${escapeHtml(`Back this: ${story.headline}`)}">${escapeHtml(story.headline)}</button></form> ${meta}</li>`;
-  }
-  return `<li id="w-${story.id}"><a href="${storyPath(story)}">${escapeHtml(story.headline)}</a> ${meta}</li>`;
+/** One row in the list under the board. The headline opens the receipt; the button spends a unit while the date takes them. */
+function listRow(story: WallStory, live: boolean, voice: Voice): string {
+  const count = units(story.support, voice);
+  const meta = `<span class="wmeta">${escapeHtml(story.outlet)} ${chip(story.tier)}${count === "" ? "" : ` ${count}`}${mine(voice)}</span>`;
+  const control = live && story.status !== "false" ? ` ${buzzForm(story, voice)}` : "";
+  return `<li id="w-${story.id}"><a href="${storyPath(story)}">${escapeHtml(story.headline)}</a> ${meta}${control}</li>`;
 }
 
 function stateLine(day: WallDay, now: number): string {
@@ -533,29 +598,29 @@ const WORDS = ["No", "One", "Two", "Three", "Four"];
  * shared, cached section carries the allowance and the browser's own number
  * lands on top of it.
  */
-export function tapsLeftSentence(left: number, allowance: number): string {
+export function tapsLeftSentence(left: number, allowance: number, voice: Voice = BEE): string {
   const n = Math.max(0, Math.min(left, WORDS.length - 1));
   const word = WORDS[n]!;
-  const tap = n === 1 ? "tap" : "taps";
+  const tap = n === 1 ? voice.one : voice.many;
   // One is the allowance on the day after the date, section 4, and that is
   // the page whose count needs "on this date" to make sense: the reader may
   // still have three on today's.
   const yesterday = allowance === 1;
-  if (n === 0) return yesterday ? "No taps left today on this date." : "No taps left today.";
+  if (n === 0) return yesterday ? `No ${voice.many} left today on this date.` : `No ${voice.many} left today.`;
   return yesterday ? `${word} ${tap} left today on this date. It closes tonight.` : `${word} ${tap} left today.`;
 }
 
-function countLine(day: WallDay, now: number): string {
+function countLine(day: WallDay, now: number, voice: Voice): string {
   if (!takingBoosts(day, now)) {
-    // Open for submissions, not yet for taps: the day before.
+    // Open for submissions, not yet for support: the day before.
     if (now >= Date.parse(day.opensAt) && now < Date.parse(day.liveAt)) {
-      return `<p class="wcount">Taps start when the date arrives, at midnight Eastern.</p>`;
+      return `<p class="wcount">${voice === BEE ? "Buzzing" : "Taps"} start${voice === BEE ? "s" : ""} when the date arrives, at midnight Eastern.</p>`;
     }
     return "";
   }
   const allowance = allowanceOn(day, now);
   return `<p class="wcount"><span class="wleft"></span></p>` +
-    `<style>.wleft::after{content:"${tapsLeftSentence(allowance, allowance)}"}</style>`;
+    `<style>.wleft::after{content:"${tapsLeftSentence(allowance, allowance, voice)}"}</style>`;
 }
 
 /**
@@ -566,14 +631,15 @@ function countLine(day: WallDay, now: number): string {
  * included, because a tap can be refused on a date that closed after the
  * page was served, and that reader lands on the baked page.
  */
-function afterwords(): string {
+function afterwords(voice: Voice): string {
+  const v = voice;
   return `<div class="wsaids">
 <p class="wsaid" id="wkept">That counts. <span class="wleft"></span> The square redraws on the quarter hour, so a bigger tile takes a few minutes to show; your mark on it is there now.</p>
-<p class="wsaid" id="walready">You already backed that one, on this browser. It did not spend a tap.</p>
-<p class="wsaid" id="wspent">That is every tap you have on this date today, so that one did not count. It is still a good story to have picked.</p>
-<p class="wsaid" id="wnotyet">Not yet. A date takes taps from the day itself, and this one has not arrived.</p>
-<p class="wsaid" id="wclosed">This wall has closed and is permanent now. That tap arrived after midnight and was not counted.</p>
-<p class="wsaid" id="wfalse">That story was later shown false. It keeps its place on the wall and takes no taps.</p>
+<p class="wsaid" id="walready">You already ${v.past} that one, on this browser. It did not spend a ${v.one}.</p>
+<p class="wsaid" id="wspent">That is every ${v.one} you have on this date today, so that one did not count. It is still a good story to have picked.</p>
+<p class="wsaid" id="wnotyet">Not yet. A date takes ${v.many} from the day itself, and this one has not arrived.</p>
+<p class="wsaid" id="wclosed">This wall has closed and is permanent now. That ${v.one} arrived after midnight and was not counted.</p>
+<p class="wsaid" id="wfalse">That story was later shown false. It keeps its place on the wall and takes no ${v.many}.</p>
 <p class="wsaid" id="wfailed">That did not save, and it was this end rather than yours. The date is fine. Try it again.</p>
 </div>`;
 }
@@ -581,41 +647,40 @@ function afterwords(): string {
 function wallBody(day: WallDay | null, name: string, now: number, options: WallOptions): string {
   if (day === null) return "";
   const live = options.interactive === true && takingBoosts(day, now);
+  const voice = voiceOf(day);
   const onWall = day.stories.filter((s) => s.rect !== null && (s.status === "placed" || s.status === "false"));
   const pool = day.stories.filter((s) => s.status === "pool");
   const overflow = day.stories.filter((s) => s.status === "overflow");
-  const tiles = onWall.map((s) => tile(s, live)).join("\n");
+  const tiles = onWall.map((s) => tile(s, live, voice)).join("\n");
   const empty = onWall.length === 0
     ? `<p class="wempty">Nothing on the wall yet. Stories wait in the pool until a source page has been read and found to say what the tile says.</p>`
     : "";
 
   const poolList = pool.length > 0
     ? `<h3 class="wsub">In the pool, not on the wall</h3>
-<p class="wnote">Waiting for a source to check out${live ? ", or for the square to have room. A tap here counts the same as one on the square" : ""}.</p>
+<p class="wnote">Waiting for a source to check out${live ? `, or for the square to have room. A ${voice.one} here counts the same as one on the square` : ""}.</p>
 <ul class="wlist">
-${pool.map((s) => listRow(s, live)).join("\n")}
+${pool.map((s) => listRow(s, live, voice)).join("\n")}
 </ul>`
     : "";
   const overflowList = overflow.length > 0
     ? `<h3 class="wsub">Earned a place, found no room, not on the wall</h3>
-<p class="wnote">The square was full when these qualified. They keep their receipts${live ? ", and a tap here still counts" : ""}.</p>
+<p class="wnote">The square was full when these qualified. They keep their receipts${live ? `, and a ${voice.one} here still counts` : ""}.</p>
 <ul class="wlist">
-${overflow.map((s) => listRow(s, live)).join("\n")}
+${overflow.map((s) => listRow(s, live, voice)).join("\n")}
 </ul>`
     : "";
 
   const lede = live
-    ? `Tap the stories you think will still matter about ${escapeHtml(name)} years from now. Each tap makes its story bigger on the square, and you get a few taps a day.`
+    ? `${voice.imperative} the stories you think will still matter about ${escapeHtml(name)} years from now. Each ${voice.one} makes its story bigger on the square, and you get a few a day.`
     : `What people here think will still matter about ${escapeHtml(name)}. Each story is a link to a source, in the source's own words. Support decides how much of the square it takes.`;
-  const receipts = live
-    ? ` The outlet name on a tile opens its receipt: every source, every quotation, every check.`
-    : "";
+  const receipts = ` A headline opens its receipt: every source, every quotation, every check.`;
 
   return `<section class="wall" aria-labelledby="wallhead">
 <h2 class="section" id="wallhead">The wall for ${escapeHtml(longDate(day))}</h2>
 <p class="wstate">${stateLine(day, now)}</p>
 <p class="wlede">${lede}</p>
-${countLine(day, now)}${afterwords()}
+${countLine(day, now, voice)}${afterwords(voice)}
 <div class="wboard" role="list" aria-label="The wall, a square of ${onWall.length} stories">
 ${tiles}
 </div>
@@ -647,14 +712,14 @@ ${poolList}${overflowList}
 export function wallMarks(standing: { left: number; allowance: number; backed: string[] }, day: WallDay, now: number): string {
   const rules: string[] = [];
   if (takingBoosts(day, now)) {
-    const sentence = tapsLeftSentence(standing.left, standing.allowance);
+    const sentence = tapsLeftSentence(standing.left, standing.allowance, voiceOf(day));
     rules.push(`.wleft::after{content:"${sentence}"}`);
   }
   for (const id of standing.backed) {
     if (!/^[0-9a-f-]{36}$/.test(id)) continue;
     // The mark takes a line, so the headline gives one up rather than
     // showing the top of a line it cannot finish.
-    rules.push(`#w-${id} .wmine{display:block}#w-${id} .wmeta .wmine{display:inline}#w-${id} .wh{-webkit-line-clamp:calc(var(--lines, 3) - 1)}#w-${id}{outline:2px solid var(--day-soft, #C4AEFF);outline-offset:-2px}`);
+    rules.push(`#w-${id} .wmine{display:block}#w-${id} .wmeta .wmine{display:inline}#w-${id} .wh{-webkit-line-clamp:calc(var(--lines, 3) - 1)}#w-${id}{outline:3px solid var(--wink, #2A1A08);outline-offset:-3px}`);
   }
   if (rules.length === 0) return "";
   return `<style>${rules.join("")}</style>`;
@@ -712,7 +777,7 @@ export function storyBody(story: WallStory, day: WallDay): string {
 <h1 class="wtitle">${escapeHtml(story.headline)}</h1>
 <p class="wlink"><a href="${escapeHtml(story.url)}" rel="nofollow noopener">${escapeHtml(story.url)}</a></p>
 <p class="wfacts">${chip(story.tier)} ${escapeHtml(tierMeaning(story.tier))} A tier is not a verdict.</p>
-<p class="wfacts">${units(story.support) === "" ? "Nobody has backed it yet." : `${units(story.support)}.`} Submitted ${escapeHtml(eastern(story.submittedAt))}.${story.placedAt ? ` Placed ${escapeHtml(eastern(story.placedAt))}.` : ""}</p>
+<p class="wfacts">${units(story.support, voiceFor(month, d)) === "" ? "Nobody has backed it yet." : `${units(story.support, voiceFor(month, d))}.`} Submitted ${escapeHtml(eastern(story.submittedAt))}.${story.placedAt ? ` Placed ${escapeHtml(eastern(story.placedAt))}.` : ""}</p>
 <p class="wfacts">${status}</p>
 ${falseNote}
 <h2 class="section">Sources</h2>
@@ -736,22 +801,27 @@ export const WALL_STYLE = `
   padding: 2px; box-sizing: border-box; border-radius: 10px; background: #100D16;
   box-shadow: inset 0 0 0 1px rgba(255, 247, 238, .08);
 }
+/* Honey. Decided September 10, 2026: the tile's colour is its tier, and the
+   three tiers are three tones of the same hive, pale wax for claimed, amber
+   for reported, deep honey for seen directly. Every seeded story is claimed,
+   so a wall drawn in the day's hue was a grey square on a black page. Wax
+   is the candle's own colour, so the site keeps one palette. */
 .wtile {
   position: relative; display: block; min-width: 0; min-height: 0; overflow: hidden;
-  border-radius: 3px; text-decoration: none; color: #FFF7EE; box-sizing: border-box;
-  background: #2A2338;
+  border-radius: 3px; text-decoration: none; color: #2A1A08; box-sizing: border-box;
+  background: #EFE0B8; --wink: #2A1A08; --wbtn: #2A1A08; --wbtn-ink: #FFE9B0; --wmark: #8A3F05;
 }
-.wtile.w-claimed { background: #2E2740; }
-.wtile.w-reported { background: var(--day, #8B5CF6); }
-.wtile.w-seen_direct { background: var(--day-soft, #C4AEFF); color: #17121F; }
-.wtile:hover { outline: 2px solid #FFF7EE; outline-offset: -2px; }
+.wtile.w-claimed { background: #EFE0B8; }
+.wtile.w-reported { background: #E7A83A; }
+.wtile.w-seen_direct { background: #B05A0C; color: #FFF3DC; --wink: #FFF3DC; --wbtn: #FFE9B0; --wbtn-ink: #2A1A08; --wmark: #FFE9B0; }
+.wtile:hover { outline: 2px solid var(--wink); outline-offset: -2px; }
 .wchip {
   display: inline-block; padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 700;
   letter-spacing: .04em; text-transform: uppercase; vertical-align: middle;
 }
-.wchip.w-claimed { background: #2E2740; color: #C9C2D4; }
-.wchip.w-reported { background: var(--day, #8B5CF6); color: #FFF7EE; }
-.wchip.w-seen_direct { background: var(--day-soft, #C4AEFF); color: #17121F; }
+.wchip.w-claimed { background: #EFE0B8; color: #2A1A08; }
+.wchip.w-reported { background: #E7A83A; color: #2A1A08; }
+.wchip.w-seen_direct { background: #B05A0C; color: #FFF3DC; }
 .wempty, .wlegend, .wnote { font-size: 13px; color: #827B75; line-height: 1.45; }
 .wlegend { margin: 10px 0 0; }
 .wlegend .wchip { margin-right: 4px; }
@@ -791,28 +861,28 @@ export const WALL_STYLE = `
 .wtile.mid .wtile.wfalse { opacity: .55; }
 .wstamp {
   position: absolute; left: 0; right: 0; bottom: 0; padding: 2px 4px; font-size: 9px; font-weight: 800;
-  letter-spacing: .06em; text-transform: uppercase; background: #FFF7EE; color: #2A0B15; text-align: center;
+  letter-spacing: .06em; text-transform: uppercase; background: #2A1A08; color: #FFF3DC; text-align: center;
 }
 
 /* Boosting from the web, docs/the-wall.md section 13. Later than everything
    above on purpose: several of these override rules written for tiles that
    were links. */
-/* A tile that takes taps is a form: the headline is the button, the outlet
-   name is the link to the receipt. Both are reset to read as the tile did. */
-form.wtile { margin: 0; }
-.wtap {
-  display: block; width: 100%; flex: 1 1 auto; min-height: 0; margin: 0; padding: 0; border: 0;
-  background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; overflow: hidden;
+/* The headline is a link to the receipt and looks like the headline it was.
+   The one control that spends a unit is a small button in the footer. */
+.wtile .wh, .wtile .wh:hover { color: inherit; text-decoration: none; }
+.wtile .wh:hover { text-decoration: underline; text-decoration-color: rgba(42, 26, 8, .5); text-underline-offset: 2px; }
+.wtile .wh:focus-visible { outline: 2px solid var(--wink); outline-offset: 2px; border-radius: 2px; }
+.wbuzz { display: inline; margin: 0; flex: none; }
+.wbuzz button {
+  margin: 0; padding: 1px 7px; border: 0; border-radius: 999px; cursor: pointer;
+  background: var(--wbtn, #2A1A08); color: var(--wbtn-ink, #FFE9B0); font: inherit; font-weight: 800; line-height: 1.4;
 }
-.wtap:focus-visible { outline: 2px solid #FFF7EE; outline-offset: 2px; border-radius: 2px; }
-.wtile a.wo { color: inherit; text-decoration: underline; text-decoration-color: rgba(255, 247, 238, .35); text-underline-offset: 2px; }
-.wtile a.wo:hover { text-decoration-color: currentColor; }
+.wbuzz button:hover { filter: brightness(1.15); }
+.wbuzz button:focus-visible { outline: 2px solid var(--wink, #2A1A08); outline-offset: 2px; }
 /* The reader's own mark, revealed by wallMarks on the stories this browser
-   backed. A line of its own inside the tile, in the day's colour, so it
-   covers nothing and costs the reader one line of a headline they already
-   read. */
-.wmine { display: none; font-weight: 800; color: var(--day-soft, #C4AEFF); font-size: clamp(8px, 1.9cqi, 11px); line-height: 1.3; flex: none; }
-.wtile.w-seen_direct .wmine, .wtile.w-reported .wmine { color: #FFF7EE; }
+   backed. A line of its own inside the tile, so it covers nothing and costs
+   the reader one line of a headline they already read. */
+.wmine { display: none; font-weight: 800; color: var(--wmark, #8A3F05); font-size: clamp(8px, 1.9cqi, 11px); line-height: 1.3; flex: none; }
 .wboard { container-type: inline-size; }
 .wtile.mid, .wtile.big { gap: 2px; }
 .wtile.mid .wh, .wtile.big .wh { font-size: clamp(10px, 2.4cqi, 14px); -webkit-line-clamp: var(--lines, 3); }
@@ -820,8 +890,9 @@ form.wtile { margin: 0; }
   flex: none; flex-wrap: nowrap; white-space: nowrap; overflow: hidden; margin-top: 0; min-width: 0;
   font-size: clamp(8px, 1.8cqi, 11px);
 }
-.wfoot .wo { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.wfoot .wo { min-width: 0; overflow: hidden; text-overflow: ellipsis; opacity: .8; }
 .wfoot .wn { flex: none; font-weight: 700; }
+.wfoot .wbuzz button { font-size: clamp(8px, 1.9cqi, 11px); }
 @container (min-width: 480px) { .wtile.wh3 { --lines: 4; } }
 .wcount { margin: 0 0 12px; font-size: 15px; font-weight: 600; color: #E9E1DB; }
 .wsaid {
@@ -829,13 +900,8 @@ form.wtile { margin: 0; }
   background: #171227; border: 1px solid #2A2434; color: #E9E1DB; font-size: 14px; line-height: 1.5;
 }
 .wsaid:target { display: block; }
-.wrow { display: inline; margin: 0; }
-.wtapl {
-  margin: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-weight: 600;
-  text-align: left; cursor: pointer;
-}
-.wtapl:hover { text-decoration: underline; }
-.wtapl:focus-visible { outline: 2px solid #FFF7EE; outline-offset: 2px; border-radius: 2px; }
-.wlist .wmeta a { color: inherit; }
+.wlist li { --wbtn: #E7A83A; --wbtn-ink: #2A1A08; --wmark: #E7A83A; --wink: #E7A83A; }
+.wlist .wbuzz { margin-left: 6px; }
+.wlist .wbuzz button { font-size: 12px; padding: 2px 9px; }
 .wlist .wmine { margin-left: 6px; }
 `;
