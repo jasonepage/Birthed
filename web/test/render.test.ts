@@ -1206,7 +1206,7 @@ test("the first ask stays away from years with no record beside them", () => {
 test("the about page explains what the site does before what is on a page", () => {
   const html = renderHome(2026, []);
   // The thesis, in the headline rather than four screens down.
-  assert.ok(html.includes("Birthed</span> records what stuck"));
+  assert.ok(html.includes("Birthed</span> keeps what mattered"));
   // The underline needs its own colour named. The headline is painted with a
   // gradient and its text colour is transparent, so an underline left on
   // currentColor is drawn in transparent and nothing appears under the word.
@@ -1249,7 +1249,7 @@ test("the link preview says what the site does, not what is on a page", () => {
   const html = renderHome(2026, []);
   // A description that disagreed with the page would be the one thing most
   // people read before deciding whether to open it.
-  assert.match(html, /<meta name="description" content="Every date on the calendar opens for three days a year\./);
+  assert.match(html, /<meta name="description" content="Every date has a hive\./);
 });
 
 

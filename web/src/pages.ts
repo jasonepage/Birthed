@@ -198,7 +198,7 @@ export function renderHome(
     // they read before deciding. It said what is on a page. It now says what
     // the site does, because the page itself no longer leads with the feature
     // list either and the two should not disagree.
-    "Every date on the calendar opens for three days a year. Whoever turns up says what they remember of it, and then the date seals until next year. Wikipedia records what happened. Birthed records what stuck.",
+    "Every date has a hive. Everything with a birthday on it is on one feed, whoever turns up buzzes what they think will still matter, and at midnight it seals for good. History is written the day it happens. Birthed keeps what mattered.",
     canonical,
     // The card. Every date page has had one since it was built and the home
     // page never did, so this was the one page on the site that shared as a
@@ -221,7 +221,7 @@ ${topBar()}
 <div class="col">
 <section class="hero">
   <div class="herotext">
-    <h1>Wikipedia records what happened. <span class="glow"><span class="brandword">Birthed</span> records what stuck.</span></h1>
+    <h1>History is written the day it happens. <span class="glow"><span class="brandword">Birthed</span> keeps what mattered.</span></h1>
     <p class="lede">Every date has a hive. Everything with a birthday on it, the day's news and everything that ever happened on it, is on one feed, and whoever turns up buzzes what they think will still matter. The most buzzed take the hive, and at midnight it seals for good.</p>
     <p class="actions">
       ${storeButton()}
