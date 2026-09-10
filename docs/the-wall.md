@@ -726,3 +726,37 @@ still ahead. Nothing writes to `wall_outcomes`. The iOS app was not touched:
 `WallBoard` draws the stored rectangles and needs no change to draw the new
 sizes, and its boost control still offers one, two or three units, which is
 section 4 and stays.
+
+**Revised the same evening, after the first real use.** Three things changed
+once a person had used the wall on birthed.app.
+
+The headline opens the receipt and a button spends the unit. The first
+version made the headline the tap and the outlet name the link, and the first
+person to use it could not find the receipt and did not want to spend a tap
+to look. A headline opens the story because that is what a headline does
+everywhere else, and the thing that votes now says what it is, in the footer
+of every tile and at the end of every row. The rule in CLAUDE.md about a
+second control doing the first one's job is about a value with a change
+button under it; here reading and voting are two different acts and get two
+controls.
+
+The unit is a buzz. The mascot is a bee, so on the web the button says Buzz,
+the count says "Two buzzes left today", and the mark says "You buzzed this".
+`Voice` in web/src/wall.ts is the one place the word lives. `PLAIN_DATES` is
+the list of dates that do not make the pun: September 11 and a handful of
+others, where the wall still opens, still takes support and still seals, and
+speaks plainly, "tap", "back this", "you backed this". This is the curated
+list section 9 named as one of its two options, applied to the voice and to
+nothing else; whether those dates should also render static stays open. The
+list is a start and is meant to be edited by a person.
+
+The tiles are honey. Every seeded story is at the claimed tier, and claimed
+was the dark grey, so the square was grey on black. The three tiers are now
+three tones of one hive: pale wax for claimed, amber for reported, deep honey
+for seen directly. The colour still does the tier's job, the legend still says
+so, and wax is the candle's own colour, so the site keeps one palette. Honey
+as a reward for backing stories that last was raised and is not built: section
+6 and section 8 refuse any score, and the anniversary outcomes that would feed
+one are a year away. The shape that keeps the rule, if it is ever built, is a
+private mark on the sealed page, "you backed this and it held", shown only to
+the browser that made it and never as a number.
