@@ -139,7 +139,7 @@ final class WallTests: XCTestCase {
         XCTAssertEqual(made, 3)
     }
 
-    // MARK: The square
+    // MARK: The hive
 
     private func story(_ id: String, rect: WallRect?, status: WallStoryStatus = .placed, support: Int = 5, tier: WallTier = .reported) -> WallStory {
         WallStory(id: id, wallDate: wallDate(2026, 9, 9), submittedAt: at("2026-09-09T12:00:00Z"),
@@ -148,7 +148,7 @@ final class WallTests: XCTestCase {
                   falseAt: status == .shownFalse ? at("2026-09-09T13:00:00Z") : nil, falseNote: nil, sources: [])
     }
 
-    func testATileIsDrawnAtItsStoredAnchorAndSizeScaledToTheSquare() {
+    func testATileIsDrawnAtItsStoredAnchorAndSizeScaledToTheBoard() {
         let frame = WallBoard.frame(of: WallRect(mx: 3, my: 5, w: 4, h: 3), side: 320, gap: 2)
         XCTAssertEqual(frame.x, 61, accuracy: 0.001)
         XCTAssertEqual(frame.y, 101, accuracy: 0.001)
@@ -160,7 +160,7 @@ final class WallTests: XCTestCase {
         XCTAssertEqual(bigger.width, 158, accuracy: 0.001)
     }
 
-    func testTheSquareDrawsPlacedAndFalseStoriesAndNothingFromThePool() {
+    func testTheHiveDrawsPlacedAndFalseStoriesAndNothingFromThePool() {
         let placed = story("a", rect: WallRect(mx: 8, my: 7, w: 2, h: 1))
         let stamped = story("b", rect: WallRect(mx: 0, my: 0, w: 1, h: 1), status: .shownFalse)
         let pooled = story("c", rect: nil, status: .pool)
@@ -168,7 +168,7 @@ final class WallTests: XCTestCase {
         let tiles = WallBoard.tiles([placed, stamped, pooled, spilled])
         XCTAssertEqual(tiles.map(\.id), ["a", "b"])
         let d = day(stories: [placed, stamped, pooled, spilled])
-        XCTAssertEqual(d.onWall.map(\.id), ["a", "b"])
+        XCTAssertEqual(d.onHive.map(\.id), ["a", "b"])
         XCTAssertEqual(d.inPool.map(\.id), ["c"])
         XCTAssertEqual(d.overflow.map(\.id), ["d"])
     }
@@ -193,25 +193,9 @@ final class WallTests: XCTestCase {
 
     // MARK: Words
 
-    func testTheBudgetLineSaysPlainlyWhenItIsSpentAndWhenTheDateIsClosed() {
-        XCTAssertEqual(WallCopy.unitsLeft(3, phase: .live), "3 boosts left on this date today.")
-        XCTAssertEqual(WallCopy.unitsLeft(1, phase: .live), "1 boost left on this date today.")
-        XCTAssertEqual(WallCopy.unitsLeft(0, phase: .live), "Your boosts on this date are spent for today.")
-        XCTAssertEqual(WallCopy.unitsLeft(3, phase: .closed), "This wall has closed and is permanent.")
-        XCTAssertEqual(WallCopy.unitsLeft(3, phase: .submissionsOnly), "Submissions only until the day arrives. Boosts start then.")
-    }
+    // The sentences moved to `HiveCopy` and to HiveTests when the unit became
+    // a buzz. They are not asserted twice.
 
-    func testARefusalFromTheServerBecomesOneSentenceTheReaderCanAct() {
-        XCTAssertEqual(WallCopy.refusal("wall: 0 left on 2026-09-09 today, not 1"), "Your boosts on this date are spent for today.")
-        XCTAssertEqual(WallCopy.refusal("wall_boosts: 2 units on 2026-09-09 from 2026-09-09 would exceed the budget of 3 for that day (already 2)"),
-                       "Your boosts on this date are spent for today.")
-        XCTAssertEqual(WallCopy.refusal("wall: the wall for 2026-09-10 takes no boosts until the day arrives"),
-                       "Boosts for this date start when the day arrives, Eastern time.")
-        XCTAssertEqual(WallCopy.refusal("wall: the wall for 2026-09-07 has closed"), "This wall has closed. Nothing more can be added to it.")
-        XCTAssertEqual(WallCopy.refusal("wall: ten submissions a day, and today's ten are spent"), "Ten submissions a day, and today's ten are spent.")
-        XCTAssertEqual(WallCopy.refusal("this device could not be verified"), "This device could not be verified. Writing to the wall needs a real device.")
-        XCTAssertEqual(WallCopy.refusal("something unexpected"), "The wall refused that. Try again in a moment.")
-    }
 
     func testTierWordsAreNeverAVerdict() {
         for tier in [WallTier.claimed, .reported, .seenDirect] {
@@ -276,7 +260,7 @@ final class WallTests: XCTestCase {
         XCTAssertEqual(story.status, .placed)
         XCTAssertEqual(story.tier, .reported)
         XCTAssertEqual(story.rect, WallRect(mx: 8, my: 7, w: 2, h: 1))
-        XCTAssertTrue(story.isOnWall)
+        XCTAssertTrue(story.isOnHive)
         XCTAssertEqual(story.sources.map(\.id), ["s1", "s2"], "sources in the order they were added")
         XCTAssertEqual(story.sources[1].checks.map(\.kind), [.resolves, .quotation], "checks oldest first")
         XCTAssertNil(story.sources[0].verifiedAt)
@@ -290,7 +274,7 @@ final class WallTests: XCTestCase {
         ]
         guard let d = WallRows.day(dayRow, stories: [story]) else { return XCTFail("the day did not read") }
         XCTAssertEqual(d.phase(now: at("2026-09-09T20:00:00Z")), .live)
-        XCTAssertEqual(d.onWall.count, 1)
+        XCTAssertEqual(d.onHive.count, 1)
     }
 
     func testARowMissingWhatMattersIsDroppedRatherThanGuessed() {
