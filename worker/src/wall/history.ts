@@ -387,8 +387,9 @@ export async function run(db: Db, options: { now?: Date; dry?: boolean } = {}): 
     const [, m, d] = wallDate.split("-").map(Number) as [number, number, number];
     const history = await readHistory(db, m, d);
     const dropped: Dropped = { noLink: 0, shortQuotation: 0, noHeadline: 0 };
-    const stories = [...planHistory(wallDate, history, dropped), ...planSongs(wallDate, songsOn(weeks, m, d))];
-    planned += stories.length;
+    const stories = planHistory(wallDate, history, dropped);
+    const songs = planSongs(wallDate, songsOn(weeks, m, d));
+    planned += stories.length + songs.length;
     // A row left out is said so, per date and per reason, every run. A stage
     // that drops rows quietly looks exactly like one that drops none.
     const left = dropped.noLink + dropped.shortQuotation + dropped.noHeadline;
@@ -396,32 +397,48 @@ export async function run(db: Db, options: { now?: Date; dry?: boolean } = {}): 
       console.log(`wall history ${wallDate}: ${left} rows left out, ${dropped.noLink} with no link, ${dropped.shortQuotation} with under twenty characters to quote, ${dropped.noHeadline} with no headline`);
     }
     if (options.dry) {
-      for (const s of stories) console.log(`  ${wallDate} p${s.priority} ${s.subjectKind}: ${s.headline}`);
+      for (const s of [...stories, ...songs]) console.log(`  ${wallDate} p${s.priority} ${s.subjectKind}: ${s.headline}`);
       continue;
     }
-    if (stories.length === 0) continue;
+    if (stories.length === 0 && songs.length === 0) continue;
     const at = now.toISOString();
     await insert(db, "wall_days", [{ wall_date: wallDate, opens_at: at, live_at: at, closes_at: at }], { ignoreDuplicates: true });
-    // The conflict target is the same unique the news uses, and for a history
-    // story url_key is the subject, so a second run files nothing twice.
-    const inserted = await insert<{ id: string; url_key: string }>(
-      db, "wall_stories?on_conflict=wall_date,url_key", stories.map((s) => ({
-        wall_date: wallDate, headline: s.headline, url: s.url, url_key: s.urlKey, outlet: s.outlet, status: "pool", tier: "claimed",
-        subject_kind: s.subjectKind, subject_id: s.subjectId, priority: s.priority,
-      })), { returning: true, ignoreDuplicates: true });
-    const byKey = new Map(stories.map((s) => [s.urlKey, s]));
-    const sources = inserted.map((row) => {
-      const s = byKey.get(row.url_key)!;
-      return {
-        story_id: row.id, url: s.url, url_key: s.urlKey, outlet: s.outlet, owner: s.outlet,
-        headline: s.headline, quotation: s.quotation, imported: true, verified_at: at,
-      };
-    });
-    await insert(db, "wall_sources", sources);
-    written += inserted.length;
-    console.log(`wall history ${wallDate}: ${inserted.length} new of ${stories.length}`);
+    written += await file(db, wallDate, "history", stories, at);
+    // The songs go in their own insert, after the date's history has landed.
+    // The first day the songs shipped, the database refused their kind, the
+    // refusal took the whole insert with it, and the date's events and people
+    // were not filed either. A kind the database will not take must cost that
+    // kind and nothing else.
+    try {
+      written += await file(db, wallDate, "songs", songs, at);
+    } catch (error: unknown) {
+      console.error(`wall history ${wallDate}: the songs were refused and the rest of the date stands: ${error instanceof Error ? error.message.slice(0, 300) : error}`);
+    }
   }
   return { planned, written };
+}
+
+/** One batch of stories and their imported sources onto a date. Returns how many were new. */
+async function file(db: Db, wallDate: string, what: string, stories: HistoryStory[], at: string): Promise<number> {
+  if (stories.length === 0) return 0;
+  // The conflict target is the same unique the news uses, and for a history
+  // story url_key is the subject, so a second run files nothing twice.
+  const inserted = await insert<{ id: string; url_key: string }>(
+    db, "wall_stories?on_conflict=wall_date,url_key", stories.map((s) => ({
+      wall_date: wallDate, headline: s.headline, url: s.url, url_key: s.urlKey, outlet: s.outlet, status: "pool", tier: "claimed",
+      subject_kind: s.subjectKind, subject_id: s.subjectId, priority: s.priority,
+    })), { returning: true, ignoreDuplicates: true });
+  const byKey = new Map(stories.map((s) => [s.urlKey, s]));
+  const sources = inserted.map((row) => {
+    const s = byKey.get(row.url_key)!;
+    return {
+      story_id: row.id, url: s.url, url_key: s.urlKey, outlet: s.outlet, owner: s.outlet,
+      headline: s.headline, quotation: s.quotation, imported: true, verified_at: at,
+    };
+  });
+  if (sources.length > 0) await insert(db, "wall_sources", sources);
+  console.log(`wall ${what} ${wallDate}: ${inserted.length} new of ${stories.length}`);
+  return inserted.length;
 }
 
 async function main(): Promise<void> {
