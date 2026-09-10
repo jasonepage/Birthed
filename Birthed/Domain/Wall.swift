@@ -204,9 +204,28 @@ struct WallStory: Equatable, Identifiable {
     let falseNote: String?
     let sources: [WallSource]
 
-    /// On the square: placed, or placed and later shown false. A false story
+    /// What goes first among stories nobody has backed yet: 3 a written lead
+    /// line or a year the date's own editors picked, 2 the three most looked
+    /// up people, 1 other history, 0 the news feeds.
+    ///
+    /// Set by the worker, read by the allocator and by the feed's order, and
+    /// beaten by a single buzz. A var with a default so a caller that has no
+    /// priority still compiles and gets the lowest one rather than a guess.
+    var priority: Int = 0
+
+    /// The imported row this story stands for, when it stands for one:
+    /// historical_event, birth_fact, cultural_event or person. Both nil for a
+    /// news story, and the database will not let one be set without the other.
+    ///
+    /// This is what lets the timeline and the hive be one feed: a row the
+    /// reader sees with their age on it and a story they can buzz are the
+    /// same thing when these match `RememberSubject`.
+    var subjectKind: String? = nil
+    var subjectID: String? = nil
+
+    /// On the hive: placed, or placed and later shown false. A false story
     /// keeps its exact rectangle.
-    var isOnWall: Bool {
+    var isOnHive: Bool {
         rect != nil && (status == .placed || status == .shownFalse)
     }
 
@@ -214,14 +233,14 @@ struct WallStory: Equatable, Identifiable {
     var standing: String {
         switch status {
         case .placed:
-            if let rect { return "On the wall, \(rect.w) by \(rect.h) modules." }
-            return "On the wall."
+            if let rect { return "On the hive, \(rect.w) by \(rect.h) modules." }
+            return "On the hive."
         case .shownFalse:
-            return "On the wall and later shown false. It keeps its rectangle."
+            return "On the hive and later shown false. It keeps its rectangle."
         case .overflow:
-            return "Earned a place and found no room on the square. Not on the wall yet."
+            return "Earned a place and found no room on the hive. In the feed until one opens."
         case .pool:
-            return "In the pool. Waiting for enough evidence and at least one boost."
+            return "In the pool, waiting for enough evidence and for somebody to back it."
         }
     }
 }
@@ -234,7 +253,7 @@ struct WallDay: Equatable {
     let closedAt: Date?
     let stories: [WallStory]
 
-    var onWall: [WallStory] { stories.filter(\.isOnWall) }
+    var onHive: [WallStory] { stories.filter(\.isOnHive) }
     var inPool: [WallStory] { stories.filter { $0.status == .pool } }
     var overflow: [WallStory] { stories.filter { $0.status == .overflow } }
 
@@ -384,7 +403,7 @@ enum WallBoard {
     static func tiles(_ stories: [WallStory]) -> [WallStory] {
         var taken: [WallRect] = []
         var out: [WallStory] = []
-        for story in stories.filter(\.isOnWall) {
+        for story in stories.filter(\.isOnHive) {
             guard let rect = story.rect else { continue }
             if taken.contains(where: { $0.overlaps(rect) }) { continue }
             taken.append(rect)
@@ -409,61 +428,17 @@ struct WallSubmitPreview: Equatable {
 
     var line: String {
         existing
-            ? "This page was already on the wall for this date. Here it is."
-            : "Submitted. It waits in the pool until it has enough evidence and at least one boost."
+            ? "This page was already filed for this date. Here it is."
+            : "Added. It waits in the pool until it has enough evidence and somebody backs it."
     }
 }
 
 // MARK: - Words
 
-/// The sentences the wall says, in one place, so the views carry none.
-enum WallCopy {
-    static func unitsLeft(_ left: Int, phase: WallDay.Phase) -> String {
-        switch phase {
-        case .notYetOpen: return "This wall has not opened yet."
-        case .submissionsOnly: return "Submissions only until the day arrives. Boosts start then."
-        case .closed: return "This wall has closed and is permanent."
-        case .live:
-            if left <= 0 { return "Your boosts on this date are spent for today." }
-            if left == 1 { return "1 boost left on this date today." }
-            return "\(left) boosts left on this date today."
-        }
-    }
-
-    static func boosts(_ n: Int) -> String {
-        n == 1 ? "1 boost" : "\(n) boosts"
-    }
-
-    /// A refusal from the server, in the reader's terms. The server's own
-    /// sentences start with "wall:" and are plain by design; anything else is
-    /// summarised rather than shown.
-    static func refusal(_ message: String) -> String {
-        let lower = message.lowercased()
-        if lower.contains("has closed") { return "This wall has closed. Nothing more can be added to it." }
-        if lower.contains("takes no boosts until the day") { return "Boosts for this date start when the day arrives, Eastern time." }
-        if lower.contains("left on") || lower.contains("exceed the budget") { return "Your boosts on this date are spent for today." }
-        if lower.contains("shown false") { return "That story has been shown false and takes no boosts." }
-        if lower.contains("ten submissions") { return "Ten submissions a day, and today's ten are spent." }
-        if lower.contains("not open today") { return "That date is not open. A wall takes stories the day before, the day itself and the day after." }
-        if lower.contains("could not be read") || lower.contains("answered") { return "That page could not be read. Check the link and try again." }
-        if lower.contains("does not say what it is about") || lower.contains("nothing on it to quote") || lower.contains("fewer than twenty") {
-            return "That page does not describe itself well enough to quote. Try the article's own address."
-        }
-        if lower.contains("not a web address") { return "That is not a web address." }
-        if lower.contains("not been checked") || lower.contains("could not be verified") || lower.contains("not been attested") {
-            return "This device could not be verified. Writing to the wall needs a real device."
-        }
-        if lower.contains("not signed in") { return "The account is not ready yet. Try again in a moment." }
-        return "The wall refused that. Try again in a moment."
-    }
-
-    static let poolNote = "Waiting for enough evidence and at least one boost."
-    static let overflowNote = "The square was full when these qualified. They keep their receipts."
-    static let empty = "Nothing on the wall yet. Stories wait in the pool until they have enough evidence and at least one boost."
-    static let lede = "What people here think will still matter about this day. Each story is a link to a source, in the source's own words. Support decides how much of the square it takes."
-    static let tierNote = "A tier is not a verdict."
-    static let receiptNote = "The wording on the wall is the source's, never a person's. A check confirms a link resolves and that the page contains the quotation, by exact match. Nothing here decides what is true."
-}
+// The sentences a reader sees live in `HiveCopy`, in Hive.swift, and every one
+// of them takes a voice. `WallCopy` used to be here and said boost, wall,
+// square and pool in the reader's own screen; it was not renamed but retired,
+// so that a sentence in the old words cannot survive by being referenced.
 
 // MARK: - Reading the server's rows
 
@@ -530,10 +505,21 @@ enum WallRows {
             rect = WallRect(mx: mx, my: my, w: w, h: h)
         }
         let sources = ((row["wall_sources"] as? [[String: Any]]) ?? []).compactMap(source).sorted { $0.addedAt < $1.addedAt }
+        // The three columns the history migration added. A row written before
+        // it, or a select that did not ask for them, parses exactly as it did:
+        // no priority is the lowest priority, and no subject is a news story.
+        let subjectKind = row["subject_kind"] as? String
+        let subjectID = row["subject_id"] as? String
         return WallStory(id: id, wallDate: wallDate, submittedAt: submittedAt, headline: headline, url: url,
                          outlet: outlet, status: status, tier: tier, support: (row["support"] as? Int) ?? 0,
                          placedAt: date(row["placed_at"]), rect: rect, falseAt: date(row["false_at"]),
-                         falseNote: row["false_note"] as? String, sources: sources)
+                         falseNote: row["false_note"] as? String, sources: sources,
+                         priority: (row["priority"] as? Int) ?? 0,
+                         // The database keeps the pair whole with a constraint.
+                         // Half a pair here would be a row nothing could match,
+                         // so it is read as no subject at all.
+                         subjectKind: subjectID == nil ? nil : subjectKind,
+                         subjectID: subjectKind == nil ? nil : subjectID)
     }
 
     static func day(_ row: [String: Any], stories: [WallStory]) -> WallDay? {
