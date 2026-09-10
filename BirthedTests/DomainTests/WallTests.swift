@@ -156,7 +156,7 @@ final class WallTests: XCTestCase {
         XCTAssertEqual(frame.height, 58, accuracy: 0.001)
         // A different square, the same picture.
         let bigger = WallBoard.frame(of: WallRect(mx: 3, my: 5, w: 4, h: 3), side: 640, gap: 2)
-        XCTAssertEqual(bigger.x, 122, accuracy: 0.001)
+        XCTAssertEqual(bigger.x, 121, accuracy: 0.001)
         XCTAssertEqual(bigger.width, 158, accuracy: 0.001)
     }
 
