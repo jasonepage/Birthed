@@ -116,6 +116,49 @@ test("every page points at its own share image", () => {
   assert.ok(html.includes('<meta name="twitter:card" content="summary_large_image">'));
 });
 
+test("a date with a hive offers the square to a link preview, and every other date the wide card", () => {
+  const story = {
+    id: "11111111-2222-3333-4444-555555555555", wallDate: "2026-09-04", submittedAt: "2026-09-04T05:00:00Z",
+    headline: "1998: Google is founded", url: "https://en.wikipedia.org/wiki/September_4", outlet: "en.wikipedia.org",
+    status: "placed" as const, tier: "claimed" as const, support: 0, priority: 1, placedAt: "2026-09-04T05:15:00Z",
+    rect: { mx: 4, my: 4, w: 4, h: 3 }, falseAt: null, falseNote: null, subjectKind: null, subjectId: null, sources: [],
+  };
+  const day = { wallDate: "2026-09-04", year: 2026, month: 9, day: 4, opensAt: "2026-09-03T04:00:00Z", liveAt: "2026-09-04T04:00:00Z", closesAt: "2026-09-06T04:00:00Z", closedAt: "2026-09-06T04:00:00Z", stories: [story] };
+
+  // Before: every date, hive or no hive, offered the same wide card.
+  const plain = renderDayPage(page);
+  assert.ok(plain.includes('<meta property="og:image" content="https://birthed.app/og/september-4.png">'));
+  assert.ok(plain.includes('<meta property="og:image:width" content="1200">'));
+  assert.ok(plain.includes('<meta property="og:image:height" content="630">'));
+
+  // After, on a date whose board has tiles on it.
+  const hived = renderDayPage(page, [], [], [], [], null, new Map(), new Map(), day);
+  assert.ok(hived.includes('<meta property="og:image" content="https://birthed.app/og/september-4-square.png">'));
+  assert.ok(hived.includes('<meta property="og:image:width" content="1080">'));
+  assert.ok(hived.includes('<meta property="og:image:height" content="1080">'));
+  assert.ok(hived.includes('<meta name="twitter:image" content="https://birthed.app/og/september-4-square.png">'));
+
+  // A hive row with nothing placed on it is not a hive to show.
+  const bare = renderDayPage(page, [], [], [], [], null, new Map(), new Map(), { ...day, stories: [] });
+  assert.ok(bare.includes('<meta property="og:image" content="https://birthed.app/og/september-4.png">'));
+});
+
+test("the square's side is the same number in the card and in the head", () => {
+  // render.ts keeps its own copy, because share.ts already imports render.ts
+  // and importing back makes a cycle around a constant read at module load.
+  const hived = renderDayPage(page, [], [], [], [], null, new Map(), new Map(), {
+    wallDate: "2026-09-04", year: 2026, month: 9, day: 4, opensAt: "2026-09-03T04:00:00Z",
+    liveAt: "2026-09-04T04:00:00Z", closesAt: "2026-09-06T04:00:00Z", closedAt: null,
+    stories: [{
+      id: "11111111-2222-3333-4444-555555555555", wallDate: "2026-09-04", submittedAt: "2026-09-04T05:00:00Z",
+      headline: "1998: Google is founded", url: "https://x.test/a", outlet: "x.test", status: "placed" as const,
+      tier: "claimed" as const, support: 0, priority: 1, placedAt: "2026-09-04T05:15:00Z",
+      rect: { mx: 4, my: 4, w: 4, h: 3 }, falseAt: null, falseNote: null, subjectKind: null, subjectId: null, sources: [],
+    }],
+  });
+  assert.ok(hived.includes(`<meta property="og:image:width" content="${SQUARE_SIDE}">`));
+});
+
 test("the share card carries the date and the first three names", () => {
   const card = renderShareCard(page);
   assert.ok(card.includes("September 4"));

@@ -1597,11 +1597,32 @@ nav.pager.cards .after { text-align: right; }
  * heading, and it asks for those by name rather than by every other page
  * being told to opt out of them.
  */
+/**
+ * The picture a link preview shows, and how big it is.
+ *
+ * A plain address still means the wide card, which is what most pages have
+ * and what every platform crops a preview to. A date whose hive has tiles on
+ * it hands in the square instead, and the width and height have to travel
+ * with it: a 1080 by 1080 picture announced as 1200 by 630 is a card that
+ * lays out wrong before anybody has looked at it.
+ */
+export type PreviewImage = string | { url: string; width: number; height: number };
+
+/**
+ * The side of the square, repeated here rather than imported.
+ *
+ * share.ts already imports this file, so importing it back makes a cycle, and
+ * a cycle around a constant read at module load is the kind of undefined that
+ * only shows up in one of the two entry points. A test asserts this number
+ * and `SQUARE_SIDE` are the same, so the copy cannot drift in silence.
+ */
+const SQUARE = 1080;
+
 export function head(
   title: string,
   description: string,
   canonical: string,
-  image?: string,
+  image?: PreviewImage,
   noindex = false,
   bodyClass = "",
   // Anything one kind of page needs in its head and the others do not. A
@@ -1609,6 +1630,7 @@ export function head(
   // every page to carry a field that only date pages ever fill.
   extraHead = "",
 ): string {
+  const picture = typeof image === "string" ? { url: image, width: 1200, height: 630 } : image;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -1626,10 +1648,10 @@ ${noindex ? '<meta name="robots" content="noindex">\n' : ""}
 <meta property="og:title" content="${escapeHtml(title)}">
 <meta property="og:description" content="${escapeHtml(description)}">
 <meta property="og:url" content="${canonical}">
-${image ? `<meta property="og:image" content="${image}">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
-<meta name="twitter:image" content="${image}">` : ""}
+${picture ? `<meta property="og:image" content="${picture.url}">
+<meta property="og:image:width" content="${picture.width}">
+<meta property="og:image:height" content="${picture.height}">
+<meta name="twitter:image" content="${picture.url}">` : ""}
 <meta name="twitter:card" content="summary_large_image">
 ${extraHead}<style>${STYLE}${WALL_STYLE}</style>
 </head>
@@ -2492,7 +2514,21 @@ export function renderDayPage(
 
   const { previous, next } = neighbours(page.month, page.day);
 
-  const image = `${SITE}/og/${slug(page.month, page.day)}.png`;
+  // The square where the date has a board, the wide card everywhere else.
+  //
+  // What travels is the thing worth travelling: a link to a date with a hive
+  // on it should show the hive. A date with no board has no square worth
+  // showing over the card it already has, and today that is 362 of the 366.
+  //
+  // Named, because it is a real cost: a square is center cropped to a strip
+  // by the platforms that draw a wide preview, which takes the date off the
+  // top and the state line off the bottom and leaves the board. It is shown
+  // whole by the ones that draw a squarer thumbnail, which is where a link
+  // pasted into a message usually lands.
+  const hived = wall !== null && wall.stories.some((s) => s.rect !== null && (s.status === "placed" || s.status === "false"));
+  const image: PreviewImage = hived
+    ? { url: `${SITE}/og/${slug(page.month, page.day)}-square.png`, width: SQUARE, height: SQUARE }
+    : `${SITE}/og/${slug(page.month, page.day)}.png`;
 
   // The two dates either side, named in the head as well as linked in the
   // page. This is how a search engine learns that the 366 are one ordered run
