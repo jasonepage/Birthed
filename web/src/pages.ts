@@ -637,6 +637,7 @@ export function renderPrivacy(): string {
 <ul>
   <li><strong>The people you add</strong> in the People tab, with their birthdays and any note you write. This list is kept on your phone and is not sent to the account service. The one exception is described under "Asking somebody for their birthday" below, and it runs the other way: it is about a birthday arriving, not about your list leaving.</li>
   <li><strong>Reminders</strong>. They are scheduled on your phone by iOS. Birthed has no server that sends notifications.</li>
+  <li><strong>Which stories you buzzed</strong>, and one note per date about how the story you buzzed turned out. Both are kept on your phone. They are what puts your own mark on a tile, what stops the same story taking two buzzes from you, and what lets your phone tell you the morning after a hive seals without asking our server anything at that moment. The buzz itself is in the database, as described under the website above; this is your phone's own copy of what it did, it is never sent anywhere, and deleting the app removes it.</li>
   <li><strong>Share cards</strong>. The images you share are drawn on your phone when you tap Share. No name is on them. The card for a date never carries a birth year; the card for your own day shows the song and your day count, which imply the year, and it only exists when you make it.</li>
 </ul>
 

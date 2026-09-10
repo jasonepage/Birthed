@@ -75,6 +75,14 @@ final class WallService {
     /// the reason a second tap on the same story spends nothing.
     private(set) var marks = HiveMarks()
 
+    /// What this install knows about how its own buzzes turned out, by date.
+    ///
+    /// Written when a buzz lands and corrected every time that date is read,
+    /// which is what lets the morning after notification be scheduled from
+    /// what the phone already has and need no network at the moment it fires.
+    /// docs/the-wall.md section 15.
+    private(set) var notes = HiveNotes()
+
     /// The last refusal, in the reader's terms, for the sheet to show.
     private(set) var lastRefusal: String?
 
@@ -119,6 +127,11 @@ final class WallService {
     /// Where this install's own buzzes are kept between launches.
     private static let marksKey = "birthed.hive.marks"
 
+    /// And what became of them. A store of its own, shared with
+    /// `NotificationService`, so the morning after reminder is built from the
+    /// same rows this writes and no caller has to carry them across.
+    private let noteStore: HiveNoteStore
+
     init(account: AccountService,
          baseURL: URL = Secrets.supabaseURL,
          anonKey: String = Secrets.supabaseAnonKey,
@@ -130,7 +143,9 @@ final class WallService {
         self.session = session
         self.defaults = defaults
         self.attestor = WallAttestor()
+        self.noteStore = HiveNoteStore(defaults: defaults)
         self.marks = Self.readMarks(from: defaults)
+        self.notes = HiveNoteStore(defaults: defaults).load()
     }
 
     private static func readMarks(from defaults: UserDefaults) -> HiveMarks {
@@ -140,6 +155,10 @@ final class WallService {
 
     private func writeMarks() {
         defaults.set(marks.stored, forKey: Self.marksKey)
+    }
+
+    private func writeNotes() {
+        noteStore.save(notes)
     }
 
     /// Server time now, as best this phone can say.
@@ -216,6 +235,17 @@ final class WallService {
         failed = loaded == nil && !tableIsMissing
         day = loaded
         unitsLeft = left
+
+        // The reconciliation. A rank read while the hive was open can still
+        // move and is corrected on the next read; one read after it sealed
+        // cannot, and is written down as settled and never touched again.
+        // This is why the notification's words are the freshest the phone has
+        // seen rather than whatever was true at the moment of the buzz.
+        if let loaded, notes.note(on: loaded.wallDate) != nil {
+            let before = notes
+            notes.reconcile(with: loaded, now: now)
+            if notes != before { writeNotes() }
+        }
     }
 
     /// True after a read answered 404, which is the project before the wall
@@ -407,6 +437,16 @@ final class WallService {
         // does not leave a mark on a story nobody backed.
         marks.add(storyID: story.id, on: story.wallDate)
         writeMarks()
+        // And the note the morning after is built from, filed here rather
+        // than at fire time, because at fire time there is no network and
+        // there should not need to be. The rank is not written yet: it is not
+        // a fact until the hive seals, and reading the date fills it in.
+        // docs/the-wall.md section 15.
+        if let day, day.wallDate == story.wallDate {
+            notes.record(storyID: story.id, headline: story.headline, on: story.wallDate, sealsAt: day.closesAt)
+            notes.reconcile(with: day, now: now)
+            writeNotes()
+        }
         // The window opens when the database says the buzz landed, not when
         // the finger went down, so a slow write does not eat it.
         undoable = (storyID: story.id, castAt: Date())
@@ -441,6 +481,10 @@ final class WallService {
         if said == "undone" {
             marks.remove(storyID: story.id, on: story.wallDate)
             writeMarks()
+            // A note about a buzz that no longer exists would wake somebody
+            // two mornings later to tell them about a vote they took back.
+            notes.forget(storyID: story.id, on: story.wallDate)
+            writeNotes()
             undoable = nil
             lastUndo = HiveCopy.undone(voice: voice)
         } else {

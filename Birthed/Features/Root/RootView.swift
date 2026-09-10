@@ -251,6 +251,17 @@ struct RootView: View {
             }
         case .personSoon:
             tab = .people
+        case .hiveSealed:
+            // The Today tab, which is where the hive is. The date itself is
+            // in the identifier and is deliberately not acted on: the tab
+            // shows today's date and a sealed hive is two days behind it, so
+            // opening the tab on a date the reader cannot buzz on would leave
+            // them somewhere they did not ask to be with no way back but the
+            // one they came in by. Taking them to a sealed hive is worth
+            // doing and is not a line of routing: it needs a screen that can
+            // show a date that is over, and that is the archive, which is not
+            // built. docs/the-wall.md section 13 lists it as still ahead.
+            tab = .today
         }
     }
 

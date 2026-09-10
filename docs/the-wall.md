@@ -1425,3 +1425,83 @@ faster and would give away nothing, since the function can only ever reach
 the caller's own row inside the window. It was not done, because one write
 path is worth more than two seconds. If the round trip turns out to eat the
 window on a slow connection, the direct grant is the fix and it is safe.
+
+### The morning after, on the phone, later the same day
+
+Section 15 named this as the thing the mechanic was missing: a buzz has no
+consequence at either end. The tile does not move for fifteen minutes, which
+is honest and documented, and then the date seals and the reader never hears
+about it again. So when a date somebody buzzed on seals, the phone tells them
+once, the next morning, at the hour their other reminders arrive: "Your
+September 10 hive sealed. The story you buzzed came third of twelve."
+
+**It is not a score and nothing about it is kept as a total.** Sections 6 and
+8 refuse every accuracy, karma, reputation and influence formula, and this is
+none of them. It is what happened to one story on one date, told once to the
+one person who backed it, compared with nobody, added to nothing, and shown
+to no other reader ever. The one number in it is a place on one sealed hive,
+and it exists only in that sentence.
+
+**Where the number comes from, and when it is a fact.** A place is among the
+stories that took a place on the hive, in `HiveFeed`'s order, which is the
+order the reader could have seen for themselves. Not among the date's
+hundred and fifty: "forty seventh of a hundred and fifty" is a number that
+means nothing. A story that never reached the hive has no place at all, and
+the notification says what the reader backed instead of inventing a rank for
+a race the story was not in.
+
+**A rank read before the seal and a rank read after it are two different
+claims, and they are said differently.** This is the whole of the honesty
+here. The reminder is scheduled at buzz time from what the phone already
+knows, because at fire time there is no network and there should not need to
+be, and at buzz time the hive has two days left to run. So a place read while
+the hive was open says "was third of twelve when you last looked", which is
+true and is still worth telling somebody. Only a reading taken after the hive
+sealed says "came third of twelve", because only that one cannot change
+again. Every time the app opens a date it corrects the note and, once the
+hive has sealed, marks it settled and never touches it again.
+
+The cost, named: a reader who buzzes and does not open the app again before
+the hive seals gets the "when you last looked" sentence rather than the final
+one. The alternative was to state the last known rank flatly and be wrong
+sometimes, which on a permanent record is the worse of the two. The other
+alternative, saying no number at all until a reading after the seal, would
+mean most readers never get one. **This is Jason's to overrule** and the
+three shapes are written down here so it can be argued rather than
+rediscovered.
+
+**It counts against the sixty four like everything else, and it never
+displaces the reader's own day.** The plan places the reader's own birthday
+and countdown first and does not trim them, then sealed hives, then people
+you know, then people you follow. Hives go ahead of other people's birthdays
+because a birthday recurs and comes back next year, and a hive seals once and
+the moment is over; there are never many, because a reader can only have
+buzzed on a handful of dates that have not sealed yet.
+
+**The morning after is worked out and not assumed.** A hive seals at midnight
+Eastern, which is nine at night in Oregon and one in the afternoon in Tokyo,
+so the next morning is a different day depending on where the reader is
+standing. The reminder is the first time the reminder hour comes round
+strictly after the seal, which is right everywhere and is why a reader in
+Tokyo is not told at eight in the morning that a hive has sealed five hours
+before it does. The seal instant itself is the server's `closes_at`, copied
+onto the note, rather than this phone's arithmetic about Eastern midnight,
+which would be a second place for it to be wrong.
+
+**The note lives on the device, like the mark, and for the same reason.**
+`HiveNotes` beside `HiveMarks`: the marks answer "did I buzz this" for every
+story on a date, and the notes answer "what became of what I buzzed" for one
+story a date with more about it. It is `HiveMarks`' trade in a different
+coat, a reinstall forgets and a second device never knew, and what is lost is
+a banner and never a vote. It is read through `HiveNoteStore` rather than
+handed to `reschedule` by its callers, because that method clears everything
+pending and rebuilds, so a call site that forgot the notes would silently
+drop every sealed hive reminder a reader had waiting. That is the reasoning
+`NotificationService` already gives for keeping the public figure filter
+inside itself.
+
+**Tapping the banner opens the Today tab and no further.** The date is in the
+identifier and is deliberately not acted on: a sealed hive is two days behind
+today, and taking a reader to a date they cannot buzz on needs a screen that
+can show a date that is over. That is the archive, and it is not built.
+Section 13 already lists it as still ahead.

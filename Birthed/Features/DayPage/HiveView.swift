@@ -791,6 +791,7 @@ private struct HiveField: View {
             try await wall.undo(story: story)
             tick = Date()
             await wall.load(date: date)
+            await registerSealReminders(notifications, profileStore, peopleStore)
         } catch {
             refusal = wall.lastRefusal ?? error.localizedDescription
         }
@@ -806,6 +807,7 @@ private struct HiveField: View {
             spent = true
             tick = Date()
             await wall.load(date: date)
+            await registerSealReminders(notifications, profileStore, peopleStore)
         } catch {
             // The service holds the sentence in the reader's terms, and the
             // error carries the same one; either is shown here rather than
@@ -830,6 +832,9 @@ private struct HiveBoard: View {
     let onOpen: (WallStory) -> Void
 
     @Environment(WallService.self) private var wall
+    @Environment(NotificationService.self) private var notifications
+    @Environment(ProfileStore.self) private var profileStore
+    @Environment(PeopleStore.self) private var peopleStore
 
     /// A second hand, running only while a buzz can still be taken back.
     ///
@@ -899,6 +904,7 @@ private struct HiveBoard: View {
             try await wall.buzz(story: story)
             tick = Date()
             await wall.load(date: date)
+            await registerSealReminders(notifications, profileStore, peopleStore)
         } catch {
             // A tile is too small to explain anything, and the story is one
             // tap from the page that can. The service is holding the sentence.
@@ -914,6 +920,7 @@ private struct HiveBoard: View {
             try await wall.undo(story: story)
             tick = Date()
             await wall.load(date: date)
+            await registerSealReminders(notifications, profileStore, peopleStore)
         } catch {
             onOpen(story)
         }
@@ -1233,4 +1240,36 @@ struct WallChip: View {
             .background(HivePalette.fill(tier), in: Capsule())
             .foregroundStyle(HivePalette.type(tier))
     }
+}
+
+// MARK: - Registering the morning after
+
+/// Rebuilds the reminder schedule after a buzz lands or is taken back.
+///
+/// docs/the-wall.md section 15: the reminder is scheduled at buzz time from
+/// what the phone already knows, because at fire time there is no network and
+/// there should not need to be. `RootView` rebuilds the schedule on every
+/// foreground, but that happens before a buzz rather than after one, so a
+/// reader who buzzes and then puts the phone down for two days would have
+/// nothing pending when the hive sealed. A reminder that was never registered
+/// does not announce itself. It simply never arrives.
+///
+/// Its own free function rather than a method on either view, because two
+/// views in this file cast a buzz and both need it. `WallService` has already
+/// written the note by the time this is called; `NotificationService` reads it
+/// from the shared store.
+///
+/// The people list is handed over in full, and that is not incidental.
+/// `reschedule` clears every pending reminder and rebuilds the plan from what
+/// it is given, so calling it with an empty list would delete every birthday
+/// reminder on the phone in order to add one about a hive. The people are the
+/// promise this app makes; the hive is a layer on top of it.
+@MainActor
+func registerSealReminders(
+    _ notifications: NotificationService,
+    _ profileStore: ProfileStore,
+    _ peopleStore: PeopleStore
+) async {
+    guard let profile = profileStore.profile else { return }
+    await notifications.reschedule(birthday: profile.birthday, people: peopleStore.people)
 }

@@ -658,6 +658,60 @@ enum HiveCopy {
         "\(voice.mark). One story takes one \(voice.one) from this account."
     }
 
+    // MARK: The morning after a hive seals, docs/the-wall.md section 15
+
+    private static let ordinals = [
+        "", "first", "second", "third", "fourth", "fifth", "sixth",
+        "seventh", "eighth", "ninth", "tenth", "eleventh", "twelfth",
+    ]
+
+    private static let counts = [
+        "", "one", "two", "three", "four", "five", "six",
+        "seven", "eight", "nine", "ten", "eleven", "twelve",
+    ]
+
+    /// The banner's first line. The date, and the one thing that happened to
+    /// it: it is over.
+    static func sealedTitle(dateName: String) -> String {
+        "Your \(dateName) hive sealed"
+    }
+
+    /// What the banner says underneath, and it says only what is known.
+    ///
+    /// Three sentences for three states, and the difference between the first
+    /// two is the whole of the honesty here. A hive that has sealed cannot
+    /// change, so a place read after it sealed is a fact and is said flatly.
+    /// A place read while it was still open can still move, so it is said as
+    /// what it was when the reader last looked, which is true and is still
+    /// worth telling them. A story that never took a place on the hive gets
+    /// no number at all: it is not last, it was not in that race, and giving
+    /// it a rank would be inventing one.
+    ///
+    /// No total, no streak, no comparison with anybody. Sections 6 and 8
+    /// refuse every score and this is not one.
+    static func sealedBody(place: HivePlace?, settled: Bool, headline: String, voice: HiveVoice) -> String {
+        guard let place else {
+            return "The story you \(voice.past): \(headline)"
+        }
+        let where_ = "\(ordinal(place.rank)) of \(count(place.outOf))"
+        return settled
+            ? "The story you \(voice.past) came \(where_)."
+            : "The story you \(voice.past) was \(where_) when you last looked."
+    }
+
+    /// "third", and plain numerals past what a hive can hold, so a board that
+    /// grows one day does not start saying "the thirteenth" wrongly.
+    static func ordinal(_ n: Int) -> String {
+        guard n >= 1, n < ordinals.count else { return "number \(n)" }
+        return ordinals[n]
+    }
+
+    /// "twelve", and plain numerals past that, for the same reason.
+    static func count(_ n: Int) -> String {
+        guard n >= 1, n < counts.count else { return "\(n)" }
+        return counts[n]
+    }
+
     // MARK: Find it for me, docs/the-wall.md section 15 past the miss
 
     /// The button under the miss. It is offered beside the link button, not

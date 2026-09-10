@@ -334,3 +334,125 @@ extension NotificationPlannerTests {
         XCTAssertNil(PlannedNotification.opened(fromIdentifier: "com.apple.something"))
     }
 }
+
+// MARK: - The morning after a hive seals
+
+/// docs/the-wall.md section 15. A hive seals at midnight United States
+/// Eastern, which is nine at night in Oregon and one in the afternoon in
+/// Tokyo, so "the next morning" is a different day depending on where the
+/// reader is standing. These are the cases nobody would find by using the app.
+extension NotificationPlannerTests {
+
+    private func note(_ key: String, sealsAt: Date) -> HiveNote {
+        HiveNote(wallDate: key, storyID: "s", headline: "Headline", sealsAt: sealsAt)
+    }
+
+    /// Midnight Eastern ending September 11, which is when the hive for
+    /// September 10 seals: five in the morning coordinated universal time.
+    private var sealOfTheTenth: Date {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f.date(from: "2026-09-12T04:00:00Z")!
+    }
+
+    func testAReaderWestOfEasternIsToldTheFollowingMorning() {
+        // The seal lands at nine at night on September 11 in Oregon, so the
+        // next reminder hour is eight the following morning: September 12.
+        let plan = planner(losAngeles).plan(
+            for: birthday(3, 3),
+            hives: [note("2026-09-10", sealsAt: sealOfTheTenth)],
+            from: instant(2026, 9, 10, zone: losAngeles)
+        )
+        guard let sealed = plan.first(where: { $0.kind == .hiveSealed(wallDate: WallDate(key: "2026-09-10")!) }) else {
+            return XCTFail("nothing was planned for the sealed hive")
+        }
+        XCTAssertEqual(fire(sealed).0, 2026)
+        XCTAssertEqual(fire(sealed).1, 9)
+        XCTAssertEqual(fire(sealed).2, 12)
+        XCTAssertEqual(fire(sealed).3, 8)
+        XCTAssertEqual(sealed.identifier, "hive.2026-09-10")
+    }
+
+    func testAReaderEastOfEasternIsNeverToldBeforeTheHiveHasActuallySealed() {
+        // The seal lands at one in the afternoon on September 12 in Tokyo, so
+        // eight that morning is too early and the reminder waits a day. This
+        // is the case a reminder worked out as "the date plus two" gets wrong,
+        // and it would tell somebody a hive had sealed five hours before it
+        // did.
+        let tokyo = timeZoneNamed("Asia/Tokyo")
+        let plan = planner(tokyo).plan(
+            for: birthday(3, 3),
+            hives: [note("2026-09-10", sealsAt: sealOfTheTenth)],
+            from: instant(2026, 9, 10, zone: tokyo)
+        )
+        guard let sealed = plan.first(where: { $0.kind == .hiveSealed(wallDate: WallDate(key: "2026-09-10")!) }) else {
+            return XCTFail("nothing was planned for the sealed hive")
+        }
+        XCTAssertEqual(fire(sealed).2, 13, "the morning after the seal, not the morning of it")
+        XCTAssertEqual(fire(sealed).3, 8)
+
+        // And whatever the zone, the reminder is after the seal. That is the
+        // property, and the two days above are two examples of it.
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = tokyo
+        XCTAssertGreaterThan(calendar.date(from: sealed.fireDate)!, sealOfTheTenth)
+    }
+
+    func testAHiveWhoseMorningHasGoneIsNotScheduledBehindTheClock() {
+        let plan = planner(losAngeles).plan(
+            for: birthday(3, 3),
+            hives: [note("2026-09-10", sealsAt: sealOfTheTenth)],
+            // A fortnight later. That morning is long past, and a notification
+            // scheduled behind the clock either fires at once or never.
+            from: instant(2026, 9, 26, zone: losAngeles)
+        )
+        XCTAssertFalse(plan.contains { $0.kind == .hiveSealed(wallDate: WallDate(key: "2026-09-10")!) })
+    }
+
+    func testAMisshapenNoteIsDroppedRatherThanGuessedAt() {
+        let plan = planner(losAngeles).plan(
+            for: birthday(3, 3),
+            hives: [note("not-a-date", sealsAt: sealOfTheTenth)],
+            from: instant(2026, 9, 10, zone: losAngeles)
+        )
+        XCTAssertFalse(plan.contains { if case .hiveSealed = $0.kind { return true } else { return false } })
+    }
+
+    func testASealedHiveNeverCostsTheReaderTheirOwnDay() {
+        // A hundred dates buzzed on and a hundred people, against sixty four
+        // slots. The reader's own birthday is placed first and is not trimmed,
+        // and nothing here may cost them it.
+        let seal = sealOfTheTenth
+        var hives: [HiveNote] = []
+        for day in 1...28 {
+            hives.append(HiveNote(wallDate: "2026-09-\(String(format: "%02d", day))",
+                                  storyID: "s", headline: "H", sealsAt: seal))
+        }
+        let people = (1...100).map { person(6, ($0 % 28) + 1, name: "P\($0)") }
+        let plan = planner(losAngeles).plan(
+            for: birthday(9, 4),
+            people: people,
+            hives: hives,
+            from: instant(2026, 9, 10, zone: losAngeles)
+        )
+        XCTAssertLessThanOrEqual(plan.count, NotificationPlanner.systemLimit)
+        XCTAssertEqual(plan.filter { $0.kind == .ownBirthday }.count, 2, "the reader's own day is never trimmed")
+        XCTAssertTrue(plan.contains { $0.kind == .ownCountdown(daysBefore: 45) })
+        // The own reminders come first in the plan, ahead of everything.
+        XCTAssertTrue(plan.prefix(3).allSatisfy {
+            if case .ownBirthday = $0.kind { return true }
+            if case .ownCountdown = $0.kind { return true }
+            return false
+        })
+    }
+
+    func testAnIdentifierIsReadBackAsTheDateItNames() {
+        XCTAssertEqual(PlannedNotification.opened(fromIdentifier: "hive.2026-09-10"),
+                       .hiveSealed(wallDate: WallDate(key: "2026-09-10")!))
+        XCTAssertNil(PlannedNotification.opened(fromIdentifier: "hive.nonsense"))
+        XCTAssertNil(PlannedNotification.opened(fromIdentifier: "hive"))
+        XCTAssertNil(PlannedNotification.opened(fromIdentifier: "hive.2026-09-10.extra"))
+        // The identifiers that were already read back still are.
+        XCTAssertEqual(PlannedNotification.opened(fromIdentifier: "own.birthday.2027"), .ownBirthday)
+    }
+}

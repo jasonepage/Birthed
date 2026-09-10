@@ -17,6 +17,10 @@ struct PlannedNotification: Equatable, Hashable {
         /// Somebody in the People tab has a birthday soon enough to do
         /// something about it.
         case personSoon(personID: UUID, daysBefore: Int)
+        /// A date this install buzzed on has sealed, and the reader is told
+        /// the morning after. docs/the-wall.md section 15: a buzz had no
+        /// consequence at either end, and this is the end of it.
+        case hiveSealed(wallDate: WallDate)
     }
 
     let kind: Kind
@@ -87,9 +91,21 @@ struct NotificationPlanner {
     func plan(
         for birthday: CalendarBirthday,
         people: [Person] = [],
+        hives: [HiveNote] = [],
         from reference: Date
     ) -> [PlannedNotification] {
         let own = ownNotifications(for: birthday, from: reference)
+
+        // Sealed hives next, and there are never many: a reader can have
+        // buzzed on at most a handful of dates that have not sealed yet, and
+        // each of these fires once and is gone. They go ahead of other
+        // people's birthdays because a birthday recurs and comes back next
+        // year, and a hive seals once and the moment is over.
+        //
+        // They never reach the reader's own day, which is placed first above
+        // and is not trimmed. Somebody's own birthday is the promise this app
+        // makes and nothing here may cost them it.
+        let sealed = soonestFirst(hiveNotifications(hives, from: reference))
 
         let known = people.filter { !$0.isPublicFigure }
         let followed = people.filter(\.isPublicFigure)
@@ -97,7 +113,63 @@ struct NotificationPlanner {
             + soonestFirst(peopleNotifications(followed, from: reference))
 
         let room = max(0, Self.systemLimit - own.count)
-        return own + byDate.prefix(room)
+        let hivesKept = Array(sealed.prefix(room))
+        let left = max(0, room - hivesKept.count)
+        return own + hivesKept + byDate.prefix(left)
+    }
+
+    // MARK: A date that sealed
+
+    /// One reminder per date this install buzzed on, the morning after its
+    /// hive sealed.
+    ///
+    /// The morning after, in the reader's own calendar, and worked out rather
+    /// than assumed. A hive seals at midnight Eastern, which is nine at night
+    /// in Oregon and one in the afternoon in Tokyo, so "the next morning" is
+    /// a different day depending on where the reader is standing. This takes
+    /// the first time the reminder hour comes round strictly after the seal,
+    /// which is right everywhere: the reader is never told a hive has sealed
+    /// before it has.
+    ///
+    /// A seal already in the past gets nothing. A notification scheduled
+    /// behind the clock either fires at once or never, depending on the
+    /// operating system's mood, and neither is a thing to wake somebody with.
+    private func hiveNotifications(_ notes: [HiveNote], from reference: Date) -> [PlannedNotification] {
+        var planned: [PlannedNotification] = []
+        for note in notes {
+            guard let date = note.date else { continue }
+            guard let components = morningAfter(note.sealsAt, from: reference) else { continue }
+            planned.append(PlannedNotification(
+                kind: .hiveSealed(wallDate: date),
+                identifier: "hive.\(note.wallDate)",
+                fireDate: components
+            ))
+        }
+        return planned
+    }
+
+    /// The first reminder hour strictly after `moment`, and after now.
+    ///
+    /// Walks days rather than adding seconds, for the reason section 6 of
+    /// CLAUDE.md gives: some days are 23 or 25 hours long, and a reminder
+    /// worked out with `addingTimeInterval` lands an hour off across a
+    /// daylight saving change.
+    private func morningAfter(_ moment: Date, from reference: Date) -> DateComponents? {
+        let after = max(moment, reference)
+        var day = after
+        // Two days is always enough: the reminder hour comes round once every
+        // day, so the first or the second is the one. The bound is a bound and
+        // not a rule, so a calendar that surprises us stops rather than loops.
+        for _ in 0..<3 {
+            if let components = fireComponents(on: day),
+               let candidate = calendar.calendar.date(from: components),
+               candidate > after {
+                return components
+            }
+            guard let next = calendar.calendar.date(byAdding: .day, value: 1, to: day) else { return nil }
+            day = next
+        }
+        return nil
     }
 
     // MARK: The user's own day
@@ -220,11 +292,20 @@ extension PlannedNotification {
         case ownCountdown
         case personBirthday(personID: UUID)
         case personSoon(personID: UUID)
+        /// A sealed hive, opened. The date is in the identifier, which is the
+        /// only thing that survives the round trip through the notification
+        /// centre unchanged.
+        case hiveSealed(wallDate: WallDate)
     }
 
     static func opened(fromIdentifier identifier: String) -> Opened? {
         let parts = identifier.split(separator: ".").map(String.init)
         switch parts.first {
+        case "hive":
+            // "hive.2026-09-10". Two parts, because the date's own hyphens
+            // are not dots.
+            guard parts.count == 2, let date = WallDate(key: parts[1]) else { return nil }
+            return .hiveSealed(wallDate: date)
         case "own":
             guard parts.count == 3 else { return nil }
             switch parts[1] {

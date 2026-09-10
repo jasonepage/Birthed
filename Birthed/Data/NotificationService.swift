@@ -43,6 +43,10 @@ final class NotificationService {
     private let centre: UNUserNotificationCenter
     private let planner: NotificationPlanner
     private let defaults: UserDefaults
+    /// What became of this install's own buzzes, written by `WallService` and
+    /// read here. See `HiveNoteStore` for why it is a store rather than a
+    /// parameter.
+    private let notes: HiveNoteStore
     /// Held strongly, because the centre's `delegate` is weak.
     private var taps: NotificationTapHandler?
 
@@ -54,6 +58,7 @@ final class NotificationService {
         self.centre = centre
         self.planner = planner
         self.defaults = defaults
+        self.notes = HiveNoteStore(defaults: defaults)
         // On by default only once permission exists. Nothing is scheduled and
         // nothing is asked for until the user turns the switch on.
         self.isEnabled = defaults.object(forKey: Key.enabled) as? Bool ?? true
@@ -144,7 +149,19 @@ final class NotificationService {
             return
         }
 
-        let plan = planner.plan(for: birthday, people: reachable(people), from: now)
+        // Every date this install buzzed on, read here rather than passed in.
+        // This method clears everything pending and rebuilds the whole plan,
+        // so a call site that forgot to hand these over would quietly drop
+        // every sealed hive reminder the reader had waiting, and a reminder
+        // that was never registered does not announce itself. It simply never
+        // arrives. The same reasoning `reachable` is here for.
+        //
+        // Every note, not only the sealed ones: a hive that seals tomorrow
+        // needs its reminder pending today, because the app may not be opened
+        // between the seal and the morning after. The planner drops the ones
+        // whose morning has already gone by.
+        let hives = notes.load().all
+        let plan = planner.plan(for: birthday, people: reachable(people), hives: hives, from: now)
         // One of the four numbers. Counted from the schedule rather than from
         // Notification Centre, for the reason written over `noteScheduled`.
         Tally.noteScheduled(plan, now: now)
@@ -154,11 +171,12 @@ final class NotificationService {
         // The whole person rather than just their name, because how their day
         // is worded depends on more than what they are called.
         let known = Dictionary(reachable(people).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let byDate = Dictionary(hives.map { ($0.wallDate, $0) }, uniquingKeysWith: { first, _ in first })
 
         centre.removeAllPendingNotificationRequests()
 
         for notification in plan {
-            guard let content = content(for: notification, birthday: birthday, people: known) else {
+            guard let content = content(for: notification, birthday: birthday, people: known, hives: byDate) else {
                 continue
             }
             let trigger = UNCalendarNotificationTrigger(
@@ -190,7 +208,8 @@ final class NotificationService {
     private func content(
         for notification: PlannedNotification,
         birthday: CalendarBirthday,
-        people: [UUID: Person]
+        people: [UUID: Person],
+        hives: [String: HiveNote] = [:]
     ) -> UNNotificationContent? {
         let content = UNMutableNotificationContent()
         content.sound = .default
@@ -222,6 +241,18 @@ final class NotificationService {
             guard let person = people[personID], person.isUsable else { return nil }
             content.title = "\(person.trimmedName)'s birthday is in \(days) days"
             content.body = "Long enough to actually get something."
+
+        case let .hiveSealed(wallDate):
+            // Nil when the note has gone, which is what a buzz taken back
+            // inside its window leaves behind. Nothing worth saying is the
+            // same answer here as it is for a person whose name was emptied
+            // out, and it is handled the same way: no reminder at all.
+            guard let note = hives[wallDate.key], let date = wallDate.calendarDate else { return nil }
+            let voice = HiveDates.voice(for: wallDate)
+            content.title = HiveCopy.sealedTitle(dateName: date.displayName())
+            content.body = HiveCopy.sealedBody(
+                place: note.place, settled: note.settled, headline: note.headline, voice: voice
+            )
         }
 
         return content
@@ -294,13 +325,15 @@ final class NotificationService {
             return "Reminders are switched off, so there is no plan to take one from."
         }
 
-        let plan = planner.plan(for: birthday, people: reachable(people), from: now)
+        let hives = notes.load().all
+        let plan = planner.plan(for: birthday, people: reachable(people), hives: hives, from: now)
         guard let notification = plan.first(where: { $0.kind == wanted }) else {
             return "Nothing in the plan matches that. The plan currently holds \(plan.count) reminders."
         }
 
         let known = Dictionary(reachable(people).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        guard let content = content(for: notification, birthday: birthday, people: known) else {
+        let byDate = Dictionary(hives.map { ($0.wallDate, $0) }, uniquingKeysWith: { first, _ in first })
+        guard let content = content(for: notification, birthday: birthday, people: known, hives: byDate) else {
             return "That person has no name, so no reminder is written for them at all."
         }
 
