@@ -157,6 +157,80 @@ test("an empty date still produces a card rather than a broken one", () => {
 });
 
 import { readFile } from "node:fs/promises";
+import { renderSquare, SQUARE_SIDE } from "../src/share.js";
+
+/** One placed story, the shape og.ts hands the square. */
+function placed(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "11111111-2222-3333-4444-555555555555", wallDate: "2026-09-04", submittedAt: "2026-09-04T05:00:00Z",
+    headline: "1998: Google is founded", url: "https://en.wikipedia.org/wiki/September_4", outlet: "en.wikipedia.org",
+    status: "placed" as const, tier: "claimed" as const, support: 2, priority: 1, placedAt: "2026-09-04T05:15:00Z",
+    rect: { mx: 4, my: 4, w: 4, h: 3 }, falseAt: null, falseNote: null,
+    subjectKind: "song", subjectId: "2007-09-08", sources: [], ...overrides,
+  };
+}
+
+function hiveDay(stories: ReturnType<typeof placed>[], overrides: Record<string, unknown> = {}) {
+  return {
+    wallDate: "2026-09-04", year: 2026, month: 9, day: 4, opensAt: "2026-09-03T04:00:00Z",
+    liveAt: "2026-09-04T04:00:00Z", closesAt: "2026-09-06T04:00:00Z", closedAt: "2026-09-06T04:00:00Z",
+    stories, ...overrides,
+  };
+}
+
+test("the square draws the board at its own proportions, with the date and the covers", () => {
+  const day = hiveDay([placed()]);
+  const sq = renderSquare(page, null, { day, pictures: new Map([["song:2007-09-08", "file:///static/covers/abc.jpg"]]) });
+  assert.ok(sq.includes(`width: ${SQUARE_SIDE}px; height: ${SQUARE_SIDE}px`), "1080 by 1080, not the wide strip");
+  assert.ok(sq.includes("The hive for"));
+  assert.ok(sq.includes("September 4"));
+  assert.ok(sq.includes("1998: Google is founded"));
+  assert.ok(sq.includes("url(&quot;file:///static/covers/abc.jpg&quot;)"), "the cover is on the tile");
+  assert.ok(sq.includes("grid-column:3 / span 4;grid-row:4 / span 3"), "the same viewport the page and the wide card use");
+  assert.ok(sq.includes("2 buzzes"));
+  assert.ok(sq.includes("birthed.app"));
+});
+
+test("the square gives a headline more room than the wide card does", () => {
+  const day = hiveDay([placed()]);
+  const hive = { day, pictures: new Map<string, string>() };
+  const sq = renderSquare(page, null, hive);
+  const wide = renderShareCard(page, null, hive);
+  // Both size a headline from the module, so comparing the module compares the
+  // headline. 880 pixels of board against 540 is the whole reason for the shape.
+  assert.ok(sq.includes("--m: 109.00px"), "880 pixels of board over an eight module viewport");
+  assert.ok(wide.includes("--m: 66.75px"), "534 pixels of board over the same viewport");
+});
+
+test("a date with no board gets an honest picture rather than none", () => {
+  const sq = renderSquare({ month: 3, day: 3, people: [] });
+  assert.ok(sq.includes("March 3"));
+  assert.ok(sq.includes("Its hive opens the day before"), "it says when the board arrives instead of apologising");
+  assert.ok(sq.includes("birthed.app"));
+  // A hive row with nothing placed on it is still an empty date.
+  const bare = renderSquare(page, null, { day: hiveDay([]), pictures: new Map() });
+  assert.ok(bare.includes("Its hive opens the day before"));
+});
+
+test("the empty square leads with what happened, and falls back to names when nothing was found", () => {
+  const withFact = renderSquare({ month: 3, day: 3, people: [] }, { year: 1931, text: "The Star Spangled Banner became the national anthem." });
+  assert.ok(withFact.includes("1931"));
+  assert.ok(withFact.includes("national anthem"));
+  const withNames = renderSquare(page, null);
+  assert.ok(withNames.includes("Anton Bruckner"), "no researched fact, so the names stand in");
+});
+
+test("nothing a source wrote can inject markup into either square", () => {
+  const day = hiveDay([placed({ headline: "<script>alert(1)</script>", outlet: "<img src=x>" })]);
+  const sq = renderSquare(page, null, { day, pictures: new Map() });
+  assert.ok(!sq.includes("<script>alert(1)</script>"));
+  assert.ok(sq.includes("&lt;script&gt;"));
+  assert.ok(!sq.includes("<img src=x>"));
+  const names = renderSquare(page, null);
+  assert.ok(!names.includes("<script>Hildur"));
+  assert.ok(names.includes("&lt;script&gt;"));
+});
+
 test("a card is handed its pictures as bytes, never as an address that needs an origin", async () => {
   // What broke: the card is put up with setContent, which leaves the page on
   // an opaque origin, and Chromium refuses every file:// subresource such a
@@ -177,12 +251,11 @@ test("a card is handed its pictures as bytes, never as an address that needs an 
   };
   const day = { wallDate: "2026-09-04", year: 2026, month: 9, day: 4, opensAt: "2026-09-03T04:00:00Z", liveAt: "2026-09-04T04:00:00Z", closesAt: "2026-09-06T04:00:00Z", closedAt: null, stories: [story] };
   const pictures = new Map([["song:2007-09-08", "data:image/jpeg;base64,AAAA"]]);
-  for (const card of [renderShareCard(page, null, { day, pictures })]) {
+  for (const card of [renderShareCard(page, null, { day, pictures }), renderSquare(page, null, { day, pictures })]) {
     assert.ok(card.includes("url(&quot;data:image/jpeg;base64,AAAA&quot;)"));
     assert.ok(!card.includes("file://"));
   }
 });
-
 
 
 

@@ -1,4 +1,11 @@
-// Renders the share image for every date, once, into out/og.
+// Renders the share pictures for every date, once, into out/og.
+//
+// Two shapes a date, from the same browser and the same staged HTML:
+//
+//   <date>.png         1200 by 630, the link preview, cropped to that strip by
+//                      every platform that draws one.
+//   <date>-square.png  1080 by 1080, the board at its own proportions, which is
+//                      the one somebody saves and puts somewhere else.
 //
 // Kept out of `npm run site` on purpose. The pages build with no browser and
 // no native dependency; only this step needs Chromium, so a plain content
@@ -12,7 +19,7 @@ import { join } from "node:path";
 import { chromium } from "playwright";
 import { factsByDay, factsForDate, fetchFacts } from "./facts.js";
 import { everyDate, slug, type DayPage, type Person } from "./model.js";
-import { cardHighlight, renderShareCard, type CardHive } from "./share.js";
+import { cardHighlight, renderShareCard, renderSquare, SQUARE_SIDE, type CardHive } from "./share.js";
 import { eventsByDay, eventsForDate, fetchEvents } from "./timeline.js";
 import { fetchWall, newestByDate, wallKey } from "./wall.js";
 import { coverageByDay, fetchChartWeeks, songsForDate, withDownloadedCovers } from "./songs.js";
@@ -127,8 +134,12 @@ async function main(): Promise<void> {
 
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: WIDTH, height: HEIGHT } });
+  // A second page rather than resizing the first one between every shot: a
+  // viewport change is a relayout and there are 366 of each.
+  const square = await browser.newPage({ viewport: { width: SQUARE_SIDE, height: SQUARE_SIDE } });
 
   let written = 0;
+  let squares = 0;
   let carrying = 0;
   let hived = 0;
   for (const date of everyDate()) {
@@ -152,11 +163,18 @@ async function main(): Promise<void> {
     const shot = await page.screenshot({ type: "png", clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } });
     await writeFile(join(OUT, `${slug(date.month, date.day)}.png`), shot);
     written++;
+    // Every date gets a square, with a hive on it or without one. A date with
+    // no board is 362 of the 366 today, and it gets the one sourced thing that
+    // happened on it rather than no picture at all.
+    await square.setContent(renderSquare(day, highlight, hive), { waitUntil: "load" });
+    const tall = await square.screenshot({ type: "png", clip: { x: 0, y: 0, width: SQUARE_SIDE, height: SQUARE_SIDE } });
+    await writeFile(join(OUT, `${slug(date.month, date.day)}-square.png`), tall);
+    squares++;
     if (written % 30 === 0) console.log(`  ${written} of 366`);
   }
 
   await browser.close();
-  console.log(`wrote ${written} share images into ${OUT}`);
+  console.log(`wrote ${written} share images and ${squares} squares into ${OUT}`);
   console.log(`${hived} of them show a hive, ${carrying} say what happened, ${written - carrying} are names only`);
 }
 

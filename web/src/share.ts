@@ -13,7 +13,7 @@ import { DayPage, monthName } from "./model.js";
 import { escapeHtml } from "./render.js";
 import { cardHighlight, type Highlight } from "./highlight.js";
 import { splitDatePrefix, type DayEvent } from "./timeline.js";
-import { subjectOf, units, viewportFor, voiceFor, type WallDay, type WallStory } from "./wall.js";
+import { subjectOf, units, viewportFor, voiceFor, type Viewport, type Voice, type WallDay, type WallStory } from "./wall.js";
 
 
 
@@ -254,5 +254,223 @@ export function renderShareCard(page: DayPage, highlight: Highlight | null = nul
   <p class="foot">birthed.app</p>
 </body></html>`;
 }
+
+// ---------------------------------------------------------------------------
+// The square
+// ---------------------------------------------------------------------------
+
+/**
+ * The square is 1080 by 1080, which is what a picture saved out of a page and
+ * put somewhere else is expected to be.
+ *
+ * Why a second shape at all, when the wide card above already draws the board.
+ * The wide card is a link preview and its job is to sit in a strip 1200 by 630,
+ * so the board is squeezed into a 540 pixel column beside the date and the
+ * tiles come out smaller than the page draws them. The square is the board at
+ * its own proportions, which is the shape the thing actually is, and it is the
+ * one somebody saves.
+ */
+const SQUARE = 1080;
+
+/** The three tones of honey, the same three the board uses. */
+const TONE: Record<WallStory["tier"], string> = {
+  claimed: "#EFE0B8",
+  reported: "#E7A83A",
+  seen_direct: "#B05A0C",
+};
+
+/**
+ * What a tile carries and how it is drawn, shared by the square and the
+ * personal square below so the two cannot drift apart.
+ *
+ * **Size is what the colour was going to be.** Every seeded story is
+ * `claimed`, so all three tones are one tone in practice, which
+ * `docs/the-wall.md` section 15 already wrote down. So the square leans on the
+ * thing that is real: a tile's size is the buzzes it took, and the covers and
+ * the faces are already on disk. The tones stay in the code because the day a
+ * second source lands on a story they start working again, and nothing here
+ * pretends they are working now.
+ */
+function squareTiles(hive: CardHive, view: Viewport, voice: Voice, pulled: string | null = null): string {
+  const onWall = hive.day.stories.filter((s) => s.rect !== null && (s.status === "placed" || s.status === "false"));
+  return onWall.map((s) => {
+    const r = s.rect!;
+    const subject = subjectOf(s);
+    const pic = subject === null ? undefined : hive.pictures.get(subject);
+    const pictured = pic !== undefined;
+    const back = pictured
+      ? `linear-gradient(to top, rgba(20,12,4,.94) 0%, rgba(20,12,4,.55) 50%, rgba(20,12,4,.1) 100%), url(&quot;${escapeHtml(pic)}&quot;) center / cover`
+      : TONE[s.tier];
+    const style = `grid-column:${r.mx - view.ox + 1} / span ${r.w};grid-row:${r.my - view.oy + 1} / span ${r.h};background:${back}`;
+    // How many lines of headline the height allows. The same hint the page's
+    // own tiles take, so a tall tile reads as a tall tile here too.
+    const lines = r.h <= 3 ? 3 : r.h === 4 ? 4 : 6;
+    const count = units(s.support, voice);
+    const dim = pulled !== null && s.id !== pulled ? " dim" : "";
+    const lit = pulled !== null && s.id === pulled ? " lit" : "";
+    return `<div class="t${pictured || s.tier === "seen_direct" ? " light" : ""}${dim}${lit}" style="${style};--lines:${lines}"><span class="h">${escapeHtml(s.headline)}</span><span class="f">${count === "" ? "" : `<b>${count}</b> `}${escapeHtml(s.outlet)}</span></div>`;
+  }).join("\n");
+}
+
+/** The stylesheet both squares share. `boardPx` is how many pixels the board gets. */
+function squareStyle(view: Viewport, boardPx: number): string {
+  return `
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    width: ${SQUARE}px; height: ${SQUARE}px; overflow: hidden; background: ${INK}; color: ${CREAM};
+    font: 400 24px/1.4 -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    position: relative; display: flex; flex-direction: column; align-items: center; padding: 34px 36px 30px;
+  }
+  .bloom {
+    position: absolute; left: -300px; top: -340px; width: 1000px; height: 1000px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(239,86,128,0.26), rgba(239,86,128,0) 60%);
+  }
+  .top { position: relative; width: 100%; display: flex; align-items: baseline; gap: 18px; margin-bottom: 18px; }
+  .kicker { font-size: 19px; font-weight: 800; letter-spacing: 0.24em; color: ${ACCENT}; text-transform: uppercase; }
+  .top h1 { font-family: Georgia, "Times New Roman", serif; font-weight: 800; font-size: 54px; line-height: 1; letter-spacing: -0.02em; }
+  .top .yr { font-family: Georgia, "Times New Roman", serif; font-size: 30px; color: #EFE0B8; margin-left: auto; }
+  .board {
+    position: relative; flex: 0 0 auto; width: ${boardPx}px; height: ${boardPx}px; padding: 4px; border-radius: 16px; background: #100D16;
+    display: grid; gap: 4px; grid-template-columns: repeat(${view.side}, 1fr); grid-template-rows: repeat(${view.side}, 1fr);
+    box-shadow: inset 0 0 0 1px rgba(255,247,238,.1), 0 30px 60px rgba(0,0,0,.5);
+    --m: ${((boardPx - 8) / view.side).toFixed(2)}px;
+  }
+  .t {
+    position: relative; overflow: hidden; border-radius: 6px; color: #2A1A08;
+    display: flex; flex-direction: column; justify-content: space-between; padding: calc(var(--m) * .13) calc(var(--m) * .15);
+  }
+  .t.light { color: ${CREAM}; justify-content: flex-end; }
+  .t.dim { opacity: .34; }
+  .t.lit { box-shadow: 0 0 0 4px ${ACCENT}; z-index: 2; }
+  .t .h {
+    font-family: Georgia, "Times New Roman", serif; font-weight: 700; font-size: calc(var(--m) * .30); line-height: 1.18; text-wrap: pretty;
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--lines, 3); overflow: hidden;
+  }
+  .t .f { font-size: calc(var(--m) * .19); opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: calc(var(--m) * .08); }
+  .t .f b { font-weight: 800; }
+  .foot { position: relative; width: 100%; margin-top: auto; display: flex; align-items: baseline; gap: 16px; padding-top: 18px; }
+  .foot .line { font-size: 21px; color: #C9C2D4; text-wrap: pretty; min-width: 0; }
+  .foot .mark { margin-left: auto; color: #7A7280; font-size: 20px; letter-spacing: 0.06em; font-weight: 600; flex: 0 0 auto; }
+`;
+}
+
+/** How a hive's state reads in one sentence, in the date's own voice. */
+function squareLine(hive: CardHive, voice: Voice): string {
+  const day = hive.day;
+  const onWall = day.stories.filter((s) => s.rect !== null && (s.status === "placed" || s.status === "false"));
+  const sealed = day.closedAt !== null || Date.parse(day.closesAt) <= Date.now();
+  const backed = onWall.filter((s) => s.support > 0).length;
+  const few = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
+  const word = (n: number): string => few[n] ?? String(n);
+  if (sealed) return `What ${onWall.length === 1 ? "one story" : `${onWall.length} stories`} people here thought would still matter. Sealed for good.`;
+  if (backed > 0) return `${onWall.length} stories, ${word(backed)} of them ${voice.past}. Open until midnight Eastern.`;
+  return `${onWall.length} stories. Open until midnight Eastern. What people ${voice.past === "buzzed" ? "buzz" : "back"} gets bigger.`;
+}
+
+/**
+ * The square for a date that has a board with tiles on it.
+ *
+ * The board takes as much of the square as the date line above it and the one
+ * sentence below it leave, which is 880 pixels, so a tile is between 55 and 110
+ * pixels a module and a headline is set from the module. That is the whole
+ * reason this shape exists: at 540 pixels in the wide card the same headline is
+ * half the size and a reader has to know what they are looking at already.
+ */
+function hiveSquare(page: DayPage, hive: CardHive): string {
+  const name = `${monthName(page.month)} ${page.day}`;
+  const voice = voiceFor(page.month, page.day);
+  const onWall = hive.day.stories.filter((s) => s.rect !== null && (s.status === "placed" || s.status === "false"));
+  const view = viewportFor(onWall.map((s) => s.rect!));
+  return `<!doctype html>
+<html><head><meta charset="utf-8"><style>${squareStyle(view, 880)}</style></head>
+<body>
+  <div class="bloom"></div>
+  <div class="top">
+    <span class="kicker">The hive for</span>
+    <h1>${name}</h1>
+    <span class="yr">${hive.day.year}</span>
+  </div>
+  <div class="board">
+${squareTiles(hive, view, voice)}
+  </div>
+  <div class="foot">
+    <span class="line">${squareLine(hive, voice)}</span>
+    <span class="mark">birthed.app</span>
+  </div>
+</body></html>`;
+}
+
+/**
+ * The square for a date with no board, which today is 362 of the 366.
+ *
+ * It is not an apology and it is not a picture of nothing. It is the one
+ * sourced thing that happened on the date, set as large as it will go, which
+ * is the half of this site nobody else can print, plus a quiet line saying
+ * when the hive opens. A date with no researched fact either falls back to the
+ * three names, because names are all it has.
+ */
+function emptySquare(page: DayPage, highlight: Highlight | null): string {
+  const name = `${monthName(page.month)} ${page.day}`;
+  const names = highlight ? [] : page.people.slice(0, 3);
+  const rows = names.map((person) => `<li><span class="year">${person.birthYear ?? ""}</span><span class="nm">${escapeHtml(person.name)}</span></li>`).join("\n");
+  return `<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    width: ${SQUARE}px; height: ${SQUARE}px; overflow: hidden; background: ${INK}; color: ${CREAM};
+    font: 400 24px/1.4 -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    position: relative; display: flex; flex-direction: column; justify-content: center; padding: 72px;
+  }
+  .bloom {
+    position: absolute; right: -200px; top: -280px; width: 940px; height: 940px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(239,86,128,0.32), rgba(239,86,128,0) 60%);
+  }
+  /* Every line stops short of the candle's column. A sentence that runs
+     under the flame is the one fault a picture like this cannot carry, and
+     the candle is the fixed object, so the text is what yields. */
+  .col { position: relative; width: 660px; }
+  .kicker { font-size: 21px; font-weight: 800; letter-spacing: 0.26em; color: ${ACCENT}; text-transform: uppercase; margin-bottom: 16px; }
+  h1 { font-family: Georgia, "Times New Roman", serif; font-weight: 800; font-size: 104px; line-height: 0.96; letter-spacing: -0.02em; }
+  .what {
+    margin-top: 40px; padding-top: 36px; border-top: 1px solid #2A2434;
+    font-family: Georgia, "Times New Roman", serif; font-size: 44px; line-height: 1.24; text-wrap: pretty;
+  }
+  .what .when { display: block; color: ${ACCENT}; font-family: -apple-system, Helvetica, Arial, sans-serif; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 30px; margin-bottom: 14px; }
+  ul { list-style: none; padding: 0; margin-top: 40px; padding-top: 36px; border-top: 1px solid #2A2434; display: grid; gap: 18px; }
+  li { display: flex; align-items: baseline; gap: 22px; }
+  .year { color: ${ACCENT}; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 30px; width: 96px; flex: 0 0 96px; }
+  .nm { font-size: 42px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .soon { margin-top: 38px; color: #C9C2D4; font-size: 23px; line-height: 1.45; text-wrap: pretty; }
+  .mark { position: absolute; left: 72px; bottom: 56px; color: #7A7280; font-size: 21px; letter-spacing: 0.06em; font-weight: 600; }
+  .cand { position: absolute; right: 40px; bottom: -84px; opacity: .92; }
+</style></head>
+<body>
+  <div class="bloom"></div>
+  <div class="col">
+    <p class="kicker">Born on</p>
+    <h1>${name}</h1>
+    ${highlight ? `<p class="what"><span class="when">${highlight.year}</span>${escapeHtml(highlight.text)}</p>` : ""}
+    ${names.length > 0 ? `<ul>${rows}</ul>` : ""}
+    <p class="soon">Its hive opens the day before, and everything<br>with a birthday on ${name} goes on it.</p>
+  </div>
+  <p class="mark">birthed.app</p>
+  <div class="cand">${CANDLE}</div>
+</body></html>`;
+}
+
+/**
+ * The square for a date, whichever kind it is. One entry point, so a caller
+ * never has to know which of the two it is getting: a date with tiles gets its
+ * board, and every other date gets an honest picture rather than none.
+ */
+export function renderSquare(page: DayPage, highlight: Highlight | null = null, hive: CardHive | null = null): string {
+  if (hive !== null && hive.day.stories.some((s) => s.rect !== null && (s.status === "placed" || s.status === "false"))) {
+    return hiveSquare(page, hive);
+  }
+  return emptySquare(page, highlight);
+}
+
+/** The size the square is rendered and shipped at, for the head tags and the shooter. */
+export const SQUARE_SIDE = SQUARE;
 
 export { cardHighlight, type Highlight };
