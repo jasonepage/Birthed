@@ -2,7 +2,7 @@
 // without a network and without a browser.
 
 import { DayPage, Person, monthName, neighbours, slug, everyDate } from "./model.js";
-import { WALL_STYLE, storyBody, wallSection, type WallDay, type WallStory } from "./wall.js";
+import { WALL_STYLE, squarePath, storyBody, wallSection, type WallDay, type WallStory } from "./wall.js";
 import { CHART_NAME, coverName, SongOfTheYear } from "./songs.js";
 import { calendar } from "./calendar.js";
 import { type CulturalEvent, textOf } from "./culture.js";
@@ -271,6 +271,9 @@ const STYLE = `
 .rest > summary::before { content: "+"; display: inline-block; width: 22px; color: #A49BAE; font-weight: 700; }
 .rest[open] > summary::before { content: "\\2212"; }
 .rest > summary:hover { color: #FFD98A; }
+/* On a phone the bar has room for the arrows, the dice and About; the index
+   is one tap away in the footer. */
+@media (max-width: 520px) { .daybar a[href="/calendar/"] { display: none; } }
 .remember { margin: 30px 0 0; }
 .remember h2.section { margin-bottom: 2px; }
 .memorynote {
@@ -1624,7 +1627,7 @@ ${extraHead}<style>${STYLE}${WALL_STYLE}</style>
 const CREDIT = `<p>Names, years and descriptions come from <a href="https://www.wikidata.org">Wikidata</a>, released under <a href="https://creativecommons.org/publicdomain/zero/1.0/">Creative Commons Zero</a>. Credit to Wikipedia and Wikidata.</p>
 <p>Birthed is not affiliated with Wikipedia, Wikidata or the Wikimedia Foundation.</p>`;
 
-const SITELINKS = `<p class="sitelinks"><a href="/">Every date</a> · <a href="/support/">Support</a> · <a href="/privacy/">Privacy</a></p>`;
+const SITELINKS = `<p class="sitelinks"><a href="/">Today</a> · <a href="/calendar/">Every date</a> · <a href="/support/">Support</a> · <a href="/privacy/">Privacy</a></p>`;
 
 /**
  * The footer, and the one sentence on it that is not a credit.
@@ -2967,13 +2970,6 @@ export function renderDayPage(
   const asked = askCandidates(timelineRows);
   const askedKeys = asked.map((row) => `${row.kind}:${row.id}`);
   const hue = dayHue(page.month);
-  // The index of all 366 sits at the foot of every date page, which is what
-  // lets "/" be today's page instead of a separate front door. A reader who
-  // arrives on /april-26/ from a search result can reach any other date from
-  // where they landed, and a reader who types birthed.app gets the same page
-  // with today's date in it. There is no longer a page whose only job is to
-  // point at the pages.
-  const indexYear = new Date().getUTCFullYear();
   const shortName = `${monthName(page.month).slice(0, 3)} ${page.day}`;
 
   return `${head(`Born on ${name}`, description, canonical, image, !isReady(page, facts), "", sequence)}
@@ -2987,13 +2983,13 @@ export function renderDayPage(
 </span>
 <span class="barend">
 <a class="dice" href="/random/" title="A random day of the year" aria-label="A random day of the year">${DICE}<span>Random</span></a>
+<a class="get" href="/calendar/">Every date</a>
 <a class="get" href="/about/">About</a>
 </span>
 </div>
 ${AFTER}
 <h1>${name}</h1>
-${wallSection(wall, name)}
-${openingBand(page, songs, culture, highlight)}
+${wallSection(wall, name, Date.now(), { date: { month: page.month, day: page.day } })}
 <section class="remember" aria-labelledby="remhead">
 <h2 class="section" id="remhead">What people remember of ${escapeHtml(name)}</h2>
 <p class="state"><span class="dot" aria-hidden="true"></span>
@@ -3017,21 +3013,6 @@ ${memoryNote}${feedSection(picked, rest, timeline.length, name, searched, timeli
 ${songSection(songs, name)}
 ${peopleRail(page, name)}
 </details>
-<nav class="pager cards">
-<a href="/${slug(previous.month, previous.day)}/">
-<p class="dir">&larr; The day before</p>
-<p class="when">${monthName(previous.month)} ${previous.day}</p>
-</a>
-<a class="after" href="/${slug(next.month, next.day)}/">
-<p class="dir">The day after &rarr;</p>
-<p class="when">${monthName(next.month)} ${next.day}</p>
-</a>
-</nav>
-<section class="everyday">
-<h2 class="section">Every day of the year</h2>
-<p class="lede">Pick a date and see who shares it and what happened on it. The weeks are laid out the way they fall in ${indexYear}.</p>
-${calendar(indexYear, { month: page.month, day: page.day })}
-</section>
 </div>
 <p class="signed">Made by <a href="/about/">Jason Evan Page</a>, one person. No ads, nothing for sale.</p>
 ${jsonLd(page, canonical)}
@@ -3057,6 +3038,55 @@ export function renderStoryPage(story: WallStory, day: WallDay): string {
 <span class="barend"><a class="get" href="/about/">About</a></span>
 </div>
 ${storyBody(story, day)}
+</div>
+${FOOT}`;
+}
+
+/**
+ * The square alone, as big as the window. docs/the-wall.md section 13:
+ * the canvas is the product, and a canvas drawn at half a column is not one.
+ * Baked with the wall the build saw and swapped live by serve.ts on the
+ * three open dates, the same as the date page. noindex, because it is a
+ * view of the date page and not a second page about the date.
+ */
+export function renderSquarePage(day: WallDay, month: number, d: number): string {
+  const name = `${monthName(month)} ${d}`;
+  const canonical = `${SITE}${squarePath(month, d)}`;
+  const hue = dayHue(month);
+  return `${head(`The square for ${name}, ${day.year}`,
+    `The Birthed square for ${name}, ${day.year}: what people think will still matter about it, sized by how many backed each story.`,
+    canonical, `${SITE}/og/${slug(month, d)}.png`, true, "squarepage")}
+<div class="day wsq on-${slug(month, d)}" style="--day:${hue.day};--day-soft:${hue.soft}">
+<div class="daybar">
+<a class="mark" href="/">Birthed</a>
+<span class="barnav"><a class="here" href="/${slug(month, d)}/">${escapeHtml(name)}</a></span>
+<span class="barend"><a class="get" href="/${slug(month, d)}/">Back to the day</a></span>
+</div>
+${wallSection(day, name, Date.now(), { square: true, date: { month, day: d } })}
+</div>
+${FOOT}`;
+}
+
+/**
+ * The index of all 366, on its own page. It sat at the foot of every date
+ * page, which made every date page a calendar with a date on top. The top
+ * bar links here from everywhere.
+ */
+export function renderCalendarPage(year: number): string {
+  return `${head("Every day of the year", "Pick a date and see its square, who shares it and what happened on it.", `${SITE}/calendar/`, undefined, false, "calendarpage")}
+<div class="day">
+<div class="daybar">
+<a class="mark" href="/">Birthed</a>
+<span class="barend">
+<a class="dice" href="/random/" title="A random day of the year" aria-label="A random day of the year">${DICE}<span>Random</span></a>
+<a class="get" href="/about/">About</a>
+</span>
+</div>
+<section class="everyday">
+<h1>Every day of the year</h1>
+<p class="lede">Pick a date and see its square, who shares it and what happened on it. The weeks are laid out the way they fall in ${year}.</p>
+${calendar(year)}
+</section>
 </div>
 ${FOOT}`;
 }

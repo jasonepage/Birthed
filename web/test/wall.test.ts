@@ -1,10 +1,10 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 
-import { renderDayPage, renderStoryPage } from "../src/render.js";
+import { renderDayPage, renderSquarePage, renderStoryPage } from "../src/render.js";
 import {
-  BEE, PLAIN, PLAIN_DATES, allowanceOn, fetchWall, newestByDate, storyPath, takingBoosts, tapsLeftSentence, tierLabel, units,
-  voiceFor, wallMarks, wallSection, type WallDay, type WallStory,
+  BEE, PLAIN, PLAIN_DATES, VIEW_MIN, allowanceOn, emptyWallDay, fetchWall, newestByDate, squarePath, storyPath, takingBoosts,
+  tapsLeftSentence, tierLabel, units, viewportFor, voiceFor, wallMarks, wallSection, type WallDay, type WallStory,
 } from "../src/wall.js";
 
 const PAGE = { month: 9, day: 9, people: [] };
@@ -46,37 +46,45 @@ function day(stories: WallStory[], overrides: Partial<WallDay> = {}): WallDay {
   };
 }
 
-test("a date page without a wall is the page it was", () => {
+test("a date page without a square yet says when its first one opens", () => {
   const html = renderDayPage(PAGE);
-  assert.ok(!html.includes('class="wall"'));
-  assert.ok(!html.includes("The wall for"));
+  assert.ok(html.includes('class="wall wpromise"'));
+  assert.ok(html.includes("September 9 has no square yet. Its first one opens on September 8,"));
+  assert.ok(!html.includes('class="wboard'), "no board is drawn for a promise");
 });
 
 test("a tile sits at its stored anchor and size, and links to its receipt", () => {
   const s = story({ rect: { mx: 3, my: 5, w: 4, h: 3 }, support: 40 });
   const html = wallSection(day([s]), "September 9", Date.parse("2026-09-09T20:00:00Z"));
-  assert.ok(html.includes("grid-column:4 / span 4;grid-row:6 / span 3"));
+  // Drawn inside the viewport: an eight module window centred on the tile,
+  // so the stored anchor at column 3, row 5 lands at column 3, row 4 of the
+  // window, whose origin is (1, 2).
+  assert.ok(html.includes('style="--side:8"'));
+  assert.ok(html.includes("grid-column:3 / span 4;grid-row:4 / span 3"));
   assert.ok(html.includes(`href="${storyPath(s)}"`));
   assert.ok(html.includes("Council approves the river crossing"));
   assert.ok(html.includes("example.org"));
   assert.ok(html.includes("40 buzzes"));
   assert.ok(html.includes(">Reported<"));
-  assert.ok(html.includes("Open. Closes at midnight Eastern ending September 10, 2026"));
+  assert.ok(html.includes("Open. Seals at midnight Eastern ending September 10, 2026"));
 });
 
 test("a closed wall says it is permanent", () => {
   const html = wallSection(day([story()]), "September 9", Date.parse("2026-09-12T00:00:00Z"));
-  assert.ok(html.includes("Closed at midnight Eastern ending September 10, 2026. This wall is permanent."));
+  assert.ok(html.includes("Sealed at midnight Eastern ending September 10, 2026. Permanent."));
 });
 
 test("the pool and the overflow are listed under the square and labelled as not on the wall", () => {
   const pooled = story({ id: "aaaaaaaa-0000-0000-0000-000000000001", status: "pool", rect: null, placedAt: null, support: 0, headline: "A pooled story nobody backed" });
   const spilled = story({ id: "aaaaaaaa-0000-0000-0000-000000000002", status: "overflow", rect: null, headline: "A story the square had no room for" });
   const html = wallSection(day([story(), pooled, spilled]), "September 9");
-  assert.ok(html.includes("In the pool, not on the wall"));
-  assert.ok(html.includes("A pooled story nobody backed"));
-  assert.ok(html.includes("Earned a place, found no room, not on the wall"));
+  // The overflow story carries the fixture's twelve units, so it is listed as
+  // backed; the pooled one has none and is behind the fold with a count.
+  assert.ok(html.includes("Backed, waiting for room on the square"));
   assert.ok(html.includes("A story the square had no room for"));
+  assert.ok(html.includes('<details class="wmore">'));
+  assert.ok(html.includes("<summary>1 more story from the day's feeds, waiting for a buzz</summary>"));
+  assert.ok(html.includes("A pooled story nobody backed"));
   // Neither is drawn as a tile.
   assert.equal((html.match(/class="wtile/g) ?? []).length, 1);
 });
@@ -84,7 +92,7 @@ test("the pool and the overflow are listed under the square and labelled as not 
 test("a story shown false keeps its rectangle and is stamped", () => {
   const stamped = story({ status: "false", falseAt: "2026-09-10T10:00:00Z", falseNote: "The outlet corrected the vote count." });
   const html = wallSection(day([stamped]), "September 9");
-  assert.ok(html.includes("grid-column:9 / span 2;grid-row:8 / span 1"));
+  assert.ok(html.includes("grid-column:4 / span 2;grid-row:5 / span 1"));
   assert.ok(html.includes("wfalse"));
   assert.ok(html.includes("Shown false"));
   const page = renderStoryPage(stamped, day([stamped]));
@@ -118,9 +126,9 @@ test("the date page draws the wall above the rest of the page", () => {
   const s = story();
   const html = renderDayPage(PAGE, [], [], [], [], null, new Map(), new Map(), day([s]));
   const wallAt = html.indexOf('class="wall"');
-  const everydayAt = html.indexOf('class="everyday"');
-  assert.ok(wallAt > 0 && wallAt < everydayAt);
-  assert.ok(html.includes("The wall for September 9, 2026"));
+  const rememberAt = html.indexOf('class="remember"');
+  assert.ok(wallAt > 0 && wallAt < rememberAt);
+  assert.ok(html.includes("The square for September 9, 2026"));
 });
 
 test("a date page shows only the newest year's wall", () => {
@@ -226,7 +234,7 @@ test("the day before takes no taps, the day after takes one, and a closed wall t
 
   const early = wallSection(d, "September 9", before, { interactive: true });
   assert.ok(!early.includes("<form"), "no tap is offered before the date arrives");
-  assert.ok(early.includes("Buzzing starts when the date arrives"));
+  assert.ok(early.includes("Tomorrow's square. When the date arrives"));
   const late = wallSection(d, "September 9", after, { interactive: true });
   assert.ok(late.includes("<form"));
   assert.ok(late.includes("One buzz left today on this date. It closes tonight."));
@@ -312,4 +320,59 @@ test("the summary line counts what is inside, in the order the page draws it", (
   assert.equal(restSummary("September 9", 45, 12, 67, 60), "The rest of September 9: 45 things that happened, 12 releases, the number one song in 67 years, and 60 people born on it.");
   assert.equal(restSummary("September 9", 1, 0, 0, 1), "The rest of September 9: 1 thing that happened, and 1 person born on it.");
   assert.equal(restSummary("September 9", 0, 0, 0, 0), "The rest of September 9");
+});
+
+// ---------------------------------------------------------------------------
+// The square is the product, decided September 10, 2026
+// ---------------------------------------------------------------------------
+
+test("the page zooms to the tiles: the smallest square that holds them, never under eight, never over the board", () => {
+  assert.deepEqual(viewportFor([]), { ox: 0, oy: 0, side: VIEW_MIN });
+  // Ten tiles in the middle of a quiet day.
+  const quiet = viewportFor([{ mx: 6, my: 6, w: 4, h: 3 }, { mx: 10, my: 6, w: 4, h: 3 }, { mx: 6, my: 9, w: 5, h: 4 }, { mx: 2, my: 6, w: 4, h: 3 }]);
+  assert.equal(quiet.side, 12);
+  assert.ok(quiet.ox >= 0 && quiet.oy >= 0 && quiet.ox + quiet.side <= 16 && quiet.oy + quiet.side <= 16);
+  // Every tile is inside the window.
+  for (const r of [{ mx: 2, my: 6, w: 4, h: 3 }, { mx: 10, my: 6, w: 4, h: 3 }, { mx: 6, my: 9, w: 5, h: 4 }]) {
+    assert.ok(r.mx >= quiet.ox && r.mx + r.w <= quiet.ox + quiet.side && r.my >= quiet.oy && r.my + r.h <= quiet.oy + quiet.side);
+  }
+  // A full day is the whole board.
+  const full = viewportFor([{ mx: 0, my: 0, w: 4, h: 3 }, { mx: 12, my: 13, w: 4, h: 3 }]);
+  assert.deepEqual(full, { ox: 0, oy: 0, side: 16 });
+  // A tile in a corner: the window is clamped to the board rather than
+  // hanging off it.
+  const corner = viewportFor([{ mx: 0, my: 0, w: 4, h: 3 }]);
+  assert.deepEqual(corner, { ox: 0, oy: 0, side: 8 });
+});
+
+test("tomorrow has an empty square with the hour it opens, not a missing section", () => {
+  const tomorrow = emptyWallDay("2026-09-10");
+  assert.equal(tomorrow.liveAt, "2026-09-10T04:00:00.000Z");
+  assert.equal(tomorrow.opensAt, "2026-09-09T04:00:00.000Z");
+  assert.equal(tomorrow.closesAt, "2026-09-12T04:00:00.000Z");
+  assert.deepEqual(tomorrow.stories, []);
+  // January is five hours behind, not four.
+  assert.equal(emptyWallDay("2026-01-10").liveAt, "2026-01-10T05:00:00.000Z");
+  const html = wallSection(tomorrow, "September 10", Date.parse("2026-09-10T01:00:00Z"), { interactive: true });
+  assert.ok(html.includes('class="wboard wblank"'));
+  assert.ok(html.includes("Opens at midnight Eastern, about 3 hours from now."));
+  assert.ok(html.includes("Tomorrow's square."));
+  assert.ok(!html.includes("<form"), "nothing to buzz before the date arrives");
+});
+
+test("the full screen page is the square, its count and its sentences, and a buzz from it comes back to it", () => {
+  const s = story({ rect: { mx: 3, my: 5, w: 4, h: 3 }, support: 2 });
+  const d = day([s]);
+  const section = wallSection(d, "September 9", LIVE_NOW, { interactive: true, square: true });
+  assert.ok(section.includes('class="wall wsquare"'));
+  assert.ok(section.includes('name="v" value="square"'));
+  assert.ok(!section.includes("wmore") && !section.includes("Backed, waiting"), "the lists stay on the date page");
+  const page = renderSquarePage(d, 9, 9);
+  assert.ok(page.includes('<meta name="robots" content="noindex">'));
+  assert.ok(page.includes('href="/september-9/"'));
+  assert.equal(squarePath(9, 9), "/september-9/square/");
+  // The date page links to it, and only when there is something to see.
+  const dated = wallSection(d, "September 9", LIVE_NOW);
+  assert.ok(dated.includes('href="/september-9/square/">Open the square full screen</a>'));
+  assert.ok(!wallSection(emptyWallDay("2026-09-10"), "September 10", LIVE_NOW).includes("full screen"));
 });

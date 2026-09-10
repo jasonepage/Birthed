@@ -416,7 +416,7 @@ test("nothing on a date page is written to somebody born that day", () => {
   // also asserting that no CSS comment anywhere on the site contains the word
   // "you". It caught one, and the comment was about dropdown chevrons.
   const html = renderDayPage(page, [], facts);
-  const section = html.slice(html.indexOf("<ul class=\"feed\">"), html.indexOf("<nav class=\"pager"));
+  const section = html.slice(html.indexOf("<ul class=\"feed\">"), html.indexOf("</details>"));
   assert.ok(section.length > 0, "the facts list is on the page to be read");
   assert.ok(!/\byour?\b/i.test(section), "the facts section must not address a reader");
 });
@@ -840,8 +840,14 @@ test("a date page can be moved off in both directions without reaching the foot"
   const bar = html.slice(html.indexOf('<div class="daybar">'), stateAt);
   assert.ok(bar.includes('href="/september-3/"'), "the day before is not reachable from the bar");
   assert.ok(bar.includes('href="/september-5/"'), "the day after is not reachable from the bar");
-  // The pair at the foot stays, because that is how a crawler walks all 366.
-  assert.match(html, /<nav class="pager cards">/);
+  // The pair of cards at the foot is gone, decided September 10, 2026: the
+  // bar already does this and the head names both neighbours for a crawler.
+  assert.ok(!html.includes('<nav class="pager cards">'));
+  assert.ok(html.includes('<link rel="prev" href="https://birthed.app/september-3/">'));
+  assert.ok(html.includes('<link rel="next" href="https://birthed.app/september-5/">'));
+  // The index of all 366 is its own page now, linked from the bar.
+  assert.ok(bar.includes('href="/calendar/">Every date</a>'));
+  assert.ok(!html.includes('class="everyday"'));
 });
 
 test("a month has its own colour and the brand pink is not it", () => {
@@ -1265,7 +1271,7 @@ test("a culture row with nothing written about it is not on the page", () => {
     origin: "imported", dateKind: "happened",
   };
   const html = renderDayPage(page, [], [], [], [withSentence, bare]);
-  assert.ok(html.includes("Super Mario Maker"), "a row somebody wrote about stays");
+  assert.ok(html.includes("Nintendo shipped the level editor"), "a row somebody wrote about stays");
   assert.equal(html.includes("Mini Ninjas"), false, "a bare title does not");
 });
 

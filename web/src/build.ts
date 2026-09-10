@@ -16,7 +16,7 @@ import { DayPage, Person, everyDate, slug } from "./model.js";
 import { fetchWall, newestByDate, storyPath, wallKey } from "./wall.js";
 import { coverageByDay, fetchChartWeeks, songsForDate, withDownloadedCovers } from "./songs.js";
 import { buildSeed, factsByDay, factsForDate, fetchFacts, pickHighlights } from "./facts.js";
-import { isReady, renderDayPage, renderNotFound, renderRobots, renderSitemap, renderStoryPage } from "./render.js";
+import { isReady, renderCalendarPage, renderDayPage, renderNotFound, renderRobots, renderSitemap, renderSquarePage, renderStoryPage } from "./render.js";
 import { eventsByDay, eventsForDate, fetchEvents, fetchSealedMemory } from "./timeline.js";
 import { culturalByDate, culturalForDate, fetchCulturalEvents } from "./culture.js";
 import { fetchLeadLines } from "./lead.js";
@@ -226,6 +226,24 @@ async function main(): Promise<void> {
     }
   }
   if (receipts > 0) console.log(`wrote ${receipts} wall story pages`);
+
+  // The full screen square, one per date that has a wall, drawn from the
+  // newest year the way the date page is. Swapped live by serve.ts while the
+  // date is open.
+  let squares = 0;
+  for (const [key, day] of wallFor) {
+    const [month, d] = key.split("-").map(Number) as [number, number];
+    const directory = join(OUT, slug(month, d), "square");
+    await mkdir(directory, { recursive: true });
+    await writeFile(join(directory, "index.html"), renderSquarePage(day, month, d), "utf8");
+    squares++;
+  }
+  if (squares > 0) console.log(`wrote ${squares} square pages`);
+
+  // The index of all 366, on its own page rather than at the foot of every
+  // date page.
+  await mkdir(join(OUT, "calendar"), { recursive: true });
+  await writeFile(join(OUT, "calendar", "index.html"), renderCalendarPage(new Date().getUTCFullYear()), "utf8");
 
   // The front door shows six real facts off six real date pages, because a
   // landing page for a site whose value is 366 pages of content that shows

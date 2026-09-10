@@ -32,7 +32,7 @@ import { extname, join, normalize, resolve, sep } from "node:path";
 
 import { everyDate, monthName, slug } from "./model.js";
 import { ASK_SLOTS, TODAY, resultId, resultMarkup, undoForm, type Remembered } from "./render.js";
-import { fetchWallDay, openWallDates, replaceWall, wallKey, wallMarks, wallSection, type WallDay } from "./wall.js";
+import { emptyWallDay, fetchWallDay, openWallDates, replaceWall, squarePath, wallKey, wallMarks, wallSection, type WallDay } from "./wall.js";
 
 
 const TYPES: Record<string, string> = {
@@ -748,6 +748,8 @@ export interface Tap {
   storyId: string;
   month: number;
   day: number;
+  /** The full screen square page, when the tap came from it. */
+  square: boolean;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -765,7 +767,7 @@ export function readTap(body: string): Tap | null {
   if (!UUID.test(storyId)) return null;
   if (!Number.isInteger(month) || month < 1 || month > 12) return null;
   if (!Number.isInteger(day) || day < 1 || day > 31) return null;
-  return { storyId, month, day };
+  return { storyId, month, day, square: form.get("v") === "square" };
 }
 
 /**
@@ -977,7 +979,7 @@ async function handle(
       return;
     }
     const said = await castWebBoost(tap.storyId, token);
-    const where = `/${slug(tap.month, tap.day)}/`;
+    const where = tap.square ? squarePath(tap.month, tap.day) : `/${slug(tap.month, tap.day)}/`;
     response.writeHead(303, {
       Location: `${where}?tapped=${said}#${TAP_FRAGMENT[said]}`,
       "Cache-Control": "no-store",
@@ -1111,7 +1113,7 @@ async function handle(
       if (shown !== null) {
         const date = dateFor(path);
         const now = Date.now();
-        const wall = date === null ? null : await liveWall(date.month, date.day, now);
+        const wall = date === null ? null : await liveWall(date.month, date.day, now, false, date.square);
         const token = tokenFromCookie(request.headers.cookie);
         const standing = wall === null || token === null ? null : await wallStanding(wall.day.wallDate, token);
         response.writeHead(200, {
@@ -1152,7 +1154,7 @@ async function handle(
     const marked = token === null && born === null && tapped === null ? null : dateFor(path);
     if (marked !== null) {
       const now = Date.now();
-      const wall = await liveWall(marked.month, marked.day, now, fresh);
+      const wall = await liveWall(marked.month, marked.day, now, fresh, marked.square);
       let marks = (token === null ? "" : await myMarks(marked.month, marked.day, token))
         + yearMarks(slug(marked.month, marked.day), born);
       // The reader's own taps and count, for a browser that has a token and
@@ -1188,7 +1190,7 @@ async function handle(
     // is streamed exactly as built, below.
     const open = readable ? dateFor(path) : null;
     if (open !== null) {
-      const wall = (await liveWall(open.month, open.day))?.section ?? null;
+      const wall = (await liveWall(open.month, open.day, Date.now(), false, open.square))?.section ?? null;
       if (wall !== null) {
         let html: string | null = null;
         try {
@@ -1366,7 +1368,7 @@ const wallCache = new Map<string, { at: number; day: WallDay | null }>();
  * string and rate limited per address, the way ?kept= is.
  */
 async function liveWall(
-  month: number, day: number, now: number = Date.now(), fresh: boolean = false,
+  month: number, day: number, now: number = Date.now(), fresh: boolean = false, square: boolean = false,
 ): Promise<{ section: string; day: WallDay } | null> {
   const key = process.env.SUPABASE_ANON_KEY;
   if (!key) return null;
@@ -1379,7 +1381,11 @@ async function liveWall(
     wall = cached.day;
   } else {
     try {
-      wall = await fetchWallDay(projectBase(), key, wallDate, WALL_TIMEOUT_MS);
+      // No row yet is not a failure: it is tomorrow before anything has
+      // landed, and tomorrow's page draws an empty square with the hour it
+      // opens rather than nothing. A read that fails is null, and null is
+      // the page as built.
+      wall = (await fetchWallDay(projectBase(), key, wallDate, WALL_TIMEOUT_MS)) ?? emptyWallDay(wallDate);
     } catch {
       wall = null;
     }
@@ -1388,7 +1394,10 @@ async function liveWall(
     wallCache.set(wallDate, { at: now, day: wall });
   }
   if (wall === null) return null;
-  return { section: wallSection(wall, `${monthName(month)} ${day}`, now, { interactive: true }), day: wall };
+  return {
+    section: wallSection(wall, `${monthName(month)} ${day}`, now, { interactive: true, square, date: { month, day } }),
+    day: wall,
+  };
 }
 
 /** The page with the fresh wall in it, or the page as it was. */
@@ -1402,13 +1411,14 @@ export function forgetWalls(): void {
   wallCache.clear();
 }
 
-/** The date a request path names, or null. */
-function dateFor(requestPath: string): { month: number; day: number } | null {
-  const found = everyDate().find((d) => {
+/** The date a request path names, or null. The square page names its date too. */
+function dateFor(requestPath: string): { month: number; day: number; square: boolean } | null {
+  for (const d of everyDate()) {
     const at = `/${slug(d.month, d.day)}`;
-    return requestPath === at || requestPath === `${at}/` || requestPath === `${at}/index.html`;
-  });
-  return found ?? null;
+    if (requestPath === at || requestPath === `${at}/` || requestPath === `${at}/index.html`) return { month: d.month, day: d.day, square: false };
+    if (requestPath === `${at}/square` || requestPath === `${at}/square/` || requestPath === `${at}/square/index.html`) return { month: d.month, day: d.day, square: true };
+  }
+  return null;
 }
 
 async function withResult(

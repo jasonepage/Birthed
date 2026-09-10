@@ -282,6 +282,42 @@ export function easternDateOf(millis: number): string {
 }
 
 /**
+ * The instant a calendar date begins in Eastern time, the way the database's
+ * wall_eastern_midnight computes it, without a time zone library: Eastern
+ * midnight is 04:00 or 05:00 Coordinated Universal Time, and the formatter
+ * says which.
+ */
+export function easternMidnight(wallDate: string): number {
+  const [y, m, d] = wallDate.split("-").map(Number) as [number, number, number];
+  for (const hour of [4, 5]) {
+    const at = Date.UTC(y, m - 1, d, hour);
+    if (easternDateOf(at) === wallDate && easternDateOf(at - 1) !== wallDate) return at;
+  }
+  return Date.UTC(y, m - 1, d, 5);
+}
+
+/**
+ * A wall day with nothing on it, for a date that is open and has no row yet.
+ * The day before a date is open for submissions and the news seeder files
+ * nothing on it until the date arrives, so tomorrow's page had no wall at
+ * all. It has one: an empty square and the hour it opens. The window is the
+ * same arithmetic wall_days_fill_window does in the database.
+ */
+export function emptyWallDay(wallDate: string): WallDay {
+  const [y, m, d] = wallDate.split("-").map(Number) as [number, number, number];
+  const before = new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10);
+  const after = new Date(Date.UTC(y, m - 1, d + 2)).toISOString().slice(0, 10);
+  return {
+    wallDate, year: y, month: m, day: d,
+    opensAt: new Date(easternMidnight(before)).toISOString(),
+    liveAt: new Date(easternMidnight(wallDate)).toISOString(),
+    closesAt: new Date(easternMidnight(after)).toISOString(),
+    closedAt: null,
+    stories: [],
+  };
+}
+
+/**
  * The three wall dates open at an instant: yesterday, today and tomorrow in
  * Eastern time, docs/the-wall.md section 3, keyed by month and day. These are
  * the only pages that read the wall at request time. December 31 opens
@@ -446,9 +482,10 @@ function tileClass(rect: { w: number; h: number }): string {
 }
 
 /** The fields a buzz posts: the story, and the date page to come back to. */
-function tapFields(story: WallStory): string {
+function tapFields(story: WallStory, square: boolean): string {
   const { month, day } = parts(story.wallDate);
-  return `<input type="hidden" name="s" value="${story.id}"><input type="hidden" name="m" value="${month}"><input type="hidden" name="d" value="${day}">`;
+  return `<input type="hidden" name="s" value="${story.id}"><input type="hidden" name="m" value="${month}"><input type="hidden" name="d" value="${day}">`
+    + (square ? `<input type="hidden" name="v" value="square">` : "");
 }
 
 /** The reader's own mark, hidden until wallMarks reveals it for the stories this browser backed. */
@@ -464,18 +501,18 @@ function mine(voice: Voice): string {
  * guesses that. A headline opens the story, because that is what a
  * headline does everywhere else, and the thing that votes says what it is.
  */
-function buzzForm(story: WallStory, voice: Voice): string {
-  return `<form class="wbuzz" method="post" action="/boost">${tapFields(story)}`
+function buzzForm(story: WallStory, voice: Voice, square: boolean = false): string {
+  return `<form class="wbuzz" method="post" action="/boost">${tapFields(story, square)}`
     + `<button type="submit" aria-label="${escapeHtml(`${voice.button}: ${story.headline}`)}">${voice.button}</button></form>`;
 }
 
-function footer(story: WallStory, live: boolean, voice: Voice): string {
+function footer(story: WallStory, live: boolean, voice: Voice, square: boolean): string {
   const count = units(story.support, voice);
   // The control first, then the count it changes, then the outlet, cut with
   // an ellipsis when the tile is narrow. No tier chip: the tile's colour is
   // its tier, the legend says so, and a chip beside the outlet was what
   // pushed a phone tile down to one line of headline.
-  return `<span class="wfoot">${live ? buzzForm(story, voice) : ""}${count === "" ? "" : `<span class="wn">${count}</span>`}<span class="wo">${escapeHtml(story.outlet)}</span></span>`;
+  return `<span class="wfoot">${live ? buzzForm(story, voice, square) : ""}${count === "" ? "" : `<span class="wn">${count}</span>`}<span class="wo">${escapeHtml(story.outlet)}</span></span>`;
 }
 
 /**
@@ -483,7 +520,39 @@ function footer(story: WallStory, live: boolean, voice: Voice): string {
  * support, a button in the footer spends one unit. Either way it sits at
  * the anchor the server stored, at the size it stored.
  */
-function tile(story: WallStory, live: boolean, voice: Voice): string {
+/**
+ * The part of the square the page draws. The board is sixteen by sixteen and
+ * a quiet day's tiles sit in the middle third of it, so drawn whole the
+ * square was mostly black. The page zooms to the tiles: the smallest square
+ * that holds every placed tile, never smaller than eight modules across so
+ * one tile is not a wall, never larger than the board. It is still a square
+ * and still one picture on a phone and a desktop; the stored rectangles are
+ * untouched, and as the day fills the view widens until it is the whole
+ * board. The sealed square, when it arrives, is drawn whole.
+ */
+export interface Viewport {
+  ox: number;
+  oy: number;
+  side: number;
+}
+
+export const VIEW_MIN = 8;
+
+export function viewportFor(rects: Array<{ mx: number; my: number; w: number; h: number }>): Viewport {
+  if (rects.length === 0) return { ox: 0, oy: 0, side: VIEW_MIN };
+  let x0 = BOARD_MODULES, y0 = BOARD_MODULES, x1 = 0, y1 = 0;
+  for (const r of rects) {
+    x0 = Math.min(x0, r.mx); y0 = Math.min(y0, r.my);
+    x1 = Math.max(x1, r.mx + r.w); y1 = Math.max(y1, r.my + r.h);
+  }
+  const side = Math.min(BOARD_MODULES, Math.max(VIEW_MIN, x1 - x0, y1 - y0));
+  const clamp = (v: number): number => Math.max(0, Math.min(BOARD_MODULES - side, v));
+  const ox = clamp(Math.floor((x0 + x1) / 2 - side / 2));
+  const oy = clamp(Math.floor((y0 + y1) / 2 - side / 2));
+  return { ox, oy, side };
+}
+
+function tile(story: WallStory, live: boolean, voice: Voice, view: Viewport, square: boolean): string {
   const rect = story.rect!;
   const size = tileClass(rect);
   const count = units(story.support, voice);
@@ -493,7 +562,7 @@ function tile(story: WallStory, live: boolean, voice: Voice): string {
   // reads. Three modules hold three lines on a phone and four on a desktop;
   // taller tiles hold more.
   const lines = rect.h <= 3 ? 3 : rect.h === 4 ? 5 : rect.h === 5 ? 7 : rect.h === 6 ? 9 : 11;
-  const style = `grid-column:${rect.mx + 1} / span ${rect.w};grid-row:${rect.my + 1} / span ${rect.h};--lines:${lines}`;
+  const style = `grid-column:${rect.mx - view.ox + 1} / span ${rect.w};grid-row:${rect.my - view.oy + 1} / span ${rect.h};--lines:${lines}`;
   const stamp = story.status === "false" ? `<span class="wstamp">Shown false</span>` : "";
   const classes = `wtile ${size} w-${story.tier}${rect.h <= 3 ? " wh3" : ""}${story.status === "false" ? " wfalse" : ""}`;
   const receipt = storyPath(story);
@@ -510,7 +579,7 @@ function tile(story: WallStory, live: boolean, voice: Voice): string {
   const takes = live && story.status !== "false";
   return `<div class="${classes}" id="w-${story.id}" style="${style}" role="listitem">`
     + `<a class="wh" href="${receipt}" title="${escapeHtml(label)} The receipt: every source, every quotation, every check.">${escapeHtml(story.headline)}</a>`
-    + `${mine(voice)}${footer(story, takes, voice)}${stamp}</div>`;
+    + `${mine(voice)}${footer(story, takes, voice, square)}${stamp}</div>`;
 }
 
 /** One row in the list under the board. The headline opens the receipt; the button spends a unit while the date takes them. */
@@ -528,8 +597,8 @@ function stateLine(day: WallDay, now: number): string {
   // that ends it.
   const after = new Date(Date.UTC(day.year, day.month - 1, day.day + 1));
   const ending = `${monthName(after.getUTCMonth() + 1)} ${after.getUTCDate()}, ${after.getUTCFullYear()}`;
-  if (closed) return `Closed at midnight Eastern ending ${ending}. This wall is permanent.`;
-  return `Open. Closes at midnight Eastern ending ${ending}, and is then permanent.`;
+  if (closed) return `Sealed at midnight Eastern ending ${ending}. Permanent.`;
+  return `Open. Seals at midnight Eastern ending ${ending}, then permanent.`;
 }
 
 /**
@@ -564,10 +633,53 @@ export interface WallOptions {
    * state when the database cannot be reached.
    */
   interactive?: boolean;
+  /**
+   * The full screen page: the square alone, as big as the window, with its
+   * count and its sentences and nothing else. A buzz from it comes back to
+   * it.
+   */
+  square?: boolean;
+  /**
+   * The month and day the page is for, so a date with no wall yet can say
+   * when its first square opens. Without it a page with no wall draws
+   * nothing, as before.
+   */
+  date?: { month: number; day: number };
 }
 
 export function wallSection(day: WallDay | null, name: string, now: number = Date.now(), options: WallOptions = {}): string {
   return `${WALL_START}${wallBody(day, name, now, options)}${WALL_END}`;
+}
+
+/** "/september-9/square/", the full screen page for a date's square. */
+export function squarePath(month: number, day: number): string {
+  return `/${slug(month, day)}/square/`;
+}
+
+/**
+ * What a date with no square yet says. Every date gets its first square the
+ * day before it arrives, and the page says so rather than saying nothing.
+ */
+export function promise(name: string, month: number, day: number, now: number): string {
+  const [y] = easternDateOf(now).split("-").map(Number) as [number];
+  // The next time this date comes round, by the Eastern calendar.
+  let year = y;
+  const todayKey = easternDateOf(now);
+  const candidate = `${y}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  if (candidate < todayKey) year = y + 1;
+  const before = new Date(Date.UTC(year, month - 1, day - 1));
+  const opens = `${monthName(before.getUTCMonth() + 1)} ${before.getUTCDate()}, ${before.getUTCFullYear()}`;
+  return `<section class="wall wpromise" aria-labelledby="wallhead">
+<h2 class="section" id="wallhead">The square for ${escapeHtml(name)}</h2>
+<p class="wlede">${escapeHtml(name)} has no square yet. Its first one opens on ${opens} at midnight Eastern, takes the day's stories and the buzzes people give them, and seals two days later, for good. Every date gets one a year, and they stack.</p>
+</section>`;
+}
+
+/** Hours until an instant, said plainly. */
+function hoursUntil(iso: string, now: number): string {
+  const hours = Math.max(0, Math.round((Date.parse(iso) - now) / 3_600_000));
+  if (hours === 0) return "less than an hour";
+  return hours === 1 ? "about an hour" : `about ${hours} hours`;
 }
 
 /** Whether the date is taking boosts at an instant: from its live day until it closes. */
@@ -611,13 +723,9 @@ export function tapsLeftSentence(left: number, allowance: number, voice: Voice =
 }
 
 function countLine(day: WallDay, now: number, voice: Voice): string {
-  if (!takingBoosts(day, now)) {
-    // Open for submissions, not yet for support: the day before.
-    if (now >= Date.parse(day.opensAt) && now < Date.parse(day.liveAt)) {
-      return `<p class="wcount">${voice === BEE ? "Buzzing" : "Taps"} start${voice === BEE ? "s" : ""} when the date arrives, at midnight Eastern.</p>`;
-    }
-    return "";
-  }
+  // Before the date arrives the square itself says when it opens, and after
+  // it seals there is nothing to count.
+  if (!takingBoosts(day, now)) return "";
   const allowance = allowanceOn(day, now);
   return `<p class="wcount"><span class="wleft"></span></p>` +
     `<style>.wleft::after{content:"${tapsLeftSentence(allowance, allowance, voice)}"}</style>`;
@@ -645,48 +753,85 @@ function afterwords(voice: Voice): string {
 }
 
 function wallBody(day: WallDay | null, name: string, now: number, options: WallOptions): string {
-  if (day === null) return "";
+  if (day === null) {
+    return options.date === undefined || options.square ? "" : promise(name, options.date.month, options.date.day, now);
+  }
   const live = options.interactive === true && takingBoosts(day, now);
+  const square = options.square === true;
   const voice = voiceOf(day);
   const onWall = day.stories.filter((s) => s.rect !== null && (s.status === "placed" || s.status === "false"));
-  const pool = day.stories.filter((s) => s.status === "pool");
-  const overflow = day.stories.filter((s) => s.status === "overflow");
-  const tiles = onWall.map((s) => tile(s, live, voice)).join("\n");
+  const waiting = day.stories.filter((s) => s.status === "pool" || s.status === "overflow");
+  const backed = waiting.filter((s) => s.support > 0);
+  const unbacked = waiting.filter((s) => s.support <= 0);
+  const view = viewportFor(onWall.map((s) => s.rect!));
+  const tiles = onWall.map((s) => tile(s, live, voice, view, square)).join("\n");
+  const notYet = now < Date.parse(day.liveAt);
+  const closed = !takingBoosts(day, now) && !notYet;
+  const { month, day: d } = parts(day.wallDate);
+
+  // The square, always drawn, even empty: an empty square with the hour it
+  // opens is a promise, and a missing section was a page that looked like
+  // nothing was ever going to happen here.
   const empty = onWall.length === 0
-    ? `<p class="wempty">Nothing on the wall yet. Stories wait in the pool until a source page has been read and found to say what the tile says.</p>`
+    ? `<p class="wnothing">${notYet
+      ? `Opens at midnight Eastern, ${hoursUntil(day.liveAt, now)} from now. The day's stories land here as it happens.`
+      : closed
+        ? "Nothing reached the square before it sealed."
+        : "Nothing on the square yet. The day's stories land here as their source pages check out."}</p>`
+    : "";
+  const board = `<div class="wboard${onWall.length === 0 ? " wblank" : ""}" role="list" aria-label="The square, ${onWall.length} stories" style="--side:${view.side}">
+${tiles}${empty}
+</div>`;
+
+  const full = onWall.length > 0 && !square
+    ? `<p class="wfull"><a href="${squarePath(month, d)}">Open the square full screen</a></p>`
     : "";
 
-  const poolList = pool.length > 0
-    ? `<h3 class="wsub">In the pool, not on the wall</h3>
-<p class="wnote">Waiting for a source to check out${live ? `, or for the square to have room. A ${voice.one} here counts the same as one on the square` : ""}.</p>
+  const legend = `<p class="wlegend"><span class="wchip w-seen_direct">Seen directly</span> ${escapeHtml(tierMeaning("seen_direct"))} <span class="wchip w-reported">Reported</span> ${escapeHtml(tierMeaning("reported"))} <span class="wchip w-claimed">Claimed</span> ${escapeHtml(tierMeaning("claimed"))} A tile's colour is its tier, and a tier is not a verdict. A headline opens its receipt: every source, every quotation, every check.</p>`;
+
+  if (square) {
+    return `<section class="wall wsquare" aria-labelledby="wallhead">
+<h2 class="section" id="wallhead">${escapeHtml(longDate(day))}</h2>
+${countLine(day, now, voice)}${afterwords(voice)}
+${board}
+${legend}
+</section>`;
+  }
+
+  // Under the square: only what somebody backed. The rest of the day's feed
+  // is one line a reader can open. Ninety rows with ninety buttons was the
+  // feed seeder's dump drawn as a page, and nobody reads a dump.
+  const backedList = backed.length > 0
+    ? `<h3 class="wsub">${closed ? "Backed, and never found room on the square" : "Backed, waiting for room on the square"}</h3>
 <ul class="wlist">
-${pool.map((s) => listRow(s, live, voice)).join("\n")}
+${backed.map((s) => listRow(s, live, voice)).join("\n")}
 </ul>`
     : "";
-  const overflowList = overflow.length > 0
-    ? `<h3 class="wsub">Earned a place, found no room, not on the wall</h3>
-<p class="wnote">The square was full when these qualified. They keep their receipts${live ? `, and a ${voice.one} here still counts` : ""}.</p>
+  const moreList = unbacked.length > 0
+    ? `<details class="wmore">
+<summary>${unbacked.length} more ${unbacked.length === 1 ? "story" : "stories"} from the day's feeds${closed ? ", never backed" : `, waiting for a ${voice.one}`}</summary>
+<p class="wnote">Filed from the outlets' own feeds${live ? `. A ${voice.one} here counts the same as one on the square, and the square makes room for what people back` : ""}.</p>
 <ul class="wlist">
-${overflow.map((s) => listRow(s, live, voice)).join("\n")}
-</ul>`
+${unbacked.map((s) => listRow(s, live, voice)).join("\n")}
+</ul>
+</details>`
     : "";
 
   const lede = live
     ? `${voice.imperative} the stories you think will still matter about ${escapeHtml(name)} years from now. Each ${voice.one} makes its story bigger on the square, and you get a few a day.`
-    : `What people here think will still matter about ${escapeHtml(name)}. Each story is a link to a source, in the source's own words. Support decides how much of the square it takes.`;
-  const receipts = ` A headline opens its receipt: every source, every quotation, every check.`;
+    : notYet
+      ? `Tomorrow's square. When the date arrives it takes the day's stories, and the ${voice.many} people give them decide how much of the square each one holds.`
+      : `What people here thought would still matter about ${escapeHtml(name)}. Each story is a link to a source, in the source's own words. Support decided how much of the square it holds.`;
 
   return `<section class="wall" aria-labelledby="wallhead">
-<h2 class="section" id="wallhead">The wall for ${escapeHtml(longDate(day))}</h2>
+<h2 class="section" id="wallhead">The square for ${escapeHtml(longDate(day))}</h2>
 <p class="wstate">${stateLine(day, now)}</p>
 <p class="wlede">${lede}</p>
 ${countLine(day, now, voice)}${afterwords(voice)}
-<div class="wboard" role="list" aria-label="The wall, a square of ${onWall.length} stories">
-${tiles}
-</div>
-${empty}
-<p class="wlegend"><span class="wchip w-seen_direct">Seen directly</span> ${escapeHtml(tierMeaning("seen_direct"))} <span class="wchip w-reported">Reported</span> ${escapeHtml(tierMeaning("reported"))} <span class="wchip w-claimed">Claimed</span> ${escapeHtml(tierMeaning("claimed"))} A tile's colour is its tier, and a tier is not a verdict.${receipts}</p>
-${poolList}${overflowList}
+${board}
+${full}
+${onWall.length > 0 ? legend : ""}
+${backedList}${moreList}
 </section>`;
 }
 
@@ -796,11 +941,29 @@ export const WALL_STYLE = `
 .wstate { margin: 0 0 4px; font-size: 13px; font-weight: 600; color: #C9C2D4; }
 .wlede { margin: 0 0 14px; color: #B9B2AD; font-size: 15px; line-height: 1.4; max-width: 58ch; text-wrap: pretty; }
 .wboard {
-  display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); grid-template-rows: repeat(16, minmax(0, 1fr));
-  gap: 2px; width: 100%; max-width: 560px; aspect-ratio: 1 / 1; margin: 0 auto;
+  display: grid; grid-template-columns: repeat(var(--side, 16), minmax(0, 1fr)); grid-template-rows: repeat(var(--side, 16), minmax(0, 1fr));
+  gap: 2px; width: 100%; max-width: 100%; aspect-ratio: 1 / 1; margin: 0 auto;
   padding: 2px; box-sizing: border-box; border-radius: 10px; background: #100D16;
   box-shadow: inset 0 0 0 1px rgba(255, 247, 238, .08);
 }
+.wboard.wblank { display: grid; place-items: center; aspect-ratio: 16 / 7; }
+.wnothing { grid-column: 1 / -1; grid-row: 1 / -1; align-self: center; justify-self: center; margin: 0; padding: 0 12%; text-align: center; font-size: 15px; line-height: 1.5; color: #827B75; text-wrap: pretty; }
+.wfull { margin: 8px 0 0; text-align: right; font-size: 13px; }
+.wfull a { color: #A49BAE; text-decoration: none; border-bottom: 1px solid #3A3348; }
+.wfull a:hover { color: #FFD98A; border-color: #FFD98A; }
+.wmore { margin: 22px 0 0; border-top: 1px solid #241E2E; padding-top: 4px; }
+.wmore > summary { cursor: pointer; list-style: none; padding: 10px 0; font-size: 15px; font-weight: 600; color: #C9C2D4; }
+.wmore > summary::-webkit-details-marker { display: none; }
+.wmore > summary::before { content: "+"; display: inline-block; width: 20px; color: #A49BAE; }
+.wmore[open] > summary::before { content: "\\2212"; }
+.wmore > summary:hover { color: #FFD98A; }
+/* The full screen page: the square as big as the window allows, and little else. */
+.wsquare { margin: 0; }
+.wsquare h2.section { margin: 10px 0 6px; font-size: 18px; }
+.wrap.squarepage { max-width: none; padding: 16px 16px 40px; }
+.day.wsq { max-width: min(100%, calc(100vh - 40px)); margin: 0 auto; }
+.wsquare .wboard { width: 100%; }
+.wsquare .wlegend { max-width: 60ch; margin: 12px auto 0; }
 /* Honey. Decided September 10, 2026: the tile's colour is its tier, and the
    three tiers are three tones of the same hive, pale wax for claimed, amber
    for reported, deep honey for seen directly. Every seeded story is claimed,
@@ -882,17 +1045,20 @@ export const WALL_STYLE = `
 /* The reader's own mark, revealed by wallMarks on the stories this browser
    backed. A line of its own inside the tile, so it covers nothing and costs
    the reader one line of a headline they already read. */
-.wmine { display: none; font-weight: 800; color: var(--wmark, #8A3F05); font-size: clamp(8px, 1.9cqi, 11px); line-height: 1.3; flex: none; }
+.wmine { display: none; font-weight: 800; color: var(--wmark, #8A3F05); font-size: clamp(8px, calc(30cqi / var(--side, 16)), 13px); line-height: 1.3; flex: none; }
 .wboard { container-type: inline-size; }
 .wtile.mid, .wtile.big { gap: 2px; }
-.wtile.mid .wh, .wtile.big .wh { font-size: clamp(10px, 2.4cqi, 14px); -webkit-line-clamp: var(--lines, 3); }
+/* Type scales with the window, not the board: a twelve module window draws
+   each module a third larger than the whole board would, and the words
+   follow. */
+.wtile.mid .wh, .wtile.big .wh { font-size: clamp(10px, calc(38cqi / var(--side, 16)), 19px); -webkit-line-clamp: var(--lines, 3); }
 .wfoot {
   flex: none; flex-wrap: nowrap; white-space: nowrap; overflow: hidden; margin-top: 0; min-width: 0;
-  font-size: clamp(8px, 1.8cqi, 11px);
+  font-size: clamp(8px, calc(29cqi / var(--side, 16)), 13px);
 }
 .wfoot .wo { min-width: 0; overflow: hidden; text-overflow: ellipsis; opacity: .8; }
 .wfoot .wn { flex: none; font-weight: 700; }
-.wfoot .wbuzz button { font-size: clamp(8px, 1.9cqi, 11px); }
+.wfoot .wbuzz button { font-size: clamp(8px, calc(30cqi / var(--side, 16)), 13px); }
 @container (min-width: 480px) { .wtile.wh3 { --lines: 4; } }
 .wcount { margin: 0 0 12px; font-size: 15px; font-weight: 600; color: #E9E1DB; }
 .wsaid {

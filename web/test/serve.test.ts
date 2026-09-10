@@ -440,8 +440,9 @@ import { readTap, tappedFrom } from "../src/serve.js";
 
 test("a posted tap is a story and a date, and nothing else gets through", () => {
   assert.deepEqual(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9"), {
-    storyId: "11111111-1111-1111-1111-111111111111", month: 9, day: 9,
+    storyId: "11111111-1111-1111-1111-111111111111", month: 9, day: 9, square: false,
   });
+  assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=square")!.square, true);
   assert.equal(readTap("s=not-a-story&m=9&d=9"), null);
   assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=13&d=9"), null);
   assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=0"), null);
