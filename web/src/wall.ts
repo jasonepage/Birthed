@@ -81,6 +81,8 @@ export interface WallStory {
   tier: WallTier;
   /** Boost units. */
   support: number;
+  /** Order among unbacked stories in the feed: the date's own history above the news feeds. 0 to 9. */
+  priority: number;
   placedAt: string | null;
   rect: { mx: number; my: number; w: number; h: number } | null;
   falseAt: string | null;
@@ -144,7 +146,7 @@ async function rows<T>(url: string, key: string, path: string): Promise<T[]> {
 interface DayRow { wall_date: string; opens_at: string; live_at: string; closes_at: string; closed_at: string | null }
 interface StoryRow {
   id: string; wall_date: string; submitted_at: string; headline: string; url: string; outlet: string;
-  status: WallStatus; tier: WallTier; support: number; placed_at: string | null;
+  status: WallStatus; tier: WallTier; support: number; priority: number | null; placed_at: string | null;
   anchor_mx: number | null; anchor_my: number | null; w_modules: number | null; h_modules: number | null;
   false_at: string | null; false_note: string | null;
 }
@@ -166,7 +168,7 @@ export async function fetchWall(url: string, key: string): Promise<WallDay[]> {
   const days = await rows<DayRow>(url, key, "wall_days?select=wall_date,opens_at,live_at,closes_at,closed_at&order=wall_date.asc");
   if (days.length === 0) return [];
   const stories = await rows<StoryRow>(url, key,
-    "wall_stories?select=id,wall_date,submitted_at,headline,url,outlet,status,tier,support,placed_at,anchor_mx,anchor_my,w_modules,h_modules,false_at,false_note&order=wall_date.asc,submitted_at.asc,id.asc");
+    "wall_stories?select=id,wall_date,submitted_at,headline,url,outlet,status,tier,support,priority,placed_at,anchor_mx,anchor_my,w_modules,h_modules,false_at,false_note&order=wall_date.asc,submitted_at.asc,id.asc");
   const sources = await rows<SourceRow>(url, key,
     "wall_sources?select=id,story_id,url,outlet,owner,headline,quotation,verified_at,added_at&order=added_at.asc,id.asc");
   const checks = await rows<CheckRow>(url, key,
@@ -192,7 +194,7 @@ export async function fetchWall(url: string, key: string): Promise<WallDay[]> {
     const list = storiesByDate.get(s.wall_date) ?? [];
     list.push({
       id: s.id, wallDate: s.wall_date, submittedAt: s.submitted_at, headline: s.headline, url: s.url, outlet: s.outlet,
-      status: s.status, tier: s.tier, support: s.support, placedAt: s.placed_at,
+      status: s.status, tier: s.tier, support: s.support, priority: s.priority ?? 0, placedAt: s.placed_at,
       rect: s.anchor_mx === null || s.anchor_my === null || s.w_modules === null || s.h_modules === null
         ? null
         : { mx: s.anchor_mx, my: s.anchor_my, w: s.w_modules, h: s.h_modules },
@@ -216,7 +218,7 @@ interface EmbeddedStoryRow extends StoryRow {
 function storyFrom(s: StoryRow, sources: WallSource[]): WallStory {
   return {
     id: s.id, wallDate: s.wall_date, submittedAt: s.submitted_at, headline: s.headline, url: s.url, outlet: s.outlet,
-    status: s.status, tier: s.tier, support: s.support, placedAt: s.placed_at,
+    status: s.status, tier: s.tier, support: s.support, priority: s.priority ?? 0, placedAt: s.placed_at,
     rect: s.anchor_mx === null || s.anchor_my === null || s.w_modules === null || s.h_modules === null
       ? null
       : { mx: s.anchor_mx, my: s.anchor_my, w: s.w_modules, h: s.h_modules },
@@ -248,7 +250,7 @@ export async function fetchWallDay(url: string, key: string, wallDate: string, t
     if (d === undefined) return null;
 
     const storiesResponse = await fetch(
-      `${url}/rest/v1/wall_stories?select=id,wall_date,submitted_at,headline,url,outlet,status,tier,support,placed_at,anchor_mx,anchor_my,w_modules,h_modules,false_at,false_note,`
+      `${url}/rest/v1/wall_stories?select=id,wall_date,submitted_at,headline,url,outlet,status,tier,support,priority,placed_at,anchor_mx,anchor_my,w_modules,h_modules,false_at,false_note,`
       + `wall_sources(id,story_id,url,outlet,owner,headline,quotation,verified_at,added_at,wall_checks(source_id,checked_at,kind,passed,http_status,detail))`
       + `&wall_date=eq.${wallDate}&order=submitted_at.asc,id.asc&wall_sources.order=added_at.asc&wall_sources.wall_checks.order=checked_at.asc`,
       { headers, signal: controller.signal },
@@ -482,10 +484,10 @@ function tileClass(rect: { w: number; h: number }): string {
 }
 
 /** The fields a buzz posts: the story, and the date page to come back to. */
-function tapFields(story: WallStory, square: boolean): string {
+function tapFields(story: WallStory, hive: boolean): string {
   const { month, day } = parts(story.wallDate);
   return `<input type="hidden" name="s" value="${story.id}"><input type="hidden" name="m" value="${month}"><input type="hidden" name="d" value="${day}">`
-    + (square ? `<input type="hidden" name="v" value="square">` : "");
+    + (hive ? `<input type="hidden" name="v" value="hive">` : "");
 }
 
 /** The reader's own mark, hidden until wallMarks reveals it for the stories this browser backed. */
@@ -501,18 +503,18 @@ function mine(voice: Voice): string {
  * guesses that. A headline opens the story, because that is what a
  * headline does everywhere else, and the thing that votes says what it is.
  */
-function buzzForm(story: WallStory, voice: Voice, square: boolean = false): string {
-  return `<form class="wbuzz" method="post" action="/boost">${tapFields(story, square)}`
+function buzzForm(story: WallStory, voice: Voice, hive: boolean = false): string {
+  return `<form class="wbuzz" method="post" action="/boost">${tapFields(story, hive)}`
     + `<button type="submit" aria-label="${escapeHtml(`${voice.button}: ${story.headline}`)}">${voice.button}</button></form>`;
 }
 
-function footer(story: WallStory, live: boolean, voice: Voice, square: boolean): string {
+function footer(story: WallStory, live: boolean, voice: Voice, hive: boolean): string {
   const count = units(story.support, voice);
   // The control first, then the count it changes, then the outlet, cut with
   // an ellipsis when the tile is narrow. No tier chip: the tile's colour is
   // its tier, the legend says so, and a chip beside the outlet was what
   // pushed a phone tile down to one line of headline.
-  return `<span class="wfoot">${live ? buzzForm(story, voice, square) : ""}${count === "" ? "" : `<span class="wn">${count}</span>`}<span class="wo">${escapeHtml(story.outlet)}</span></span>`;
+  return `<span class="wfoot">${live ? buzzForm(story, voice, hive) : ""}${count === "" ? "" : `<span class="wn">${count}</span>`}<span class="wo">${escapeHtml(story.outlet)}</span></span>`;
 }
 
 /**
@@ -552,7 +554,7 @@ export function viewportFor(rects: Array<{ mx: number; my: number; w: number; h:
   return { ox, oy, side };
 }
 
-function tile(story: WallStory, live: boolean, voice: Voice, view: Viewport, square: boolean): string {
+function tile(story: WallStory, live: boolean, voice: Voice, view: Viewport, hive: boolean): string {
   const rect = story.rect!;
   const size = tileClass(rect);
   const count = units(story.support, voice);
@@ -579,7 +581,7 @@ function tile(story: WallStory, live: boolean, voice: Voice, view: Viewport, squ
   const takes = live && story.status !== "false";
   return `<div class="${classes}" id="w-${story.id}" style="${style}" role="listitem">`
     + `<a class="wh" href="${receipt}" title="${escapeHtml(label)} The receipt: every source, every quotation, every check.">${escapeHtml(story.headline)}</a>`
-    + `${mine(voice)}${footer(story, takes, voice, square)}${stamp}</div>`;
+    + `${mine(voice)}${footer(story, takes, voice, hive)}${stamp}</div>`;
 }
 
 /** One row in the list under the board. The headline opens the receipt; the button spends a unit while the date takes them. */
@@ -612,6 +614,23 @@ export const WALL_START = "<!--wall:start-->";
 export const WALL_END = "<!--wall:end-->";
 
 /**
+ * The date's history rows sit inside the wall region, in the one feed, and
+ * they are baked: the live read has no history data and needs none. These
+ * markers let serve.ts lift them out of the baked page and hand them back to
+ * the live section, so one feed can be half live and half baked.
+ */
+export const HISTORY_START = "<!--history:start-->";
+export const HISTORY_END = "<!--history:end-->";
+
+/** The baked history rows inside a page's wall region, or "". */
+export function historyFrom(html: string): string {
+  const start = html.indexOf(HISTORY_START);
+  const end = html.indexOf(HISTORY_END, start);
+  if (start < 0 || end < 0) return "";
+  return html.slice(start + HISTORY_START.length, end);
+}
+
+/**
  * The baked page with a fresh wall section in place of the baked one, or
  * null when the page carries no markers, in which case it is served as it
  * was. Written with a function so a dollar sign in a headline cannot be
@@ -634,31 +653,38 @@ export interface WallOptions {
    */
   interactive?: boolean;
   /**
-   * The full screen page: the square alone, as big as the window, with its
+   * The full screen page: the hive alone, as big as the window, with its
    * count and its sentences and nothing else. A buzz from it comes back to
    * it.
    */
-  square?: boolean;
+  hive?: boolean;
   /**
    * The month and day the page is for, so a date with no wall yet can say
-   * when its first square opens. Without it a page with no wall draws
+   * when its first hive opens. Without it a page with no wall draws
    * nothing, as before.
    */
   date?: { month: number; day: number };
+  /**
+   * The date's history rows, already rendered, drawn without buttons under
+   * the promise on a date with no wall, and standing in for the feed on a
+   * wall the worker has not filed anything for yet. Baked by build.ts and
+   * lifted back out of the baked page by serve.ts for the live section.
+   */
+  history?: string;
 }
 
 export function wallSection(day: WallDay | null, name: string, now: number = Date.now(), options: WallOptions = {}): string {
   return `${WALL_START}${wallBody(day, name, now, options)}${WALL_END}`;
 }
 
-/** "/september-9/square/", the full screen page for a date's square. */
-export function squarePath(month: number, day: number): string {
-  return `/${slug(month, day)}/square/`;
+/** "/september-9/hive/", the full screen page for a date's hive. */
+export function hivePath(month: number, day: number): string {
+  return `/${slug(month, day)}/hive/`;
 }
 
 /**
- * What a date with no square yet says. Every date gets its first square the
- * day before it arrives, and the page says so rather than saying nothing.
+ * What a date with no hive yet says. Every date gets its first hive the day
+ * before it arrives, and the page says so rather than saying nothing.
  */
 export function promise(name: string, month: number, day: number, now: number): string {
   const [y] = easternDateOf(now).split("-").map(Number) as [number];
@@ -670,8 +696,8 @@ export function promise(name: string, month: number, day: number, now: number): 
   const before = new Date(Date.UTC(year, month - 1, day - 1));
   const opens = `${monthName(before.getUTCMonth() + 1)} ${before.getUTCDate()}, ${before.getUTCFullYear()}`;
   return `<section class="wall wpromise" aria-labelledby="wallhead">
-<h2 class="section" id="wallhead">The square for ${escapeHtml(name)}</h2>
-<p class="wlede">${escapeHtml(name)} has no square yet. Its first one opens on ${opens} at midnight Eastern, takes the day's stories and the buzzes people give them, and seals two days later, for good. Every date gets one a year, and they stack.</p>
+<h2 class="section" id="wallhead">The hive for ${escapeHtml(name)}</h2>
+<p class="wlede">${escapeHtml(name)} has no hive yet. Its first one opens on ${opens} at midnight Eastern, takes everything with a birthday that day and the buzzes people give it, and seals two days later, for good. Every date gets one a year, and they stack.</p>
 </section>`;
 }
 
@@ -742,55 +768,65 @@ function countLine(day: WallDay, now: number, voice: Voice): string {
 function afterwords(voice: Voice): string {
   const v = voice;
   return `<div class="wsaids">
-<p class="wsaid" id="wkept">That counts. <span class="wleft"></span> The square redraws on the quarter hour, so a bigger tile takes a few minutes to show; your mark on it is there now.</p>
+<p class="wsaid" id="wkept">That counts. <span class="wleft"></span> The hive redraws on the quarter hour, so a bigger tile takes a few minutes to show; your mark is there now.</p>
 <p class="wsaid" id="walready">You already ${v.past} that one, on this browser. It did not spend a ${v.one}.</p>
 <p class="wsaid" id="wspent">That is every ${v.one} you have on this date today, so that one did not count. It is still a good story to have picked.</p>
 <p class="wsaid" id="wnotyet">Not yet. A date takes ${v.many} from the day itself, and this one has not arrived.</p>
-<p class="wsaid" id="wclosed">This wall has closed and is permanent now. That ${v.one} arrived after midnight and was not counted.</p>
-<p class="wsaid" id="wfalse">That story was later shown false. It keeps its place on the wall and takes no ${v.many}.</p>
+<p class="wsaid" id="wclosed">This hive has sealed and is permanent now. That ${v.one} arrived after midnight and was not counted.</p>
+<p class="wsaid" id="wfalse">That story was later shown false. It keeps its place on the hive and takes no ${v.many}.</p>
 <p class="wsaid" id="wfailed">That did not save, and it was this end rather than yours. The date is fine. Try it again.</p>
 </div>`;
 }
 
 function wallBody(day: WallDay | null, name: string, now: number, options: WallOptions): string {
+  const history = options.history ?? "";
   if (day === null) {
-    return options.date === undefined || options.square ? "" : promise(name, options.date.month, options.date.day, now);
+    if (options.date === undefined || options.hive) return "";
+    return `${promise(name, options.date.month, options.date.day, now)}
+<section class="feed2" aria-labelledby="feedhead">
+<h2 class="section" id="feedhead">Today's feed</h2>
+<p class="wnote">Everything with a birthday on ${escapeHtml(name)}. When its hive opens, every one of these takes buzzes.</p>
+${HISTORY_START}${history}${HISTORY_END}
+</section>`;
   }
   const live = options.interactive === true && takingBoosts(day, now);
-  const square = options.square === true;
+  const hive = options.hive === true;
   const voice = voiceOf(day);
   const onWall = day.stories.filter((s) => s.rect !== null && (s.status === "placed" || s.status === "false"));
-  const waiting = day.stories.filter((s) => s.status === "pool" || s.status === "overflow");
-  const backed = waiting.filter((s) => s.support > 0);
-  const unbacked = waiting.filter((s) => s.support <= 0);
+  // The feed: everything in the pool, most backed first, then the date's own
+  // history ahead of the feeds, then arrival. All of it, no fold: a reddit
+  // reads its feed and so does this. Decided September 10, 2026.
+  const waiting = day.stories
+    .filter((s) => s.status === "pool" || s.status === "overflow")
+    .sort((a, b) => b.support - a.support || b.priority - a.priority || a.submittedAt.localeCompare(b.submittedAt) || a.id.localeCompare(b.id));
   const view = viewportFor(onWall.map((s) => s.rect!));
-  const tiles = onWall.map((s) => tile(s, live, voice, view, square)).join("\n");
+  const tiles = onWall.map((s) => tile(s, live, voice, view, hive)).join("\n");
   const notYet = now < Date.parse(day.liveAt);
   const closed = !takingBoosts(day, now) && !notYet;
   const { month, day: d } = parts(day.wallDate);
 
-  // The square, always drawn, even empty: an empty square with the hour it
-  // opens is a promise, and a missing section was a page that looked like
-  // nothing was ever going to happen here.
+  // The hive, always drawn, even empty: an empty hive with the hour it opens
+  // is a promise, and a missing section was a page that looked like nothing
+  // was ever going to happen here.
   const empty = onWall.length === 0
     ? `<p class="wnothing">${notYet
-      ? `Opens at midnight Eastern, ${hoursUntil(day.liveAt, now)} from now. The day's stories land here as it happens.`
+      ? `Opens at midnight Eastern, ${hoursUntil(day.liveAt, now)} from now. What people ${voice.past} lands here.`
       : closed
-        ? "Nothing reached the square before it sealed."
-        : "Nothing on the square yet. The day's stories land here as their source pages check out."}</p>`
+        ? "Nothing reached the hive before it sealed."
+        : `Nothing on the hive yet. What people ${voice.past} lands here.`}</p>`
     : "";
-  const board = `<div class="wboard${onWall.length === 0 ? " wblank" : ""}" role="list" aria-label="The square, ${onWall.length} stories" style="--side:${view.side}">
+  const board = `<div class="wboard${onWall.length === 0 ? " wblank" : ""}" role="list" aria-label="The hive, ${onWall.length} stories" style="--side:${view.side}">
 ${tiles}${empty}
 </div>`;
 
-  const full = onWall.length > 0 && !square
-    ? `<p class="wfull"><a href="${squarePath(month, d)}">Open the square full screen</a></p>`
+  const full = onWall.length > 0 && !hive
+    ? `<p class="wfull"><a href="${hivePath(month, d)}">Open the hive full screen</a></p>`
     : "";
 
   const legend = `<p class="wlegend"><span class="wchip w-seen_direct">Seen directly</span> ${escapeHtml(tierMeaning("seen_direct"))} <span class="wchip w-reported">Reported</span> ${escapeHtml(tierMeaning("reported"))} <span class="wchip w-claimed">Claimed</span> ${escapeHtml(tierMeaning("claimed"))} A tile's colour is its tier, and a tier is not a verdict. A headline opens its receipt: every source, every quotation, every check.</p>`;
 
-  if (square) {
-    return `<section class="wall wsquare" aria-labelledby="wallhead">
+  if (hive) {
+    return `<section class="wall whive" aria-labelledby="wallhead">
 <h2 class="section" id="wallhead">${escapeHtml(longDate(day))}</h2>
 ${countLine(day, now, voice)}${afterwords(voice)}
 ${board}
@@ -798,40 +834,45 @@ ${legend}
 </section>`;
   }
 
-  // Under the square: only what somebody backed. The rest of the day's feed
-  // is one line a reader can open. Ninety rows with ninety buttons was the
-  // feed seeder's dump drawn as a page, and nobody reads a dump.
-  const backedList = backed.length > 0
-    ? `<h3 class="wsub">${closed ? "Backed, and never found room on the square" : "Backed, waiting for room on the square"}</h3>
-<ul class="wlist">
-${backed.map((s) => listRow(s, live, voice)).join("\n")}
+  // Under the hive, one feed: everything with a birthday on the date that is
+  // not on the hive, with one button each. Before the worker has filed
+  // anything for the date, the baked history stands in, so tomorrow's page
+  // is not a countdown and nothing else.
+  const unfiled = day.stories.length === 0;
+  const feedList = waiting.length > 0
+    ? `<ul class="wlist">
+${waiting.map((s) => listRow(s, live, voice)).join("\n")}
 </ul>`
-    : "";
-  const moreList = unbacked.length > 0
-    ? `<details class="wmore">
-<summary>${unbacked.length} more ${unbacked.length === 1 ? "story" : "stories"} from the day's feeds${closed ? ", never backed" : `, waiting for a ${voice.one}`}</summary>
-<p class="wnote">Filed from the outlets' own feeds${live ? `. A ${voice.one} here counts the same as one on the square, and the square makes room for what people back` : ""}.</p>
-<ul class="wlist">
-${unbacked.map((s) => listRow(s, live, voice)).join("\n")}
-</ul>
-</details>`
-    : "";
+    : unfiled && history !== ""
+      ? ""
+      : `<p class="wnote wnofeed">Everything filed for ${escapeHtml(name)} is on the hive.</p>`;
+  const stood = unfiled ? history : "";
+  const feedNote = live
+    ? `A ${voice.one} here counts the same as one on the hive, and the hive makes room for what people back.`
+    : closed
+      ? "The hive has sealed, so the feed takes no more."
+      : `When the hive opens, every one of these takes ${voice.many}.`;
 
   const lede = live
-    ? `${voice.imperative} the stories you think will still matter about ${escapeHtml(name)} years from now. Each ${voice.one} makes its story bigger on the square, and you get a few a day.`
+    ? `${voice.imperative} what you think will still matter about ${escapeHtml(name)} years from now. Each ${voice.one} makes it bigger on the hive, and you get a few a day.`
     : notYet
-      ? `Tomorrow's square. When the date arrives it takes the day's stories, and the ${voice.many} people give them decide how much of the square each one holds.`
-      : `What people here thought would still matter about ${escapeHtml(name)}. Each story is a link to a source, in the source's own words. Support decided how much of the square it holds.`;
+      ? `Tomorrow's hive. When the date arrives, the ${voice.many} people give decide how much of the hive each story holds.`
+      : `What people here thought would still matter about ${escapeHtml(name)}. Each story is a link to a source, in the source's own words. Support decided how much of the hive it holds.`;
 
   return `<section class="wall" aria-labelledby="wallhead">
-<h2 class="section" id="wallhead">The square for ${escapeHtml(longDate(day))}</h2>
+<h2 class="section" id="wallhead">The hive for ${escapeHtml(longDate(day))}</h2>
 <p class="wstate">${stateLine(day, now)}</p>
 <p class="wlede">${lede}</p>
 ${countLine(day, now, voice)}${afterwords(voice)}
 ${board}
 ${full}
 ${onWall.length > 0 ? legend : ""}
-${backedList}${moreList}
+</section>
+<section class="feed2" aria-labelledby="feedhead">
+<h2 class="section" id="feedhead">Today's feed</h2>
+<p class="wnote">Everything with a birthday on ${escapeHtml(name)}: the day's news, and what happened, who was born and what came out on this date before. ${feedNote}</p>
+${feedList}
+${HISTORY_START}${stood}${HISTORY_END}
 </section>`;
 }
 
@@ -909,12 +950,12 @@ ${history}
 export function storyBody(story: WallStory, day: WallDay): string {
   const { month, day: d } = parts(story.wallDate);
   const status = story.status === "placed"
-    ? `On the wall, ${story.rect!.w} by ${story.rect!.h} modules at column ${story.rect!.mx}, row ${story.rect!.my}.`
+    ? `On the hive, ${story.rect!.w} by ${story.rect!.h} modules at column ${story.rect!.mx}, row ${story.rect!.my}.`
     : story.status === "false"
-      ? `On the wall and later shown false, ${escapeHtml(eastern(story.falseAt ?? story.submittedAt))}. It keeps its rectangle.`
+      ? `On the hive and later shown false, ${escapeHtml(eastern(story.falseAt ?? story.submittedAt))}. It keeps its rectangle.`
       : story.status === "overflow"
-        ? "Earned a place and found no room on the square. Not on the wall."
-        : "In the pool. Not on the wall.";
+        ? "Earned a place and found no room on the hive. In the feed."
+        : "In the feed. Not on the hive yet.";
   const falseNote = story.status === "false" && story.falseNote
     ? `<p class="wfalsenote">${escapeHtml(story.falseNote)}</p>`
     : "";
@@ -951,19 +992,23 @@ export const WALL_STYLE = `
 .wfull { margin: 8px 0 0; text-align: right; font-size: 13px; }
 .wfull a { color: #A49BAE; text-decoration: none; border-bottom: 1px solid #3A3348; }
 .wfull a:hover { color: #FFD98A; border-color: #FFD98A; }
+.feed2 { margin: 30px 0 0; }
+.feed2 h2.section { margin-bottom: 2px; }
+.feed2 > .wnote { margin: 0 0 12px; max-width: 60ch; }
+.feed2 .wlist + .wlist { margin-top: 8px; }
 .wmore { margin: 22px 0 0; border-top: 1px solid #241E2E; padding-top: 4px; }
 .wmore > summary { cursor: pointer; list-style: none; padding: 10px 0; font-size: 15px; font-weight: 600; color: #C9C2D4; }
 .wmore > summary::-webkit-details-marker { display: none; }
 .wmore > summary::before { content: "+"; display: inline-block; width: 20px; color: #A49BAE; }
 .wmore[open] > summary::before { content: "\\2212"; }
 .wmore > summary:hover { color: #FFD98A; }
-/* The full screen page: the square as big as the window allows, and little else. */
-.wsquare { margin: 0; }
-.wsquare h2.section { margin: 10px 0 6px; font-size: 18px; }
-.wrap.squarepage { max-width: none; padding: 16px 16px 40px; }
+/* The full screen page: the hive as big as the window allows, and little else. */
+.whive { margin: 0; }
+.whive h2.section { margin: 10px 0 6px; font-size: 18px; }
+.wrap.hivepage { max-width: none; padding: 16px 16px 40px; }
 .day.wsq { max-width: min(100%, calc(100vh - 40px)); margin: 0 auto; }
-.wsquare .wboard { width: 100%; }
-.wsquare .wlegend { max-width: 60ch; margin: 12px auto 0; }
+.whive .wboard { width: 100%; }
+.whive .wlegend { max-width: 60ch; margin: 12px auto 0; }
 /* Honey. Decided September 10, 2026: the tile's colour is its tier, and the
    three tiers are three tones of the same hive, pale wax for claimed, amber
    for reported, deep honey for seen directly. Every seeded story is claimed,

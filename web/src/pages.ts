@@ -222,7 +222,7 @@ ${topBar()}
 <section class="hero">
   <div class="herotext">
     <h1>Wikipedia records what happened. <span class="glow"><span class="brandword">Birthed</span> records what stuck.</span></h1>
-    <p class="lede">Every date on the calendar opens for three days a year. Whoever turns up says what they actually remember of it, and then the date seals until next year.</p>
+    <p class="lede">Every date has a hive. Everything with a birthday on it, the day's news and everything that ever happened on it, is on one feed, and whoever turns up buzzes what they think will still matter. The most buzzed take the hive, and at midnight it seals for good.</p>
     <p class="actions">
       ${storeButton()}
       <a class="btn ghost" href="/random/">${ICON_DICE}<span>Surprise me</span></a>
@@ -237,23 +237,23 @@ ${bornInStrip()}
 <h2 class="plain">How a date gets decided</h2>
 <ol class="beats">
   <li>
-    <h3>A date opens for three days</h3>
-    <p>The day itself, and the day either side. That is the whole window, and it is the same three days for everybody. The other 363 pages are shut.</p>
+    <h3>A date's hive opens at midnight</h3>
+    <p>It takes buzzes on the day itself and the day after, then it seals. Everything with a birthday on the date is on the feed under it: what is in the news today, and what happened, who was born and what came out on this date before.</p>
   </li>
   <li>
-    <h3>Everybody answers at once</h3>
-    <p>The people who care most about a date are the ones born on it, and they all arrive on the same day. Every row asks one question: do you remember this. Three answers, no score, and no way to say a thing did not matter.</p>
+    <h3>Everybody buzzes at once</h3>
+    <p>The people who care most about a date are the ones born on it, and they all arrive on the same day. You get three buzzes on the day. Each one makes its story bigger on the hive. No score, no downvote, and no way to say a thing did not matter.</p>
   </li>
   <li>
     <h3>Then it seals</h3>
-    <p>What the date is remembered for is whatever the people there that week said. It closes with the day it sealed and the number of people who answered on it, and it stays that way.</p>
+    <p>The hive is what the people there that day thought would still matter, sized by how many of them buzzed it. Every story on it is a link to a source, in the source's own words. It stays that way for good.</p>
   </li>
   <li>
     <h3>Next year it opens on top</h3>
-    <p>The same three days come round again and the date takes a second set of answers. The difference between the two is the part nobody else has: a measurement of what everybody quietly stopped remembering.</p>
+    <p>The same date comes round and gets a new hive, and the old ones stay. The difference between them is the part nobody else has: what a year did to what people thought would last.</p>
   </li>
 </ol>
-<p class="fine">Nothing to sign up for and nothing to install. Every answer is one tap and it is anonymous.</p>
+<p class="fine">Nothing to sign up for and nothing to install. A buzz is one tap and it is anonymous.</p>
 </section>
 
 <section class="col how">
@@ -650,11 +650,11 @@ export function renderPrivacy(): string {
 <h3>This website</h3>
 <p>birthed.app has no accounts, no analytics service, no advertising and no third party code of any kind. It sets two cookies, both of them only after you do something, and this is all of what they are.</p>
 <ul>
-  <li><strong>The first time you answer a row, or tap a story on the wall</strong>, the site puts a random string in a cookie called <code>bt</code>. It is not a name, an account or an address, and it is not built from anything about you or your browser. It exists so that the same browser is not counted twice on the same date, so that you can undo an answer you just gave, and so that the wall can count your taps against the few you get a day. It lasts a year, which is how long it has to last for a date to be able to open again.</li>
+  <li><strong>The first time you buzz a story on the hive</strong>, the site puts a random string in a cookie called <code>bt</code>. It is not a name, an account or an address, and it is not built from anything about you or your browser. It exists so that the hive can count your buzzes against the few you get a day, and so that the same browser is not counted twice on the same story. It lasts a year. Before September 10, 2026 the site also set it when you answered a remembrance question; those answers are kept as they were and the question is no longer asked.</li>
   <li><strong>If you tell the site what year you were born</strong>, that year is kept in a cookie called <code>by</code>, so you are asked once instead of on every date. It is optional, nothing on the site requires it, and choosing the blank option deletes it.</li>
 </ul>
-<p>Both cookies are marked <em>HttpOnly</em>, which means no script in any browser can read them, including the one script on this site described further down. Nothing about you is stored on our side except the answers and the taps themselves. An answer is a date, which row you answered, which of the three answers you chose, the random string, and your birth year if you gave one. A tap on the wall is which story, that it was one tap, when, what the story's evidence tier and support were at that moment, that it came from this website rather than from the app, and the random string in a scrambled form that cannot be turned back into it. A tap is kept for good, because the wall it lands on is permanent; it names nobody and is shown to nobody as yours except to the browser that made it. <strong>The address your request came from is never sent to our database and is never stored against an answer or a tap.</strong> There is no profile, nothing that follows you to another site, and nothing about any of this is for sale or ever will be.</p>
-<p>The server counts requests per address, in memory, for one minute at a time, so that a script cannot make thousands of writes in a minute. Those counts are never written down and vanish when the server restarts. Like every website, the machine serving this one keeps ordinary access logs, which include the address your request came from, for a short time for operational reasons. Those logs are not joined to answers and nothing in this site can join them.</p>
+<p>Both cookies are marked <em>HttpOnly</em>, which means no script in any browser can read them, including the one script on this site described further down. Nothing about you is stored on our side except the buzzes themselves. A buzz is which story, that it was one buzz, when, what the story's evidence tier and support were at that moment, that it came from this website rather than from the app, and the random string in a scrambled form that cannot be turned back into it. A buzz is kept for good, because the hive it lands on is permanent; it names nobody and is shown to nobody as yours except to the browser that made it. An answer to the old remembrance question, if you gave one, is a date, which row, which answer, the random string, and your birth year if you gave that; it is kept as it was. <strong>The address your request came from is never sent to our database and is never stored against a buzz or an answer.</strong> There is no profile, nothing that follows you to another site, and nothing about any of this is for sale or ever will be.</p>
+<p>The server counts requests per address, in memory, for one minute at a time, so that a script cannot make thousands of writes in a minute. Those counts are never written down and vanish when the server restarts. Like every website, the machine serving this one keeps ordinary access logs, which include the address your request came from, for a short time for operational reasons. Those logs are not joined to buzzes and nothing in this site can join them.</p>
 <p>One page runs a script, and it is worth explaining because it looks like the opposite of what it is. When somebody shares a birthday with you, the birthday travels in the part of the web address after the hash symbol, and browsers never send that part to a server. The page at <a href="/add/">birthed.app/add</a> reads it in your browser to show you the date and hand it to the app. So that page is sent to everybody identically, our logs record only that somebody opened it, and no birthday you send or receive that way ever reaches us.</p>
 <p>The same page has a second job. If you arrived through a link somebody used to <em>ask</em> for your birthday, the page shows a send button, and pressing it does send what you typed to our account service, to wait for them. That is the one case above, and the page says so on it before you press anything. The code identifying whose request it is also travels after the hash symbol, so our website's logs never see it either.</p>
 

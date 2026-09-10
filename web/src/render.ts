@@ -2,13 +2,13 @@
 // without a network and without a browser.
 
 import { DayPage, Person, monthName, neighbours, slug, everyDate } from "./model.js";
-import { WALL_STYLE, squarePath, storyBody, wallSection, type WallDay, type WallStory } from "./wall.js";
+import { WALL_STYLE, hivePath, storyBody, wallSection, type WallDay, type WallStory } from "./wall.js";
 import { CHART_NAME, coverName, SongOfTheYear } from "./songs.js";
 import { calendar } from "./calendar.js";
 import { type CulturalEvent, textOf } from "./culture.js";
 import { Fact, hostOf } from "./facts.js";
 import { buildTimeline, byMemory, pickHighlights, theRest, type DayEvent, type MemoryCount, type TimelineRow } from "./timeline.js";
-import { cardHighlight, mayAsk, mayLead, mayLeadWords, type Highlight } from "./highlight.js";
+import { mayAsk, mayLeadWords } from "./highlight.js";
 import { leadKey } from "./lead.js";
 import { bestMatch, selectedKey, type Selected } from "./selected.js";
 
@@ -274,8 +274,17 @@ const STYLE = `
 /* On a phone the bar has room for the arrows, the dice and About; the index
    is one tap away in the footer. */
 @media (max-width: 520px) { .daybar a[href="/calendar/"] { display: none; } }
-.remember { margin: 30px 0 0; }
-.remember h2.section { margin-bottom: 2px; }
+.wlist li.hist { display: flex; gap: 12px; align-items: baseline; }
+.wlist .fyr { flex: none; width: 46px; font-family: Georgia, serif; font-size: 17px; color: #E7A83A; font-variant-numeric: tabular-nums; }
+.wlist .fbody { min-width: 0; flex: 1; }
+.wlist .fbody a, .wlist .ftext { font-weight: 600; text-decoration: none; }
+.wlist .fbody a:hover { text-decoration: underline; }
+.wlist .fbody .wmeta { margin-left: 4px; }
+.wlist .rem { display: none; margin: 0 0 0 6px; vertical-align: middle; }
+.wlist .rres:empty { display: none; }
+.wlist .mine { display: none; margin: 4px 0 0; font-size: 12px; font-weight: 700; color: #E7A83A; }
+.wlist .mine::after { content: ""; }
+.state { margin: 26px 0 0; }
 .memorynote {
   margin: 26px 0 -8px; font-size: 13px; color: ${QUIET};
   border-left: 2px solid var(--day-soft, #C6B0F5); padding-left: 12px;
@@ -1667,7 +1676,7 @@ const SITELINKS = `<p class="sitelinks"><a href="/">Today</a> · <a href="/calen
  */
 export const FOOT = `<footer>
 ${SITELINKS}
-<p class="nothing">No account, no sign up, and nothing on this page is loaded from another company. Answer a row and one random string is kept in a cookie, so the same browser is not counted twice on the same date. That is the whole of what is kept about you.</p>
+<p class="nothing">No account, no sign up, and nothing on this page is loaded from another company. Buzz something and one random string is kept in a cookie, so the same browser gets its few buzzes a day and no more. That is the whole of what is kept about you.</p>
 ${CREDIT}
 </footer>`;
 
@@ -1922,22 +1931,6 @@ export function tidyDescription(description: string): string {
     .trim();
 }
 
-function factsSection(facts: Fact[], name: string): string {
-  if (facts.length === 0) return "";
-
-  const rows = facts.map((fact) => `<li>
-<p class="what">${escapeHtml(fact.fact)}</p>
-<p class="src"><a href="${escapeHtml(fact.sourceUrl)}" rel="nofollow noopener">${escapeHtml(hostOf(fact.sourceUrl))}</a></p>
-</li>`).join("\n");
-
-  return `<h2 class="section">What happened on ${escapeHtml(name)}</h2>
-<p class="lede">${facts.length} things, each with the page it came from.</p>
-<ul class="facts">
-${rows}
-</ul>
-<p class="credit">Found by Google's Gemini searching the web, and kept only when the page it cited answered. Birthed is not affiliated with Google.</p>`;
-}
-
 /**
  * The month's own colour.
  *
@@ -1952,39 +1945,6 @@ export function dayHue(month: number): { day: string; soft: string } {
   // every 30 degrees from there, which keeps all twelve clear of the pink.
   const hue = ((month - 1) * 30 + 25) % 360;
   return { day: `hsl(${hue} 72% 62%)`, soft: `hsl(${hue} 82% 80%)` };
-}
-
-/**
- * What a researched fact's kind is called on the page.
- *
- * Every value the researcher is allowed to return is here. A Wikipedia line
- * has no kind, so it is called an event, which is what its section of the
- * article is called and is true of all of them.
- */
-const KINDS: Record<string, { label: string; klass: string }> = {
-  event: { label: "Event", klass: "k-event" },
-  release: { label: "Released", klass: "k-release" },
-  sport: { label: "Sport", klass: "k-sport" },
-  science: { label: "Science", klass: "k-science" },
-  record: { label: "Record", klass: "k-record" },
-  price: { label: "Then and now", klass: "k-price" },
-  weather: { label: "Weather", klass: "k-weather" },
-  local: { label: "Local", klass: "k-local" },
-  older_than: { label: "Older than", klass: "k-older" },
-  // The curated rows. These are the five the cultural_event_category type
-  // allows, and they get two colours of their own rather than borrowing from
-  // the nine above, because the point of the table is that a reader can see at
-  // a glance that this row is not another line out of an encyclopedia.
-  tech: { label: "Tech", klass: "k-tech" },
-  gaming: { label: "Gaming", klass: "k-gaming" },
-  meme: { label: "Internet", klass: "k-meme" },
-  music: { label: "Music", klass: "k-music" },
-  cinema: { label: "Film", klass: "k-cinema" },
-};
-
-function kindOf(category: string | null): { label: string; klass: string } {
-  if (category === null) return { label: "Event", klass: "k-event" };
-  return KINDS[category] ?? { label: "Event", klass: "k-event" };
 }
 
 /**
@@ -2022,135 +1982,13 @@ function whenOf(dateKind: string | null | undefined): string | null {
  * put in front.
  */
 /**
- * How many people who answered this row remembered it, on a sealed date.
- *
- * **This is a count and not a rating.** The difference matters more than any
- * other line in this file. A model saying a row is an eight out of ten is an
- * opinion wearing a number, and it is the exact thing that makes a site read
- * as generated. "Eleven of the fourteen people who answered this remembered
- * it" is a fact about a room. Nobody can argue with it, it says nothing about
- * whether the event was good or important, and it is the only measurement this
- * project exists to produce.
- *
- * So it is safe beside the things a rating would not be. The September 11
- * attacks carry no judgement here, only how many of the people who came said
- * they remembered, which is true of them rather than of the day.
- *
- * It is not a direction. There are three answers, "never heard of it" counts
- * the same as the others, and nothing here subtracts, so no crowd can push a
- * row off a page by arriving. That is what `docs/first-impression-brief.md`
- * forbids, and this is not it.
- *
- * **The floor is the whole safety.** A number is powerful at nine hundred
- * answers and embarrassing at nine, and printing "one of the two people who
- * answered this" tells a stranger the site is empty in a way no absence would.
- * Below the floor a sealed row says nothing at all, which is the same bargain
- * the front page already makes.
+ * Who found what, under the history. Not decoration: Wikipedia's text is
+ * quoted under Creative Commons Attribution ShareAlike and the credit is the
+ * licence's condition, and a person's checked sentence must never be
+ * counted as something a model turned up.
  */
-const ENOUGH_TO_COUNT = 10;
-
-function inWords(n: number): string {
-  const words = [
-    "no", "one", "two", "three", "four", "five", "six", "seven", "eight",
-    "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen",
-    "sixteen", "seventeen", "eighteen", "nineteen", "twenty",
-  ];
-  return words[n] ?? String(n);
-}
-
-function rememberedLine(count: MemoryCount | undefined): string {
-  if (count === undefined) return "";
-  const answered = count.there + count.remembers + count.heard + count.never;
-  if (answered < ENOUGH_TO_COUNT) return "";
-  const remembered = count.there + count.remembers;
-  return `<p class="tally">${inWords(remembered)} of the ${inWords(answered)} people who answered this remembered it</p>`;
-}
-
-function feedSection(
-  picked: TimelineRow[],
-  rest: TimelineRow[],
-  total: number,
-  name: string,
-  searched: number,
-  fromWikipedia: number,
-  curated = 0,
-  // Carried in rather than parsed back out of the name, because the form posts
-  // numbers and a page that reparses its own heading is one typo from posting
-  // an answer against the wrong date.
-  month = 0,
-  day = 0,
-  /// Whether this date has sealed, which is the only thing that earns a row
-  /// the front page treatment.
-  sealed = false,
-  /// The rows the ask cards at the top of the page were taken from, each as
-  /// "kind:id". They are drawn here without their forms and their identifiers,
-  /// because the cards carry them, and today.css hides all of them on the three
-  /// open dates so no row is on the page twice.
-  ///
-  /// All of them, not only the one showing. Only one card is revealed per
-  /// request and the others could in principle keep their place in the feed,
-  /// but a row that moves between two places on the page depending on which
-  /// card was dealt is a row whose identifiers would have to be in both, and
-  /// an identifier in two places is the bug this class exists to prevent. Four
-  /// missing rows out of a hundred and fifty is a price worth paying for that.
-  asked: string[] = [],
-  /// What each row's own people said, on a sealed date. Empty everywhere else.
-  memory: Map<string, MemoryCount> | null = null,
-): string {
-  if (picked.length === 0) return "";
-  const tallyFor = (row: TimelineRow) =>
-    memory === null ? "" : rememberedLine(memory.get(`${row.kind}:${row.id}`));
-  const askedSet = new Set(asked);
-  const isAsked = (row: TimelineRow) => askedSet.has(`${row.kind}:${row.id}`);
-
-  const cards = picked.map((row, index) => {
-    const kind = kindOf(row.category);
-    // Only the first few are staggered. The rest are below the fold on every
-    // screen, so animating them would move things nobody is looking at.
-    const delay = index < 6 ? ` style="--i:${index}"` : "";
-    const lead = [index === 0 ? (sealed ? "lead sealedlead" : "lead") : "", isAsked(row) ? "asked" : ""]
-      .filter((c) => c !== "").join(" ");
-    // Said above the lead rather than left to be inferred, because a row set
-    // four times the size of the one under it is a claim, and the reader is
-    // owed what the claim rests on.
-    const mark = index === 0 && sealed
-      ? `<span class="leadmark">Most remembered</span>`
-      : "";
-    return `<li class="${lead}"${isAsked(row) ? "" : ` id="r-${row.kind}-${escapeHtml(row.id)}"`}${delay}>
-<span class="head"><span class="tag ${kind.klass}">${kind.label}</span><span class="yr">${row.year === null ? "" : row.year}</span></span>
-${mark}
-<p class="said">${escapeHtml(row.text)}</p>
-${whenOf(row.dateKind) ? `<p class="datenote">${whenOf(row.dateKind)}</p>` : ""}
-${row.sourceUrl ? `<p class="src"><a href="${escapeHtml(row.sourceUrl)}" rel="nofollow noopener">${escapeHtml(hostOf(row.sourceUrl))}</a></p>` : ""}
-${tallyFor(row)}${isAsked(row) ? "" : rememberForm(row.kind, row.id, month, day)}
-${isAsked(row) ? "" : `<p class="mine"></p>`}
-</li>`;
-  }).join("\n");
-
-  const others = rest.map((row) => `<li${isAsked(row) ? ` class="asked"` : ` id="r-${row.kind}-${escapeHtml(row.id)}"`}>
-<span class="y">${row.year === null ? "&nbsp;" : row.year}</span>
-<span>
-<p class="x">${escapeHtml(row.text)}</p>
-${whenOf(row.dateKind) ? `<p class="datenote">${whenOf(row.dateKind)}</p>` : ""}
-${row.sourceUrl ? `<p class="src"><a href="${escapeHtml(row.sourceUrl)}" rel="nofollow noopener">${escapeHtml(hostOf(row.sourceUrl))}</a></p>` : ""}
-${tallyFor(row)}${isAsked(row) ? "" : rememberForm(row.kind, row.id, month, day)}
-${isAsked(row) ? "" : `<p class="mine"></p>`}
-</span>
-</li>`).join("\n");
-
-  const drawer = rest.length > 0
-    ? `<details class="more">
-<summary><span>Everything else that happened</span><span>${rest.length} more</span></summary>
-<div class="inner">
-<ul>
-${others}
-</ul>
-</div>
-</details>`
-    : "";
-
-  const spread = [...picked, ...rest]
-    .filter((row) => row.dateKind === "went_viral").length;
+export function feedCredits(rows: TimelineRow[], name: string, searched: number, fromWikipedia: number, curated: number): string {
+  const spread = rows.filter((row) => row.dateKind === "went_viral").length;
 
   const credits = [
     spread > 0
@@ -2163,67 +2001,14 @@ ${others}
       ? `<p class="credit">${curated === 1 ? "One of them was" : `${curated} of them were`} written and checked by hand, against the page ${curated === 1 ? "it links" : "each one links"}.</p>`
       : "",
     fromWikipedia > 0
-      ? `<p class="credit">The other ${fromWikipedia} are from the ${escapeHtml(name)} article on Wikipedia, quoted as written and released under Creative Commons Attribution ShareAlike. Birthed is not affiliated with Wikipedia or the Wikimedia Foundation.</p>`
+      ? `<p class="credit">${searched + curated > 0
+        ? `The other ${fromWikipedia} ${fromWikipedia === 1 ? "is" : "are"}`
+        : fromWikipedia === 1 ? "The one without a link under it is" : `The ${fromWikipedia} without a link under them are`} from the ${escapeHtml(name)} article on Wikipedia, quoted as written and released under Creative Commons Attribution ShareAlike. Birthed is not affiliated with Wikipedia or the Wikimedia Foundation.</p>`
       : "",
   ].filter((line) => line !== "").join("\n");
-
-  return `<div class="hrow"><h2 class="section">What happened</h2></div>
-<p class="lede">${rest.length === 0 ? `${total} things, newest first.` : `${picked.length} worth stopping on, out of ${total}.`}</p>
-${yearAsk(month, day)}
-<ul class="feed">
-${cards}
-</ul>
-${drawer}
-${credits}`;
+  return credits;
 }
 
-/** The initials on a face, which is all we have: there are no photographs. */
-function initialsOf(name: string): string {
-  const parts = name.split(/\s+/).filter((part) => part.length > 0);
-  const first = parts[0]?.charAt(0) ?? "";
-  const second = parts.length > 1 ? parts[parts.length - 1]?.charAt(0) ?? "" : "";
-  return (first + second).toUpperCase();
-}
-
-/** Ten people as a row that is pushed, not a column that is scrolled past. */
-function peopleRail(page: DayPage, name: string): string {
-  if (page.people.length === 0) return `<p class="lede">Nobody imported for this date yet.</p>`;
-
-  const cards = page.people.map((person) => `<a class="who" href="https://www.wikidata.org/wiki/${escapeHtml(person.qid)}" rel="nofollow noopener">
-${faceOrInitials(person, "face")}
-<p class="n">${escapeHtml(person.name)}</p>
-${person.description && tidyDescription(person.description) ? `<p class="w">${escapeHtml(tidyDescription(person.description))}</p>` : ""}
-<p class="b">${escapeHtml(birthYearLabel(person)) || "&nbsp;"}</p>
-${person.deathYear ? `<p class="d">died ${person.deathYear}</p>` : ""}
-</a>`).join("\n");
-
-  return `<div class="hrow"><h2 class="section">Who shares it</h2></div>
-<p class="lede">${page.people.length} ${page.people.length === 1 ? "person" : "people"} born on ${escapeHtml(name)}.</p>
-<div class="rail">
-${cards}
-</div>`;
-}
-
-/**
- * The first thing anybody sees, and the reason the counts are gone.
- *
- * "51 things, 67 number ones, 10 people" was inventory. It is the number that
- * was easiest to compute, promoted to the most valuable space on the page, and
- * it made a reader feel nothing. Under it sat three identical event cards
- * starting in 878, so the first screen was text, then text, then text, and the
- * whole thing read as an archive inside two seconds.
- *
- * Three tiles instead, chosen to be unalike rather than to be complete. A
- * person, some album art, and one thing that happened. A face, a picture and a
- * fact, in three different visual registers, before the eye reaches a list of
- * anything.
- *
- * The third tile takes cardHighlight, which is the same function that picks the
- * line for the share image, and it is reused here on purpose: it already
- * refuses killings, bombings and crashes. 41 percent of the 19,734 Wikipedia
- * events match that filter and every date has at least one. Without it, 134 of
- * the 366 pages would open on somebody's worst day.
- */
 /**
  * Where a person's photograph lives on birthed.app.
  *
@@ -2242,131 +2027,35 @@ export function faceName(qid: string): string {
   return qid.replace(/[^A-Za-z0-9]/g, "");
 }
 
-function faceOrInitials(person: Person, className: string): string {
-  return person.hasImage === true
-    ? `<img class="${className}" src="/faces/${faceName(person.qid)}.jpg" alt="" loading="lazy" decoding="async">`
-    : `<span class="${className} noface">${escapeHtml(initialsOf(person.name))}</span>`;
-}
-
 /**
- * Three buttons under a row, and no script anywhere near them.
- *
- * A plain form that posts and redirects back. That is not nostalgia. The whole
- * argument this site makes about itself is that it runs nothing, and a voting
- * widget written in JavaScript would have spent that argument on a feature a
- * 1993 browser could already do.
- *
- * Three answers and no fourth, and none of them is a downvote. There is no way
- * to say a thing did not matter, only whether it reached you. A direction is a
- * weapon, and an up and down score on January 6 or October 7 is a brigading
- * target inside a week on a site whose whole claim is to be a sourced record.
- *
- * "I was there" was the fourth and is gone from both clients. It asks about
- * presence, and this measures transmission, which is a different question:
- * nobody was there for a diplomatic announcement and nobody was there for a
- * song being number one. It was answerable on a small minority of rows, which
- * made it noise near the top of the scale rather than a rung of it. The three
- * that are left ask the same question of every row on the page.
- *
- * `there` stays in DEPTHS and in the check constraint even so, because this
- * form offered it from the day it shipped and those answers are already in the
- * table. A value that is no longer offered still has to be readable, or every
- * row that collected one quietly reports a smaller total than it has.
- *
- * "Never heard of it" is an answer rather than an absence, and it is the most
- * interesting one this can collect: a row that is thoroughly documented and
- * that nobody has heard of is a fact about the world you cannot get any other
- * way, and it is invisible if you only count the people who remember.
- *
- * The form is drawn on every date, including the ones that are sealed, because
- * the page is baked ahead of time and cannot know today's date. The server
- * knows, refuses politely, and sends the reader back to an explanation. The
- * check that matters is in the database and cannot be reached from a client at
- * all.
+ * The date's history as plain rows: what happened, who was born, what came
+ * out. No buttons. On a date with a hive the worker files each of these as a
+ * wall story and the feed under the hive draws them with the one button, so
+ * these rows are for the date that has no hive yet, under its promise, and
+ * for a hive the worker has not filed yet. The same shape as a feed row, on
+ * purpose, because to a reader they are the same thing: something with a
+ * birthday today.
  */
-/**
- * The one thing this site asks a reader about themselves.
- *
- * Crossed with the answers below it, a birth year produces the thing none of
- * this is worth doing without: a map of what each generation remembers.
- * Everybody born before 1985 remembering something that nobody born after
- * 2000 has heard of is a fact about the world that cannot be scraped from
- * anywhere, because nobody has ever collected it. Until this control existed
- * every answer this site took stored a null year, so none of that was
- * possible.
- *
- * **Asked once and kept in a cookie, not carried by the forms.** A radio group
- * or a select outside a form cannot reach into one without a script, and this
- * site runs none, so the alternative was repeating the picker inside all 150
- * forms on the page. Instead it posts to its own address, the year joins the
- * token in a cookie, and every answer after it carries the year server side
- * without any form knowing about it.
- *
- * **A returning reader is asked again, and that is a real cost.** The page is
- * baked ahead of time and cannot know what is in anybody's cookie, so this
- * control looks the same to somebody who set it a month ago. Posting it twice
- * is harmless, it just writes the same cookie. The alternative is reading the
- * database or the cookie on every page view, and not doing that on an ordinary
- * page view is the property that keeps this site up when Supabase is not.
- *
- * The year is never shown to anybody, never joined to a name, and lives in the
- * same place the token does. `remembrances.birth_year` is the only column it
- * reaches.
- */
-function yearAsk(month: number, day: number): string {
-  const now = new Date().getUTCFullYear();
-  const firstDecade = 1930;
-  const lastDecade = Math.floor(now / 10) * 10;
-
-  const decades: number[] = [];
-  for (let decade = lastDecade; decade >= firstDecade; decade -= 10) decades.push(decade);
-
-  // The radios come first and are invisible. They are the only state this
-  // control has, and CSS reveals one row of years from which one is checked.
-  const radios = decades
-    .map((d) => `<input type="radio" name="dec" id="dec${d}" class="decpick">`)
-    .join("");
-
-  const decadeChips = decades
-    .map((d) => `<label for="dec${d}">${d}s</label>`)
-    .join("");
-
-  const yearRows = decades.map((d) => {
-    const years: string[] = [];
-    for (let year = d; year < d + 10 && year <= now; year++) {
-      years.push(`<button type="submit" name="y" value="${year}">${year}</button>`);
-    }
-    return `<div class="yg yg${d}">${years.join("")}</div>`;
-  }).join("");
-
-  return `<p class="yearset" id="yearset">Your answers carry <span class="yearsetv"></span>. <a href="#yearask">Change it</a></p>
-<div class="yearask" id="yearask">
-<p class="yearlede">Answers are more useful with a year on them. <b>Born in?</b></p>
-<form method="post" action="/year">
-<input type="hidden" name="m" value="${month}">
-<input type="hidden" name="d" value="${day}">
-${radios}
-<div class="yeardecs">${decadeChips}</div>
-<div class="yearyears">${yearRows}</div>
-</form>
-<p class="yearnote">Two taps. Kept in a cookie on this browser, sent with your answers, and never shown to anybody.</p>
-</div>`;
-}
-
-function rememberForm(kind: string, id: string, month: number, day: number): string {
-  const answers: Array<[string, string]> = [
-    ["remember", "I remember it"],
-    ["heard", "Heard of it"],
-    ["never", "Never heard of it"],
-  ];
-  return `<form class="rem" method="post" action="/remember">
-<input type="hidden" name="k" value="${escapeHtml(kind)}">
-<input type="hidden" name="i" value="${escapeHtml(id)}">
-<input type="hidden" name="m" value="${month}">
-<input type="hidden" name="d" value="${day}">
-${answers.map(([value, label]) => `<button type="submit" name="a" value="${value}">${label}</button>`).join("")}
-</form>
-<p class="rres" id="${resultId(kind, id)}"></p>`;
+export function historyRows(rows: TimelineRow[], people: Person[]): string {
+  const events = rows.map((row) => `<li id="r-${row.kind}-${escapeHtml(row.id)}" class="hist">
+<span class="fyr">${row.year === null ? "" : row.year}</span>
+<span class="fbody">${row.sourceUrl
+    ? `<a href="${escapeHtml(row.sourceUrl)}" rel="nofollow noopener">${escapeHtml(row.leadLine ?? row.text)}</a>`
+    : `<span class="ftext">${escapeHtml(row.leadLine ?? row.text)}</span>`}
+<span class="wmeta">${row.sourceUrl ? escapeHtml(hostOf(row.sourceUrl)) : ""}${whenOf(row.dateKind) ? ` ${escapeHtml(whenOf(row.dateKind) ?? "")}` : ""}</span>
+</span>
+</li>`);
+  const born = people.map((person) => `<li id="r-person-${escapeHtml(person.qid)}" class="hist">
+<span class="fyr">${person.birthYear ?? ""}</span>
+<span class="fbody"><a href="https://www.wikidata.org/wiki/${escapeHtml(person.qid)}" rel="nofollow noopener">${escapeHtml(person.name)}</a>
+<span class="wmeta">born today${person.description && tidyDescription(person.description) ? `, ${escapeHtml(tidyDescription(person.description))}` : ""}${person.deathYear ? `, died ${person.deathYear}` : ""}</span>
+</span>
+</li>`);
+  const all = [...events, ...born];
+  if (all.length === 0) return "";
+  return `<ul class="wlist hist">
+${all.join("\n")}
+</ul>`;
 }
 
 /**
@@ -2454,23 +2143,6 @@ export interface Remembered {
   heard: number;
   never: number;
 }
-
-/**
- * What happened after you tapped, said without a script.
- *
- * The server redirects to one of these two fragments and `:target` reveals the
- * matching one. The same trick the year dial on this site already runs on, and
- * the reason it is worth the trouble: the alternative was either a page that
- * silently swallows an answer or a page that runs JavaScript to say thank you.
- */
-const AFTER = `<p class="afterword" id="kept">Kept. It counts towards what this date is remembered for, and it will still be here next year.</p>
-<p class="afterword" id="sealed">This date is sealed. A day takes answers on the day itself and the day either side, and then it closes until next year. Come back on the day.</p>
-<p class="afterword" id="failed">That did not save, and it was this end rather than yours. The date is fine and nothing is closed. Try it again.</p>
-<p class="afterword" id="cooling">Not yet. A minute or two between answers, then the next one.</p>
-<p class="afterword" id="spent">That is every row on this date. There is nothing left to answer here, which almost nobody manages. The date opens again next year.</p>
-<p class="afterword" id="already">You have already answered that one, on this browser. It is below, with what everybody else said. Nothing is sealed and the rest of the date is still open.</p>
-<p class="afterword" id="undone">Taken back. Nothing was recorded and you can answer it again.</p>
-<p class="afterword" id="toolate">That one is in. It counts from here. An answer can be taken back for half a minute and then it stands.</p>`;
 
 /**
  * How far back the first ask looks. The lead row should be one a large share
@@ -2596,169 +2268,6 @@ export function firstAsk(rows: TimelineRow[], _now: number = new Date().getUTCFu
 }
 
 /**
- * The ask cards, drawn only on the three open dates by today.css, one at a
- * time.
- *
- * Each carries the row's real identifiers, r-kind-id and rr-kind-id, so the
- * redirect after an answer lands here and the server writes the result here.
- * Every one of these rows is drawn in the feed without them; feedSection does
- * that, and today.css hides all of them there so no row is on the page twice.
- *
- * The slot classes are the whole rotation. today.css picks one number from
- * zero to ASK_SLOTS minus one and reveals whatever carries it. A card lists
- * every slot that lands on it under this page's own count, so a date with two
- * candidates and a date with five both resolve any slot the sheet sends, and
- * neither can be sent a number that reveals nothing.
- */
-function askSection(rows: TimelineRow[], songs: SongOfTheYear[], month: number, day: number): string {
-  if (rows.length === 0) return "";
-  return rows.map((row, index) => askCard(row, rows.length, index, songs, month, day)).join("\n");
-}
-
-function askCard(
-  row: TimelineRow,
-  count: number,
-  index: number,
-  songs: SongOfTheYear[],
-  month: number,
-  day: number,
-): string {
-  const song = songs.find((s) => s.year === row.year && s.hasArtwork === true);
-  const art = song === undefined
-    ? ""
-    : `<span class="askart"><img src="/covers/${coverName(song.song, song.artist)}.jpg" alt="" width="64" height="64" decoding="async"></span>`;
-  // What the card asks, and what it rests on.
-  //
-  // When somebody has written a line for this row, the card sets that as the
-  // question and prints the row's own sentence under it, next to the link. It
-  // is not decoration and it is not a hedge. The whole argument of this site is
-  // that it says what a person would say and can be checked, and a card that
-  // showed only the written line would be the first place on it where a
-  // sentence appeared with nothing behind it.
-  const record = row.leadLine === undefined
-    ? ""
-    : `<span class="askrec">${escapeHtml(row.text)}</span>`;
-  const caption = [
-    record,
-    song === undefined ? "" : `Number one that week: <b>${escapeHtml(song.song)}</b>, ${escapeHtml(song.artist)}.`,
-    row.sourceUrl ? `Source: <a href="${escapeHtml(row.sourceUrl)}" rel="nofollow noopener">${escapeHtml(hostOf(row.sourceUrl))}</a>` : "",
-  ].filter((part) => part !== "").join(" &nbsp;");
-  const slots: string[] = [];
-  for (let slot = 0; slot < ASK_SLOTS; slot += 1) {
-    if (slot % count === index) slots.push(`asks${slot}`);
-  }
-  return `<section class="ask ${slots.join(" ")}" id="r-${row.kind}-${escapeHtml(row.id)}">
-<div class="askhead"><span class="asklab">Do you remember this one?</span><span class="askyr">${row.year}</span></div>
-<div class="askbody${art === "" ? " noart" : ""}">
-${art}
-<p class="asksaid">${escapeHtml(row.leadLine ?? row.text)}</p>
-${caption === "" ? "" : `<p class="askcap">${caption}</p>`}
-</div>
-${rememberForm(row.kind, row.id, month, day)}
-<p class="mine"></p>
-<p class="askrule">One tap, no account, anonymous. A minute or two between answers, no score, and "never heard of it" counts the same as the others.</p>
-</section>`;
-}
-
-function openingBand(
-  page: DayPage,
-  songs: SongOfTheYear[],
-  culture: CulturalEvent[],
-  highlight: Highlight | null,
-): string {
-  const person = page.people[0];
-  const withArt = songs.filter((song) => song.hasArtwork === true);
-  // One cover, not four.
-  //
-  // Four of them tiled behind a caption was the wrong idea twice over. Album
-  // covers are designed to be the loudest thing in any frame, so four
-  // unrelated ones fight each other, and putting words on top of that made the
-  // words unreadable whatever the veil did. One cover, at a size somebody
-  // chose the artwork for, with the caption underneath on a solid background.
-  const cover = withArt[0];
-
-  const faceTile = person === undefined ? "" : `<a class="tile" href="https://www.wikidata.org/wiki/${escapeHtml(person.qid)}" rel="nofollow noopener">
-<span class="tpic t-person">${faceOrInitials(person, "tbg")}</span>
-<span class="tin"><span class="tlab">Born on this day</span><b class="tbig">${escapeHtml(person.name)}</b><span class="tsub">${escapeHtml(birthYearLabel(person))}</span></span>
-</a>`;
-
-  const artTile = cover === undefined ? "" : `<div class="tile">
-<span class="tpic t-music"><img src="/covers/${coverName(cover.song, cover.artist)}.jpg" alt="" loading="lazy" decoding="async"></span>
-<span class="tin"><span class="tlab">Number one, ${cover.year}</span><b class="tbig">${escapeHtml(cover.song)}</b><span class="tsub">${escapeHtml(cover.artist)}</span></span>
-</div>`;
-
-  const newest = [...culture].sort((a, b) => b.year - a.year)[0];
-  const moment = newest !== undefined
-    ? { year: newest.year, text: newest.title, label: "Out on this date" }
-    : highlight !== null
-      ? { year: highlight.year, text: highlight.text, label: "On this date" }
-      : null;
-  const momentTile = moment === null ? "" : `<div class="tile">
-<span class="tpic t-moment"><span class="tyr">${moment.year}</span></span>
-<span class="tin"><span class="tlab">${moment.label}</span><b class="tbig">${escapeHtml(moment.text)}</b></span>
-</div>`;
-
-  const tiles = [faceTile, artTile, momentTile].filter((t) => t !== "");
-  if (tiles.length === 0) return "";
-  return `<p class="alsolab">Also on this date</p>
-<section class="tiles">\n${tiles.join("\n")}\n</section>`;
-}
-
-/**
- * What came out on this date, above what happened on it.
- *
- * These are the rows a reader under forty actually recognises, and until now
- * they were sorted by year in among Wikipedia's crusades, which is how a page
- * about somebody's birthday came to open on a Frankish king being crowned in
- * 878. Being a separate section is not a styling preference: they are a
- * different kind of claim, curated or imported against an exact date with a
- * year, where a historical_events row is a month and a day out of a prose list.
- */
-function cultureSection(culture: CulturalEvent[], name: string): string {
-  if (culture.length === 0) return "";
-  const rows = [...culture]
-    .sort((a, b) => b.year - a.year)
-    .map((event) => {
-      const kind = kindOf(event.category);
-      const when = whenOf(event.dateKind);
-      return `<li class="cul ${kind.klass}" id="r-cultural_event-${escapeHtml(event.id)}">
-<span class="cyr">${event.year}</span>
-<div><p class="ctx">${escapeHtml(textOf(event))}</p>
-<span class="meta"><span class="tag ${kind.klass}">${kind.label}</span><span class="src"><a href="${escapeHtml(event.sourceUrl)}" rel="nofollow noopener">${escapeHtml(hostOf(event.sourceUrl))}</a></span></span>
-${when ? `<p class="datenote">${when}</p>` : ""}
-${rememberForm("cultural_event", event.id, event.month, event.day)}</div>
-</li>`;
-    })
-    .join("\n");
-
-  // The label has to keep the paragraph that explains it. A reader cannot
-  // interpret "when it spread, not when it was posted" on its own, and printing
-  // an honest caveat nobody can read is decoration. This moved here with the
-  // rows and a test caught it going missing on the way.
-  const spread = culture.filter((event) => event.dateKind === "went_viral").length;
-  const note = spread > 0
-    ? `<p class="credit">${spread === 1 ? "One row says" : `${spread} rows say`} "when it spread, not when it was posted". That means the original posting is gone or was never recorded, and the date is the week it broke out, taken from something published at the time. Printing that instead of a confident year is deliberate.</p>`
-    : "";
-  const written = culture.filter((event) => event.origin !== "imported").length;
-  const imported = culture.length - written;
-  const credit = [
-    written > 0 ? `<p class="credit">${written === 1 ? "One of these was" : `${written} of these were`} written and checked by hand, against the page ${written === 1 ? "it links" : "each one links"}.</p>` : "",
-    imported > 0 ? `<p class="credit">${written > 0 ? `The other ${imported}` : imported === 1 ? "This one" : `All ${imported}`} came out of Wikidata, which records an exact release date for ${imported === 1 ? "it" : "each of them"}. Nothing here was written by a model.</p>` : "",
-  ].filter((line) => line !== "").join("\n");
-
-  // No "Open today" flag beside this heading any more. The state line at the
-  // top of the page says open or sealed for the whole page, and a flag that
-  // appeared beside one section read as if only that section was open.
-  return `<div class="hrow"><h2 class="section">What came out</h2></div>
-<p class="lede">Games, records and releases dated to ${escapeHtml(name)} itself, newest first.</p>
-<ul class="culture">
-${rows}
-</ul>
-${note}
-${credit}`;
-}
-
-/**
  * The dice, on every date page.
  *
  * /random/ has existed in serve.ts since the beginning and was linked from
@@ -2772,26 +2281,6 @@ ${credit}`;
  * wanders 366 pages of duplicates.
  */
 const DICE = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="4.6"/><circle cx="8.4" cy="8.4" r="1.35" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.35" fill="currentColor" stroke="none"/><circle cx="15.6" cy="15.6" r="1.35" fill="currentColor" stroke="none"/></svg>`;
-
-/**
- * The one line that stands in for the date's history until a reader opens
- * it. Decided September 10, 2026: the wall is the main mechanic, so the
- * imported history moves under it, into one block a reader opens with a tap
- * and a crawler reads whole. The counts are the reason to open it, and they
- * are the same counts the page description already carries. "What came out"
- * is folded in here rather than cut: its rows can be answered like any
- * other, and cutting the section would have taken those answers with it.
- */
-export function restSummary(name: string, events: number, releases: number, songYears: number, people: number): string {
-  const parts: string[] = [];
-  if (events > 0) parts.push(`${events} thing${events === 1 ? "" : "s"} that happened`);
-  if (releases > 0) parts.push(`${releases} release${releases === 1 ? "" : "s"}`);
-  if (songYears > 0) parts.push(`the number one song in ${songYears} year${songYears === 1 ? "" : "s"}`);
-  if (people > 0) parts.push(`${people} ${people === 1 ? "person" : "people"} born on it`);
-  if (parts.length === 0) return `The rest of ${escapeHtml(name)}`;
-  const list = parts.length === 1 ? parts[0]! : `${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}`;
-  return `The rest of ${escapeHtml(name)}: ${list}.`;
-}
 
 export function renderDayPage(
   page: DayPage,
@@ -2903,10 +2392,13 @@ export function renderDayPage(
   // this category already says.
   // Built here rather than inside the section, because the description a
   // search result shows has to count the same rows the page ends up with.
-  // Culture is no longer merged into the history feed. It was being sorted by
-  // year in among Wikipedia's crusades and treaties, which is how a page about
-  // a birthday ended up opening on 878. It gets its own section, above.
-  const chronological = buildTimeline(facts, events, monthName(page.month), page.day)
+  // Culture rows join the one list. They had their own section for a while,
+  // because sorted by year among Wikipedia's crusades and treaties a page
+  // about a birthday opened on 878; pickHighlights now puts the date's
+  // biggest first and the year order is what remains under it. On a date
+  // with a hive these rows are also filed as wall stories by the worker, and
+  // the feed under the hive draws those instead.
+  const chronological = buildTimeline(facts, events, monthName(page.month), page.day, culture)
     .map((row) => {
       const written = leadLines.get(leadKey(row.kind, row.id));
       return written === undefined ? row : { ...row, leadLine: written };
@@ -2930,12 +2422,6 @@ export function renderDayPage(
   // looks like, and deliberately the last place: only after a date can never
   // take another answer.
   const timeline = memory === null ? timelineRows : byMemory(timelineRows, memory);
-  // Said once, because the page has visibly rearranged and nothing else on it
-  // explains why.
-  const memoryNote = memory === null
-    ? ""
-    : `<p class="memorynote">Sealed. In the order the people who were here remembered it.</p>`;
-  const highlight = cardHighlight(facts, events, page.month, page.day);
   // Three sources, counted apart, because the credit at the foot names who
   // found what and a curated row is not a searched one. Counting a person's
   // checked sentence as something a model turned up is the kind of wrong that
@@ -2965,10 +2451,6 @@ export function renderDayPage(
 
   const picked = pickHighlights(timeline);
   const rest = theRest(timeline, picked);
-  // The row the page opens on. Chosen from the chronological list rather than
-  // the remembered order, because a sealed page never draws it.
-  const asked = askCandidates(timelineRows);
-  const askedKeys = asked.map((row) => `${row.kind}:${row.id}`);
   const hue = dayHue(page.month);
   const shortName = `${monthName(page.month).slice(0, 3)} ${page.day}`;
 
@@ -2987,32 +2469,17 @@ export function renderDayPage(
 <a class="get" href="/about/">About</a>
 </span>
 </div>
-${AFTER}
 <h1>${name}</h1>
-${wallSection(wall, name, Date.now(), { date: { month: page.month, day: page.day } })}
-<section class="remember" aria-labelledby="remhead">
-<h2 class="section" id="remhead">What people remember of ${escapeHtml(name)}</h2>
-<p class="state"><span class="dot" aria-hidden="true"></span>
-<span class="sen senpast"><b>Open.</b> Closes tonight, then sealed until next year.</span>
-<span class="sen sennow"><b>Open.</b> Closes tomorrow night, then sealed until next year.</span>
-<span class="sen sennext"><b>Just opened.</b> Two more days, then sealed until next year.</span>
-<span class="sen senshut"><b>Sealed.</b> Opens again on ${monthName(previous.month)} ${previous.day}, for three days.</span>
-</p>
-<div class="fuse" aria-hidden="true"><span></span></div>
-<p class="mechanic">
-<span class="sen senopen">Everything below happened on this date. Say which ones you <b>remember</b>. When it shuts, what people remembered rises to the top and stays there for a year.</span>
-<span class="sen senshut">Everything below happened on this date. For three days a year it takes answers about what people <b>remember</b> of it, and when it shuts, what they remembered rises to the top and stays there for a year.</span>
-</p>
-<p class="also">The three open dates right now: <a href="/yesterday/">yesterday</a> <a href="/today/">today</a> <a href="/tomorrow/">tomorrow</a>.</p>
-${askSection(asked, songs, page.month, page.day)}
-</section>
-<details class="rest">
-<summary>${restSummary(name, timeline.length, culture.length, songs.length, count)}</summary>
-${cultureSection(culture, name)}
-${memoryNote}${feedSection(picked, rest, timeline.length, name, searched, timeline.length - searched - curatedCount, curatedCount, page.month, page.day, memory !== null, askedKeys, memory)}
+${wallSection(wall, name, Date.now(), {
+    date: { month: page.month, day: page.day },
+    history: historyRows([...picked, ...rest], page.people),
+  })}
+${songs.length > 0 ? `<details class="rest">
+<summary>The number one song on ${escapeHtml(name)} in ${songs.length} year${songs.length === 1 ? "" : "s"}</summary>
 ${songSection(songs, name)}
-${peopleRail(page, name)}
-</details>
+</details>` : ""}
+${feedCredits(timeline, name, searched, timeline.length - searched - curatedCount, curatedCount)}
+${count === 0 ? `<p class="credit">Nobody imported for this date yet.</p>` : `<p class="credit">Names, years and descriptions of the ${count} people come from Wikidata, under Creative Commons Zero. Credit to Wikipedia and Wikidata.</p>`}
 </div>
 <p class="signed">Made by <a href="/about/">Jason Evan Page</a>, one person. No ads, nothing for sale.</p>
 ${jsonLd(page, canonical)}
@@ -3043,26 +2510,26 @@ ${FOOT}`;
 }
 
 /**
- * The square alone, as big as the window. docs/the-wall.md section 13:
+ * The hive alone, as big as the window. docs/the-wall.md section 13:
  * the canvas is the product, and a canvas drawn at half a column is not one.
  * Baked with the wall the build saw and swapped live by serve.ts on the
  * three open dates, the same as the date page. noindex, because it is a
  * view of the date page and not a second page about the date.
  */
-export function renderSquarePage(day: WallDay, month: number, d: number): string {
+export function renderHivePage(day: WallDay, month: number, d: number): string {
   const name = `${monthName(month)} ${d}`;
-  const canonical = `${SITE}${squarePath(month, d)}`;
+  const canonical = `${SITE}${hivePath(month, d)}`;
   const hue = dayHue(month);
-  return `${head(`The square for ${name}, ${day.year}`,
-    `The Birthed square for ${name}, ${day.year}: what people think will still matter about it, sized by how many backed each story.`,
-    canonical, `${SITE}/og/${slug(month, d)}.png`, true, "squarepage")}
+  return `${head(`The hive for ${name}, ${day.year}`,
+    `The Birthed hive for ${name}, ${day.year}: what people think will still matter about it, sized by how many buzzed each story.`,
+    canonical, `${SITE}/og/${slug(month, d)}.png`, true, "hivepage")}
 <div class="day wsq on-${slug(month, d)}" style="--day:${hue.day};--day-soft:${hue.soft}">
 <div class="daybar">
 <a class="mark" href="/">Birthed</a>
 <span class="barnav"><a class="here" href="/${slug(month, d)}/">${escapeHtml(name)}</a></span>
 <span class="barend"><a class="get" href="/${slug(month, d)}/">Back to the day</a></span>
 </div>
-${wallSection(day, name, Date.now(), { square: true, date: { month, day: d } })}
+${wallSection(day, name, Date.now(), { hive: true, date: { month, day: d } })}
 </div>
 ${FOOT}`;
 }
@@ -3073,7 +2540,7 @@ ${FOOT}`;
  * bar links here from everywhere.
  */
 export function renderCalendarPage(year: number): string {
-  return `${head("Every day of the year", "Pick a date and see its square, who shares it and what happened on it.", `${SITE}/calendar/`, undefined, false, "calendarpage")}
+  return `${head("Every day of the year", "Pick a date and see its hive, who shares it and what happened on it.", `${SITE}/calendar/`, undefined, false, "calendarpage")}
 <div class="day">
 <div class="daybar">
 <a class="mark" href="/">Birthed</a>
@@ -3084,7 +2551,7 @@ export function renderCalendarPage(year: number): string {
 </div>
 <section class="everyday">
 <h1>Every day of the year</h1>
-<p class="lede">Pick a date and see its square, who shares it and what happened on it. The weeks are laid out the way they fall in ${year}.</p>
+<p class="lede">Pick a date and see its hive, who shares it and what happened on it. The weeks are laid out the way they fall in ${year}.</p>
 ${calendar(year)}
 </section>
 </div>

@@ -16,7 +16,7 @@ import { DayPage, Person, everyDate, slug } from "./model.js";
 import { fetchWall, newestByDate, storyPath, wallKey } from "./wall.js";
 import { coverageByDay, fetchChartWeeks, songsForDate, withDownloadedCovers } from "./songs.js";
 import { buildSeed, factsByDay, factsForDate, fetchFacts, pickHighlights } from "./facts.js";
-import { isReady, renderCalendarPage, renderDayPage, renderNotFound, renderRobots, renderSitemap, renderSquarePage, renderStoryPage } from "./render.js";
+import { isReady, renderCalendarPage, renderDayPage, renderNotFound, renderRobots, renderSitemap, renderHivePage, renderStoryPage } from "./render.js";
 import { eventsByDay, eventsForDate, fetchEvents, fetchSealedMemory } from "./timeline.js";
 import { culturalByDate, culturalForDate, fetchCulturalEvents } from "./culture.js";
 import { fetchLeadLines } from "./lead.js";
@@ -215,7 +215,7 @@ async function main(): Promise<void> {
 
   // One receipt page per story on every year's wall, under its date. A
   // story from an earlier year keeps its page after a newer wall takes the
-  // square on the date page.
+  // hive on the date page.
   let receipts = 0;
   for (const day of walls) {
     for (const story of day.stories) {
@@ -227,18 +227,18 @@ async function main(): Promise<void> {
   }
   if (receipts > 0) console.log(`wrote ${receipts} wall story pages`);
 
-  // The full screen square, one per date that has a wall, drawn from the
+  // The full screen hive, one per date that has a wall, drawn from the
   // newest year the way the date page is. Swapped live by serve.ts while the
   // date is open.
-  let squares = 0;
+  let hives = 0;
   for (const [key, day] of wallFor) {
     const [month, d] = key.split("-").map(Number) as [number, number];
-    const directory = join(OUT, slug(month, d), "square");
+    const directory = join(OUT, slug(month, d), "hive");
     await mkdir(directory, { recursive: true });
-    await writeFile(join(directory, "index.html"), renderSquarePage(day, month, d), "utf8");
-    squares++;
+    await writeFile(join(directory, "index.html"), renderHivePage(day, month, d), "utf8");
+    hives++;
   }
-  if (squares > 0) console.log(`wrote ${squares} square pages`);
+  if (hives > 0) console.log(`wrote ${hives} hive pages`);
 
   // The index of all 366, on its own page rather than at the foot of every
   // date page.

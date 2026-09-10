@@ -38,10 +38,12 @@ test("the page does not lead with the list of names", () => {
     { id: "t", month: 9, day: 4, fact: "Something sourced happened.", category: "event",
       sourceUrl: "https://example.org/september-4" },
   ]);
-  const people = html.indexOf("People born on September 4");
-  const happened = html.indexOf('class="section">What happened');
-  assert.ok(people > 0, "the people section is still on the page");
-  assert.ok(happened > 0, "the timeline section is still on the page");
+  // One list now: what happened, then who was born. The people are rows in
+  // the same feed, after the events, never the first thing.
+  const people = html.indexOf('id="r-person-');
+  const happened = html.indexOf('id="r-birth_fact-t"');
+  assert.ok(people > 0, "the people are still on the page");
+  assert.ok(happened > 0, "the timeline is still on the page");
   assert.ok(happened < people, "what happened on the date comes before who was born on it");
 });
 
@@ -59,8 +61,8 @@ test("a name from the data cannot inject markup", () => {
 
 test("the year column carries the birth year and nothing that could wrap", () => {
   const html = renderDayPage(page);
-  assert.ok(html.includes('<p class="b">1824</p>'));
-  assert.ok(html.includes('<p class="b">1982</p>'));
+  assert.ok(html.includes('<span class="fyr">1824</span>'));
+  assert.ok(html.includes('<span class="fyr">1982</span>'));
   assert.ok(!html.includes("1824 to 1896"), "a range in the column pushes every name out of line");
 });
 
@@ -301,14 +303,14 @@ const facts = [
 
 test("a date page carries its found facts and the page each came from", () => {
   const html = renderDayPage(page, [], facts);
-  assert.match(html, /<h2 class="section">What happened<\/h2>/);
+  assert.match(html, /<ul class="wlist hist">/);
   // The date comes off the front and becomes the anchor in the margin. It
   // used to be printed inside every sentence, on a page titled with it.
   assert.ok(html.includes("Ford unveiled the Edsel."));
   assert.ok(!html.includes("On September 4, 1957, Ford"), "the page's own date is not repeated per row");
-  assert.match(html, /<span class="yr">1957<\/span>/);
+  assert.match(html, /<span class="fyr">1957<\/span>/);
   assert.ok(html.includes("en.wikipedia.org"));
-  assert.ok(html.includes("2 things, newest first."));
+  assert.ok(html.includes("The 2 with a source link under them were found by Google's Gemini"));
 });
 
 test("Wikipedia's own events join the researched ones, newest first", () => {
@@ -318,7 +320,7 @@ test("Wikipedia's own events join the researched ones, newest first", () => {
   ];
   const html = renderDayPage(page, [], facts, events);
   assert.ok(html.includes("George Eastman registers the trademark Kodak."));
-  assert.ok(html.includes("3 things, newest first."));
+  assert.ok(html.includes("The other 1 is from the September 4 article on Wikipedia"));
   // 1888 is older than the 1957 fact, so it comes last in the list. The feed
   // reads from now backwards as of 8 September 2026; see the sort in
   // buildTimeline for why.
@@ -327,7 +329,7 @@ test("Wikipedia's own events join the researched ones, newest first", () => {
   // band now names one thing above it, drawn from the same rows, so a raw
   // indexOf over the document answers a question about the tiles instead of a
   // question about the ordering.
-  const feed = html.slice(html.indexOf('<ul class="feed">'));
+  const feed = html.slice(html.indexOf('<ul class="wlist hist">'));
   assert.ok(
     feed.indexOf("Edsel") < feed.indexOf("Kodak"),
     "the list is ordered by year, newest first, not by which source it came from",
@@ -344,7 +346,7 @@ test("the same event from both sources is printed once", () => {
       description: "Ford unveils the Edsel to the public." },
   ];
   const html = renderDayPage(page, [], facts, events);
-  assert.ok(html.includes("2 things, newest first."), "the duplicate is dropped, not added");
+  assert.ok(html.includes("The 2 with a source link under them"), "the duplicate is dropped, not added");
   // Counting the word will not do: the fixture's own source address contains
   // it. What must not survive is Wikipedia's second telling of the event.
   assert.ok(!html.includes("Ford unveils the Edsel to the public."));
@@ -357,8 +359,8 @@ test("a page with no researched facts still has a section when Wikipedia does", 
       description: "George Eastman registers the trademark Kodak." },
   ];
   const html = renderDayPage(page, [], [], events);
-  assert.match(html, /<h2 class="section">What happened<\/h2>/);
-  assert.ok(html.includes("1 things, newest first."));
+  assert.match(html, /<ul class="wlist hist">/);
+  assert.ok(html.includes("George Eastman registers the trademark Kodak."));
   assert.ok(!html.includes("Google's Gemini"), "no Gemini credit when no Gemini rows");
   assert.match(html, /Creative Commons Attribution ShareAlike/);
 });
@@ -377,7 +379,7 @@ test("a description stops repeating the year the row already prints", () => {
   // Wikidata's own data disagreed with itself here: the birth date says 1952
   // and the description said 1951, so the page printed both next to each other.
   assert.ok(!html.includes("1951"), "the prose copy of the years goes, the structured one stays");
-  assert.match(html, /<p class="b">1952<\/p>/);
+  assert.match(html, /<span class="fyr">1952<\/span>/);
   assert.ok(html.includes("died 2020"));
 });
 
@@ -416,7 +418,8 @@ test("nothing on a date page is written to somebody born that day", () => {
   // also asserting that no CSS comment anywhere on the site contains the word
   // "you". It caught one, and the comment was about dropdown chevrons.
   const html = renderDayPage(page, [], facts);
-  const section = html.slice(html.indexOf("<ul class=\"feed\">"), html.indexOf("</details>"));
+  const start = html.indexOf('<ul class="wlist hist">');
+  const section = html.slice(start, html.indexOf("</ul>", start));
   assert.ok(section.length > 0, "the facts list is on the page to be read");
   assert.ok(!/\byour?\b/i.test(section), "the facts section must not address a reader");
 });
@@ -590,7 +593,7 @@ test("the privacy page names both cookies and refuses the address", () => {
   const html = renderPrivacy();
   assert.ok(html.includes("<code>bt</code>"), "the answer token is named");
   assert.ok(html.includes("<code>by</code>"), "the birth year cookie is named");
-  assert.ok(html.includes("never sent to our database and is never stored against an answer"));
+  assert.ok(html.includes("never sent to our database and is never stored against a buzz"));
   assert.ok(html.includes("no analytics service"));
 });
 
@@ -812,7 +815,7 @@ const MONTH_WORDS = [
 ];
 
 
-test("the drawer holds everything the feed did not, and the page still carries it all", () => {
+test("the page carries every event, and none of them is behind a fold", () => {
   // The reason this matters is not tidiness. The whole list is what answers a
   // search for any one of these events, so a page that showed six and dropped
   // thirty seven would be a page that stopped answering thirty seven queries.
@@ -825,9 +828,10 @@ test("the drawer holds everything the feed did not, and the page still carries i
     sourceUrl: "https://en.wikipedia.org/wiki/September_4",
     description: `the thing that happened in ${1500 + index * 25}`,
   }));
+  // The drawer is gone, decided September 10, 2026: the whole feed is on the
+  // page, the way a reddit reads its feed. Absent is still a different page.
   const html = renderDayPage(page, [], [], many);
-  assert.match(html, /<details class="more">/);
-  assert.ok(html.includes("14 more"), "the drawer says how much is behind it");
+  assert.ok(!html.includes("<details class="), "nothing is folded");
   for (const event of many) {
     assert.ok(html.includes(event.description), `${event.year} is not on the page at all`);
   }
@@ -835,9 +839,9 @@ test("the drawer holds everything the feed did not, and the page still carries i
 
 test("a date page can be moved off in both directions without reaching the foot", () => {
   const html = renderDayPage(page);
-  const stateAt = html.indexOf('<p class="state">');
-  assert.ok(stateAt > 0, "the state line has to exist for this slice to mean anything");
-  const bar = html.slice(html.indexOf('<div class="daybar">'), stateAt);
+  const nameAt = html.indexOf("<h1>September 4</h1>");
+  assert.ok(nameAt > 0, "the name has to exist for this slice to mean anything");
+  const bar = html.slice(html.indexOf('<div class="daybar">'), nameAt);
   assert.ok(bar.includes('href="/september-3/"'), "the day before is not reachable from the bar");
   assert.ok(bar.includes('href="/september-5/"'), "the day after is not reachable from the bar");
   // The pair of cards at the foot is gone, decided September 10, 2026: the
@@ -991,102 +995,11 @@ test("no class that carries a sentence is hidden by default", () => {
   }
 });
 
-test("every kind of row can be answered, not just the curated ones", () => {
-  const events = [
-    { id: "e1", month: 9, day: 4, year: 1888, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
-      description: "George Eastman registers the trademark Kodak." },
-  ];
-  const html = renderDayPage(page, [], facts, events, [cultural({})]);
-  for (const kind of ["historical_event", "birth_fact", "cultural_event"]) {
-    assert.ok(html.includes(`value="${kind}"`), `${kind} rows must be answerable`);
-  }
-});
 
-test("a row is answered by its identifier, never by its position", () => {
-  // The merged list mixes three sources, so an index is not an identity: the
-  // same row sits somewhere else the day a new fact lands, and every answer
-  // anybody gave would silently move to a different sentence.
-  const events = [
-    { id: "e99", month: 9, day: 4, year: 1888, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
-      description: "George Eastman registers the trademark Kodak." },
-  ];
-  const html = renderDayPage(page, [], [], events);
-  assert.ok(html.includes('name="i" value="e99"'));
-  assert.ok(html.includes('id="r-historical_event-e99"'), "and the redirect has somewhere to land");
-});
 
-test("the form posts the page's own date, not one parsed back out of the heading", () => {
-  const html = renderDayPage(page, [], facts);
-  assert.ok(html.includes('name="m" value="9"'));
-  assert.ok(html.includes('name="d" value="4"'));
-});
 
-test("a row offers three answers and the presence claim is not one of them", () => {
-  // Asserting the three are PRESENT, not just that the fourth is absent.
-  // Both earlier class name collisions on this site were caught by tests that
-  // asserted an absence, and the one that reached production was caught by
-  // nothing, because nothing checked that the sentences were still there.
-  const html = renderDayPage(page, [], [
-    { id: "t", month: 9, day: 4, fact: "Something sourced happened.", category: "event",
-      sourceUrl: "https://example.org/september-4" },
-  ]);
 
-  assert.ok(html.includes('value="remember">I remember it</button>'));
-  assert.ok(html.includes('value="heard">Heard of it</button>'));
-  assert.ok(html.includes('value="never">Never heard of it</button>'));
 
-  // "I was there" asks about presence and this measures transmission, which is
-  // a different question. Nobody was there for a diplomatic announcement and
-  // nobody was there for a song being number one, so it was answerable on a
-  // small minority of rows and was noise near the top of the scale rather than
-  // a rung of it. The iOS app dropped it first and this matches it.
-  assert.equal(html.includes("I was there"), false);
-  assert.equal(html.includes('value="there"'), false);
-
-  // Still no direction, which is the rule that has never moved.
-  assert.equal(html.includes('value="downvote"'), false);
-});
-
-test("every row carries an empty result the server can write into", () => {
-  // A presence assertion, not an absence one. The paragraph is baked in empty
-  // and the server fills exactly one of them on the request after an answer,
-  // so if it ever stops being rendered the reveal goes quiet with nothing on
-  // screen and no test failing.
-  const html = renderDayPage(page, [], [
-    { id: "t", month: 9, day: 4, fact: "Something sourced happened.", category: "event",
-      sourceUrl: "https://example.org/september-4" },
-  ]);
-  assert.ok(html.includes('<p class="rres" id="rr-birth_fact-t"></p>'));
-  assert.ok(html.includes(".rres:empty { display: none; }"), "and it draws as nothing until filled");
-});
-
-test("the site asks for a birth year once, and says what it does with it", () => {
-  const html = renderDayPage(page, [], [
-    { id: "t", month: 9, day: 4, fact: "Something sourced happened.", category: "event",
-      sourceUrl: "https://example.org/september-4" },
-  ]);
-  assert.ok(html.includes('action="/year"'));
-  // One submit per year rather than a select and a Save. A select needs a
-  // second tap, and this site runs no script so an increment button would be a
-  // round trip per year.
-  // Decade, then year. Two taps, nothing to scroll, and no script: ten hidden
-  // radios hold the state and the checked one reveals its own row of years.
-  assert.ok(html.includes('name="y" value="1994"'), "every year is its own submit");
-  assert.equal(html.includes("<select"), false, "the default select is gone");
-  assert.equal(html.includes("yearstrip"), false, "and so is the sideways scroller");
-  assert.ok(html.includes('<label for="dec1990">1990s</label>'));
-  assert.ok(html.includes('id="dec1990"'));
-  // The reveal is CSS on a sibling, which is what keeps this scriptless.
-  assert.match(html, /#dec1990:checked ~ \.yearyears \.yg1990 \{ display: flex; \}/);
-  // Every decade from the 1930s to this one, so nobody is missing.
-  for (const decade of [1930, 1950, 1970, 2000, 2020]) {
-    assert.ok(html.includes(`<label for="dec${decade}">${decade}s</label>`), `${decade}s missing`);
-  }
-  assert.ok(html.includes("never shown to anybody"));
-  // Once on the page, not once per row. A picker repeated 150 times is what
-  // the cookie exists to avoid.
-  assert.equal((html.match(/action="\/year"/g) ?? []).length, 1);
-});
 
 test("the year control is hidden until a date is open, like the buttons", () => {
   const html = renderDayPage(page);
@@ -1095,16 +1008,6 @@ test("the year control is hidden until a date is open, like the buttons", () => 
   assert.match(html, /\.yearask \{[^}]*display: none/);
 });
 
-test("a failure on our side does not tell the reader the date is sealed", () => {
-  // "Sealed" is a claim about the date. A missing environment variable is a
-  // claim about us, and dressing one as the other is what hid a dead feature
-  // for three days.
-  const html = renderDayPage(page);
-  assert.ok(html.includes('id="failed"'));
-  assert.ok(html.includes("it was this end rather than yours"));
-  assert.ok(html.includes('id="sealed"'), "and the real sealed sentence is still there");
-  assert.ok(html.includes('id="kept"'));
-});
 
 test("an undo is offered beside a result and never on a page being read", () => {
   const bare = renderDayPage(page, [], [
@@ -1122,119 +1025,10 @@ test("an undo is offered beside a result and never on a page being read", () => 
   assert.ok(beside.includes("Undo"));
 });
 
-test("the page can say taken back, and can say too late, without saying sealed", () => {
-  const html = renderDayPage(page);
-  assert.ok(html.includes('id="undone"'));
-  assert.ok(html.includes('id="toolate"'));
-  assert.ok(html.includes("can be taken back for half a minute"));
-  // Four different outcomes, four different sentences. Collapsing any two of
-  // them is what let a duplicate answer report itself as a sealed date.
-  for (const id of ["kept", "already", "spent", "sealed", "failed", "undone", "toolate"]) {
-    assert.ok(html.includes(`id="${id}"`), `${id} has nothing to say`);
-  }
-});
 
-test("answering the same row twice is not reported as a sealed date", () => {
-  // Three evenings went on this one message. remember() returns false for four
-  // different reasons and the page called all of them "sealed", which is a
-  // claim about the date and is wrong for three of the four. The commonest by
-  // far is a row you already answered, on a page where nothing says which
-  // ones you have done.
-  const html = renderDayPage(page);
-  assert.ok(html.includes('id="already"'));
-  assert.ok(html.includes("You have already answered that one"));
-  assert.ok(html.includes("Nothing is sealed"), "and it says so in as many words");
-});
 
-test("the first screen says open or sealed in words, and sealed is what a page says on its own", () => {
-  // The Yesterday, Today and Tomorrow chips this replaces were coloured by
-  // href rather than by date, so a sealed page lit "Today" in blue and said
-  // answering was open under it. docs/first-impression-proposal.md.
-  const html = renderDayPage(page);
-  assert.equal(html.includes('class="trip"'), false, "the chips are gone");
-  assert.equal(html.includes('class="kicker">Born on'), false, "and so is the database kicker");
-  // Four sentences baked, one shown. The sealed one is the default, so a page
-  // whose today.css never arrived says the safe thing.
-  for (const name of ["senpast", "sennow", "sennext", "senshut"]) {
-    assert.ok(html.includes(`class="sen ${name}"`), `${name} is baked into every page`);
-  }
-  assert.ok(html.includes("Closes tonight"));
-  assert.ok(html.includes("Closes tomorrow night"));
-  assert.ok(html.includes("Two more days"));
-  assert.ok(html.includes("<b>Sealed.</b> Opens again on September 3, for three days."),
-    "a sealed page names the day it opens, which is the day before it");
-  const style = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
-  assert.match(style, /\.sen \{ display: none; \}/);
-  assert.match(style, /\.senshut \{ display: inline; \}/);
-  // The mechanic is under the date in two versions, because "say which ones
-  // you remember" is a lie on the 363 pages that refuse answers.
-  assert.ok(html.includes('class="sen senopen">Everything below happened on this date. Say which ones you <b>remember</b>.'));
-  assert.ok(html.includes('class="sen senshut">Everything below happened on this date. For three days a year'));
-  // The fuse and the ask are present and off; today.css turns them on.
-  assert.ok(html.includes('<div class="fuse"'));
-  assert.match(style, /\.fuse \{ display: none;/);
-  assert.match(style, /\.ask \{\s*display: none;/);
-  // No "Open today" flag beside a section any more: the state line says it for
-  // the whole page.
-  assert.equal(html.includes("Open today"), false);
-});
 
-test("the first ask is one real row with the three answers, and the feed carries that row without them", () => {
-  const events = [
-    { id: "old", month: 9, day: 4, year: 476, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
-      description: "Romulus Augustulus is deposed." },
-    { id: "grim", month: 9, day: 4, year: 2001, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
-      description: "A bombing killed forty people." },
-    { id: "near", month: 9, day: 4, year: 1999, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
-      description: "The first Wii console went on sale." },
-    { id: "far", month: 9, day: 4, year: 1966, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
-      description: "Star Trek first aired on NBC." },
-  ];
-  const html = renderDayPage(page, [], [], events);
-  const first = html.indexOf('<section class="ask ');
-  const ask = html.slice(first, html.indexOf("</section>", first));
-  assert.ok(ask.includes("The first Wii console went on sale."), "the best candidate is dealt first");
-  const cards = [...html.matchAll(/<section class="ask [\s\S]*?<\/section>/g)].map((m) => m[0]);
-  assert.ok(cards.length > 0);
-  assert.ok(cards.every((card) => !card.includes("bombing")),
-    "a heavy row is never a candidate, whatever its year");
-  assert.ok(ask.includes('id="r-historical_event-near"'), "the ask carries the row's anchor so the redirect lands on it");
-  assert.ok(ask.includes('id="rr-historical_event-near"'), "and its result paragraph, so the server writes here");
-  for (const answer of ["remember", "heard", "never"]) assert.ok(ask.includes(`value="${answer}"`));
-  assert.ok(ask.includes("Do you remember this one?"));
-  // Once in the page. The feed's copy has no anchor and no form.
-  assert.equal(html.split('id="r-historical_event-near"').length, 2, "one anchor for the row");
-  assert.equal(html.split('id="rr-historical_event-near"').length, 2, "one result paragraph for the row");
-  assert.match(html, /<li class="[^"]*asked"/, "the feed's copy is marked for today.css to put away");
-});
 
-// A single fixed card is one chance to hook a stranger and the same card
-// forever for anybody who comes back. Several are baked and today.css reveals
-// one, so the page is dealt rather than fixed.
-test("several ask cards are baked, and every slot lands on exactly one of them", () => {
-  const events = [
-    { id: "a", month: 9, day: 4, year: 1999, sourceUrl: "https://example.com/a", description: "A thing in 1999." },
-    { id: "b", month: 9, day: 4, year: 1986, sourceUrl: "https://example.com/b", description: "A thing in 1986." },
-    { id: "c", month: 9, day: 4, year: 2008, sourceUrl: "https://example.com/c", description: "A thing in 2008." },
-  ];
-  const html = renderDayPage(page, [], [], events);
-  const cards = [...html.matchAll(/<section class="ask ([^"]*)"/g)].map((m) => m[1] ?? "");
-  assert.equal(cards.length, 3, "one card per candidate");
-
-  // Every slot the stylesheet can send reveals exactly one card on this page,
-  // whatever this date's own count of candidates happens to be. A slot that
-  // revealed none would be a page with no ask on it and nothing to say why.
-  for (let slot = 0; slot < ASK_SLOTS; slot += 1) {
-    const hits = cards.filter((klasses) => klasses.split(" ").includes(`asks${slot}`));
-    assert.equal(hits.length, 1, `slot ${slot} reveals exactly one card`);
-  }
-
-  // Every candidate is put away in the feed, not only the one showing, so a
-  // row's identifiers are never in two places at once.
-  for (const id of ["a", "b", "c"]) {
-    assert.equal(html.split(`id="r-historical_event-${id}"`).length, 2, `one anchor for ${id}`);
-  }
-});
 
 // Two candidates from the same decade are one candidate as far as a reader is
 // concerned, because the question the card asks is about a time in their life.
@@ -1275,53 +1069,8 @@ test("a culture row with nothing written about it is not on the page", () => {
   assert.equal(html.includes("Mini Ninjas"), false, "a bare title does not");
 });
 
-// A reader answers ten rows, the page looks identical afterwards, and there is
-// no trace of them when they come back. These pin the two halves of the fix:
-// the marker is baked into every answerable row and hidden, and the style the
-// server writes says nothing about anybody else.
-// The site had no notion of importance at all: fifty four rows a date, every
-// one as important as every other, which is what a database looks like. On
-// September 8 that meant a space station resupply flight led while New
-// Amsterdam becoming New York sat in a drawer. Wikipedia's editors have picked
-// the top of each day for years and the signal was sitting unused.
-// A count is not a rating, and the difference is the whole argument. A model
-// calling a row an eight out of ten is an opinion wearing a number. "Eleven of
-// the fourteen people who answered this remembered it" is a fact about a room
-// that says nothing about whether the event was good, which is why it is safe
-// beside things a rating would not be.
-test("a sealed row counts its own people, and only once there are enough of them", () => {
-  const events = [
-    { id: "big", month: 9, day: 4, year: 1999, sourceUrl: "https://e.com/1", description: "A thing many people saw." },
-    { id: "quiet", month: 9, day: 4, year: 1998, sourceUrl: "https://e.com/2", description: "A thing hardly anybody answered." },
-  ];
-  const memory = new Map([
-    ["historical_event:big", { there: 2, remembers: 9, heard: 2, never: 1 }],
-    ["historical_event:quiet", { there: 0, remembers: 1, heard: 1, never: 0 }],
-  ]);
-  const html = renderDayPage({ month: 9, day: 4, people: [] }, [], [], events, [], memory);
 
-  assert.ok(html.includes("eleven of the fourteen people who answered this remembered it"),
-    "the counted row says what its own people said, in words");
-  // Two answers is not a finding, and printing it tells a stranger the site is
-  // empty in a way that saying nothing does not.
-  assert.equal(html.includes("one of the two people"), false, "below the floor a row says nothing");
-
-  // Nothing anywhere is a rating or a direction. Checked as shapes rather than
-  // as words, because the card's own copy says "no score" and a bare search for
-  // that string fails on the page promising the opposite of it.
-  // A bare slash matched "aspect-ratio: 4 / 5" in the stylesheet, which is the
-  // kind of assertion that fails for a reason nobody can read. Rating language
-  // only.
-  // Twice now a check has failed on the page promising the opposite: the card
-  // says "no score" and the stylesheet comment says "no downvote". So this
-  // looks for a rating being given, not for the words being mentioned.
-  for (const shape of [/\b\d+\s*out of\s*(ten|10|five|5)\b/i, /\brate[ds]?\s+\d/i, /\bscore of\s+\d/i]) {
-    assert.equal(shape.test(html), false, shape + " never appears");
-  }
-  assert.ok(html.includes("no score"), "and the card still promises there is not one");
-});
-
-test("the day's biggest lead the cards, and the rest still read newest first", () => {
+test("the day's biggest lead the list, and the rest still read newest first", () => {
   const events = [
     { id: "ny", month: 9, day: 8, year: 1664, sourceUrl: "https://e.com/1", description: "New Amsterdam was renamed New York." },
     { id: "dull", month: 9, day: 8, year: 2000, sourceUrl: "https://e.com/2", description: "A routine resupply flight went up." },
@@ -1331,7 +1080,7 @@ test("the day's biggest lead the cards, and the rest still read newest first", (
   const big = new Map([["9-8", new Map([[1664, "New Amsterdam was renamed New York in honour of the Duke of York"]])]]);
   const html = renderDayPage({ month: 9, day: 8, people: [] }, [], [], events, [], null, new Map(), big);
 
-  const feed = html.slice(html.indexOf('<ul class="feed">'));
+  const feed = html.slice(html.indexOf('<ul class="wlist hist">'));
   assert.ok(feed.indexOf("New York") < feed.indexOf("resupply"),
     "the selected row leads even though it is the oldest thing here");
 
@@ -1340,19 +1089,6 @@ test("the day's biggest lead the cards, and the rest still read newest first", (
   assert.equal(html.includes("selected"), false);
 });
 
-test("every answerable row carries a hidden mark for its own reader", () => {
-  const html = renderDayPage({ month: 9, day: 4, people: [] }, [], [], [
-    { id: "a", month: 9, day: 4, year: 1999, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
-      description: "A thing happened in 1999." },
-  ]);
-  assert.ok(html.includes('id="r-historical_event-a"'), "the row has the anchor the mark is keyed to");
-  assert.ok(html.includes('<p class="mine"></p>'), "and an empty marker beside its form");
-  const style = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
-  assert.match(style, /\.mine \{ display: none;/, "hidden until this reader's own answers say otherwise");
-  // Empty on purpose. The words arrive with the style block rather than being
-  // baked into a hundred and fifty rows almost nobody will ever see.
-  assert.equal(html.includes("You remembered this"), false);
-});
 
 test("a plural does not walk a heavy row onto the card", () => {
   const rows = [
@@ -1412,7 +1148,7 @@ test("the real September 8 rows fill the rotation instead of starving it", () =>
 
 // The judgement the scorer cannot make, kept where a person can put it. The
 // row keeps its own sentence and its own source; this is the card's wording.
-test("a written lead line leads its date, and the record stays under it", () => {
+test("a written lead line leads its date, in the words a person wrote", () => {
   const events = [
     { id: "trek", month: 9, day: 4, year: 1966, sourceUrl: "https://en.wikipedia.org/wiki/September_8",
       description: "The science fiction television series Star Trek made its broadcast television debut in the United States on NBC with the episode The Man Trap." },
@@ -1423,25 +1159,12 @@ test("a written lead line leads its date, and the record stays under it", () => 
   const html = renderDayPage(page, [], [], events, [], null, lines);
 
   // Without a line, Star Trek is 139 characters and out of the window, and the
-  // resupply flight leads. With one, it leads, and by more than any
-  // combination of the rest could overturn.
-  const first = html.indexOf('<section class="ask ');
-  const card = html.slice(first, html.indexOf("</section>", first));
-  assert.ok(card.includes('<p class="asksaid">Star Trek went out for the first time.</p>'),
-    "the card asks the question in the words a person wrote");
-  assert.ok(card.includes("made its broadcast television debut"),
-    "and prints the row's own sentence underneath, so nothing on the card is unbacked");
-  // No per row link here, because a Wikipedia event carries none by design and
-  // is credited once at the foot. That is exactly why printing its sentence on
-  // the card matters: it is the only thing on the card a reader can check the
-  // written line against.
-  assert.ok(card.includes('id="r-historical_event-trek"'), "and it is still that row being answered");
-
-  // The feed is untouched. A lead line is the card's wording, not a rewrite.
-  assert.equal(html.includes("Star Trek went out for the first time."),
-    true);
+  // resupply flight leads. With one, it leads, and the row reads the line.
+  const feed = html.slice(html.indexOf('<ul class="wlist hist">'));
+  assert.ok(feed.indexOf('id="r-historical_event-trek"') < feed.indexOf('id="r-historical_event-dull"'));
   assert.equal(html.split("Star Trek went out for the first time.").length, 2,
-    "the written line is on the page once, on the card");
+    "the written line is on the page once, on its row");
+  assert.ok(!html.includes("made its broadcast television debut"), "and it stands in for the record, not beside it");
 });
 
 // A written line is eight words and could be gentle about anything. What the
@@ -1488,12 +1211,12 @@ test("the about page explains what the site does before what is on a page", () =
   // gradient and its text colour is transparent, so an underline left on
   // currentColor is drawn in transparent and nothing appears under the word.
   assert.match(html, /\.brandword \{[^}]*text-decoration-color: #EF5680/);
-  assert.ok(html.includes("opens for three days a year"));
+  assert.ok(html.includes("Every date has a hive."));
   // The four beats, in order, because the thing this site does is a sequence
   // and a reader who does not know it needs the order more than the detail.
   for (const beat of [
-    "A date opens for three days",
-    "Everybody answers at once",
+    "A date's hive opens at midnight",
+    "Everybody buzzes at once",
     "Then it seals",
     "Next year it opens on top",
   ]) {
@@ -1529,52 +1252,7 @@ test("the link preview says what the site does, not what is on a page", () => {
   assert.match(html, /<meta name="description" content="Every date on the calendar opens for three days a year\./);
 });
 
-test("waiting and finishing are different sentences, and neither is a lecture", () => {
-  // Seven reasons, seven sentences. Being between answers is a fact about the
-  // clock; being out of rows is a fact about the date; sealed is a fact about
-  // the year. The whole history of this feature is one of those borrowing
-  // another's explanation.
-  const html = renderDayPage(page);
-  assert.ok(html.includes('id="cooling"'), "a wait has its own sentence");
-  assert.ok(html.includes("A minute or two between answers"));
-  assert.ok(html.includes('id="spent"'));
 
-  // The old sentence spent three clauses explaining why a limit of ten was
-  // good for you, which is what made it read as an excuse. r/place never
-  // explained its cooldown to anybody. A rule that has to argue for itself at
-  // the moment it bites is a rule the reader has already decided about.
-  assert.equal(html.includes("nobody chose anything on"), false);
-  assert.equal(html.includes("That is your ten"), false);
-  assert.equal(html.includes("Ten answers per date"), false, "the card promise matches the mechanic");
-});
-
-test("only a sealed date gets a front page lead", () => {
-  const facts = [
-    { id: "a", month: 9, day: 4, fact: "The first thing.", category: "event",
-      sourceUrl: "https://example.org/a" },
-    { id: "b", month: 9, day: 4, fact: "The second thing.", category: "event",
-      sourceUrl: "https://example.org/b" },
-  ];
-
-  // Open. Nothing has earned the top of the page, so nothing is set large.
-  //
-  // Checking the class is APPLIED, not that the string is absent: the rule
-  // itself lives in the stylesheet on every page, so a bare includes() here
-  // passes for the wrong reason and would go on passing if the class were
-  // applied to every date on the site.
-  const open = renderDayPage(page, [], facts);
-  assert.equal(open.includes('class="lead sealedlead"'), false);
-  assert.equal(open.includes("Most remembered"), false);
-
-  // Sealed. The row its own people remembered leads, and says why it leads,
-  // because a row set four times the size of the one under it is a claim.
-  const sealed = renderDayPage(page, [], facts, [], [], new Map([
-    ["birth_fact:b", { there: 0, remembers: 9, heard: 0, never: 0 }],
-  ]));
-  assert.ok(sealed.includes('class="lead sealedlead"'));
-  assert.ok(sealed.includes("Most remembered"));
-  assert.ok(sealed.includes("In the order the people who were here remembered it"));
-});
 
 test("the year dial's hidden labels stay inside the strip that scrolls", () => {
   // Without this the page was wider than a phone and iOS drew it at desktop

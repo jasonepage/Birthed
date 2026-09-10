@@ -392,7 +392,12 @@ export function pickHighlights(rows: TimelineRow[], count = 6): TimelineRow[] {
   //
   // The drawer underneath stays newest first. Two shelves: the big things at
   // the top, and everything else read from now backwards. See src/selected.ts.
-  const big = rows.filter((row) => row.selected === true);
+  //
+  // A written lead line counts as big too, since September 10, 2026. Somebody
+  // sat down and wrote a sentence about that row, which is the same signal as
+  // an editor picking it, and the worker files both at the same priority
+  // when it puts the date's history on the hive. The page agrees with it.
+  const big = rows.filter((row) => row.selected === true || (row.leadLine ?? "").trim() !== "");
   if (big.length >= count) return big.slice(0, count);
 
   const researched = rows.filter((row) => row.sourceUrl !== null);

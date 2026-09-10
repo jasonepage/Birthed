@@ -1,9 +1,9 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 
-import { renderDayPage, renderSquarePage, renderStoryPage } from "../src/render.js";
+import { renderDayPage, renderHivePage, renderStoryPage } from "../src/render.js";
 import {
-  BEE, PLAIN, PLAIN_DATES, VIEW_MIN, allowanceOn, emptyWallDay, fetchWall, newestByDate, squarePath, storyPath, takingBoosts,
+  BEE, PLAIN, PLAIN_DATES, VIEW_MIN, allowanceOn, emptyWallDay, fetchWall, hivePath, newestByDate, storyPath, takingBoosts,
   tapsLeftSentence, tierLabel, units, viewportFor, voiceFor, wallMarks, wallSection, type WallDay, type WallStory,
 } from "../src/wall.js";
 
@@ -20,6 +20,7 @@ function story(overrides: Partial<WallStory> = {}): WallStory {
     status: "placed",
     tier: "reported",
     support: 12,
+    priority: 0,
     placedAt: "2026-09-09T16:00:00Z",
     rect: { mx: 8, my: 7, w: 2, h: 1 },
     falseAt: null,
@@ -46,10 +47,10 @@ function day(stories: WallStory[], overrides: Partial<WallDay> = {}): WallDay {
   };
 }
 
-test("a date page without a square yet says when its first one opens", () => {
+test("a date page without a hive yet says when its first one opens", () => {
   const html = renderDayPage(PAGE);
   assert.ok(html.includes('class="wall wpromise"'));
-  assert.ok(html.includes("September 9 has no square yet. Its first one opens on September 8,"));
+  assert.ok(html.includes("September 9 has no hive yet. Its first one opens on September 8,"));
   assert.ok(!html.includes('class="wboard'), "no board is drawn for a promise");
 });
 
@@ -74,18 +75,21 @@ test("a closed wall says it is permanent", () => {
   assert.ok(html.includes("Sealed at midnight Eastern ending September 10, 2026. Permanent."));
 });
 
-test("the pool and the overflow are listed under the square and labelled as not on the wall", () => {
+test("the pool and the overflow are the feed under the hive, all of it, backed first, then the date's own history, then arrival", () => {
   const pooled = story({ id: "aaaaaaaa-0000-0000-0000-000000000001", status: "pool", rect: null, placedAt: null, support: 0, headline: "A pooled story nobody backed" });
-  const spilled = story({ id: "aaaaaaaa-0000-0000-0000-000000000002", status: "overflow", rect: null, headline: "A story the square had no room for" });
-  const html = wallSection(day([story(), pooled, spilled]), "September 9");
-  // The overflow story carries the fixture's twelve units, so it is listed as
-  // backed; the pooled one has none and is behind the fold with a count.
-  assert.ok(html.includes("Backed, waiting for room on the square"));
-  assert.ok(html.includes("A story the square had no room for"));
-  assert.ok(html.includes('<details class="wmore">'));
-  assert.ok(html.includes("<summary>1 more story from the day's feeds, waiting for a buzz</summary>"));
-  assert.ok(html.includes("A pooled story nobody backed"));
-  // Neither is drawn as a tile.
+  const spilled = story({ id: "aaaaaaaa-0000-0000-0000-000000000002", status: "overflow", rect: null, headline: "A story the hive had no room for" });
+  const history = story({ id: "aaaaaaaa-0000-0000-0000-000000000003", status: "pool", rect: null, placedAt: null, support: 0, priority: 3, submittedAt: "2026-09-09T15:00:00Z", headline: "1888: The Football League kicks off" });
+  const html = wallSection(day([story(), pooled, spilled, history]), "September 9");
+  assert.ok(html.includes('<h2 class="section" id="feedhead">Today\'s feed</h2>'));
+  const at = (text: string) => { const i = html.indexOf(text); assert.ok(i > 0, text); return i; };
+  // Twelve buzzes first, then the date's own history ahead of the feeds even
+  // though it arrived later, then the news nobody backed.
+  assert.ok(at("A story the hive had no room for") < at("1888: The Football League kicks off"));
+  assert.ok(at("1888: The Football League kicks off") < at("A pooled story nobody backed"));
+  // No fold: the whole feed is on the page.
+  assert.ok(!html.includes("<details"), "the feed is not folded");
+  assert.ok(!html.includes("Backed, waiting"));
+  // None of the three is drawn as a tile.
   assert.equal((html.match(/class="wtile/g) ?? []).length, 1);
 });
 
@@ -122,13 +126,15 @@ test("the receipt says nothing about who submitted or boosted", () => {
   assert.ok(!/submitted by|booster|profile|handle/i.test(html));
 });
 
-test("the date page draws the wall above the rest of the page", () => {
+test("the date page draws the hive under the name and nothing else in front of it", () => {
   const s = story();
   const html = renderDayPage(PAGE, [], [], [], [], null, new Map(), new Map(), day([s]));
+  const h1 = html.indexOf("<h1>September 9</h1>");
   const wallAt = html.indexOf('class="wall"');
-  const rememberAt = html.indexOf('class="remember"');
-  assert.ok(wallAt > 0 && wallAt < rememberAt);
-  assert.ok(html.includes("The square for September 9, 2026"));
+  assert.ok(h1 > 0 && h1 < wallAt);
+  assert.ok(html.includes("The hive for September 9, 2026"));
+  assert.ok(!html.includes('class="remember"'), "the remembrance game is off the page");
+  assert.ok(!html.includes('action="/remember"'), "and so is its button");
 });
 
 test("a date page shows only the newest year's wall", () => {
@@ -210,7 +216,7 @@ test("the baked section carries no forms, and the interactive one carries a tap 
   // The headline is the link to the receipt, on the tile and in the list.
   assert.ok(live.includes(`<a class="wh" href="${storyPath(onWall)}"`));
   assert.ok(live.includes(`<li id="w-${pooled.id}"><a href="${storyPath(pooled)}">`));
-  assert.ok(live.includes("Buzz the stories you think will still matter about September 9"));
+  assert.ok(live.includes("Buzz what you think will still matter about September 9"));
   assert.ok(live.includes("Three buzzes left today."));
   assert.ok(live.includes("You buzzed this"));
   // The evidence tiers keep their one line and nothing claims a model decided anything.
@@ -234,7 +240,7 @@ test("the day before takes no taps, the day after takes one, and a closed wall t
 
   const early = wallSection(d, "September 9", before, { interactive: true });
   assert.ok(!early.includes("<form"), "no tap is offered before the date arrives");
-  assert.ok(early.includes("Tomorrow's square. When the date arrives"));
+  assert.ok(early.includes("Tomorrow's hive. When the date arrives"));
   const late = wallSection(d, "September 9", after, { interactive: true });
   assert.ok(late.includes("<form"));
   assert.ok(late.includes("One buzz left today on this date. It closes tonight."));
@@ -292,38 +298,57 @@ test("a tile is drawn at the height it has, and the headline gets the lines it c
 });
 
 // ---------------------------------------------------------------------------
-// The wall leads the page, decided September 10, 2026
+// One feed, one verb, decided September 10, 2026
 // ---------------------------------------------------------------------------
 
-import { restSummary } from "../src/render.js";
-
-test("the wall leads the date page, and the imported history is folded under it with its counts", () => {
-  const s = story({ rect: { mx: 3, my: 5, w: 4, h: 3 } });
+test("the hive leads the date page, and the imported history is plain rows until the worker files it", () => {
   const people = [1, 2, 3].map((n) => ({ qid: `Q${n}`, name: `Person ${n}`, birthYear: 1950 + n, deathYear: null, description: "did things", monthlyViews: 100 }));
-  const html = renderDayPage({ month: 9, day: 9, people }, [], [], [], [], null, new Map(), new Map(), day([s]));
+  // Tomorrow's hive, before the worker has filed a thing for it.
+  const empty = emptyWallDay("2026-09-09");
+  const html = renderDayPage({ month: 9, day: 9, people }, [], [], [], [], null, new Map(), new Map(), empty);
   const h1 = html.indexOf("<h1>September 9</h1>");
   const wallAt = html.indexOf('class="wall"');
-  const rememberAt = html.indexOf('class="remember"');
-  const restAt = html.indexOf('<details class="rest">');
-  const peopleAt = html.indexOf('class="section">Who shares it');
-  assert.ok(h1 > 0 && h1 < wallAt, "the name, then the wall");
-  assert.ok(wallAt < rememberAt, "the wall before the remembrance question");
-  assert.ok(rememberAt < restAt, "the remembrance question before the folded history");
-  assert.ok(restAt < peopleAt, "the people are inside the fold");
-  assert.ok(html.indexOf("</details>") > peopleAt, "and the fold closes after them");
-  assert.ok(html.includes("<summary>The rest of September 9: 3 people born on it.</summary>"));
-  // The remembrance copy itself is untouched.
-  assert.ok(html.includes('class="sen senopen">Everything below happened on this date. Say which ones you <b>remember</b>.'));
+  const feedAt = html.indexOf('class="feed2"');
+  const personAt = html.indexOf('id="r-person-Q1"');
+  assert.ok(h1 > 0 && h1 < wallAt, "the name, then the hive");
+  assert.ok(wallAt < feedAt, "the hive, then the feed");
+  // The baked history stands in for the feed, without buttons.
+  assert.ok(feedAt < personAt, "the people are in the feed");
+  assert.ok(!html.includes('action="/remember"'));
+  assert.ok(!html.includes('class="rest"'), "no fold without songs");
+  assert.ok(!html.includes("What people remember"));
+  assert.ok(!html.includes("Closes tonight"));
+  // Once the worker has filed the date's history as stories, the feed is
+  // the stories and the baked rows are not drawn twice.
+  const s = story({ rect: { mx: 3, my: 5, w: 4, h: 3 } });
+  const filed = story({ id: "aaaaaaaa-0000-0000-0000-000000000003", status: "pool", rect: null, placedAt: null, support: 0, priority: 2, headline: "Person 1, did things, born 1951" });
+  const later = renderDayPage({ month: 9, day: 9, people }, [], [], [], [], null, new Map(), new Map(), day([s, filed]));
+  assert.ok(later.includes("Person 1, did things, born 1951"));
+  assert.ok(!later.includes('id="r-person-Q1"'), "the baked row is not drawn beside the story it became");
+  // A hive with tiles and an empty pool says so rather than showing the
+  // baked rows as if they were still waiting.
+  const placedOnly = renderDayPage({ month: 9, day: 9, people }, [], [], [], [], null, new Map(), new Map(), day([s]));
+  assert.ok(placedOnly.includes("Everything filed for September 9 is on the hive."));
+  assert.ok(!placedOnly.includes('id="r-person-Q1"'));
 });
 
-test("the summary line counts what is inside, in the order the page draws it", () => {
-  assert.equal(restSummary("September 9", 45, 12, 67, 60), "The rest of September 9: 45 things that happened, 12 releases, the number one song in 67 years, and 60 people born on it.");
-  assert.equal(restSummary("September 9", 1, 0, 0, 1), "The rest of September 9: 1 thing that happened, and 1 person born on it.");
-  assert.equal(restSummary("September 9", 0, 0, 0, 0), "The rest of September 9");
+test("a date with no hive yet lists its history under the promise, without buttons", () => {
+  const people = [{ qid: "Q1", name: "Person 1", birthYear: 1951, deathYear: null, description: "did things", monthlyViews: 100 }];
+  const html = renderDayPage({ month: 9, day: 9, people });
+  assert.ok(html.indexOf('class="wall wpromise"') < html.indexOf('id="r-person-Q1"'));
+  assert.ok(!html.includes("<form"));
+  assert.ok(html.includes("When its hive opens, every one of these takes buzzes."));
+});
+
+test("the number one songs stay behind one line", () => {
+  const songs = [{ year: 2001, chartDate: "2001-09-08", song: "A Song", artist: "A Band" }];
+  const html = renderDayPage(PAGE, songs);
+  assert.ok(html.includes('<details class="rest">'));
+  assert.ok(html.includes("<summary>The number one song on September 9 in 1 year</summary>"));
 });
 
 // ---------------------------------------------------------------------------
-// The square is the product, decided September 10, 2026
+// The hive is the product, decided September 10, 2026
 // ---------------------------------------------------------------------------
 
 test("the page zooms to the tiles: the smallest square that holds them, never under eight, never over the board", () => {
@@ -345,7 +370,7 @@ test("the page zooms to the tiles: the smallest square that holds them, never un
   assert.deepEqual(corner, { ox: 0, oy: 0, side: 8 });
 });
 
-test("tomorrow has an empty square with the hour it opens, not a missing section", () => {
+test("tomorrow has an empty hive with the hour it opens, not a missing section", () => {
   const tomorrow = emptyWallDay("2026-09-10");
   assert.equal(tomorrow.liveAt, "2026-09-10T04:00:00.000Z");
   assert.equal(tomorrow.opensAt, "2026-09-09T04:00:00.000Z");
@@ -356,23 +381,23 @@ test("tomorrow has an empty square with the hour it opens, not a missing section
   const html = wallSection(tomorrow, "September 10", Date.parse("2026-09-10T01:00:00Z"), { interactive: true });
   assert.ok(html.includes('class="wboard wblank"'));
   assert.ok(html.includes("Opens at midnight Eastern, about 3 hours from now."));
-  assert.ok(html.includes("Tomorrow's square."));
+  assert.ok(html.includes("Tomorrow's hive."));
   assert.ok(!html.includes("<form"), "nothing to buzz before the date arrives");
 });
 
-test("the full screen page is the square, its count and its sentences, and a buzz from it comes back to it", () => {
+test("the full screen page is the hive, its count and its sentences, and a buzz from it comes back to it", () => {
   const s = story({ rect: { mx: 3, my: 5, w: 4, h: 3 }, support: 2 });
   const d = day([s]);
-  const section = wallSection(d, "September 9", LIVE_NOW, { interactive: true, square: true });
-  assert.ok(section.includes('class="wall wsquare"'));
-  assert.ok(section.includes('name="v" value="square"'));
-  assert.ok(!section.includes("wmore") && !section.includes("Backed, waiting"), "the lists stay on the date page");
-  const page = renderSquarePage(d, 9, 9);
+  const section = wallSection(d, "September 9", LIVE_NOW, { interactive: true, hive: true });
+  assert.ok(section.includes('class="wall whive"'));
+  assert.ok(section.includes('name="v" value="hive"'));
+  assert.ok(!section.includes("feed2") && !section.includes("Today's feed"), "the feed stays on the date page");
+  const page = renderHivePage(d, 9, 9);
   assert.ok(page.includes('<meta name="robots" content="noindex">'));
   assert.ok(page.includes('href="/september-9/"'));
-  assert.equal(squarePath(9, 9), "/september-9/square/");
+  assert.equal(hivePath(9, 9), "/september-9/hive/");
   // The date page links to it, and only when there is something to see.
   const dated = wallSection(d, "September 9", LIVE_NOW);
-  assert.ok(dated.includes('href="/september-9/square/">Open the square full screen</a>'));
+  assert.ok(dated.includes('href="/september-9/hive/">Open the hive full screen</a>'));
   assert.ok(!wallSection(emptyWallDay("2026-09-10"), "September 10", LIVE_NOW).includes("full screen"));
 });
