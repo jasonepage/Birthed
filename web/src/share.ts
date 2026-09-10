@@ -55,10 +55,14 @@ const CANDLE = `<svg width="262" height="458" viewBox="380 120 264 800" xmlns="h
 
 /**
  * The hive a card draws, when the date has one with tiles on it: the day,
- * and where each pictured subject's file is, as an address the card's
- * browser can load. og.ts hands file addresses into static/, because the
- * card is screenshotted from a page with no origin and "/covers/x.jpg"
- * resolves to nothing there.
+ * and each pictured subject's picture, as something the card's browser can
+ * load with no origin to resolve it against.
+ *
+ * og.ts hands in the bytes, as a data address. Neither of the two shapes
+ * that point outward works: the card is screenshotted from a page put up
+ * with setContent, so "/covers/x.jpg" resolves against nothing, and a
+ * file:// address is refused outright as a local resource. See the note on
+ * `picture` in og.ts, which is where that was found.
  */
 export interface CardHive {
   day: WallDay;

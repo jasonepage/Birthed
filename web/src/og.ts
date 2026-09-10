@@ -17,8 +17,7 @@ import { eventsByDay, eventsForDate, fetchEvents } from "./timeline.js";
 import { fetchWall, newestByDate, wallKey } from "./wall.js";
 import { coverageByDay, fetchChartWeeks, songsForDate, withDownloadedCovers } from "./songs.js";
 import { picturesFor } from "./render.js";
-import { readdir } from "node:fs/promises";
-import { pathToFileURL } from "node:url";
+import { readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 
 const OUT = join("out", "og");
@@ -92,7 +91,38 @@ async function main(): Promise<void> {
   const facesOnDisk = new Set(await readdir(join("static", "faces")).catch(() => [] as string[]));
   const covered = coverageByDay(withDownloadedCovers(await fetchChartWeeks(url, key), files));
   const thisYear = new Date().getUTCFullYear();
-  const onDisk = (path: string): string => pathToFileURL(resolve("static", path.replace(/^\//, ""))).href;
+
+  /**
+   * A picture, as bytes inside the card rather than as an address pointing out
+   * of it.
+   *
+   * **A file address does not work here and never did.** The card is put in
+   * front of the browser with setContent, which leaves the page on an opaque
+   * origin, and Chromium refuses every file:// subresource such a page asks
+   * for: "Not allowed to load local resource", as a failed request with
+   * nothing thrown and nothing on the picture. So every cover and every face
+   * on a hive card has been drawing as an empty dark tile since the day the
+   * card learned to draw them, because a tile with a picture also takes the
+   * scrim and the light type and the two together look deliberate.
+   *
+   * A relative path was the first thing tried and it fails for the same
+   * reason with a different message. Inlining the bytes is the only shape
+   * that needs no origin at all, and it keeps the one rendering path exactly
+   * as it is: still Playwright, still staged HTML, still one screenshot.
+   *
+   * Read once each. A cover belongs to a chart week and a face to a person,
+   * so the same handful of files come round on many of the 366 dates.
+   */
+  const inlined = new Map<string, string>();
+  const picture = async (path: string): Promise<string> => {
+    const found = inlined.get(path);
+    if (found !== undefined) return found;
+    const bytes = await readFile(resolve("static", path.replace(/^\//, "")));
+    const kind = path.endsWith(".png") ? "image/png" : "image/jpeg";
+    const uri = `data:${kind};base64,${bytes.toString("base64")}`;
+    inlined.set(path, uri);
+    return uri;
+  };
   console.log(`hives loaded for ${wallFor.size} dates`);
 
   const browser = await chromium.launch();
@@ -107,7 +137,8 @@ async function main(): Promise<void> {
     let hive: CardHive | null = null;
     if (wall !== null) {
       const songs = songsForDate(covered, date.month, date.day, FIRST_CHART_YEAR, thisYear);
-      hive = { day: wall, pictures: new Map(picturesFor(songs, day.people, facesOnDisk).map((p) => [p.subject, onDisk(p.path)])) };
+      const found = picturesFor(songs, day.people, facesOnDisk);
+      hive = { day: wall, pictures: new Map(await Promise.all(found.map(async (p) => [p.subject, await picture(p.path)] as const))) };
       if (wall.stories.some((s) => s.rect !== null)) hived++;
     }
     const highlight = cardHighlight(

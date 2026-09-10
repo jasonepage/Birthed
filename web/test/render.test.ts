@@ -156,6 +156,36 @@ test("an empty date still produces a card rather than a broken one", () => {
   assert.ok(!card.includes("You share it with"));
 });
 
+import { readFile } from "node:fs/promises";
+test("a card is handed its pictures as bytes, never as an address that needs an origin", async () => {
+  // What broke: the card is put up with setContent, which leaves the page on
+  // an opaque origin, and Chromium refuses every file:// subresource such a
+  // page asks for. Nothing throws and nothing appears, and a tile with a
+  // picture also takes the scrim and the light type, so an empty dark tile
+  // looks deliberate. This reads og.ts rather than the card, because the card
+  // draws whatever address it is given and the mistake is in the giving.
+  const og = await readFile(new URL("../../src/og.ts", import.meta.url), "utf8");
+  assert.ok(!og.includes("pathToFileURL"), "a file address is refused as a local resource");
+  assert.ok(og.includes("data:${kind};base64,"), "the bytes go in the card");
+  // And the card puts whatever it is handed on the tile, quoted, so a data
+  // address survives the style attribute the same way a path did.
+  const story = {
+    id: "11111111-2222-3333-4444-555555555555", wallDate: "2026-09-04", submittedAt: "2026-09-04T05:00:00Z",
+    headline: "1998: Google is founded", url: "https://en.wikipedia.org/wiki/September_4", outlet: "en.wikipedia.org",
+    status: "placed" as const, tier: "claimed" as const, support: 0, priority: 1, placedAt: "2026-09-04T05:15:00Z",
+    rect: { mx: 4, my: 4, w: 4, h: 3 }, falseAt: null, falseNote: null, subjectKind: "song", subjectId: "2007-09-08", sources: [],
+  };
+  const day = { wallDate: "2026-09-04", year: 2026, month: 9, day: 4, opensAt: "2026-09-03T04:00:00Z", liveAt: "2026-09-04T04:00:00Z", closesAt: "2026-09-06T04:00:00Z", closedAt: null, stories: [story] };
+  const pictures = new Map([["song:2007-09-08", "data:image/jpeg;base64,AAAA"]]);
+  for (const card of [renderShareCard(page, null, { day, pictures })]) {
+    assert.ok(card.includes("url(&quot;data:image/jpeg;base64,AAAA&quot;)"));
+    assert.ok(!card.includes("file://"));
+  }
+});
+
+
+
+
 import { calendar, isLeapYear, renderAdd, renderHome, renderPrivacy, renderSupport } from "../src/pages.js";
 import { asHighlight, pickHighlights, type Fact } from "../src/facts.js";
 import { redirectFor } from "../src/serve.js";
