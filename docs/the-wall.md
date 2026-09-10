@@ -540,3 +540,189 @@ same story" flow belongs with the curation work and is not in this session.
 network could not reach the public feeds or any news page, so the six feed
 addresses in `news.ts` and the fetch path in `check.ts` were tested on
 fixtures and not against the live sites. The first tick on Render will say.
+
+---
+
+## 13. Decided in the third build session, September 10, 2026
+
+Boosting from the web, and a board a person can read, were built in one
+session. These are the calls it made that the sections above do not settle,
+recorded the way sections 10 and 12 are. Nothing in sections 1 to 9 was
+changed; where this session's instructions differed from them, the document
+won and the difference is noted at the end.
+
+**On the web a tap is a tap: one unit, always.** The one, two or three unit
+conviction sizing in section 4 stays in the app. `wall_cast_web_boost` takes a
+story and a token and inserts one unit; there is no argument through which a
+size could arrive. A second tap on a story the same browser already backed is
+answered `already` and spends nothing, which is what a double tap, a retry and
+a change of mind all need, and it is why the web path carries no request
+identifier the way the app path does.
+
+**Identity is the token cookie the remembrance answers already use, hashed.**
+The `bt` cookie serve.ts sets on a reader's first answer is now set on their
+first tap too, and `wall_web_booster_id` turns it into the uuid shape
+`booster_id` already has, so the same browser is the same booster every time
+and the budget trigger counts it. The token itself never reaches a table and
+nothing else about the person is recorded: no address, no profile, no
+`wall_joined_at`, because there is no account to join with. Section 10's
+decision that `booster_id` is a value and not a foreign key is what makes a
+boost possible without an account existing.
+
+**The trade, named.** A cookie is not a person. Anybody who clears one is a new
+voter and can tap again, and there is no honest way around that without an
+account, which section 6 says reading must never require and which the web
+does not have. It is the same trade the answers already make, it is bounded by
+the per address rate limit in serve.ts and by the budget trigger, and it is the
+reason for the next decision.
+
+**Every boost records how it was authenticated.** `wall_boosts.authenticated_by`
+is `attested` for a boost that came through `wall_cast_boost` and consumed an
+App Attest grant, `web_token` for one that came through `wall_cast_web_boost`,
+and `seed_tool` for a row the test seed wrote directly with the service role.
+The trigger fills it from a transaction local flag the two functions set just
+before they insert; a value a caller sends in the column is discarded, and an
+insert with no flag is refused unless it comes from the service role, which is
+labelled as what it is. An attested boost and an unattested one count the same
+today. The ledger knows which was which forever, so a future formula can weigh
+them differently without a migration over history, which is the same reason
+`tier_at_cast` and `support_before` were captured before anything used them.
+App Attest is the anti-bot control and the web has no equivalent; this is what
+makes opening the web safe rather than reckless.
+
+**The app path is unchanged except for one line.** `wall_cast_boost` sets the
+flag before its insert. The grant, the units, the request identifier and the
+budget are exactly as section 12 left them. The migration was run against the
+live project inside a transaction that was then rolled back, with the first
+tap kept, the second on the same story answered `already`, the fourth of the
+day answered `spent` by the database, one unit on the day after, `not_yet` on
+the day before, and a direct insert labelled `seed_tool` with its supplied
+value discarded.
+
+**The route is /remember's shape, exactly.** `POST /boost` reads the story and
+the date from a plain form, mints a token for a reader who has none, refuses a
+malformed post as a 400 before anything is called, refuses a flood from one
+address before the database is touched, calls the function, and answers with
+a redirect to the date page carrying the database's word in the query string
+and in the fragment. `?tapped=` permits the one wall read past the twenty
+second cache, rate limited per address like `?kept=`, so the reader lands on
+the count they moved. The fragment reveals one of seven sentences already on
+the page, so the site answers without a script. A word the server does not
+know is our failure and never a claim about the date.
+
+**What a browser has done is written back to that browser and nobody else.**
+`wall_web_standing` returns how many taps a token has left today and which
+stories on the date it backed, and `wallMarks` in web/src/wall.ts turns that
+into a style block appended to the page: "You backed this" on those stories,
+an outline on the tile, and the remaining count rewritten through `::after`
+content. The shared, cached section carries the allowance for a fresh browser
+and the reader's own number lands on top. No totals, no other token's taps, no
+count of people here, no direction. Section 7's line about what the reversal
+does not license still holds.
+
+**A tile is never smaller than a headline needs.** Four modules wide and three
+tall, twelve modules, `MIN_W`, `MIN_H` and `MIN_MODULES` in the allocator. On
+a phone that is about 84 by 62 pixels and three lines of headline; on a desktop
+it is four. One module could hold a number and nothing else, and a diamond of
+numbered squares was what birthed.app showed on September 9.
+
+**The board holds twelve tiles, and eight of them may be stories nobody
+backed.** `MAX_PLACED` and `UNBACKED_PLACED`. Twelve headlines is what a person
+reads and twelve tiles at the minimum leave nearly half the square for growth.
+The second number is the one that matters: the news seeder qualifies forty
+stories at once, and a board it filled at the first tick could never be joined
+by anything a person later chose, because tiles never shrink and nothing is
+deleted. So the feeds fill eight tiles, four wait for stories people back, and
+a tap on an unbacked tile makes room for one more from the feeds. Section 11's
+promise that a wall opens carrying the day's news is kept; it no longer opens
+finished. What qualifies and does not fit is overflow, in the list under the
+board, which was already there and already said so.
+
+**Among new stories, the most supported is placed first.** Then arrival, then
+id, as before. A story people backed reaches the board ahead of one nobody did
+when both arrive in the same run. Stored rectangles are still laid down first,
+all of them, and are never displaced.
+
+**One unit is one module.** `UNITS_PER_MODULE` goes from five to one. Five was
+set when a boost could be worth three units; with a tap worth one, five taps
+earned one module and the board never appeared to answer anybody. The target
+is now the minimum plus one module per unit, capped at the tier ceiling, which
+moves to twenty four for claimed and forty eight for confirmed so both sit
+above the new minimum in the same proportions as before. A first tap takes a
+tile from twelve modules to fifteen, four taps to twenty, nine to twenty four,
+and a reported story reaches forty eight at twenty nine.
+
+**The no overshoot rule bends where it has to.** Section 10 said a step that
+would overshoot the target is not taken. With a minimum of four by three there
+is no one module step, so a target one module past the tile could never be
+reached and the first tap would be invisible, which is the exact thing the
+retune exists to prevent. A step that does not overshoot is still taken first;
+when every fitting step overshoots, the preferred one is taken. A story
+stamped false is passed to the allocator as frozen and grown by nothing, so the
+new minimum cannot quietly enlarge a rectangle section 5 says is kept exactly.
+
+**Sizes still settle on the tick.** Rectangles are authoritative and the
+allocator runs in the worker every quarter hour, so a tap changes the tile's
+size within fifteen minutes and not on the page the reader lands on. What
+changes on that page is the count, the story's tap count, and the reader's own
+mark, and the sentence after a tap says so. Running the allocator on the web
+server was considered and not done: it would make a page draw a wall the
+database had not stored, which section 10 refused for the same reason.
+
+**A baked page never carries a form.** Tap forms are drawn only in the section
+serve.ts renders at request time, and only while the date is taking boosts by
+the clock. So the fallback for a failed live read is a wall that can be read
+and not tapped, which is the honest state when the database cannot be reached,
+and a date that closed after a deploy never offers a tap the database would
+refuse. The seven sentences are on every page, baked ones included, for the
+reader whose tap arrives after midnight.
+
+**Copy.** Nothing on the web page says boost. One sentence above the board says
+what a tap is: tap the stories you think will still matter years from now,
+each tap makes its story bigger on the square, and you get a few a day. The
+count says what it means, "Two taps left today", and on the day after the date
+"One tap left today on this date. It closes tonight." A story nobody has
+backed says nothing about taps at all; "0 boosts" is gone from the tile, the
+row and the receipt. The tier legend keeps its one line and gains that a tile's
+colour is its tier, because the chip came off the tile to give the headline
+its lines back. Nothing anywhere says a model decided anything.
+
+**The privacy page moved in the same commit.** It now says the `bt` cookie is
+set on a first tap as well as a first answer, and lists what a tap is: which
+story, one tap, when, the tier and support at that moment, that it came from
+the website rather than the app, and the token in a scrambled form. It says a
+tap is kept for good and is shown to nobody as yours except the browser that
+made it.
+
+**Where the instructions and this document differed.** The session was asked
+for "three a day, across all open dates". Section 4 says three units on the
+date itself, one on the day after and none the day before, which lets one
+browser spend four units in one Eastern day across two dates. The budget
+trigger enforces section 4 and was not changed; the count on each page is that
+page's. If three across all open dates is the intended rule, section 4 changes
+first and the trigger follows.
+
+**Found, not done: the live walls hold one module tiles.** September 8 and 9
+were placed by the old allocator, twenty four and forty five tiles of one
+module each, packed around the centre. The new allocator grows a stored
+rectangle toward the minimum and never moves it, so on the next tick those
+tiles try to grow into each other and the outer ring wins. No boost exists on
+either date, so nothing anybody chose is in those rectangles. Returning the
+unbacked placed stories on the open dates to the pool, with their rectangles
+cleared, lets the next tick lay them out fresh under the new rules. That is an
+edit to the live database and was left for a person to decide.
+
+**Found, not settled: nothing here was run against the live site.** Neither
+this session's shell nor the container it worked in could reach the project or
+the public feeds, so the web path was tested against a mocked database and the
+migration inside a rolled back transaction. The first deploy will say. The
+acceptance in the session's brief, three taps on birthed.app with the count
+going to zero and the fourth refused, is a person's to run after the migration
+is applied and the site is redeployed.
+
+**Not built, on purpose.** The close job, snapshots taken by anything new, the
+permanent archive page, the shareable image: session three's prompt three, and
+still ahead. Nothing writes to `wall_outcomes`. The iOS app was not touched:
+`WallBoard` draws the stored rectangles and needs no change to draw the new
+sizes, and its boost control still offers one, two or three units, which is
+section 4 and stays.
