@@ -464,7 +464,11 @@ export const HIVE_LIVE_JS = `
     t.classList.toggle("wlead", index === 0 && s.support > 0);
     var heat = s.support <= 0 ? 0 : 0.15 + 0.85 * Math.pow(s.support / Math.max(1, max), 0.8);
     var cell = q(".wcell", t); if (cell) cell.style.setProperty("--heat", heat.toFixed(3));
-    var n = q(".wn", t); if (n) n.textContent = units(s.support);
+    // A tile the server drew for a story nobody had buzzed has no count
+    // element, because a tile never says nought; it gets one on its first buzz.
+    var n = q(".wn", t);
+    if (!n) { var foot = q(".wfoot", t); if (foot) { n = el("span", "wn"); foot.insertBefore(n, q(".wo", foot)); } }
+    if (n) n.textContent = units(s.support);
     if (backed[s.id]) { t.classList.add("wbacked"); var m = q(".wmine", t); if (m) m.style.display = "block"; var b = q(".wbuzz button", t); if (b) b.disabled = true; }
     addPlay(s, t);
     t.classList.remove("wleaving");
