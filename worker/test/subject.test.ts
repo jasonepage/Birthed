@@ -1,6 +1,11 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { parseEvents } from "../src/events.js";
 import { firstSentence, subjectOf, subjectUrl } from "../src/subject.js";
 
 // Real list items from the September 11, September 4 and July 20 date
@@ -209,4 +214,21 @@ test("the first sentence ends at a period before a capital, and not at an initia
 test("the address is the article's own, in the shape the importer already writes", () => {
   assert.equal(subjectUrl("September 11 attacks"), "https://en.wikipedia.org/wiki/September_11_attacks");
   assert.equal(subjectUrl("1973 Chilean coup d'état"), "https://en.wikipedia.org/wiki/1973_Chilean_coup_d'%C3%A9tat");
+});
+
+test("the whole September 11 page: 72 of 85 lines name an article and these 13 refuse", () => {
+  // The Events section of the real page as action=parse rendered it on
+  // September 11, 2026, reference markers and generated ids removed. A
+  // change to the rule that moves a line between the two lists shows up
+  // here, with the year, rather than quietly in the database.
+  const fixture = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "test", "fixtures", "september-11-events.html");
+  const read = parseEvents(readFileSync(fixture, "utf8"), 2026);
+  assert.equal(read.events.length, 85);
+  const refused = read.events.filter((e) => e.subject === null).map((e) => e.year);
+  assert.deepEqual(refused, [1390, 1541, 1800, 1802, 1813, 1897, 1919, 1944, 1967, 1971, 1982, 1989, 2011]);
+  const named = new Map(read.events.filter((e) => e.subject !== null).map((e) => [e.year, e.subject!.title]));
+  assert.equal(named.get(2001), "September 11 attacks");
+  assert.equal(named.get(1995), "Classical World Chess Championship 1995");
+  assert.equal(named.get(1792), "Hope Diamond");
+  assert.equal(read.events.filter((e) => e.subject?.redirect).length, 6);
 });
