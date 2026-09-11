@@ -10,6 +10,7 @@
 // because two centuries of hand editing expand to the same handful of tags.
 
 import { cellText } from "./html.js";
+import { subjectOf, type Subject } from "./subject.js";
 
 export interface DateEvent {
   year: number;
@@ -17,8 +18,19 @@ export interface DateEvent {
   description: string;
 }
 
+/** A line read off the page: the event, and the one article it is about when the rule in subject.ts can name one. */
+export interface ReadEvent extends DateEvent {
+  /**
+   * The Wikipedia article the line is about, or null when no link can be
+   * named without guessing. This is what the reach measurement is keyed by:
+   * the date page itself is the same number on every line of the date and
+   * says nothing about any one of them.
+   */
+  subject: Subject | null;
+}
+
 export interface EventsRead {
-  events: DateEvent[];
+  events: ReadEvent[];
   /** Things a person should look at before trusting the run. */
   notes: string[];
 }
@@ -104,10 +116,11 @@ export function parseEvents(html: string, thisYear: number = new Date().getUTCFu
     return { events: [], notes: ["no Events section on this page"] };
   }
 
-  const events: DateEvent[] = [];
+  const events: ReadEvent[] = [];
   const notes: string[] = [];
   let refused = 0;
   let beforeCommonEra = 0;
+  let unnamed = 0;
 
   for (const item of listItems(section)) {
     const own = item.split(/<ul\b/i)[0] ?? "";
@@ -125,9 +138,14 @@ export function parseEvents(html: string, thisYear: number = new Date().getUTCFu
       else refused += 1;
       continue;
     }
-    events.push(event);
+    // The links are read off the same item the sentence came from, before
+    // cellText reduced them to their text.
+    const { subject } = subjectOf(own);
+    if (subject === null) unnamed += 1;
+    events.push({ ...event, subject });
   }
 
+  if (events.length > 0) notes.push(`${count(unnamed, "line")} of ${events.length} name no article, so those rows will not be measured`);
   if (events.length < 20) notes.push(`only ${events.length} events read, which is low for a date page`);
   if (refused > 0) notes.push(`${count(refused, "line")} refused for having no plain year`);
   if (beforeCommonEra > 0) {

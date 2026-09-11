@@ -118,3 +118,16 @@ test("the report counts in words a person would use", () => {
   assert.equal(count(43, "line"), "43 lines");
   assert.equal(count(1, "date"), "1 date");
 });
+
+test("every line read carries the article it is about, or null, and the report counts the nulls", () => {
+  const read = parseEvents(SEPTEMBER_5, 2026);
+  const about = Object.fromEntries(read.events.map((e) => [e.year, e.subject?.title ?? null]));
+  assert.deepEqual(about, {
+    917: "Liu Yan",
+    1972: "Munich massacre",
+    1977: "Voyager 1",
+    1980: "Gotthard Road Tunnel",
+    1999: null,
+  });
+  assert.ok(read.notes.some((n) => n.startsWith("1 line of 5 name no article")), read.notes.join("; "));
+});

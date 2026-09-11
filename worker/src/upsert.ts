@@ -112,6 +112,12 @@ export interface HistoricalEventRow {
   event_year: number;
   description: string;
   source_url: string;
+  /**
+   * The article the line is about, as a full address, or null when the
+   * subject rule could not name one. Null is a fact too: it says this row
+   * has nothing to measure, rather than that nobody has looked yet.
+   */
+  subject_url: string | null;
   content_license: string;
   fingerprint: string;
   /**

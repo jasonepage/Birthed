@@ -74,3 +74,40 @@ export async function fetchPage(
 export function articleUrl(title: string): string {
   return `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, "_"))}`;
 }
+
+/**
+ * Where a set of titles really point, for the ones that are redirects.
+ *
+ * The pageviews service counts a redirect's own views, which are close to
+ * nothing, so a subject that is a redirect has to be measured under the
+ * title it lands on. action=query with redirects=1 answers for up to fifty
+ * titles at a time and returns only the ones that moved; a title that is
+ * not in the answer stays as it was.
+ */
+export async function resolveRedirects(titles: string[], userAgent: string): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const unique = [...new Set(titles)];
+  for (let start = 0; start < unique.length; start += 50) {
+    const batch = unique.slice(start, start + 50);
+    const url = new URL(ENDPOINT);
+    url.searchParams.set("action", "query");
+    url.searchParams.set("titles", batch.join("|"));
+    url.searchParams.set("redirects", "1");
+    url.searchParams.set("format", "json");
+    url.searchParams.set("formatversion", "2");
+    const response = await fetch(url, { headers: { "User-Agent": userAgent } });
+    if (!response.ok) throw new Error(`Wikipedia answered ${response.status} resolving redirects.`);
+    const body = (await response.json()) as { query?: { normalized?: Array<{ from: string; to: string }>; redirects?: Array<{ from: string; to: string }> } };
+    // A title may be normalised first (capitalisation, underscores) and
+    // then redirected, so both hops are followed.
+    const normalised = new Map((body.query?.normalized ?? []).map((n) => [n.from, n.to]));
+    const redirected = new Map((body.query?.redirects ?? []).map((r) => [r.from, r.to]));
+    for (const title of batch) {
+      const step = normalised.get(title) ?? title;
+      const target = redirected.get(step);
+      if (target !== undefined && target !== title) out.set(title, target);
+    }
+    await sleep(250);
+  }
+  return out;
+}

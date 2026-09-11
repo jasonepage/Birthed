@@ -14,9 +14,10 @@
 import { createHash } from "node:crypto";
 
 import { loadConfig, loadDotEnv } from "./config.js";
-import { count, DateEvent, parseEvents } from "./events.js";
+import { count, DateEvent, parseEvents, ReadEvent } from "./events.js";
+import { subjectUrl } from "./subject.js";
 import { pruneHistoricalEvents, upsertHistoricalEvents } from "./upsert.js";
-import { articleUrl, fetchPage } from "./wikipedia.js";
+import { articleUrl, fetchPage, resolveRedirects } from "./wikipedia.js";
 
 const LICENSE = "CC-BY-SA-4.0";
 const MONTHS = [
@@ -45,7 +46,7 @@ export function fingerprint(month: number, day: number, event: DateEvent): strin
 interface DateResult {
   month: number;
   day: number;
-  events: DateEvent[];
+  events: ReadEvent[];
   sourceUrl: string;
   notes: string[];
 }
@@ -95,7 +96,7 @@ async function main(): Promise<void> {
       const flag = result.notes.length > 0 ? "  <- see report" : "";
       console.log(`${MONTHS[month - 1]} ${day}: ${result.events.length} events${flag}`);
       if (print) {
-        for (const event of result.events) console.log(`  ${event.year}  ${event.description}`);
+        for (const event of result.events) console.log(`  ${event.year}  ${event.description}\n        about: ${event.subject?.title ?? "(nothing named)"}${event.subject?.redirect ? " (redirect)" : ""}`);
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
@@ -105,6 +106,26 @@ async function main(): Promise<void> {
     // Wikipedia asks for a considerate rate.
     await sleep(250);
   }
+
+  // A subject that is a redirect is measured under the title it lands on,
+  // because the pageviews service counts a redirect's own views, which are
+  // close to nothing. Resolved once for the whole run, fifty titles a call.
+  const redirects = results.flatMap((r) => r.events).filter((e) => e.subject?.redirect).map((e) => e.subject!.title);
+  let resolved = new Map<string, string>();
+  if (redirects.length > 0) {
+    try {
+      resolved = await resolveRedirects(redirects, config.userAgent);
+      console.log(`${count(resolved.size, "redirect")} of ${new Set(redirects).size} resolved to the article they land on`);
+    } catch (error: unknown) {
+      // Unresolved redirects keep their own title and measure near zero, so
+      // say so rather than write a number that looks like a measurement.
+      console.log(`redirects could not be resolved, ${error instanceof Error ? error.message : String(error)}; those subjects keep their redirect title`);
+    }
+  }
+  const subjectFor = (event: ReadEvent): string | null => {
+    if (event.subject === null) return null;
+    return subjectUrl(resolved.get(event.subject.title) ?? event.subject.title);
+  };
 
   // One timestamp for the whole run, written onto every row. It is what tells
   // the prune below which rows this run still stands behind.
@@ -117,6 +138,7 @@ async function main(): Promise<void> {
       event_year: event.year,
       description: event.description,
       source_url: result.sourceUrl,
+      subject_url: subjectFor(event),
       content_license: LICENSE,
       fingerprint: fingerprint(result.month, result.day, event),
       imported_at: startedAt,
@@ -125,6 +147,8 @@ async function main(): Promise<void> {
 
   console.log("");
   console.log(`${count(rows.length, "event")} across ${count(results.length, "date")}`);
+  const named = rows.filter((row) => row.subject_url !== null).length;
+  console.log(`${named} name the article they are about and can be measured; ${rows.length - named} name none and will not be`);
 
   const problems = results.flatMap((result) => result.notes);
   if (problems.length === 0) {
