@@ -160,9 +160,14 @@ async function readSome<T>(url: string, key: string, table: string, select: stri
  * a timeout or an error is an empty list, never a broken page: the tiles
  * draw their colours, which is what the page did before pictures.
  */
-export async function fetchPicturesFor(url: string, key: string, stories: Pick<WallStory, "id" | "subjectKind" | "subjectId">[], timeoutMs: number = 3000): Promise<StoredPicture[]> {
-  const eventIds = stories.filter((s) => s.subjectKind === "historical_event" && s.subjectId !== null && /^\d+$/.test(s.subjectId)).map((s) => s.subjectId!);
-  const storyIds = stories.filter((s) => s.subjectKind === null && /^[0-9a-f-]{36}$/i.test(s.id)).map((s) => s.id);
+export async function fetchPicturesFor(url: string, key: string, stories: Pick<WallStory, "id" | "subjectKind" | "subjectId" | "status">[], timeoutMs: number = 3000): Promise<StoredPicture[]> {
+  // Only the placed stories, which are the tiles: those are the only ones a
+  // picture is drawn on, so a busy date's hundreds of feed stories never go
+  // into the query. That keeps the identifier list short enough for one
+  // request, the whole reason this reads live rather than by identifier.
+  const tiles = stories.filter((s) => s.status === "placed");
+  const eventIds = tiles.filter((s) => s.subjectKind === "historical_event" && s.subjectId !== null && /^\d+$/.test(s.subjectId)).map((s) => s.subjectId!);
+  const storyIds = tiles.filter((s) => s.subjectKind === null && /^[0-9a-f-]{36}$/i.test(s.id)).map((s) => s.id);
   const [events, news] = await Promise.all([
     eventIds.length === 0 ? Promise.resolve([] as EventPictureRow[]) : readSome<EventPictureRow>(url, key, "event_pictures", EVENT_SELECT, `event_id=in.(${eventIds.join(",")})`, timeoutMs),
     storyIds.length === 0 ? Promise.resolve([] as StoryPictureRow[]) : readSome<StoryPictureRow>(url, key, "story_pictures", STORY_SELECT, `story_id=in.(${storyIds.join(",")})`, timeoutMs),
@@ -172,6 +177,8 @@ export async function fetchPicturesFor(url: string, key: string, stories: Pick<W
 
 /** One story's picture, for a receipt served live. */
 export async function fetchPictureFor(url: string, key: string, story: Pick<WallStory, "id" | "subjectKind" | "subjectId">, timeoutMs: number = 3000): Promise<StoredPicture | null> {
-  const found = await fetchPicturesFor(url, key, [story], timeoutMs);
+  // A receipt asks for its one story whatever its status, so it is handed to
+  // the bulk reader as a placed one to pass the tiles-only filter there.
+  const found = await fetchPicturesFor(url, key, [{ ...story, status: "placed" }], timeoutMs);
   return found.find((p) => p.subject === pictureKeyOf(story)) ?? null;
 }

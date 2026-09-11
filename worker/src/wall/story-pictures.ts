@@ -140,7 +140,14 @@ export async function run(db: Db, options: { dates?: string[]; userAgent?: strin
   const report: Report = { stored: 0, none: 0, failed: 0 };
   for (const wallDate of dates) {
     const stories = await rows<StoryRow>(db, `wall_stories?select=id,wall_date,url,outlet,subject_kind&wall_date=eq.${wallDate}&order=submitted_at.asc`);
-    const pictured = new Set((await rows<{ story_id: string }>(db, `story_pictures?select=story_id&story_id=in.(${stories.map((s) => s.id).join(",") || "00000000-0000-0000-0000-000000000000"})`)).map((r) => r.story_id));
+    // In batches, not one giant filter: a busy date carries hundreds of
+    // stories, and every identifier in one query string is tens of kilobytes,
+    // which the server refuses with a 400. A hundred at a time is well under.
+    const pictured = new Set<string>();
+    for (let start = 0; start < stories.length; start += 100) {
+      const batch = stories.slice(start, start + 100).map((s) => s.id);
+      for (const r of await rows<{ story_id: string }>(db, `story_pictures?select=story_id&story_id=in.(${batch.join(",")})`)) pictured.add(r.story_id);
+    }
     const todo = storiesToPicture(stories, pictured);
     if (todo.length === 0) continue;
     log(`wall pictures ${wallDate}: ${todo.length} stories to read`);

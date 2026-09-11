@@ -27,7 +27,7 @@ export async function rows<T>(db: Db, path: string): Promise<T[]> {
     const response = await fetch(`${db.url}/rest/v1/${path}${joiner}limit=${pageSize}&offset=${offset}`, {
       headers: headers(db),
     });
-    if (!response.ok) throw new Error(`wall: read ${path.split("?")[0]} failed with ${response.status}`);
+    if (!response.ok) throw new Error(`wall: read ${path.split("?")[0]} failed with ${response.status}. ${(await response.text()).slice(0, 300)}`);
     const page = (await response.json()) as T[];
     out.push(...page);
     if (page.length < pageSize) return out;
