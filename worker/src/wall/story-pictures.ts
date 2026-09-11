@@ -132,7 +132,11 @@ export async function pictureStory(
 export async function run(db: Db, options: { dates?: string[]; userAgent?: string; dry?: boolean; log?: (line: string) => void } = {}): Promise<Report> {
   const log = options.log ?? ((line: string) => console.log(line));
   const userAgent = options.userAgent ?? "Mozilla/5.0 (compatible; Birthed/0.1; +https://birthed.app)";
-  const dates = options.dates ?? (await rows<{ wall_date: string }>(db, "wall_days?select=wall_date&closes_at=gt.now()&order=wall_date.asc")).map((d) => d.wall_date);
+  // now() is computed here and sent as a timestamp: PostgREST does not run
+  // SQL functions in a filter, it would send the text "now()" and Postgres
+  // would reject it. An open date is one whose close is still ahead.
+  const nowIso = new Date().toISOString();
+  const dates = options.dates ?? (await rows<{ wall_date: string }>(db, `wall_days?select=wall_date&closes_at=gt.${nowIso}&order=wall_date.asc`)).map((d) => d.wall_date);
   const report: Report = { stored: 0, none: 0, failed: 0 };
   for (const wallDate of dates) {
     const stories = await rows<StoryRow>(db, `wall_stories?select=id,wall_date,url,outlet,subject_kind&wall_date=eq.${wallDate}&order=submitted_at.asc`);
