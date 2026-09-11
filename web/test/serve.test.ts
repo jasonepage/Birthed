@@ -3,7 +3,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
 
-import { openDates, pictureFor, redirectFor, resolvePath, securityFor, start, todaySlug, todayStylesheet, yearMarks, yoursMark } from "../src/serve.js";
+import { openDates, pictureFor, redirectFor, resolvePath, securityFor, songMark, start, todaySlug, todayStylesheet, yearMarks, yoursMark } from "../src/serve.js";
 import { personalName } from "../src/share.js";
 import { monthName } from "../src/model.js";
 
@@ -1066,6 +1066,23 @@ test("a reader who has given a year is told the picture will be theirs", () => {
   assert.equal(yoursMark("september-4", null), "", "and nothing for a reader who never said");
 });
 
+test("a reader who has given a year has that year marked in the song strip", () => {
+  const mark = songMark("september-4", 1994);
+  assert.ok(mark.startsWith("<style"));
+  assert.ok(mark.endsWith("</style>"));
+  // Both shapes of the strip: the baked row carries the id, the live row's
+  // year span carries it.
+  assert.ok(mark.includes('.on-september-4 .wsongs li:is([id="1994"], :has(.wyr[id="1994"]))'));
+  assert.ok(mark.includes("outline:2px solid #FFD98A"));
+  assert.ok(mark.includes('.wsongt::before{content:"The week you were born. "'));
+  // Only generated text goes in: a year and the site's own label.
+  assert.equal(mark.split("<").length, 3, "the only tags are the style element's own");
+  assert.equal(songMark("september-4", null), "", "and nothing for a reader who never said");
+  assert.equal(songMark("september-4", 1958), "", "and nothing for a year before the charts begin");
+  assert.equal(songMark("september-4", 1943), "");
+  assert.ok(songMark("september-4", 1959) !== "", "1959 is the first year with a row");
+});
+
 /**
  * The label on the save link, on a real request with a real wall read.
  *
@@ -1123,7 +1140,11 @@ test("a birth year alone is enough to change the label, and to stop the page bei
   const mineBody = await mine.text();
   assert.ok(mineBody.includes(`.on-${openSlug} .wsavemine{display:inline}`), "the reader's own label is revealed");
   assert.equal(mine.headers.get("cache-control"), "no-store", "a page carrying one reader's own words is never cached");
-  assert.ok(!mineBody.includes("1994"), "and the year itself is nowhere on it");
+  // The year reaches this page in exactly one place: the style rule that
+  // marks the reader's own row in the song strip, on a response that is
+  // never stored. Outside that element it is nowhere.
+  assert.ok(mineBody.includes(`<style class="wsong">.on-${openSlug} .wsongs li:is([id="1994"]`), "the reader's own year is marked in the song strip");
+  assert.ok(!mineBody.replace(/<style class="wsong">[^<]*<\/style>/, "").includes("1994"), "and the year itself is nowhere else on it");
 
   forgetWalls();
   const shared = await realFetch(`${base}/${openSlug}/`);

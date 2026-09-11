@@ -855,9 +855,16 @@ body.home {
   display: flex; align-items: center; justify-content: space-between;
   gap: 14px; margin: 0 0 26px;
 }
+/* The name is the way home. A touch bigger than the rest of the bar, one
+   line on a phone, and it answers a hover the way every other link here does,
+   so nobody has to guess that it goes somewhere. */
 .mark {
-  font-size: 17px; font-weight: 800; letter-spacing: 0.2em;
+  font-size: 20px; font-weight: 800; letter-spacing: 0.2em; white-space: nowrap;
   color: ${ACCENT}; text-transform: uppercase; text-decoration: none;
+  transition: color 140ms ease;
+}
+.mark:hover, .mark:focus-visible {
+  color: #FFF7EE; text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px;
 }
 .quick { display: flex; gap: 8px; }
 .quick a {
@@ -1228,8 +1235,12 @@ p.calkey .sw.today { background: none; box-shadow: inset 0 0 0 2px ${TODAY}; }
   box-shadow: 0 1px 0 rgba(255, 247, 238, 0.07);
 }
 .daybar .mark {
-  font-size: 17px; font-weight: 800; letter-spacing: 0.2em; text-transform: uppercase;
-  color: ${ACCENT}; text-decoration: none;
+  font-size: 20px; font-weight: 800; letter-spacing: 0.2em; text-transform: uppercase;
+  white-space: nowrap; color: ${ACCENT}; text-decoration: none;
+  transition: color 140ms ease;
+}
+.daybar .mark:hover, .daybar .mark:focus-visible {
+  color: #FFF7EE; text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px;
 }
 .barnav { display: flex; align-items: center; gap: 4px; }
 .barnav .here {
@@ -1324,7 +1335,7 @@ p.calkey .sw.today { background: none; box-shadow: inset 0 0 0 2px ${TODAY}; }
   .bbarrow { display: grid; grid-template-columns: 1fr 1fr; }
   .bbar button { grid-column: 1 / -1; }
 }
-@media (max-width: 400px) { .barnav .here { min-width: 44px; font-size: 12px; } }
+@media (max-width: 400px) { .barnav .here { min-width: 44px; font-size: 12px; } .mark, .daybar .mark { font-size: 18px; letter-spacing: 0.16em; } }
 
 /* What the page holds, as one object rather than three sentences. */
 
@@ -2157,6 +2168,13 @@ function landmarkList(names: string[]): string {
  * that always has something to say the moment a birthday is entered, which is
  * the point of the front door. Pure: serve.ts computes the year, this draws it.
  */
+/**
+ * The first year the number one song strip covers. Mirrors FIRST_CHART_YEAR in
+ * build.ts, which cannot be imported here because build.ts runs the build on
+ * import and imports this file; render.test.ts holds the two numbers equal.
+ */
+export const FIRST_CHART_YEAR = 1959;
+
 export function renderMePanel(month: number, day: number, birthYear: number, now: Date = new Date()): string {
   const age = ageOn(month, day, birthYear, now);
   const name = `${monthName(month)} ${day}`;
@@ -2173,11 +2191,17 @@ export function renderMePanel(month: number, day: number, birthYear: number, now
   const worlds: string[] = [];
   if (older.length > 0) worlds.push(`You are older than ${landmarkList(older)}.`);
   if (younger.length > 0) worlds.push(`${landmarkList(younger)} ${younger.length === 1 ? "was" : "were"} already here when you arrived.`);
+  // The song strip starts in 1959, so a reader born before that has no
+  // number one to be promised. Say so plainly rather than promise a row the
+  // page does not have.
+  const note = birthYear < FIRST_CHART_YEAR
+    ? `The charts this site uses begin in ${FIRST_CHART_YEAR}, so there is no number one song for the week you were born. Below: everyone who shares ${name} and everything that ever happened on your date.`
+    : `Below: everyone who shares ${name}, the number one song the week you were born, and everything that ever happened on your date.`;
   return `<section class="me" aria-label="Your birthday">
 <p class="mekicker">Your ${name}</p>
 <p class="meage">${ageLine}</p>
 <p class="meworld">Born in the ${decade}. ${worlds.join(" ")}</p>
-<p class="menote">Below: everyone who shares ${name}, the number one song the week you were born, and everything that ever happened on your date. <a href="/${slug(month, day)}/yours.png">Save your card</a>.</p>
+<p class="menote">${note} <a href="/${slug(month, day)}/yours.png">Save your card</a>.</p>
 </section>`;
 }
 
@@ -2400,7 +2424,7 @@ export function renderDayPage(
   return `${head(`Born on ${name}`, description, canonical, image, !isReady(page, facts), "", sequence)}
 <div class="day on-${slug(page.month, page.day)}" style="--day:${hue.day};--day-soft:${hue.soft}">
 <div class="daybar">
-<a class="mark" href="/">Birthed</a>
+<a class="mark" href="/" title="Birthed home">Birthed</a>
 <span class="barnav">
 <a class="arrow" href="/${slug(previous.month, previous.day)}/" title="${monthName(previous.month)} ${previous.day}" aria-label="${monthName(previous.month)} ${previous.day}">&lsaquo;</a>
 <span class="here">${shortName}</span>
@@ -2440,7 +2464,7 @@ export function renderStoryPage(story: WallStory, day: WallDay, now: number = Da
     canonical, undefined, true)}
 <div class="day wstory" style="--day:${hue.day};--day-soft:${hue.soft}">
 <div class="daybar">
-<a class="mark" href="/">Birthed</a>
+<a class="mark" href="/" title="Birthed home">Birthed</a>
 ${barEnd()}
 </div>
 ${storyBody(story, day, now, options)}
@@ -2486,7 +2510,7 @@ export function renderHivePage(day: WallDay, month: number, d: number, pictures:
     canonical, `${SITE}/og/${slug(month, d)}.png`, true, "hivepage")}
 <div class="day wsq on-${slug(month, d)}" style="--day:${hue.day};--day-soft:${hue.soft}">
 <div class="daybar">
-<a class="mark" href="/">Birthed</a>
+<a class="mark" href="/" title="Birthed home">Birthed</a>
 <span class="barnav"><a class="here" href="/${slug(month, d)}/">${escapeHtml(name)}</a></span>
 <span class="barend"><a class="get" href="/${slug(month, d)}/">Back to the day</a></span>
 </div>
@@ -2505,7 +2529,7 @@ export function renderCalendarPage(year: number): string {
   return `${head("Every day of the year", "Pick a date and see its hive, who shares it and what happened on it.", `${SITE}/calendar/`, undefined, false, "calendarpage")}
 <div class="day">
 <div class="daybar">
-<a class="mark" href="/">Birthed</a>
+<a class="mark" href="/" title="Birthed home">Birthed</a>
 ${barEnd({ calendar: false })}
 </div>
 <section class="everyday">

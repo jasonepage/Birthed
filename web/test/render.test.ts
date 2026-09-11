@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ASK_SLOTS, askCandidates, renderDayPage, renderCalendarPage, renderRobots, renderSitemap, escapeHtml, isReady, renderMePanel, meMarker, withMe} from "../src/render.js";
+import { ASK_SLOTS, FIRST_CHART_YEAR, askCandidates, renderDayPage, renderCalendarPage, renderRobots, renderSitemap, escapeHtml, isReady, renderMePanel, meMarker, withMe} from "../src/render.js";
 import { everyDate, neighbours, slug } from "../src/model.js";
 
 const page = {
@@ -1636,6 +1636,33 @@ test("the reader's panel is built from the birth year alone, and prints no raw y
   assert.ok(/were already here when you arrived\./.test(young));
   // A birthday not yet reached this year is a year younger.
   assert.ok(renderMePanel(12, 25, 2010, now).includes("alive for 15 years"));
+});
+
+test("the panel promises a number one song only to a reader the charts cover", () => {
+  const now = new Date("2026-09-11T12:00:00Z");
+  // Born before the strip begins: told so plainly, and still pointed below.
+  const before = renderMePanel(9, 4, 1950, now);
+  assert.ok(before.includes("The charts this site uses begin in 1959, so there is no number one song for the week you were born."));
+  assert.ok(before.includes("Below: everyone who shares September 4 and everything that ever happened on your date."));
+  assert.ok(!before.includes("the number one song the week you were born"));
+  assert.ok(before.includes('href="/september-4/yours.png"'));
+  // 1958 is deliberately not imported, so it is on the wrong side of the line.
+  assert.ok(renderMePanel(9, 4, 1958, now).includes("begin in 1959"));
+  // From the first chart year on, the promise stands.
+  const first = renderMePanel(9, 4, 1959, now);
+  assert.ok(first.includes("the number one song the week you were born"));
+  assert.ok(!first.includes("begin in 1959"));
+  assert.ok(renderMePanel(9, 4, 1994, now).includes("the number one song the week you were born"));
+});
+
+test("render.ts and build.ts agree on the first chart year", async () => {
+  // build.ts runs the build on import, so its constant is read from the
+  // source text rather than imported.
+  const source = await readFile(new URL("../../src/build.ts", import.meta.url), "utf8");
+  const match = /const FIRST_CHART_YEAR = (\d{4});/.exec(source);
+  assert.ok(match, "build.ts declares FIRST_CHART_YEAR");
+  assert.equal(FIRST_CHART_YEAR, Number(match![1]));
+  assert.equal(FIRST_CHART_YEAR, 1959);
 });
 
 test("withMe fills the marker, and leaves a page with no marker alone", () => {

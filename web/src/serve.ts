@@ -30,7 +30,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { extname, join, normalize, resolve, sep } from "node:path";
 
 import { everyDate, monthName, slug } from "./model.js";
-import { ASK_SLOTS, TODAY, renderMePanel, renderStoryPage, withMe } from "./render.js";
+import { ASK_SLOTS, FIRST_CHART_YEAR, TODAY, renderMePanel, renderStoryPage, withMe } from "./render.js";
 import { ASK_MAX, easternMidnight, emptyWallDay, fetchWallDay, openWallDates, pictureRules, replaceWall, hivePath, takingBoosts, wallKey, wallMarks, wallSection, withChecks, type Anniversary, type TapBack, type WallDay } from "./wall.js";
 import { fetchSnapshotScores, liveHiveSection, type Standing } from "./hive-live.js";
 import { answer as findAnswer } from "./find.js";
@@ -1347,6 +1347,10 @@ async function handle(
         const mine = await fileFor(join(personalRoot(), `${personalName(wallDate, born)}.png`));
         if (mine !== null) marks += yoursMark(slug(marked.month, marked.day), born);
       }
+      // And the reader's own year in the song strip, on any date, for a
+      // reader whose year the charts cover. The strip is baked into every
+      // page, so this needs no wall.
+      marks += songMark(slug(marked.month, marked.day), born);
       // An anniversary is reason enough to draw this reader their own page,
       // even on a date they have done nothing on today: it is the whole of
       // what they came back for.
@@ -1455,6 +1459,30 @@ async function handle(
 export function yoursMark(dateSlug: string, year: number | null): string {
   if (year === null) return "";
   return `<style class="wyours">.on-${dateSlug} .wsaveall{display:none}.on-${dateSlug} .wsavemine{display:inline}</style>`;
+}
+
+/**
+ * The one rule that picks out the reader's own year in the song strip.
+ *
+ * "The most popular songs stopped 10 years before I was born" was a reader
+ * scrolling a strip of sixty rows with nothing to say which one was theirs.
+ * This outlines that row and puts a short label in front of its title. The
+ * strip is drawn two ways, baked with the year as the row's id and live with
+ * the year as the id on the year span, and the rule matches both.
+ *
+ * Same safety argument as yoursMark: everything inside the style block is
+ * generated text. The year is an integer from the cookie, already checked,
+ * and the label is the site's own words, never a source's. A song title
+ * never goes in here.
+ *
+ * Empty for a reader with no year, and for a year before the charts begin,
+ * because there is no row to mark.
+ */
+export function songMark(dateSlug: string, year: number | null): string {
+  if (year === null || !Number.isInteger(year) || year < FIRST_CHART_YEAR) return "";
+  const row = `.on-${dateSlug} .wsongs li:is([id="${year}"], :has(.wyr[id="${year}"]))`;
+  return `<style class="wsong">${row}{outline:2px solid #FFD98A;outline-offset:-2px}`
+    + `${row} .wsongt::before{content:"The week you were born. ";color:#FFD98A;font-weight:800}</style>`;
 }
 
 export function yearMarks(slug: string, year: number | null): string {
