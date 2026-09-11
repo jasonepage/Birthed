@@ -1310,6 +1310,16 @@ p.calkey .sw.today { background: none; box-shadow: inset 0 0 0 2px ${TODAY}; }
   text-decoration: none; padding: 4px 8px; border-radius: 8px;
 }
 .bx:hover { color: #FFF7EE; background: #2A2434; }
+
+/* The reader's own panel, injected by serve.ts for a reader who has given a
+   birth year. It is the birthday payoff, so it reads warm and sits at the top. */
+.me { margin: 4px 0 26px; padding: 22px; background: #1C1726; border: 1px solid #2E2740; border-radius: 16px; }
+.me .mekicker { margin: 0 0 8px; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; color: #FFD98A; }
+.me .meage { margin: 0 0 10px; font-family: Georgia, "Times New Roman", serif; font-size: 30px; font-weight: 700; color: #FFF7EE; line-height: 1.15; }
+.me .meworld { margin: 0 0 12px; font-size: 16px; color: #E8DCCB; line-height: 1.5; }
+.me .menote { margin: 0; font-size: 13px; color: #A49BAE; line-height: 1.5; }
+.me .menote a { color: #FFD98A; text-decoration: none; border-bottom: 1px solid #4A4358; }
+.me .menote a:hover { border-color: #FFD98A; }
 @media (max-width: 460px) {
   .bbarrow { display: grid; grid-template-columns: 1fr 1fr; }
   .bbar button { grid-column: 1 / -1; }
@@ -2094,6 +2104,83 @@ function birthdayForm(heading: string, sub: string): string {
 ${sub ? `<p class="bbarsub">${sub}</p>` : ""}`;
 }
 
+/** Landmarks a reader's birth year is measured against, launch year and name. */
+const LANDMARKS: Array<[number, string]> = [
+  [1994, "the PlayStation"],
+  [1995, "Amazon"],
+  [1998, "Google"],
+  [2001, "Wikipedia"],
+  [2004, "Facebook"],
+  [2005, "YouTube"],
+  [2007, "the iPhone"],
+  [2009, "Bitcoin"],
+  [2010, "Instagram"],
+  [2011, "Minecraft"],
+  [2016, "TikTok"],
+  [2020, "the PlayStation 5"],
+  [2022, "ChatGPT"],
+];
+
+const ME_START = "<!--me:start-->";
+const ME_END = "<!--me:end-->";
+
+/** The empty marker baked into every date page, filled by serve.ts for a reader who has given a year. */
+export function meMarker(): string {
+  return `${ME_START}${ME_END}`;
+}
+
+/** Put the reader's own panel where the marker is, or leave the page as built. */
+export function withMe(html: string, panel: string | null): string {
+  if (panel === null) return html;
+  const start = html.indexOf(ME_START);
+  const end = html.indexOf(ME_END, start);
+  if (start < 0 || end < 0) return html;
+  return html.slice(0, start) + panel + html.slice(end + ME_END.length);
+}
+
+function ageOn(month: number, day: number, birthYear: number, now: Date): number {
+  const y = now.getUTCFullYear();
+  const had = now.getUTCMonth() + 1 > month || (now.getUTCMonth() + 1 === month && now.getUTCDate() >= day);
+  return y - birthYear - (had ? 0 : 1);
+}
+
+function landmarkList(names: string[]): string {
+  if (names.length === 1) return names[0]!;
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
+/**
+ * The reader's own panel, built from their birth year alone: their age, the
+ * decade, and the world their year landed in, measured against a fixed set of
+ * landmarks. It needs no hive and no data for the date, so it is the one thing
+ * that always has something to say the moment a birthday is entered, which is
+ * the point of the front door. Pure: serve.ts computes the year, this draws it.
+ */
+export function renderMePanel(month: number, day: number, birthYear: number, now: Date = new Date()): string {
+  const age = ageOn(month, day, birthYear, now);
+  const name = `${monthName(month)} ${day}`;
+  const decade = `${Math.floor(birthYear / 10) * 10}s`;
+  // Older than: launched after you. Younger than: already here. Nearest to
+  // the reader's year first, three each, so the names mean something.
+  const older = LANDMARKS.filter(([y]) => y > birthYear).sort((a, b) => a[0] - b[0]).slice(0, 3).map(([, n]) => n);
+  const younger = LANDMARKS.filter(([y]) => y <= birthYear).sort((a, b) => b[0] - a[0]).slice(0, 3).map(([, n]) => n);
+  const ageLine = age < 0
+    ? `You have not been born yet.`
+    : age === 0
+      ? `You turn 1 on your first ${name}.`
+      : `You have been alive for ${age} ${age === 1 ? "year" : "years"}.`;
+  const worlds: string[] = [];
+  if (older.length > 0) worlds.push(`You are older than ${landmarkList(older)}.`);
+  if (younger.length > 0) worlds.push(`${landmarkList(younger)} ${younger.length === 1 ? "was" : "were"} already here when you arrived.`);
+  return `<section class="me" aria-label="Your birthday">
+<p class="mekicker">Your ${name}</p>
+<p class="meage">${ageLine}</p>
+<p class="meworld">Born in the ${decade}. ${worlds.join(" ")}</p>
+<p class="menote">Below: everyone who shares ${name}, the number one song the week you were born, and everything that ever happened on your date. <a href="/${slug(month, day)}/yours.png">Save your card</a>.</p>
+</section>`;
+}
+
 export function renderBirthdayBar(big: boolean = false): string {
   return `<form class="bbar${big ? " bbig" : ""}" method="post" action="/year" aria-label="See your birthday">
 ${birthdayForm(big ? "When is your birthday?" : "See your own birthday", big ? "See who shares it, the number one song the week you were born, and what the world looked like when you arrived." : "")}
@@ -2323,6 +2410,7 @@ ${barEnd()}
 </div>
 <h1>${name}</h1>
 ${renderBirthdayModal()}
+${meMarker()}
 ${pictureRules([...picturesFor(songs, page.people), ...morePictures])}
 ${wallSection(wall, name, Date.now(), {
     date: { month: page.month, day: page.day },

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ASK_SLOTS, askCandidates, renderDayPage, renderCalendarPage, renderRobots, renderSitemap, escapeHtml, isReady } from "../src/render.js";
+import { ASK_SLOTS, askCandidates, renderDayPage, renderCalendarPage, renderRobots, renderSitemap, escapeHtml, isReady, renderMePanel, meMarker, withMe} from "../src/render.js";
 import { everyDate, neighbours, slug } from "../src/model.js";
 
 const page = {
@@ -1618,5 +1618,32 @@ test("no animation on a date page plays when the reader asked for reduced motion
   // Nothing breathes in the baked sheet. Only today.css may start that, on an
   // open date.
   assert.equal(style.includes("animation: breathe"), false, "the dot only breathes when today.css says the date is open");
+});
+
+test("the reader's panel is built from the birth year alone, and prints no raw year", () => {
+  const now = new Date("2026-09-11T12:00:00Z");
+  const older = renderMePanel(9, 4, 1991, now);
+  assert.ok(older.includes("Your September 4"));
+  assert.ok(older.includes("You have been alive for 35 years."));
+  assert.ok(older.includes("Born in the 1990s."));
+  assert.ok(older.includes("You are older than the PlayStation, Amazon and Google."));
+  // The exact birth year is never printed: the site keeps it off the page.
+  assert.ok(!older.includes("1991"));
+  assert.ok(older.includes('href="/september-4/yours.png"'));
+  // A younger reader gets both sides of the world line.
+  const young = renderMePanel(9, 4, 2005, now);
+  assert.ok(young.includes("You are older than the iPhone, Bitcoin and Instagram."));
+  assert.ok(/were already here when you arrived\./.test(young));
+  // A birthday not yet reached this year is a year younger.
+  assert.ok(renderMePanel(12, 25, 2010, now).includes("alive for 15 years"));
+});
+
+test("withMe fills the marker, and leaves a page with no marker alone", () => {
+  const page = `<h1>x</h1>${meMarker()}<p>rest</p>`;
+  const filled = withMe(page, "<section class=\"me\">panel</section>");
+  assert.ok(filled.includes('<section class="me">panel</section>'));
+  assert.ok(!filled.includes("me:start"));
+  assert.equal(withMe("<h1>no marker</h1>", "<section>x</section>"), "<h1>no marker</h1>");
+  assert.equal(withMe(page, null), page);
 });
 

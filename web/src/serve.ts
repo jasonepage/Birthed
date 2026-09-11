@@ -30,7 +30,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { extname, join, normalize, resolve, sep } from "node:path";
 
 import { everyDate, monthName, slug } from "./model.js";
-import { ASK_SLOTS, TODAY, renderStoryPage } from "./render.js";
+import { ASK_SLOTS, TODAY, renderMePanel, renderStoryPage, withMe } from "./render.js";
 import { ASK_MAX, emptyWallDay, fetchWallDay, openWallDates, pictureRules, replaceWall, hivePath, wallKey, wallMarks, wallSection, withChecks, type Anniversary, type TapBack, type WallDay } from "./wall.js";
 import { answer as findAnswer } from "./find.js";
 import { fetchPictureFor, fetchPicturesFor, type StoredPicture } from "./stored-pictures.js";
@@ -1263,11 +1263,16 @@ async function handle(
       // An anniversary is reason enough to draw this reader their own page,
       // even on a date they have done nothing on today: it is the whole of
       // what they came back for.
+      // The reader's own panel, for anybody who has given a birth year, on any
+      // date: their age, their decade and the world their year landed in. It
+      // needs no hive, so it is what makes entering a birthday land on a date
+      // that has no board yet.
+      const mePanel = born !== null ? renderMePanel(marked.month, marked.day, born, new Date(now)) : null;
       const anniversary = (standing?.anniversary.length ?? 0) > 0;
       // A year alone is reason enough: without this a reader who has given
       // one and done nothing else is handed the shared page, and their link
       // says "Save this picture" while the address gives them their own.
-      if (marks !== "" || anniversary || tapped !== null || found !== null) {
+      if (marks !== "" || anniversary || tapped !== null || found !== null || born !== null) {
         let html: string | null = null;
         try {
           html = await readFile(file, "utf8");
@@ -1282,7 +1287,7 @@ async function handle(
             "Cache-Control": "no-store",
             ...securityFor(path),
           });
-          response.end(method === "HEAD" ? undefined : withWall(html, wall?.section ?? null) + marks);
+          response.end(method === "HEAD" ? undefined : withMe(withWall(html, wall?.section ?? null), mePanel) + marks);
           return;
         }
       }
