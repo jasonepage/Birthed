@@ -338,8 +338,10 @@ function evidenceAt(story: PlannedStory): number {
 /**
  * Runs the day forward an hour at a time. At each tick every story that has
  * earned a place is handed to the allocator with the support it had by
- * then and the rectangle it already holds, so anchors land in the order
- * they were earned and only ever grow. The last tick is the board.
+ * then. Since the pie, docs/the-wall.md section 18, the allocator cuts the
+ * whole board afresh each tick: a story that is placed takes the rectangle
+ * it was cut, and one that is not gives its rectangle up. The last tick is
+ * the board.
  */
 export function playback(day: PlannedDay, now: number): void {
   const end = Math.min(day.closesAt, now);
@@ -368,6 +370,10 @@ export function playback(day: PlannedDay, now: number): void {
       input.push({ id: story.id, tier: story.tier, support, placedAt: since, anchor: story.rect });
     }
     const result = allocate(input);
+    const onBoard = new Set(result.placed.map((p) => p.id));
+    for (const story of day.stories) {
+      if (!onBoard.has(story.id)) story.rect = null;
+    }
     for (const placed of result.placed) {
       const story = day.stories.find((s) => s.id === placed.id)!;
       story.rect = { mx: placed.mx, my: placed.my, w: placed.w, h: placed.h };

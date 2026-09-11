@@ -166,8 +166,8 @@ test("a single source story graduates after the hold, and not before", () => {
   const a = held.stories.find((u) => u.id === "a")!;
   assert.equal(a.status, "placed");
   assert.equal(a.placed_at, NOW);
-  // One unit: the minimum four by three plus its first whole column.
-  assert.deepEqual([a.anchor_mx, a.anchor_my, a.w_modules, a.h_modules], [6, 6, 5, 3]);
+  // The pie: the one story on the board is the whole board. Section 18.
+  assert.deepEqual([a.anchor_mx, a.anchor_my, a.w_modules, a.h_modules], [0, 0, 16, 16]);
   assert.equal(held.snapshot?.board.tiles.length, 1);
 });
 
@@ -199,11 +199,9 @@ test("a story that never verifies never leaves the pool, however long it waits a
   assert.equal(settled.snapshot, null);
 });
 
-test("placed stories keep their rectangles and grow; the snapshot is the whole board", () => {
+test("placed stories are cut afresh as a pie by their shares; the snapshot is the whole board, and it is full", () => {
   const stories = [
     story("a", { status: "placed", support: 20, placed_at: EARLIER, anchor_mx: 8, anchor_my: 7, w_modules: 1, h_modules: 1, tier: "reported" }),
-    // Already at the minimum with one unit: five by three, which is what one
-    // unit earns, so nothing about it changes on this run.
     story("b", { status: "placed", support: 1, placed_at: JUST_NOW, anchor_mx: 9, anchor_my: 7, w_modules: 5, h_modules: 3 }),
   ];
   const settled = settle(DAY, stories, [
@@ -211,29 +209,31 @@ test("placed stories keep their rectangles and grow; the snapshot is the whole b
     source("s3", "b", "https://www.npr.org/z"),
   ], OWNERS, NOW);
   const a = settled.stories.find((u) => u.id === "a")!;
-  // Twenty units on a reported story: a target of thirty two, reached as a
-  // whole rectangle that still holds the one module it started with. The
-  // tile beside it blocks growth to the right, so it goes left.
-  assert.equal(a.w_modules! * a.h_modules!, 32);
-  assert.ok(a.anchor_mx! <= 8 && a.anchor_mx! + a.w_modules! > 8 && a.anchor_my! <= 7 && a.anchor_my! + a.h_modules! > 7, "the grown tile contains its old module");
+  const b = settled.stories.find((u) => u.id === "b")!;
+  // Twenty buzzes against one: a holds twelve plus twenty of twenty one
+  // shares of the rest, which the bands cut to about seven eighths of the
+  // board. The stored rectangles decided nothing. Section 18.
+  assert.equal(a.w_modules! * a.h_modules! + b.w_modules! * b.h_modules!, 256, "the board is full");
+  assert.ok(a.w_modules! * a.h_modules! >= 200, `${a.w_modules! * a.h_modules!}`);
   assert.equal(a.placed_at, undefined, "an already placed story keeps its placed_at");
-  assert.equal(settled.stories.find((u) => u.id === "b"), undefined, "unchanged tile, nothing written");
   assert.equal(settled.snapshot?.board.tiles.length, 2);
 });
 
-test("a claimed story is capped at its ceiling whatever its support", () => {
+test("the pie has no tier ceiling: a claimed story alone is the whole board", () => {
+  // Section 5's cap was withdrawn in section 18 and the reason is written
+  // there. CLAIMED_CEILING still bounds the growth engine.
   const settled = settle(DAY, [story("a", { support: 500 })], [source("s1", "a", "https://www.npr.org/x")], OWNERS, NOW);
   const a = settled.stories.find((u) => u.id === "a")!;
-  assert.equal(a.w_modules! * a.h_modules!, CLAIMED_CEILING);
+  assert.equal(a.w_modules! * a.h_modules!, 256);
+  assert.ok(CLAIMED_CEILING < 256);
 });
 
-test("a story that finds no room becomes overflow, keeps placed_at, and is offered again next run", () => {
+test("a story beyond the twelve becomes overflow, keeps placed_at, and is offered again next run; one the pie moves off gives up its rectangle", () => {
+  // Twelve placed stories with more support than the newcomer fill the
+  // board; the thirteenth is overflow.
   const full: StoryRow[] = [];
-  let n = 0;
-  for (let my = 0; my < 16; my++) {
-    for (let mx = 0; mx < 16; mx++) {
-      full.push(story(`f${n++}`, { status: "placed", support: 1, placed_at: EARLIER, anchor_mx: mx, anchor_my: my, w_modules: 1, h_modules: 1 }));
-    }
+  for (let n = 0; n < 12; n++) {
+    full.push(story(`f${n}`, { status: "placed", support: 10, placed_at: EARLIER, anchor_mx: (n % 4) * 4, anchor_my: Math.floor(n / 4) * 3, w_modules: 4, h_modules: 3 }));
   }
   const late = story("late", { support: 5 });
   const sources = [...full.map((s) => source(`src-${s.id}`, s.id, "https://www.npr.org/x")), source("src-late", "late", "https://www.npr.org/late")];
@@ -248,6 +248,14 @@ test("a story that finds no room becomes overflow, keeps placed_at, and is offer
   const second = settle(DAY, [...full, { ...late, status: "overflow", placed_at: NOW }], sources, OWNERS, "2026-09-09T20:15:00.000Z");
   assert.equal(second.stories.find((u) => u.id === "late"), undefined);
   assert.deepEqual(second.snapshot?.board.overflow, ["late"]);
+
+  // Backed past the weakest tile, it takes the board and that tile gives
+  // its rectangle up, so nothing draws a stale one.
+  const third = settle(DAY, [...full, { ...late, status: "overflow", placed_at: NOW, support: 11 }], sources, OWNERS, "2026-09-09T20:30:00.000Z");
+  assert.equal(third.stories.find((u) => u.id === "late")?.status, "placed");
+  const bumped = third.stories.find((u) => u.status === "overflow")!;
+  assert.ok(bumped, "one of the twelve came off");
+  assert.deepEqual([bumped.anchor_mx, bumped.anchor_my, bumped.w_modules, bumped.h_modules], [null, null, null, null]);
 });
 
 test("a story stamped false keeps its exact rectangle and grows by nothing", () => {

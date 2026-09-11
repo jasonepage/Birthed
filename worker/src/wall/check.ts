@@ -154,10 +154,10 @@ export interface StoryUpdate {
   tier?: Tier;
   status?: Status;
   placed_at?: string | null;
-  anchor_mx?: number;
-  anchor_my?: number;
-  w_modules?: number;
-  h_modules?: number;
+  anchor_mx?: number | null;
+  anchor_my?: number | null;
+  w_modules?: number | null;
+  h_modules?: number | null;
 }
 
 export interface SourceOwnerUpdate {
@@ -265,9 +265,11 @@ export function settle(
 
     // placed or overflow: placed_at is when it earned its place, and an
     // overflow story keeps that so it is considered in the order it earned
-    // rather than as new each run.
-    input.push({ id: story.id, tier, support: story.support, priority: story.priority, score: scoreOf(story), placedAt: story.placed_at ?? story.submitted_at, anchor: rect,
-                 subjectKind: story.subject_kind ?? null, outlet: story.outlet });
+    // rather than as new each run. Only a placed story carries its
+    // rectangle in: since the pie, a story can leave the board, and a
+    // rectangle it held once is not a claim on the board now.
+    input.push({ id: story.id, tier, support: story.support, priority: story.priority, score: scoreOf(story), placedAt: story.placed_at ?? story.submitted_at,
+                 anchor: story.status === "placed" ? rect : null, subjectKind: story.subject_kind ?? null, outlet: story.outlet });
   }
 
   if (input.length === 0) {
@@ -292,7 +294,11 @@ export function settle(
   for (const id of result.overflow) {
     const story = byId.get(id)!;
     if (story.status === "overflow") continue;
-    touch(id).status = "overflow";
+    const u = touch(id);
+    u.status = "overflow";
+    // A story the pie moved off the board gives its rectangle up, so
+    // nothing reads a stale one.
+    if (rectOf(story) !== null) { u.anchor_mx = null; u.anchor_my = null; u.w_modules = null; u.h_modules = null; }
   }
 
   const supportOf = new Map(stories.map((s) => [s.id, s.support]));

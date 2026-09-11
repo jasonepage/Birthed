@@ -1,5 +1,22 @@
-// The placement engine for the wall. docs/the-wall.md section 5, and
-// section 13 for what the third build session changed here.
+// The placement engine for the wall. docs/the-wall.md section 5, section 13
+// for what the third build session changed here, and section 18 for the pie,
+// decided by Nathan on September 11, 2026, which is what `allocate` cuts now.
+//
+// The pie, in one paragraph. The stories that earn a place are chosen as
+// before: backed first, then by the panel's points under the variety caps,
+// twelve at most, eight at most unbacked. Each gets the minimum twelve
+// modules plus its share of the rest of the 256, by its share of the date's
+// buzzes, or by points when nobody has buzzed yet, rounded so the areas sum
+// to the board. The tiles are then laid in horizontal bands across the full
+// width, biggest first, at most four to a band and at most five bands, so
+// the board is always full and a buzz visibly moves the picture. A tile can
+// shrink, and a tile can lose its place to a story somebody backed later:
+// both promises were withdrawn in section 18, in writing, before this was.
+//
+// Everything below the pie, `allocateByGrowth` and its helpers, is the older
+// engine. It still runs for a date carrying a story stamped false, because
+// that story keeps its exact rectangle and a pie with a hole in it was not
+// designed; section 18 names it open.
 //
 // The board is a square, 256 by 256 pixels, divided into 16 pixel modules, so
 // 16 by 16 modules. Coordinates are zero indexed with the origin top left.
@@ -479,17 +496,195 @@ export function varied(unbacked: StoryInput[], limit: number): StoryInput[] {
   return [...chosen, ...fill, ...after];
 }
 
+/** The most tiles a band across the board may hold: four at the minimum width fill sixteen. */
+export const MAX_PER_BAND = Math.floor(BOARD_MODULES / MIN_W);
+/** The most bands: five at the minimum height fill sixteen with one to spare. */
+export const MAX_BANDS = Math.floor(BOARD_MODULES / MIN_H);
+
 /**
- * Places every story that has earned a place.
+ * Integers that sum to `total`, each at least `floor`, in proportion to
+ * `weights`. Largest remainder: every share is floored, then the leftover
+ * units go to the largest remainders. With all weights nought the total is
+ * split evenly. Pure.
+ */
+export function shares(weights: number[], total: number, floor: number): number[] {
+  const n = weights.length;
+  if (n === 0) return [];
+  const spare = total - floor * n;
+  if (spare < 0) throw new Error(`allocator: ${n} shares cannot each have ${floor} of ${total}`);
+  const sum = weights.reduce((a, b) => a + Math.max(0, b), 0);
+  const even = sum <= 0;
+  const exact = weights.map((w) => (even ? spare / n : (spare * Math.max(0, w)) / sum));
+  const out = exact.map((x) => Math.floor(x));
+  let left = spare - out.reduce((a, b) => a + b, 0);
+  const order = exact.map((x, i) => ({ i, r: x - Math.floor(x) })).sort((a, b) => b.r - a.r || a.i - b.i);
+  for (let k = 0; left > 0; k = (k + 1) % n) {
+    out[order[k]!.i] = (out[order[k]!.i] ?? 0) + 1;
+    left -= 1;
+  }
+  return out.map((x) => x + floor);
+}
+
+/**
+ * Integers that sum to `total` in proportion to `weights`, none under `min`.
+ * Unlike `shares`, the minimum is a clamp and not a base: a band owed 5.6 of
+ * 16 rows gets about 5.6, and only a band owed less than three gets three,
+ * with the rows it took coming off the others in proportion. Then largest
+ * remainder rounding, which never takes a share below its floor. Pure.
+ */
+export function proportional(weights: number[], total: number, min: number): number[] {
+  const n = weights.length;
+  if (n === 0) return [];
+  if (min * n > total) throw new Error(`allocator: ${n} parts cannot each have ${min} of ${total}`);
+  const fixed = new Set<number>();
+  let exact: number[] = new Array(n).fill(0);
+  for (;;) {
+    const freeTotal = total - min * fixed.size;
+    const free = weights.map((w, i) => (fixed.has(i) ? 0 : Math.max(0, w)));
+    const sum = free.reduce((a, b) => a + b, 0);
+    const freeCount = n - fixed.size;
+    exact = weights.map((_, i) => (fixed.has(i) ? min : sum <= 0 ? freeTotal / freeCount : (freeTotal * free[i]!) / sum));
+    const below = exact.findIndex((x, i) => !fixed.has(i) && x < min);
+    if (below < 0) break;
+    fixed.add(below);
+  }
+  const out = exact.map((x) => Math.floor(x));
+  let left = total - out.reduce((a, b) => a + b, 0);
+  const order = exact.map((x, i) => ({ i, r: x - Math.floor(x) })).sort((a, b) => b.r - a.r || a.i - b.i);
+  for (let k = 0; left > 0; k = (k + 1) % n) {
+    out[order[k]!.i] = (out[order[k]!.i] ?? 0) + 1;
+    left -= 1;
+  }
+  return out;
+}
+
+/**
+ * Every way to cut a sorted list of n tiles into consecutive bands of at
+ * most MAX_PER_BAND, at most MAX_BANDS bands. Small: twelve tiles give a few
+ * dozen.
+ */
+function partitions(n: number): number[][] {
+  const out: number[][] = [];
+  const walk = (left: number, sofar: number[]): void => {
+    if (left === 0) { out.push(sofar); return; }
+    if (sofar.length >= MAX_BANDS) return;
+    for (let k = Math.min(MAX_PER_BAND, left); k >= 1; k -= 1) walk(left - k, [...sofar, k]);
+  };
+  walk(n, []);
+  return out;
+}
+
+interface Cut { rects: Rect[]; cost: number }
+
+/**
+ * Lays `areas` (sorted largest first, summing to the board) into bands and
+ * returns the rectangles in the same order, choosing among every partition
+ * the one whose tiles land nearest their areas. Band heights are shares of
+ * the board's height by the area in each band, never under MIN_H; widths in
+ * a band are shares of the board's width by tile area, never under MIN_W.
+ * Every band is exactly the board wide and the bands are exactly the board
+ * tall, so the board is full.
+ */
+export function cutBands(areas: number[]): Rect[] {
+  if (areas.length === 0) return [];
+  let best: Cut | null = null;
+  for (const bands of partitions(areas.length)) {
+    let at = 0;
+    const bandAreas = bands.map((k) => { const a = areas.slice(at, at + k).reduce((x, y) => x + y, 0); at += k; return a; });
+    const heights = proportional(bandAreas, BOARD_MODULES, MIN_H);
+    const rects: Rect[] = [];
+    let cost = 0;
+    let my = 0;
+    at = 0;
+    bands.forEach((k, b) => {
+      const h = heights[b]!;
+      const tiles = areas.slice(at, at + k);
+      const widths = proportional(tiles, BOARD_MODULES, MIN_W);
+      let mx = 0;
+      tiles.forEach((target, i) => {
+        const w = widths[i]!;
+        rects.push({ mx, my, w, h });
+        // Distance from the share it was owed, plus a little for a shape a
+        // headline reads badly in, so a square beats a ribbon when both fit.
+        cost += Math.abs(w * h - target) + 0.25 * Math.abs(w / h - WIDTH_PREFERENCE);
+        mx += w;
+      });
+      at += k;
+      my += h;
+    });
+    if (best === null || cost < best.cost) best = { rects, cost };
+  }
+  return best!.rects;
+}
+
+/**
+ * Places every story that has earned a place, as a pie.
+ *
+ * Membership is chosen the way it always was, backed first and then by
+ * points under the variety caps, but a stored rectangle no longer holds a
+ * place: a story somebody backed later can take it. Then each placed story
+ * gets MIN_MODULES plus its share of the rest of the board, by support when
+ * anybody has buzzed on the date and by score when nobody has, and the tiles
+ * are laid in bands, biggest first. A date carrying a story stamped false
+ * falls back to allocateByGrowth, because that story keeps its rectangle
+ * exactly and the pie has no hole in it yet.
+ */
+export function allocate(stories: StoryInput[]): Allocation {
+  if (stories.some((s) => s.frozen && s.anchor)) return allocateByGrowth(stories);
+
+  const byArrival = (a: StoryInput, b: StoryInput): number => {
+    const at = toMillis(a.placedAt) - toMillis(b.placedAt);
+    if (at !== 0) return at;
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  };
+  const sorted = [...stories].sort((a, b) => {
+    if (b.support !== a.support) return b.support - a.support;
+    if ((b.score ?? 0) !== (a.score ?? 0)) return (b.score ?? 0) - (a.score ?? 0);
+    if ((b.priority ?? 0) !== (a.priority ?? 0)) return (b.priority ?? 0) - (a.priority ?? 0);
+    return byArrival(a, b);
+  });
+  const backed = sorted.filter((s) => s.support > 0);
+  const unbacked = varied(sorted.filter((s) => s.support <= 0), UNBACKED_PLACED);
+
+  const chosen: StoryInput[] = [];
+  const overflow: string[] = [];
+  let unbackedPlaced = 0;
+  for (const story of [...backed, ...unbacked]) {
+    const isBacked = story.support > 0;
+    if (chosen.length >= MAX_PLACED || (!isBacked && unbackedPlaced >= UNBACKED_PLACED)) {
+      overflow.push(story.id);
+      continue;
+    }
+    chosen.push(story);
+    if (!isBacked) unbackedPlaced += 1;
+  }
+  if (chosen.length === 0) return { placed: [], overflow };
+
+  // The shares. By buzzes when there are any; by points when there are none,
+  // so a board nobody has touched is still meaningful rather than even.
+  const anyBuzz = chosen.some((s) => s.support > 0);
+  const weights = chosen.map((s) => (anyBuzz ? Math.max(0, s.support) : Math.max(0, s.score ?? 0)));
+  const areas = shares(weights, BOARD_MODULES * BOARD_MODULES, MIN_MODULES);
+
+  // Biggest first, top left, so the board reads in the order the shares do.
+  const order = chosen.map((s, i) => ({ s, area: areas[i]! })).sort((a, b) => b.area - a.area || chosen.indexOf(a.s) - chosen.indexOf(b.s));
+  const rects = cutBands(order.map((o) => o.area));
+  const placed: Placement[] = order.map((o, i) => ({ id: o.s.id, ...rects[i]! }));
+  return { placed, overflow };
+}
+
+/**
+ * The older engine: places every story that has earned a place by growth.
  *
  * Stories already carrying an anchor keep their exact rectangle and may
  * grow, in placement order, so the story that got there first has first
  * claim on the space around it. Stories without one are then considered,
  * most supported first, and each takes the nearest free minimum rectangle
  * to the centre while the board holds fewer than MAX_PLACED tiles. The rest
- * are overflow.
+ * are overflow. Runs for a date carrying a story stamped false, and for the
+ * tests that pin how growth behaves.
  */
-export function allocate(stories: StoryInput[]): Allocation {
+export function allocateByGrowth(stories: StoryInput[]): Allocation {
   const byArrival = (a: StoryInput, b: StoryInput): number => {
     const at = toMillis(a.placedAt) - toMillis(b.placedAt);
     if (at !== 0) return at;
