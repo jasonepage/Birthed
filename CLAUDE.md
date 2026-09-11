@@ -387,6 +387,35 @@ as a shelf, not a plan.
   That is the trade, it is the right one for four numbers, and wanting more
   later is a decision to reopen with the privacy page open beside it.
 
+### The number the hive is judged on, decided September 11, 2026
+
+- **One number, and it is repeat buzzing: of the boosters who buzz at all, the
+  share who buzz again on a different day.** Not visits, not stories submitted,
+  not buzzes cast. A person who buzzes once has tried it; a person who comes
+  back on a second day has found a reason to, and that reason is the whole
+  product. `docs/measuring.md` holds the four queries behind it and a sentence
+  each saying what would make the number lie.
+- **Two thresholds, and the clock starts when traffic does, not today.** A
+  month after real people start arriving: **under one in five and the mechanic
+  is wrong**, which is a reason to change what the hive asks of a person rather
+  than to push harder on getting them there. **Over one in three and everything
+  goes into distribution**, because the thing works and the only problem left
+  is that nobody has seen it.
+- **Neither threshold means anything before there is traffic.** On September
+  11, 2026 the number was two boosters out of four, which is not a rate, is
+  almost certainly the two of us, and would read the same by accident. A number
+  resting on four rows cannot pass or fail a threshold, and reading it as
+  though it could is the failure this entry exists to prevent. Note the date
+  the first month of real traffic starts, and count from there.
+- **A booster is a browser token or an app install, never a person.** One
+  person with both is two. One person who clears cookies is a new one tomorrow.
+  The number is a floor for that reason and is never to be quoted as a share of
+  people.
+- **Where to read it.** `/admin/numbers/`, behind the sign in every curation
+  policy already uses, linked from nothing, never cached, and never shown to a
+  reader. Nothing was added to the database to make it possible: every figure
+  is a count of rows that were already there.
+
 ### What a public figure is for, decided September 6, 2026
 
 - **Somebody you follow gets no notification of any kind.** A notification is a
