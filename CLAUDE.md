@@ -481,6 +481,43 @@ Nathan's decision, the measurements behind it and what it withdraws are in
 - **Fraunces is served from this origin** under `web/static/fonts`, Open
   Font License beside it, named by the live hive alone.
 
+### What the first strangers hit, September 11, 2026
+
+Two posts to r/InternetIsBeautiful, one taken down. The room's rules refuse
+sites that ask for personal information and accounts that post their own
+work weekly, and the top comment on the first post, at thirty points, was
+that the site harvests birthdays; the footer that says otherwise was not
+read. That room is not where this product's readers are, and the plan in
+section 5 already says distribution is short video pointing at date pages.
+Stripped of the cynicism the thread left four notes, and three are fixed:
+
+- **A date page carries thirty people, not ten.** A reader who shares May 7
+  with Tchaikovsky and Brahms found neither: fourteenth and twenty second
+  on the date by English Wikipedia attention, behind two footballers and a
+  YouTuber. `PER_PAGE` in `web/src/build.ts`. The list is folded under the
+  hive, so a longer one costs nothing on screen. **The ranking itself is
+  unchanged and is the open question:** "notability by attention" is
+  English Wikipedia's attention, which is why the same reader called the
+  site American and entertainment heavy. Blending sitelink count, how many
+  languages have an article, would lift a Tchaikovsky over a Tielemans. That
+  is Nathan's and Jason's to decide, not a session's.
+- **The panel tells a reader born before 1959 that there is no song for
+  their week**, instead of promising one the chart cannot give. "The most
+  popular songs stopped 10 years before I was born." `FIRST_CHART_YEAR` in
+  `render.ts` mirrors `build.ts` and a test holds them equal.
+- **A reader with a year sees their own row in the song strip**, outlined
+  with "The week you were born" in front of it. `songMark` in `serve.ts`,
+  the same shape as `yoursMark`. It puts the year in a style rule on the
+  reader's own no-store page, which the page already gave away in the age
+  and the decade; the test that said the year never reaches the page now
+  says it reaches only that rule.
+- **The mark is bigger and answers a hover**, so it reads as the way home.
+- **Not done, and named:** the front door still opens with "When is your
+  birthday?", and a stranger reads that as the harvesting. Letting the
+  front door be today's page, with the year asked only after the reader
+  already likes it, is the trust fix. That changes the first screen and is
+  a decision, not a patch.
+
 ### What a public figure is for, decided September 6, 2026
 
 - **Somebody you follow gets no notification of any kind.** A notification is a
