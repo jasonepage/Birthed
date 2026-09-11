@@ -1205,3 +1205,171 @@ test("the numbers page is never stored by anybody", async (t) => {
   const panel = await fetch(`${base}/admin/`);
   assert.match(panel.headers.get("cache-control") ?? "", /must-revalidate/);
 });
+
+// ---------------------------------------------------------------------------
+// The live hive. docs/the-wall.md section 21.
+// ---------------------------------------------------------------------------
+
+import { jsonAnswer, liveHiveDates, liveHivePathFor } from "../src/serve.js";
+
+test("only the live hive path runs a script, opens a socket to the project and loads a font; a sealed hive, tomorrow's and every date page do not", () => {
+  // Four in the afternoon Eastern on September 11: the 10th and the 11th
+  // take buzzes, the 12th is open for submissions only and runs nothing.
+  const now = Date.parse("2026-09-11T20:00:00Z");
+  assert.deepEqual([...liveHiveDates(now).entries()], [["9-10", "2026-09-10"], ["9-11", "2026-09-11"]]);
+  assert.deepEqual(liveHivePathFor("/september-11/hive/", now), { month: 9, day: 11, wallDate: "2026-09-11" });
+  assert.deepEqual(liveHivePathFor("/september-10/hive", now), { month: 9, day: 10, wallDate: "2026-09-10" });
+  assert.equal(liveHivePathFor("/september-12/hive/", now), null, "tomorrow takes no buzzes and runs nothing");
+  assert.equal(liveHivePathFor("/september-11/", now), null, "the date page is not the hive");
+  assert.equal(liveHivePathFor("/march-3/hive/", now), null);
+  // Midnight Eastern on the 12th: the 10th has sealed and the 12th is live.
+  const midnight = Date.parse("2026-09-12T04:00:00Z");
+  assert.equal(liveHivePathFor("/september-10/hive/", midnight), null);
+  assert.deepEqual(liveHivePathFor("/september-12/hive/", midnight)?.wallDate, "2026-09-12");
+
+  const hive = securityFor("/september-11/hive/", now)["Content-Security-Policy"] ?? "";
+  assert.match(hive, /^default-src 'none'; /);
+  assert.match(hive, /script-src 'unsafe-inline'/);
+  assert.match(hive, /connect-src 'self' https:\/\/[a-z0-9]+\.supabase\.co wss:\/\/[a-z0-9]+\.supabase\.co/, "a buzz posts here, the socket goes to the project");
+  assert.match(hive, /font-src 'self'/);
+  assert.match(hive, /form-action 'self'/, "the buzz form still posts without the script");
+  assert.match(hive, /img-src 'self' https:\/\/[a-z0-9]+\.supabase\.co;/, "pictures from here and the project, as everywhere");
+  assert.equal(securityFor("/september-10/hive/", now)["Content-Security-Policy"], hive, "yesterday's hive is live too");
+  for (const path of ["/september-11/", "/september-12/hive/", "/march-3/hive/", "/september-11/wall/11111111-1111-1111-1111-111111111111/", "/", "/calendar/"]) {
+    const policy = securityFor(path, now)["Content-Security-Policy"] ?? "";
+    assert.ok(!policy.includes("script-src"), `${path} must run nothing`);
+    assert.ok(!policy.includes("connect-src"), `${path} must reach nothing`);
+    assert.ok(!policy.includes("font-src"), `${path} loads no font`);
+  }
+  // The word a buzz is answered with, as the page's script is told it.
+  assert.deepEqual(jsonAnswer("kept", { result: "kept", support: 4, left: 2, allowance: 3, backed: ["11111111-1111-1111-1111-111111111111", "nope"], boost_id: 77, booster: "secret" }),
+    { result: "kept", support: 4, left: 2, allowance: 3, backed: ["11111111-1111-1111-1111-111111111111"], boost_id: 77 });
+  assert.deepEqual(jsonAnswer("failed", null), { result: "failed" });
+});
+
+test("an open date's full screen hive is served live with the script, its data and the worker's scores; the date page beside it is not", async (t) => {
+  const root = resolve("test-site-live-hive");
+  await rm(root, { recursive: true, force: true });
+  const [liveKey, liveDate] = [...liveHiveDates().entries()].pop()!;
+  const [liveMonth, liveDay] = liveKey.split("-").map(Number) as [number, number];
+  const liveSlug = `${["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"][liveMonth - 1]}-${liveDay}`;
+  await mkdir(join(root, liveSlug, "hive"), { recursive: true });
+  await writeFile(join(root, liveSlug, "index.html"), BAKED, "utf8");
+  await writeFile(join(root, liveSlug, "hive", "index.html"), BAKED, "utf8");
+
+  const realFetch = globalThis.fetch;
+  const previousKey = process.env.SUPABASE_ANON_KEY;
+  process.env.SUPABASE_ANON_KEY = "test-key";
+  const calls: Array<{ url: string; body: string }> = [];
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    if (!url.includes("supabase")) return realFetch(input, init);
+    calls.push({ url, body: String(init?.body ?? "") });
+    if (url.endsWith("/rpc/wall_cast_web_boost")) {
+      return new Response(JSON.stringify({ result: "kept", support: 13, allowance: 3, left: 2, backed: ["11111111-1111-1111-1111-111111111111"], boost_id: 501 }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (url.endsWith("/rpc/wall_forget_boost")) {
+      return new Response(JSON.stringify({ result: "undone", support: 12 }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (url.endsWith("/rpc/wall_web_standing")) {
+      return new Response(JSON.stringify({ allowance: 3, left: 2, backed: ["11111111-1111-1111-1111-111111111111"] }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (url.includes("wall_snapshots")) {
+      return new Response(JSON.stringify([{ board: { tiles: [], overflow: [], scores: { "11111111-1111-1111-1111-111111111111": 64 } } }]), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    const rows = wallRows(liveDate);
+    return new Response(JSON.stringify(url.includes("wall_days") ? rows.day : rows.stories), {
+      status: 200, headers: { "Content-Type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  const server = start({ root, port: 0 });
+  await new Promise((done) => server.once("listening", done));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const base = `http://127.0.0.1:${address.port}`;
+
+  t.after(async () => {
+    server.close();
+    globalThis.fetch = realFetch;
+    if (previousKey === undefined) delete process.env.SUPABASE_ANON_KEY; else process.env.SUPABASE_ANON_KEY = previousKey;
+    forgetWalls();
+    await rm(root, { recursive: true, force: true });
+  });
+
+  // The hive, for a fresh browser: the live section, the allowance, the
+  // scores the worker cut with, and the header that lets it run.
+  forgetWalls();
+  const hive = await realFetch(`${base}/${liveSlug}/hive/`);
+  assert.equal(hive.status, 200);
+  assert.match(hive.headers.get("content-security-policy") ?? "", /script-src 'unsafe-inline'/);
+  const page = await hive.text();
+  assert.ok(page.includes('class="wall whive wlivehive"'), "the live section is swapped in");
+  assert.ok(page.includes("var HiveAllocator"), "the allocator is on the page");
+  assert.ok(page.includes('id="hivedata"'));
+  assert.ok(page.includes("Fresh headline from the live read"));
+  assert.ok(page.includes("<p>feed</p>"), "the rest of the baked page is untouched");
+  const island = /<script type="application\/json" id="hivedata">([\s\S]*?)<\/script>/.exec(page)!;
+  const data = JSON.parse(island[1]!) as { left: number; allowance: number; backed: string[]; key: string; date: string; stories: Array<{ id: string; score: number; support: number }> };
+  assert.equal(data.key, "test-key");
+  assert.equal(data.date, liveDate);
+  assert.equal(data.left, data.allowance, "a fresh browser has every buzz");
+  assert.deepEqual(data.backed, []);
+  assert.equal(data.stories[0]!.score, 64, "the panel's points come off the worker's newest snapshot");
+  assert.equal(data.stories[0]!.support, 12);
+  assert.equal(calls.filter((c) => c.url.includes("wall_snapshots")).length, 1);
+
+  // The date page beside it: no script, no data, the plain header.
+  const day = await realFetch(`${base}/${liveSlug}/`);
+  assert.ok(!(day.headers.get("content-security-policy") ?? "").includes("script-src"));
+  const dayPage = await day.text();
+  assert.ok(!dayPage.includes("<script"), "the date page runs nothing");
+  assert.ok(!dayPage.includes("HiveAllocator"));
+  assert.ok(dayPage.includes("Fresh headline from the live read"), "and still shows the live wall");
+
+  // A buzz from the script: the same post, answered as JSON rather than a
+  // redirect, with the cookie set and the database's word and count.
+  const posted = await realFetch(`${base}/boost`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+    body: `s=11111111-1111-1111-1111-111111111111&m=${liveMonth}&d=${liveDay}&v=hive`,
+  });
+  assert.equal(posted.status, 200);
+  assert.equal(posted.headers.get("content-type"), "application/json; charset=utf-8");
+  assert.equal(posted.headers.get("cache-control"), "no-store");
+  const cookie = posted.headers.get("set-cookie") ?? "";
+  assert.match(cookie, /^bt=[A-Za-z0-9_-]{16,}; Path=\/; Max-Age=31536000; HttpOnly; SameSite=Lax; Secure$/);
+  assert.deepEqual(await posted.json(), { result: "kept", support: 13, left: 2, allowance: 3, backed: ["11111111-1111-1111-1111-111111111111"], boost_id: 501 });
+  const cast = calls.find((c) => c.url.endsWith("/rpc/wall_cast_web_boost"))!;
+  const sent = JSON.parse(cast.body) as { voter_token_in: string };
+  assert.ok(cookie.startsWith(`bt=${sent.voter_token_in};`), "the token in the cookie is the token the database was given");
+
+  // The hive for that browser: its own standing in the data, never stored.
+  const token = cookie.split(";")[0]!;
+  const mine = await realFetch(`${base}/${liveSlug}/hive/`, { headers: { Cookie: token } });
+  assert.equal(mine.headers.get("cache-control"), "no-store");
+  const minePage = await mine.text();
+  const mineData = JSON.parse(/<script type="application\/json" id="hivedata">([\s\S]*?)<\/script>/.exec(minePage)![1]!) as { left: number; backed: string[] };
+  assert.equal(mineData.left, 2);
+  assert.deepEqual(mineData.backed, ["11111111-1111-1111-1111-111111111111"]);
+  assert.ok(minePage.includes("Two buzzes left today."));
+
+  // Taking it back, as JSON.
+  const undone = await realFetch(`${base}/unboost`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json", Cookie: token },
+    body: `s=11111111-1111-1111-1111-111111111111&m=${liveMonth}&d=${liveDay}&v=hive`,
+  });
+  assert.equal(undone.status, 200);
+  assert.deepEqual(await undone.json(), { result: "undone", support: 12 });
+
+  // Without the Accept header the same post is the redirect it always was.
+  const plain = await realFetch(`${base}/boost`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Cookie: token },
+    body: `s=11111111-1111-1111-1111-111111111111&m=${liveMonth}&d=${liveDay}&v=hive`,
+    redirect: "manual",
+  });
+  assert.equal(plain.status, 303);
+  assert.ok((plain.headers.get("location") ?? "").startsWith(`/${liveSlug}/hive/?tapped=kept`));
+});

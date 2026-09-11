@@ -792,6 +792,33 @@ function tile(story: WallStory, live: boolean, voice: Voice, view: Viewport, hiv
     + `${mine(voice)}${footer(story, takes, voice, hive)}${stamp}</div>`;
 }
 
+/**
+ * One tile on the live hive, docs/the-wall.md section 21. The same headline,
+ * mark, button, count and outlet as tile(), inside a cell the page's script
+ * can light, move and resize. The tile is positioned by four custom
+ * properties in modules of the whole board rather than by the grid, so the
+ * script moves it by changing four numbers and the stylesheet animates the
+ * move; the cell inside carries the glow, --heat, nought for a story nobody
+ * has buzzed and one for the most buzzed. Only serve.ts draws these, for the
+ * live section of an open date's full screen hive, and the script builds the
+ * same shape for a story the pie brings onto the board later.
+ */
+export function liveTile(story: WallStory, live: boolean, voice: Voice, index: number = 0, heat: number = 0): string {
+  const rect = story.rect!;
+  const count = units(story.support, voice);
+  const label = `${story.headline}. ${story.outlet}. ${tierLabel(story.tier)}${count === "" ? "" : `, ${count}`}.`
+    + (story.status === "false" ? " Later shown false." : "");
+  const lines = rect.h <= 3 ? 3 : rect.h === 4 ? 5 : rect.h === 5 ? 7 : rect.h === 6 ? 9 : 11;
+  const style = `--x:${rect.mx};--y:${rect.my};--w:${rect.w};--h:${rect.h};--lines:${lines};--tw:${rect.w};--i:${index}`;
+  const stamp = story.status === "false" ? `<span class="wstamp">Shown false</span>` : "";
+  const classes = `wtile big w-${story.tier}${rect.h <= 3 ? " wh3" : ""}${story.status === "false" ? " wfalse" : ""}`;
+  const takes = live && story.status !== "false";
+  return `<div class="${classes}" id="w-${story.id}" style="${style}"${subjectAttr(story)} role="listitem">`
+    + `<div class="wcell" style="--heat:${heat}"><span class="wstripe"></span>`
+    + `<a class="wh" href="${storyPath(story)}" title="${escapeHtml(label)} The receipt: every source, every quotation, every check.">${escapeHtml(story.headline)}</a>`
+    + `${mine(voice)}${footer(story, takes, voice, true)}${stamp}</div></div>`;
+}
+
 /** One row in the list under the board. The headline opens the receipt; the button spends a unit while the date takes them. */
 function listRow(story: WallStory, live: boolean, voice: Voice): string {
   const count = units(story.support, voice);
@@ -1049,7 +1076,7 @@ function countLine(day: WallDay, now: number, voice: Voice, live: boolean = true
  * included, because a tap can be refused on a date that closed after the
  * page was served, and that reader lands on the baked page.
  */
-function afterwords(voice: Voice, name: string, undo: WallStory | null = null, back: TapBack = "day"): string {
+export function afterwords(voice: Voice, name: string, undo: WallStory | null = null, back: TapBack = "day"): string {
   const v = voice;
   // The Undo button, only on the page that follows a buzz that counted, and
   // only when the redirect said which story it counted for. The sentence is
@@ -1159,7 +1186,7 @@ export function yearsAgo(from: string, to: string): string {
  * date page, which is what the build already promises, so the link works
  * years later.
  */
-function anniversaryBlock(entries: Anniversary[], day: WallDay, voice: Voice): string {
+export function anniversaryBlock(entries: Anniversary[], day: WallDay, voice: Voice): string {
   if (entries.length === 0) return "";
   const rows = entries.map((entry) => {
     const { month, day: d } = parts(entry.wallDate);

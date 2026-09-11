@@ -31,7 +31,8 @@ import { extname, join, normalize, resolve, sep } from "node:path";
 
 import { everyDate, monthName, slug } from "./model.js";
 import { ASK_SLOTS, TODAY, renderMePanel, renderStoryPage, withMe } from "./render.js";
-import { ASK_MAX, emptyWallDay, fetchWallDay, openWallDates, pictureRules, replaceWall, hivePath, wallKey, wallMarks, wallSection, withChecks, type Anniversary, type TapBack, type WallDay } from "./wall.js";
+import { ASK_MAX, easternMidnight, emptyWallDay, fetchWallDay, openWallDates, pictureRules, replaceWall, hivePath, takingBoosts, wallKey, wallMarks, wallSection, withChecks, type Anniversary, type TapBack, type WallDay } from "./wall.js";
+import { fetchSnapshotScores, liveHiveSection, type Standing } from "./hive-live.js";
 import { answer as findAnswer } from "./find.js";
 import { fetchPictureFor, fetchPicturesFor, type StoredPicture } from "./stored-pictures.js";
 import { personalName } from "./share.js";
@@ -172,7 +173,48 @@ function apiOrigin(): string {
  */
 const SCRIPTED = ["/add", "/admin"];
 
-export function securityFor(requestPath: string): Record<string, string> {
+/**
+ * The third: the full screen hive of a date that is taking buzzes.
+ * docs/the-wall.md section 21. Two dates at most, today's and yesterday's by
+ * the Eastern clock, which are the only dates a buzz can land on, keyed by
+ * month and day the way openWallDates keys them. The header widens for the
+ * hive path of those dates alone and only while they are live: a sealed
+ * date's hive, tomorrow's hive and every date page keep the policy with no
+ * script in it, and the baked hive page under this path carries no script
+ * either, so a date that seals after a deploy serves a page that runs
+ * nothing under a header that would have let it.
+ */
+export function liveHiveDates(now: number = Date.now()): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const [key, wallDate] of openWallDates(now)) {
+    if (now >= easternMidnight(wallDate)) out.set(key, wallDate);
+  }
+  return out;
+}
+
+/** The live hive a request path names, or null: "/september-11/hive/" while September 11 is taking buzzes. */
+export function liveHivePathFor(requestPath: string, now: number = Date.now()): { month: number; day: number; wallDate: string } | null {
+  const at = dateFor(requestPath);
+  if (at === null || !at.hive) return null;
+  const wallDate = liveHiveDates(now).get(wallKey(at.month, at.day));
+  return wallDate === undefined ? null : { month: at.month, day: at.day, wallDate };
+}
+
+export function securityFor(requestPath: string, now: number = Date.now()): Record<string, string> {
+  // The live hive: its own script, a socket to the project and a buzz posted
+  // to this origin, the font served from this origin. Nothing else moves:
+  // pictures still come from here and the project, a form still posts here
+  // and nowhere else. The socket is named as wss: as well as https: because
+  // an older browser reads a https: source as https: only.
+  if (liveHivePathFor(requestPath, now) !== null) {
+    return {
+      ...SECURITY,
+      "Content-Security-Policy":
+        `default-src 'none'; img-src 'self' ${projectBase()}; style-src 'unsafe-inline' 'self'; font-src 'self'; ` +
+        `script-src 'unsafe-inline'; connect-src 'self' ${apiOrigin()} ${apiOrigin().replace(/^https:/, "wss:")}; ` +
+        "base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+    };
+  }
   const isAdd = SCRIPTED.some(
     (path) => requestPath === path || requestPath.startsWith(`${path}/`),
   );
@@ -688,9 +730,36 @@ export function tappedFrom(query: string | undefined): Tapped | null {
   return value as Tapped;
 }
 
+/**
+ * What the page's script is told after a buzz or an undo, on a post that
+ * asked for JSON: the database's word, the story's count, and this
+ * browser's standing, each only when the database gave it. Nothing else the
+ * function returned reaches the page, and the identifier of the boost row is
+ * there so the row's own arrival over the socket is recognised as this one.
+ */
+export function jsonAnswer(said: Tapped, answer: Record<string, unknown> | null): Record<string, unknown> {
+  const out: Record<string, unknown> = { result: said };
+  if (answer === null) return out;
+  if (typeof answer.support === "number") out.support = answer.support;
+  if (typeof answer.left === "number") out.left = answer.left;
+  if (typeof answer.allowance === "number") out.allowance = answer.allowance;
+  if (Array.isArray(answer.backed)) out.backed = answer.backed.filter((b): b is string => typeof b === "string" && UUID.test(b));
+  if (typeof answer.boost_id === "number" || typeof answer.boost_id === "string") out.boost_id = answer.boost_id;
+  return out;
+}
+
+/** True when the request asked for a JSON answer rather than a redirect: the live hive's script does, and nothing else on the site. */
+function wantsJson(request: IncomingMessage): boolean {
+  return /\bapplication\/json\b/i.test(String(request.headers.accept ?? ""));
+}
+
 async function castWebBoost(storyId: string, token: string): Promise<Tapped> {
+  return (await castWebBoostAnswer(storyId, token)).said;
+}
+
+async function castWebBoostAnswer(storyId: string, token: string): Promise<{ said: Tapped; answer: Record<string, unknown> | null }> {
   const key = process.env.SUPABASE_ANON_KEY;
-  if (!key) return "failed";
+  if (!key) return { said: "failed", answer: null };
   try {
     const response = await fetch(`${projectBase()}/rest/v1/rpc/wall_cast_web_boost`, {
       method: "POST",
@@ -702,15 +771,15 @@ async function castWebBoost(storyId: string, token: string): Promise<Tapped> {
       },
       body: JSON.stringify({ story_id_in: storyId, voter_token_in: token }),
     });
-    if (!response.ok) return "failed";
-    const answer = (await response.json()) as { result?: unknown };
+    if (!response.ok) return { said: "failed", answer: null };
+    const answer = (await response.json()) as Record<string, unknown>;
     const result = typeof answer?.result === "string" ? answer.result : "";
-    if (result === "no_story" || result === "bad_token") return "bad";
+    if (result === "no_story" || result === "bad_token") return { said: "bad", answer };
     // A word this server does not know is our end failing to keep up with
     // the database, not a fact about the tap.
-    return TAPPED.has(result) ? result as Tapped : "failed";
+    return { said: TAPPED.has(result) ? result as Tapped : "failed", answer };
   } catch {
-    return "failed";
+    return { said: "failed", answer: null };
   }
 }
 
@@ -722,9 +791,9 @@ async function castWebBoost(storyId: string, token: string): Promise<Tapped> {
  * of step with them, which is the reasoning unrecord gives for the
  * remembrance answers. The token is the identity, the same one that cast it.
  */
-async function forgetWebBoost(storyId: string, token: string): Promise<Tapped> {
+async function forgetWebBoost(storyId: string, token: string): Promise<{ said: Tapped; answer: Record<string, unknown> | null }> {
   const key = process.env.SUPABASE_ANON_KEY;
-  if (!key) return "failed";
+  if (!key) return { said: "failed", answer: null };
   try {
     const response = await fetch(`${projectBase()}/rest/v1/rpc/wall_forget_boost`, {
       method: "POST",
@@ -736,15 +805,15 @@ async function forgetWebBoost(storyId: string, token: string): Promise<Tapped> {
       },
       body: JSON.stringify({ story_id_in: storyId, voter_token_in: token }),
     });
-    if (!response.ok) return "failed";
-    const answer = (await response.json()) as { result?: unknown };
+    if (!response.ok) return { said: "failed", answer: null };
+    const answer = (await response.json()) as Record<string, unknown>;
     const result = typeof answer?.result === "string" ? answer.result : "";
-    if (result === "no_story" || result === "bad_token") return "bad";
+    if (result === "no_story" || result === "bad_token") return { said: "bad", answer };
     // A word this server does not know is our end failing to keep up with
     // the database, never a claim about the buzz.
-    return TAPPED.has(result) ? result as Tapped : "failed";
+    return { said: TAPPED.has(result) ? result as Tapped : "failed", answer };
   } catch {
-    return "failed";
+    return { said: "failed", answer: null };
   }
 }
 
@@ -890,7 +959,20 @@ async function handle(
       response.end("No.\n");
       return;
     }
-    const said = await castWebBoost(tap.storyId, token);
+    const { said, answer } = await castWebBoostAnswer(tap.storyId, token);
+    // The live hive's script asks for the answer as JSON and draws it
+    // itself, docs/the-wall.md section 21. Same tap, same token, same
+    // cookie, same limit, same word; only the shape of the reply differs.
+    if (wantsJson(request)) {
+      response.writeHead(200, {
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "no-store",
+        "Set-Cookie": `${TOKEN_COOKIE}=${token}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax; Secure`,
+        ...SECURITY,
+      });
+      response.end(JSON.stringify(jsonAnswer(said, answer)));
+      return;
+    }
     const where = tap.back === "hive"
       ? hivePath(tap.month, tap.day)
       : tap.back === "receipt"
@@ -947,7 +1029,12 @@ async function handle(
       response.end("No.\n");
       return;
     }
-    const said = await forgetWebBoost(tap.storyId, token);
+    const { said, answer } = await forgetWebBoost(tap.storyId, token);
+    if (wantsJson(request)) {
+      response.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...SECURITY });
+      response.end(JSON.stringify(jsonAnswer(said, answer)));
+      return;
+    }
     const where = tap.back === "hive"
       ? hivePath(tap.month, tap.day)
       : tap.back === "receipt"
@@ -1234,7 +1321,7 @@ async function handle(
       const wallDate = openWallDates(now).get(wallKey(marked.month, marked.day));
       const standing = wallDate !== undefined && token !== null ? await wallStanding(wallDate, token) : null;
       const wall = await liveWall(
-        marked.month, marked.day, now, fresh, marked.hive, found, undoOn, standing?.anniversary ?? [],
+        marked.month, marked.day, now, fresh, marked.hive, found, undoOn, standing?.anniversary ?? [], standing,
       );
       let marks = "";
       // The reader's own taps and count, for a browser that has a token and
@@ -1413,6 +1500,15 @@ const WALL_FRESH_MS = 20_000;
 const WALL_TIMEOUT_MS = 3000;
 
 const wallCache = new Map<string, { at: number; day: WallDay | null; pictures: StoredPicture[] }>();
+/**
+ * The panel's points the worker cut the last board with, off its newest
+ * snapshot, read only for the live hive and kept for the same twenty
+ * seconds. Its own cache rather than a field on the wall's, because the
+ * date page reads the wall too and never needs these, and a wall read for
+ * the date page must not leave the hive page with no scores for twenty
+ * seconds.
+ */
+const scoreCache = new Map<string, { at: number; scores: Map<string, number> }>();
 
 /**
  * The fresh wall for a date page, as the section to swap in and the day it
@@ -1432,11 +1528,18 @@ async function liveWall(
   month: number, day: number, now: number = Date.now(), fresh: boolean = false, hive: boolean = false,
   found: string[] | null = null, undoOn: string | null = null,
   anniversary: Anniversary[] = [],
+  /** This browser's own standing, for the live hive alone, on a request answered no-store. */
+  standing: Standing | null = null,
 ): Promise<{ section: string; day: WallDay } | null> {
   const key = process.env.SUPABASE_ANON_KEY;
   if (!key) return null;
   const wallDate = openWallDates(now).get(wallKey(month, day));
   if (wallDate === undefined) return null;
+  // The live board, docs/the-wall.md section 21: the full screen hive of a
+  // date that is taking buzzes, and nothing else. The same rule the header
+  // is widened by, so a page that carries the script is a page allowed to
+  // run it.
+  const scripted = hive && liveHiveDates(now).get(wallKey(month, day)) === wallDate;
 
   const cached = wallCache.get(wallDate);
   let wall: WallDay | null;
@@ -1465,6 +1568,21 @@ async function liveWall(
     wallCache.set(wallDate, { at: now, day: wall, pictures });
   }
   if (wall === null) return null;
+  if (scripted && takingBoosts(wall, now)) {
+    // The page's own allocator is handed the same numbers the worker's was.
+    const known = scoreCache.get(wallDate);
+    let scores: Map<string, number>;
+    if (known !== undefined && now - known.at < WALL_FRESH_MS) {
+      scores = known.scores;
+    } else {
+      scores = wall.stories.length === 0 ? new Map() : await fetchSnapshotScores(projectBase(), key, wallDate, WALL_TIMEOUT_MS);
+      scoreCache.set(wallDate, { at: now, scores });
+    }
+    return {
+      section: pictureRules(pictures) + liveHiveSection(wall, `${monthName(month)} ${day}`, now, { project: projectBase(), key, standing, scores, anniversary }),
+      day: wall,
+    };
+  }
   // The identifiers a find redirect carries, resolved against this wall in
   // the order the matcher gave them. One that is not on the date is dropped
   // rather than refused: the wall may have moved since the find.
@@ -1492,6 +1610,7 @@ export function withWall(html: string, section: string | null): string {
 /** For tests: forget every fresh wall. */
 export function forgetWalls(): void {
   wallCache.clear();
+  scoreCache.clear();
 }
 
 /** The receipt a request path names, or null: "/september-9/wall/<uuid>/". */
