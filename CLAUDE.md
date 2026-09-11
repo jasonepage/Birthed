@@ -457,6 +457,30 @@ Nathan's decision, the measurements behind it and what it withdraws are in
   transaction, applied when Jason says. A shared reader, stored-pictures.ts,
   keys a tile's picture by its subject or, for the news, by `story:<id>`.
 
+### The hive moves live, decided September 11, 2026
+
+- **The full screen hive of a date taking buzzes is the one live page, and
+  the one page on birthed.app that runs a script besides `/add` and
+  `/admin`.** `docs/the-wall.md` section 21. It lays the board out in the
+  browser with a plain JavaScript copy of the pie,
+  `web/src/hive-allocator.ts`, held to `worker/src/wall/allocator.ts` by
+  `worker/test/wall-allocator-web.test.ts` on four hundred generated boards,
+  subscribes to inserts on `wall_boosts` over Supabase Realtime, and buzzes
+  through `POST /boost` asking for a JSON answer. The 366 date pages, the
+  birthday flow and every sealed or future hive are byte for byte the
+  scriptless pages they were; `liveHiveDates` in `serve.ts` is the one rule
+  and both the header and the render read it.
+- **The worker's snapshot now carries `board.scores`**, the panel's points
+  by story id, so the page cuts the pie from the numbers the tick did. No
+  schema change for that.
+- **Migration `20260911100000_the_hive_moves_live` adds `wall_boosts` to the
+  `supabase_realtime` publication**, tested inside a rolled back transaction
+  on the live project on September 11, 2026, applied when Jason says.
+- **The privacy page was edited in the same commit**: two pages run a
+  script now, and it says what the second one sends and receives.
+- **Fraunces is served from this origin** under `web/static/fonts`, Open
+  Font License beside it, named by the live hive alone.
+
 ### What a public figure is for, decided September 6, 2026
 
 - **Somebody you follow gets no notification of any kind.** A notification is a

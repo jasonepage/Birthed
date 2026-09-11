@@ -1860,3 +1860,169 @@ Wikipedia are almost always fair use and so return nothing from the free
 service; the iTunes artwork the song covers already use could serve them.
 Whether a submission's picture should be shown at all before a person has
 looked at it, since a submitter chooses the page.
+
+## 21. The hive moves live, September 11, 2026
+
+Until now the hive was a picture that changed on the quarter hour, when
+the worker ran. Section 7 promised a reader watches the day take shape and
+section 15 named the cost of the wait: a buzz had no consequence at either
+end. From now the full screen hive of an open date, `/<date>/hive/`, is a
+live board. A buzz grows and lights its tile the instant it lands, the
+board reflows around it, and other people's buzzes arrive over Supabase
+Realtime within a second or two. Every other page is exactly what it was.
+
+**What was decided before the session and is not reopened here.** Real
+time is Supabase Realtime, not polling. The live board is only the full
+screen hive, and only for open dates; sealed and future dates keep the
+static page, and the 366 date pages, the birthday flow and everything else
+run no script. The board lays itself out in the browser by running the
+real pie allocator from live counts, so a tile resizes when a buzz lands
+rather than when the worker ticks; the worker still bakes the authoritative
+sealed layout at midnight, unchanged. Music on tap only. The design to
+match was the prototype Nathan approved: a warm dark hive on a faint
+honeycomb, cells that backlight brighter the more buzzed they are, a gold
+ripple from the point of each buzz, an "Overtook" flag, Fraunces for the
+headlines, the source tier as a stripe on the left, a countdown to the
+seal, a swarm line of who just buzzed, and three buzzes for the reader.
+
+**Which pages, exactly.** The hive of a date that is taking buzzes: today's
+and yesterday's by the Eastern clock, the two dates section 4 gives a
+budget on. Tomorrow's hive is open for submissions and takes no buzz, so it
+runs nothing and stays the static page. `liveHiveDates` in `serve.ts` is
+the one rule, and both the header and the render read it, so a page that
+carries the script is a page allowed to run it and a page that is not
+allowed carries none.
+
+**The allocator is a copy, held to the original by a test.** The site
+inlines everything and has no bundler, so the pie cannot be imported into
+a page; `web/src/hive-allocator.ts` holds it as a plain JavaScript string,
+`HIVE_ALLOCATOR_JS`, written into the page as it is.
+`worker/test/wall-allocator-web.test.ts` reads that file off disk,
+evaluates the string, and runs both engines on four hundred generated
+boards and two hundred sets of shares, bands and variety passes, the way
+`wall-points.test.ts` holds the worker's points to the panel's. The first
+run of that test found the copy placing one story eight times, a `var`
+left over from the last pass of the fill loop, which is exactly the kind
+of drift the test exists to catch. If the two ever disagree the board a
+reader watches jumps the moment the tick re-bakes it.
+
+**The pie is cut from the same numbers the worker cut it with.** The
+allocator's inputs are support, the panel's points, priority, arrival,
+kind and outlet. Everything but the points is on the story row. The points
+are computed by the worker at tick time from tables the page has no
+business reading, so the worker now writes them onto its snapshot,
+`board.scores` by story id, and `serve.ts` reads them off the newest
+snapshot for the date, cached for the same twenty seconds as the wall. No
+schema change: the snapshot is `jsonb`, an older snapshot has no scores,
+and a story with no score is nought in both engines. The stories handed to
+the page's allocator are the ones the worker's `settle` hands its own:
+every story that has earned a place, placed and overflow. A story still in
+the pool is data for the swarm line and nothing else; a buzz on one shows
+in the feed, and its graduation to the board waits for the tick, as it
+always did. That is the one thing the tick still changes on screen and it
+is a change the worker makes and the page follows, never the other way.
+
+**A date carrying a story stamped false is not cut in the browser.** The
+port answers null for it, the page keeps the rectangles the worker stored,
+moves nothing and updates the counts. Section 18 named the pie with a hole
+in it as open and it still is.
+
+**A buzz from the page goes through `POST /boost`, not the function.** The
+brief offered either. The `bt` cookie is `HttpOnly`, which the privacy page
+promises, so no script can read the token and no script should: the page
+posts the same three fields to the same address with `Accept:
+application/json`, and `serve.ts` answers with the database's word, the
+story's count, the reader's standing and the boost row's identifier
+instead of a redirect. Same cookie, same per address limit, same word. The
+page bumps the count before the answer comes and sets it to the answer
+when it does. The publishable key on the page is used for the socket and
+for one read after a reconnect, and for nothing that writes. `/unboost`
+answers JSON the same way, so the thirty second Undo of section 16 works
+from the live page with the database still deciding.
+
+**A reader's own buzz arrives twice and is counted once.** The row a buzz
+inserts comes back over the socket as well as in the answer, sometimes
+first. The page remembers which story it has a buzz in flight on, and a
+row for that story arriving while one is pending is taken to be it. The
+row's identifier from the answer is then remembered so the same row is
+never counted again. What this costs: somebody else's buzz on that same
+story inside that second is folded into the reader's own, and the answer's
+count, which is the database's, sets it right.
+
+**The socket is spoken by hand.** No library, because nothing on this site
+loads a script from anywhere and the site inlines everything. It is
+Phoenix's version 1 protocol: one join on a channel for the date carrying
+a `postgres_changes` subscription on `wall_boosts` filtered to the date,
+plus one on deletes for the undo, a heartbeat every thirty seconds, and a
+reconnect that waits longer each time up to thirty seconds. A buzz that
+landed while the socket was down never arrives, so after a reconnect, and
+only then, the page reads every story's count once from the project. That
+read is a reconcile, not a poll, and the test pins that the script has
+exactly two intervals, the heartbeat and the clock.
+
+**Migration `20260911100000_the_hive_moves_live` adds `wall_boosts` to the
+`supabase_realtime` publication, and nothing else.** The publication
+exists on the project and carried no table. Run inside a transaction on
+the live project and rolled back: the table appeared in the publication
+and was gone after the rollback. Applied when Jason says. Until it is, the
+page joins its channel, is told nothing, and the board still moves for the
+reader's own buzzes; the site needs a redeploy after the migration for
+nothing, since the page subscribes on every load. What a subscriber is
+sent is the row minus `booster_id`, because Realtime sends the columns the
+role may select and the column grant of section 12 stands. That is read
+from Realtime's own documentation of its row level security check and not
+yet seen on a live payload: **the first live run should open the socket in
+a browser's network tab and confirm `booster_id` is absent.** If it is
+present, the fix is a view or a stricter grant and not a change to what is
+recorded.
+
+**The look is the prototype's, on this page only.** Dark cells with a
+four pixel stripe on the left carrying the tier, the glow of each cell set
+from its share of the biggest count on the board, the leader edged in
+honey. The static hive and the date page keep the honey tiles of section
+13; two looks for one board would be wrong if they were side by side, and
+they are not: the full screen page is a different room. Fraunces is
+served from this origin under `/fonts`, the two latin weight axis files
+from Fontsource with the Open Font License beside them, and the header
+for the live hive path alone allows `font-src 'self'`; no other page names
+the face and no page loads a font from a font company. The honeycomb is an
+SVG file from this origin, because `img-src` names this origin and the
+project and a data address is refused, which is the same reason the empty
+board is gradients.
+
+**The swarm names nobody.** "Someone buzzed" and the headline, six lines,
+newest first, and "You buzzed" for the reader's own. The row carries no
+reader and the page is shown none. It is a count of buzzes and never a
+count of people, which section 7's line about what the reversal does not
+license still forbids.
+
+**Pictures on a tile the pie brings onto the board.** The baked hive page
+carries a picture rule for every event on the date and every story the
+build saw, outside the swapped region, so most tiles the pie promotes draw
+their picture at once. A news story filed since the deploy draws its
+colour until the next tick's live section or the next deploy. The live
+section's own picture rules are still the placed stories' only, as before.
+
+**The header.** `securityFor` widens for the live hive path alone:
+`script-src 'unsafe-inline'`, `connect-src 'self'` and the project over
+`https:` and `wss:`, `font-src 'self'`, `form-action 'self'` kept so the
+buzz form still posts if the script is off. `default-src 'none'` stays on
+every other page, and `web/test/serve.test.ts` reads the header for the
+live hive, yesterday's hive, tomorrow's hive, a sealed hive, a date page, a
+receipt and the root, and asserts which get a script and which get none.
+
+**Where the script cannot help.** Membership changes made by the tick, a
+story graduating from the pool or a story's tier changing, reach the page
+on its next load. A reader who keeps the page open across midnight sees the
+clock reach zero, the buttons go dark and the socket close, and the sealed
+board the worker bakes on their next load. Neither is polled for.
+
+**Not run against the live site.** The web's 321 tests and the worker's
+425 pass on the Mac (four of the worker's skipped for want of a database),
+with the live route served against a mocked project and the migration
+inside a rolled back transaction. What a person has to
+see: on an open date, opening the full screen hive shows the board
+building, a buzz grows and lights its tile with a ripple and, when it
+climbs, a flag, a buzz from a second browser appears within a second or
+two, and after the next tick the layout is the one the page already
+showed. The song tile's chord is a tap and nothing else.
