@@ -416,6 +416,34 @@ as a shelf, not a plan.
   reader. Nothing was added to the database to make it possible: every figure
   is a count of rows that were already there.
 
+### What takes the board, and how big, decided September 11, 2026
+
+Nathan's decision, the measurements behind it and what it withdraws are in
+`docs/the-wall.md` section 18. The short form:
+
+- **A history row's reach is measured on `historical_events.subject_url`,
+  never on `source_url`.** The source is the date page and is the same
+  number on every line of the date. The subject is the one link the line is
+  about, chosen by `worker/src/subject.ts` and refused rather than guessed;
+  pinned against three real pages in `worker/test/subject.test.ts`.
+- **The spike is the lower of the last two anniversaries, in views over the
+  median, never a ratio.** A ratio put a Wikipedia main page feature (840
+  views one year, 16,224 the next) above the September 11 attacks. Measured
+  before it was changed; the numbers are pinned in `web/test/admin.test.ts`
+  and `worker/test/wall-points.test.ts`.
+- **The panel's points break the tie among unbacked history on the hive.**
+  `worker/src/wall/points.ts` is a copy of the panel's formula and a test
+  holds the two copies to the same numbers. One buzz beats every score.
+- **The board is a pie and is always full.** A tile's size is its share of
+  the date's buzzes, or of the points when nobody has buzzed. A tile can
+  shrink, a placed tile can lose its place, and there is no tier ceiling in
+  the pie; section 18 says what each of those costs. The growth engine
+  stays as `allocateByGrowth` for a date carrying a story stamped false.
+- **Two migrations from this session are written, tested in a rolled back
+  transaction, and not applied:** `20260911040000_what_a_history_row_is_about`
+  and `20260911050000_reach_on_both_anniversaries`. Do not re-import events
+  until the first is applied; the panel's "Measure every date" needs both.
+
 ### What a public figure is for, decided September 6, 2026
 
 - **Somebody you follow gets no notification of any kind.** A notification is a
