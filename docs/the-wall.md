@@ -1768,3 +1768,47 @@ should be re-laid before it seals, which is an edit to the live database
 and a person's call. And why the news seeder filed nothing on September 11,
 2026, so that hive opened with no news at all and the board held eight tiles
 rather than twelve.
+
+## 19. Pictures on the event tiles, September 11, 2026
+
+Jason looked at the first full pie and asked for more pictures, so the
+board reads as a mural. The tiles for songs already drew their cover and
+the tiles for people already drew their face; the tiles for events, which
+are most of the board, drew a colour and a headline.
+
+**What was decided.** Every history row that names its article, section
+18, can have that article's lead picture. The worker's `npm run pictures`
+asks Wikipedia's page image service which file leads the article, asking
+for freely licensed pictures only, so an article whose lead picture is fair
+use gets no picture at all rather than a picture the site may not use. It
+asks Wikimedia Commons who made the file and under what licence, fetches the
+file at tile width, 640 pixels, and stores the copy in the project's own
+public bucket, `pictures`, migration 20260911080000. The table
+`event_pictures` records the path and the credit. Twelve events a date, the
+best scored by the same points that choose the board, which is every tile
+that can reach it and none that cannot; about 4,400 pictures for the year.
+
+**What the page does.** The build reads `event_pictures` whole and writes
+one style rule per pictured event beside the wall, the same rule that puts a
+cover on a song tile, so a live swapped wall and a baked one both draw the
+picture. The receipt prints the credit in plain words, with the file's page
+on Commons and its licence linked, because the tile has no room for words
+and the receipt is where the words already go. The site's image policy
+names the project's address beside its own and nothing else. No page asks
+Wikipedia, Commons or any news site for a picture, and the privacy page says
+so.
+
+**What is lost.** A tile with a picture over it gets a scrim, light type and
+a smaller field for the headline, so a long headline on a small pictured
+tile is tighter than before. A lead picture is Wikipedia's editors' choice,
+not ours, and on a few articles it is a map or a flag rather than a scene; a
+person can delete the row in `event_pictures` and the tile draws its colour
+again, and the next run will not fetch it again unless the row is gone.
+Pictures are copies, so a file Commons later deletes stays on the site until
+somebody removes it here.
+
+**Open.** Pictures for the news tiles, which cannot be copied the way free
+Commons files can and cannot be hotlinked under the privacy promise. A
+picture for a song tile whose cover never downloaded. Whether the twelve a
+date should follow the board's own choice after each seal, so a story that
+reached the board by buzz alone gets its picture next year.

@@ -13,7 +13,7 @@
 import { cp, mkdir, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DayPage, Person, everyDate, slug } from "./model.js";
-import { fetchWall, newestByDate, storyPath, wallKey } from "./wall.js";
+import { fetchWall, newestByDate, storyPath, subjectOf, wallKey } from "./wall.js";
 import { coverageByDay, fetchChartWeeks, songsForDate, withDownloadedCovers } from "./songs.js";
 import { buildSeed, factsByDay, factsForDate, fetchFacts, pickHighlights } from "./facts.js";
 import { faceName, isReady, picturesFor, renderCalendarPage, renderDayPage, renderNotFound, renderRobots, renderSitemap, renderHivePage, renderStoryPage } from "./render.js";
@@ -21,6 +21,7 @@ import type { Picture } from "./wall.js";
 import { eventsByDay, eventsForDate, fetchEvents, fetchSealedMemory } from "./timeline.js";
 import { culturalByDate, culturalForDate, fetchCulturalEvents } from "./culture.js";
 import { fetchLeadLines } from "./lead.js";
+import { fetchEventPictures } from "./event-pictures.js";
 import { fetchSelected } from "./selected.js";
 import { renderAdd, renderHome, renderPrivacy, renderSupport } from "./pages.js";
 import { renderAdmin, renderNumbers } from "./admin.js";
@@ -192,6 +193,16 @@ async function main(): Promise<void> {
       : `${walls.length} wall days loaded, ${walls.reduce((n, d) => n + d.stories.length, 0)} stories, covering ${wallFor.size} dates`,
   );
 
+  // The events' own pictures, fetched by the worker into the project's
+  // bucket and credited on the receipt. Empty until npm run pictures has
+  // run, and an empty table leaves every tile drawn as it was.
+  const eventPictures = await fetchEventPictures(url, key);
+  console.log(
+    eventPictures.size === 0
+      ? "no event pictures stored yet, so event tiles draw their colour"
+      : `${eventPictures.size} event pictures stored, and those tiles draw them`,
+  );
+
   const memory = await fetchSealedMemory(url, key);
   console.log(
     memory.size === 0
@@ -206,9 +217,10 @@ async function main(): Promise<void> {
     const page = await fetchDay(date.month, date.day, url, key, facesOnDisk);
     if (page.people.length === 0) empty++;
     const songs = songsForDate(covered, date.month, date.day, FIRST_CHART_YEAR, thisYear);
-    picturesByKey.set(wallKey(date.month, date.day), picturesFor(songs, page.people, facesOnDisk));
     const found = factsForDate(factsFor, date.month, date.day);
     const happened = eventsForDate(eventsFor, date.month, date.day);
+    const eventPics = happened.flatMap((event) => { const p = eventPictures.get(`historical_event:${event.id}`); return p === undefined ? [] : [p]; });
+    picturesByKey.set(wallKey(date.month, date.day), [...picturesFor(songs, page.people, facesOnDisk), ...eventPics]);
     const curated = culturalForDate(cultureFor, date.month, date.day);
     if (isReady(page, found)) ready.push(date);
     const directory = join(OUT, slug(date.month, date.day));
@@ -217,7 +229,7 @@ async function main(): Promise<void> {
       join(directory, "index.html"),
       renderDayPage(page, songs, found, happened, curated,
                     memory.get(`${date.month}-${date.day}`) ?? null, leadLines, selected,
-                    wallFor.get(wallKey(date.month, date.day)) ?? null),
+                    wallFor.get(wallKey(date.month, date.day)) ?? null, eventPics),
       "utf8",
     );
     written++;
@@ -231,7 +243,8 @@ async function main(): Promise<void> {
     for (const story of day.stories) {
       const directory = join(OUT, storyPath(story).slice(1));
       await mkdir(directory, { recursive: true });
-      await writeFile(join(directory, "index.html"), renderStoryPage(story, day), "utf8");
+      const credit = eventPictures.get(subjectOf(story) ?? "") ?? null;
+      await writeFile(join(directory, "index.html"), renderStoryPage(story, day, Date.now(), { credit }), "utf8");
       receipts++;
     }
   }

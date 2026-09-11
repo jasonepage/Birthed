@@ -256,7 +256,12 @@ function subjectAttr(story: Pick<WallStory, "subjectKind" | "subjectId">): strin
 export interface Picture {
   /** The subject, as subjectOf gives it. */
   subject: string;
-  /** A path on this domain: "/covers/abc.jpg", "/faces/Q123.jpg". Never another host; the page sends img-src 'self'. */
+  /**
+   * A path on this domain, "/covers/abc.jpg", "/faces/Q123.jpg", or a
+   * picture in the project's own public bucket, event-pictures.ts. Never any
+   * other host: the page sends img-src 'self' and the project's address,
+   * and a picture from anywhere else is refused by the browser.
+   */
   path: string;
 }
 
@@ -1522,6 +1527,21 @@ export interface ReceiptOptions {
    * does and gets the button on the same one request.
    */
   undo?: WallStory | null;
+  /**
+   * The picture credit for a story whose subject has a stored picture,
+   * event-pictures.ts. The tile shows the picture without a word; the
+   * receipt is where the words go, the way the sources are.
+   */
+  credit?: { credit: string; commonsUrl: string | null; licenseUrl: string | null } | null;
+}
+
+function creditBlock(credit: ReceiptOptions["credit"]): string {
+  if (credit === null || credit === undefined) return "";
+  const links = [
+    credit.commonsUrl === null ? "" : `<a href="${escapeHtml(credit.commonsUrl)}" rel="nofollow noopener">Its page on Commons</a>`,
+    credit.licenseUrl === null ? "" : `<a href="${escapeHtml(credit.licenseUrl)}" rel="nofollow noopener">The licence</a>`,
+  ].filter((link) => link !== "");
+  return `<p class="wfacts wcredit">${escapeHtml(credit.credit)}${links.length === 0 ? "" : ` ${links.join(" &middot; ")}.`}</p>`;
 }
 
 export function storyBody(story: WallStory, day: WallDay, now: number = Date.now(), options: ReceiptOptions = {}): string {
@@ -1554,6 +1574,7 @@ ${countLine(day, now, voice)}${afterwords(voice, `${monthName(month)} ${d}`, opt
 <p class="wfacts">${status}</p>
 ${control}
 ${falseNote}
+${creditBlock(options.credit ?? null)}
 <h2 class="section">Sources</h2>
 <p class="wnote">The wording on the hive is the source's, never a person's. A check confirms a link resolves and that the page contains the quotation, by exact match. Nothing here decides what is true.</p>
 ${story.sources.map(sourceBlock).join("\n")}`;

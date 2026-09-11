@@ -2044,6 +2044,12 @@ export function renderDayPage(
    * docs/the-wall.md.
    */
   wall: WallDay | null = null,
+  /**
+   * Pictures the build holds for this date's subjects beyond the covers and
+   * faces it lists itself: the events' lead pictures in the project's bucket,
+   * event-pictures.ts. Empty until the worker has fetched them.
+   */
+  morePictures: Picture[] = [],
 ): string {
   // A row nobody wrote does not go on a page.
   //
@@ -2200,7 +2206,7 @@ export function renderDayPage(
 ${barEnd()}
 </div>
 <h1>${name}</h1>
-${pictureRules(picturesFor(songs, page.people))}
+${pictureRules([...picturesFor(songs, page.people), ...morePictures])}
 ${wallSection(wall, name, Date.now(), {
     date: { month: page.month, day: page.day },
     history: historyRows([...picked, ...rest], page.people, songs, name),

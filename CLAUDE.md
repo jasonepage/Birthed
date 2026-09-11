@@ -439,10 +439,19 @@ Nathan's decision, the measurements behind it and what it withdraws are in
   shrink, a placed tile can lose its place, and there is no tier ceiling in
   the pie; section 18 says what each of those costs. The growth engine
   stays as `allocateByGrowth` for a date carrying a story stamped false.
-- **Two migrations from this session are written, tested in a rolled back
-  transaction, and not applied:** `20260911040000_what_a_history_row_is_about`
-  and `20260911050000_reach_on_both_anniversaries`. Do not re-import events
-  until the first is applied; the panel's "Measure every date" needs both.
+- **Migrations `20260911040000_what_a_history_row_is_about` and
+  `20260911050000_reach_on_both_anniversaries` were applied by Jason on
+  September 11, 2026.** The events have been re-imported and the panel's
+  "Measure every date" has run.
+- **Event tiles draw their article's lead picture.** `docs/the-wall.md`
+  section 19. Free Commons files only, copied at tile width into the
+  project's public `pictures` bucket by the worker's `npm run pictures`,
+  recorded in `event_pictures`, credited on the receipt. The site's image
+  policy names the project's address and nothing else; no page asks
+  Wikipedia or Commons for a picture. Migrations
+  `20260911070000_albums_and_films_on_the_hive` (album and film tiles) and
+  `20260911080000_event_pictures` (the table and the bucket) are written,
+  tested in a rolled back transaction, and applied only when Jason says.
 
 ### What a public figure is for, decided September 6, 2026
 

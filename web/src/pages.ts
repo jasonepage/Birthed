@@ -626,7 +626,7 @@ export function renderPrivacy(): string {
   <li><strong>How many messages you have sent</strong> after one, counted at the moment the iOS Messages composer reports that a message went. What was in it, and who it went to, are never known to Birthed.</li>
 </ul>
 <p>That is the whole list, and each one is a single current number rather than a history. There is no record of when you opened the app, what you looked at, or what you tapped, and nothing is timestamped. Deleting the app resets all four.</p>
-<p>The account service is <a href="https://supabase.com">Supabase</a>, which hosts the database on servers in the United States. The website you are reading is served by <a href="https://render.com">Render</a>.</p>
+<p>The account service is <a href="https://supabase.com">Supabase</a>, which hosts the database on servers in the United States. The pictures on the hive's event tiles are copies of freely licensed pictures from Wikimedia Commons, stored with the same service and served from its address, so your browser asks Supabase for those pictures and asks Wikimedia for nothing. The website you are reading is served by <a href="https://render.com">Render</a>.</p>
 
 <h3>Finding things about your day</h3>
 <p>The Mine tab shows specific things that happened on the day you were born, and those are found by a model that searches the web, Google's Gemini service. To ask it, the Birthed server sends the month, the day, the birth year and the region you typed, and nothing else. Your account and the token that identifies it stay behind, so what Google is asked is a date and a place, not a person.</p>

@@ -26,7 +26,8 @@
     "wall:check": "npm run build && node dist/src/wall/check.js",
     "wall:news": "npm run build && node dist/src/wall/news.js",
     "wall:history": "npm run build && node dist/src/wall/history.js",
-    "wall:tick": "npm run build && node dist/src/wall/tick.js"
+    "wall:tick": "npm run build && node dist/src/wall/tick.js",
+    "pictures": "npm run build && node dist/src/event-pictures.js"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

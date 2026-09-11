@@ -33,6 +33,7 @@ import { everyDate, monthName, slug } from "./model.js";
 import { ASK_SLOTS, TODAY, renderStoryPage } from "./render.js";
 import { ASK_MAX, emptyWallDay, fetchWallDay, openWallDates, replaceWall, hivePath, wallKey, wallMarks, wallSection, withChecks, type Anniversary, type TapBack, type WallDay } from "./wall.js";
 import { answer as findAnswer } from "./find.js";
+import { fetchEventPicture } from "./event-pictures.js";
 import { personalName } from "./share.js";
 
 
@@ -87,7 +88,11 @@ const SECURITY: Record<string, string> = {
     // have refused them silently, the same way default-src silently killed
     // /add for months. 'self' and nothing else: a form on this site may post
     // to this site and nowhere on earth besides.
-    "default-src 'none'; img-src 'self'; style-src 'unsafe-inline' 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+    // img-src names the project's address as well as this one, since
+    // September 11, 2026: the events' pictures live in the project's public
+    // bucket, fetched there by the worker, event-pictures.ts. Still no
+    // picture from Wikipedia, Commons or any news site is loaded by a page.
+    `default-src 'none'; img-src 'self' ${projectBase()}; style-src 'unsafe-inline' 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`,
   "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
 };
 
@@ -174,7 +179,7 @@ export function securityFor(requestPath: string): Record<string, string> {
   return {
     ...SECURITY,
     "Content-Security-Policy":
-      "default-src 'none'; img-src 'self'; style-src 'unsafe-inline' 'self'; " +
+      `default-src 'none'; img-src 'self' ${projectBase()}; style-src 'unsafe-inline' 'self'; ` +
       `script-src 'unsafe-inline'; connect-src ${apiOrigin()}; ` +
       "base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   };
@@ -1152,7 +1157,12 @@ async function handle(
       // read leaves them out; see fetchWallDay.
       const key = process.env.SUPABASE_ANON_KEY ?? "";
       const told = method === "HEAD" ? story : await withChecks(projectBase(), key, story, WALL_TIMEOUT_MS);
-      response.end(method === "HEAD" ? undefined : renderStoryPage(told, wall.day, now, { interactive: true, undo }) + marks);
+      // The picture credit, one small read for the one story, because the
+      // day's read carries no pictures either.
+      const credit = method === "HEAD" || story.subjectKind !== "historical_event" || story.subjectId === null
+        ? null
+        : await fetchEventPicture(projectBase(), key, story.subjectId, WALL_TIMEOUT_MS);
+      response.end(method === "HEAD" ? undefined : renderStoryPage(told, wall.day, now, { interactive: true, undo, credit }) + marks);
       return;
     }
   }
