@@ -23,7 +23,7 @@ import { culturalByDate, culturalForDate, fetchCulturalEvents } from "./culture.
 import { fetchLeadLines } from "./lead.js";
 import { fetchSelected } from "./selected.js";
 import { renderAdd, renderHome, renderPrivacy, renderSupport } from "./pages.js";
-import { renderAdmin } from "./admin.js";
+import { renderAdmin, renderNumbers } from "./admin.js";
 
 const OUT = "out";
 const PER_PAGE = 10;
@@ -292,6 +292,12 @@ async function main(): Promise<void> {
   // level security policy against their own token, not by this page.
   await mkdir(join(OUT, "admin"), { recursive: true });
   await writeFile(join(OUT, "admin", "index.html"), renderAdmin({ url, key }), "utf8");
+  // The four numbers. Under /admin so the one widened security policy already
+  // covers it, noindex, and linked from nothing, including from the panel
+  // above. The page carries no figures: it asks wall_numbers() when somebody
+  // opens it, and that function refuses anybody who is not a curator.
+  await mkdir(join(OUT, "admin", "numbers"), { recursive: true });
+  await writeFile(join(OUT, "admin", "numbers", "index.html"), renderNumbers({ url, key }), "utf8");
   // The favicons and touch icons, copied as they are.
   await cp("static", OUT, { recursive: true });
   await writeFile(join(OUT, "sitemap.xml"), renderSitemap(ready), "utf8");

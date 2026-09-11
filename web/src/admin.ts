@@ -1833,3 +1833,291 @@ ${POINTS_JS}
 </script>
 ${escapeHtml("")}`;
 }
+
+/**
+ * The four numbers, at /admin/numbers/.
+ *
+ * Not linked from anywhere, including from the curation panel above, and
+ * noindex like it. That is not what protects it: the gate is the one every
+ * curation policy already uses. `wall_numbers()` checks `is_admin()` on its
+ * first line and refuses anybody else, so the worst somebody gets from finding
+ * this page or reading its source is a sign in form and a refusal.
+ *
+ * The numbers are never in the file. This page is baked like every other page
+ * here and carries nothing but the shape of a table; the figures are fetched
+ * when somebody opens it, from a database that counts them at that moment.
+ * serve.ts sends it `no-store` so a browser or a proxy never keeps a copy.
+ *
+ * What each number means, and the sentence saying what would make it lie,
+ * lives in docs/measuring.md. The short version of each is on the page beside
+ * the number, because a number read without it is the thing this whole design
+ * was trying to avoid.
+ */
+export function renderNumbers(api: { url: string; key: string }): string {
+  return `${head(
+    "Birthed numbers",
+    "Internal.",
+    `${SITE}/admin/numbers/`,
+    undefined,
+    true,
+  )}
+<style>
+.panel { max-width: 820px; }
+.signin { max-width: 420px; margin: 40px 0; }
+.form2 { display: grid; gap: 10px; margin: 16px 0 0; }
+.form2 input {
+  background: #171326; border: 1px solid #3A3348; color: #FFF7EE;
+  border-radius: 5px; padding: 9px 11px; font: inherit; font-size: 14px; width: 100%;
+}
+.act { background: none; border: 1px solid #3A3348; color: #B9B2AD; border-radius: 4px;
+  font-size: 12px; padding: 5px 9px; cursor: pointer; white-space: nowrap; }
+.act:hover { border-color: #EF5680; color: #FFF7EE; }
+.note { font-size: 13px; color: #9C9490; margin: 10px 0 0; min-height: 18px; }
+.note.bad { color: #FF9BB6; }
+.note.good { color: #6FBF8A; }
+h3.dh { font-family: Georgia, serif; font-size: 24px; margin: 30px 0 0; }
+.big { font-family: Georgia, serif; font-size: 44px; line-height: 1.1; margin: 8px 0 0;
+  color: #FFF7EE; font-variant-numeric: tabular-nums; }
+.rests { font-size: 13px; color: #9C9490; margin: 6px 0 0; }
+/* The sentence that says what would make the number lie, under every number,
+   in the same weight as the number's own label. It is not a footnote. */
+.lies { font-size: 13px; color: #827B75; margin: 10px 0 0; line-height: 1.5;
+  border-left: 2px solid #3A3348; padding-left: 12px; }
+table.hives { border-collapse: collapse; margin: 12px 0 0; width: 100%; font-size: 14px; }
+table.hives th, table.hives td { text-align: left; padding: 7px 10px 7px 0;
+  border-bottom: 1px solid #2A2434; font-variant-numeric: tabular-nums; }
+table.hives th { font-size: 12px; color: #9C9490; font-weight: 700; }
+.warn { border: 1px solid #6E5A4A; border-radius: 8px; padding: 16px 18px; margin: 20px 0 0;
+  background: rgba(110, 90, 74, .14); font-size: 14px; line-height: 1.55; color: #E9E1DB; }
+.asof { font-size: 12px; color: #5E5852; margin: 26px 0 0; }
+</style>
+
+<div class="panel">
+<p class="kicker">Birthed</p>
+
+<div id="signin" class="signin" hidden>
+  <h1>Numbers</h1>
+  <p class="lede">Sign in with the address that was added as a curator. You get a link by email.</p>
+  <div class="form2">
+    <input id="email" type="email" placeholder="you@example.com" autocomplete="email">
+    <button class="act" id="send">Send me a link</button>
+  </div>
+  <p class="note" id="signin-note"></p>
+</div>
+
+<div id="denied" hidden>
+  <h1>Not a curator</h1>
+  <p class="lede">You are signed in, but this account cannot read these. <button class="act" id="signout2">Sign out</button></p>
+</div>
+
+<div id="panel" hidden>
+  <h1>Numbers</h1>
+  <p class="lede">Of the people who buzz once, how many buzz again on a different day. Everything here is counted from rows that already exist. <button class="act" id="signout">Sign out</button></p>
+
+  <div class="warn" id="warn" hidden></div>
+
+  <h3 class="dh">Came back on another day</h3>
+  <p class="big" id="n-back">.</p>
+  <p class="rests" id="r-back"></p>
+  <p class="lies">A browser that loses its cookie between one day and the next comes back as a stranger, so this is a floor and never a ceiling. One person using the app one day and a browser the next is two boosters who each came once, which pushes the floor down again. A shared computer pushes it up. And the three day window caps what is possible: nobody can come back to something that has closed.</p>
+
+  <h3 class="dh">Buzzed at all</h3>
+  <p class="big" id="n-boosters">.</p>
+  <p class="rests" id="r-boosters"></p>
+  <p class="lies">A booster is a browser token or an app install, never a person. One person with both is two. One person who clears cookies is a new one tomorrow. A buzz taken back inside its thirty second window is deleted outright, so somebody whose only buzz was a misclick they undid is not here at all.</p>
+
+  <h3 class="dh">Days between a first buzz and a second</h3>
+  <p class="big" id="n-gap">.</p>
+  <p class="rests" id="r-gap"></p>
+  <p class="lies">The longest gap this can ever report is the age of the oldest buzz, so it drifts upward on its own for months whatever anybody does. It looks only at the first two days: somebody who came on four days counts the same as somebody who came on two.</p>
+
+  <h3 class="dh">Stories with a buzz, by hive</h3>
+  <table class="hives" id="hives"><tbody></tbody></table>
+  <p class="lies">The story count is the worker's output and not the reader's appetite, and it climbs all day, so the share falls through the day even when buzzing never slows. Comparing one hive with another mostly compares how much the worker filed. A story counts once however many buzzes it holds.</p>
+
+  <p class="asof" id="asof"></p>
+</div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var API = ${JSON.stringify(api.url)};
+  var KEY = ${JSON.stringify(api.key)};
+  var TOKEN_KEY = "birthed-admin-token";
+  var REFRESH_KEY = "birthed-admin-refresh";
+  var token = null;
+
+  function el(id) { return document.getElementById(id); }
+  function show(id, on) { el(id).hidden = !on; }
+  function note(id, text, kind) {
+    var n = el(id);
+    n.textContent = text || "";
+    n.className = "note" + (kind ? " " + kind : "");
+  }
+  function headers() {
+    var h = { apikey: KEY, "Content-Type": "application/json" };
+    if (token) h.Authorization = "Bearer " + token;
+    return h;
+  }
+
+  // The same fragment, storage and refresh dance the curation panel does, for
+  // the same reasons, against the same two keys. A curator signed in there is
+  // signed in here.
+  function readFragment() {
+    if (!location.hash) return null;
+    var parts = new URLSearchParams(location.hash.slice(1));
+    var t = parts.get("access_token");
+    if (!t) return null;
+    history.replaceState(null, "", location.pathname);
+    return { access: t, refresh: parts.get("refresh_token") };
+  }
+  function remember(access, refresh) {
+    token = access;
+    try {
+      localStorage.setItem(TOKEN_KEY, access);
+      if (refresh) localStorage.setItem(REFRESH_KEY, refresh);
+    } catch (e) { /* private window */ }
+  }
+  function refreshSession() {
+    var saved = null;
+    try { saved = localStorage.getItem(REFRESH_KEY); } catch (e) { saved = null; }
+    if (!saved) return Promise.resolve(false);
+    return fetch(API + "/auth/v1/token?grant_type=refresh_token", {
+      method: "POST",
+      headers: { apikey: KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: saved }),
+    }).then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (body) {
+        if (!body || !body.access_token) return false;
+        remember(body.access_token, body.refresh_token);
+        return true;
+      })
+      .catch(function () { return false; });
+  }
+
+  el("send").addEventListener("click", function () {
+    var email = el("email").value.trim();
+    if (!email) { note("signin-note", "An address, first.", "bad"); return; }
+    note("signin-note", "Sending.");
+    fetch(API + "/auth/v1/otp?redirect_to=" + encodeURIComponent(location.origin + "/admin/numbers/"), {
+      method: "POST",
+      headers: { apikey: KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email, create_user: true }),
+    }).then(function (r) {
+      if (r.ok) { note("signin-note", "Check that inbox. The link lands back here.", "good"); return; }
+      if (r.status === 429) { note("signin-note", "Too many requests just now. A minute, then try again.", "bad"); return; }
+      r.text().then(function (body) {
+        note("signin-note", "The server refused that: " + body.slice(0, 160), "bad");
+      });
+    }).catch(function () { note("signin-note", "Could not reach the server.", "bad"); });
+  });
+
+  function signOut() {
+    try {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(REFRESH_KEY);
+    } catch (e) { /* private window */ }
+    token = null;
+    show("panel", false); show("denied", false); show("signin", true);
+  }
+  el("signout").addEventListener("click", signOut);
+  el("signout2").addEventListener("click", signOut);
+
+  function ask(retried) {
+    return fetch(API + "/rest/v1/rpc/wall_numbers", {
+      method: "POST", headers: headers(), body: "{}",
+    }).then(function (r) {
+      if (r.status === 401 || r.status === 403) {
+        if (retried) return null;
+        return refreshSession().then(function (ok) { return ok ? ask(true) : null; });
+      }
+      if (!r.ok) return null;
+      return r.json();
+    }).catch(function () { return null; });
+  }
+
+  function one(n) { return n === 1 ? "" : "s"; }
+
+  function draw(d) {
+    var back = d.came_back || {};
+    var all = back.boosters_with_any_buzz || 0;
+    var again = back.came_back_on_another_day || 0;
+    el("n-back").textContent = again + " of " + all;
+    el("r-back").textContent = all === 0
+      ? "Nobody has buzzed yet."
+      : "Resting on " + all + " booster" + one(all) + ". The most days any one of them has buzzed on is "
+        + (back.most_days_by_one_booster || 0) + ".";
+
+    var b = d.boosters || {};
+    el("n-boosters").textContent = String(b.boosters_all || 0);
+    el("r-boosters").textContent = "Resting on " + (b.boost_rows || 0) + " buzz row"
+      + one(b.boost_rows || 0) + ". " + (b.browser_tokens || 0) + " browser token"
+      + one(b.browser_tokens || 0) + ", " + (b.app_installs || 0) + " app install"
+      + one(b.app_installs || 0) + ", " + (b.seeded || 0) + " from the test seed.";
+
+    var g = d.gaps || {};
+    var second = g.boosters_with_a_second_day || 0;
+    el("n-gap").textContent = second === 0 ? "None yet" : String(g.mean_days) + " days, mean";
+    el("r-gap").textContent = second === 0
+      ? "No booster has a second day."
+      : "Resting on " + second + " booster" + one(second) + ". Shortest " + g.shortest_days
+        + ", longest " + g.longest_days + ". Every gap: " + (g.every_gap || []).join(", ") + ".";
+
+    var body = el("hives").querySelector("tbody");
+    body.innerHTML = "";
+    var headRow = document.createElement("tr");
+    ["Hive", "Stories", "With a buzz", "Buzz rows"].forEach(function (t) {
+      var th = document.createElement("th");
+      th.textContent = t;
+      headRow.appendChild(th);
+    });
+    body.appendChild(headRow);
+    (d.hives || []).forEach(function (h) {
+      var tr = document.createElement("tr");
+      [h.wall_date, h.stories, h.stories_with_a_buzz, h.buzz_rows].forEach(function (v) {
+        var td = document.createElement("td");
+        td.textContent = String(v);
+        tr.appendChild(td);
+      });
+      body.appendChild(tr);
+    });
+
+    el("asof").textContent = "Counted at " + String(d.as_of || "") + ".";
+
+    // The warning is not decoration and it is not dismissible. Two out of four
+    // is not a rate, and a number this small put on a screen on its own is how
+    // a founder talks themselves into a conclusion the rows cannot carry.
+    if (all > 0 && all < 30) {
+      el("warn").textContent = "This rests on " + all + " booster" + one(all)
+        + ". At this size it is a count and not a rate, and it cannot tell you"
+        + " whether the mechanic works. The thresholds in CLAUDE.md section 5"
+        + " start counting when real traffic arrives, not today.";
+      show("warn", true);
+    } else if (all === 0) {
+      el("warn").textContent = "Nobody has buzzed yet. That is the honest reading and it is not a fault in the query.";
+      show("warn", true);
+    }
+  }
+
+  function start() {
+    var fragment = readFragment();
+    if (fragment) remember(fragment.access, fragment.refresh);
+    if (!token) {
+      try { token = localStorage.getItem(TOKEN_KEY); } catch (e) { token = null; }
+    }
+    if (!token) { show("signin", true); return; }
+    refreshSession().then(function () {
+      return ask(false);
+    }).then(function (d) {
+      if (d === null || d === undefined) { show("denied", true); return; }
+      show("panel", true);
+      draw(d);
+    });
+  }
+
+  start();
+})();
+</script>
+${escapeHtml("")}`;
+}

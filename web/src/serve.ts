@@ -62,6 +62,10 @@ function cacheControl(path: string): string {
   // Never stored. It names one of 366 dates and it is wrong from midnight,
   // and it is about a hundred and fifty bytes, so there is nothing to save.
   if (path === "/today.css") return "no-store";
+  // The four numbers. The file itself holds no figures, but a page whose whole
+  // job is to be read fresh should not sit in anybody's cache, and nothing
+  // about it is worth the bytes a revalidate would save.
+  if (path === "/admin/numbers" || path.startsWith("/admin/numbers/")) return "no-store";
   if (path.startsWith("/og/")) return "public, max-age=3600";
   if (extname(path) === "") return "public, max-age=0, must-revalidate";
   if (path.endsWith(".html")) return "public, max-age=0, must-revalidate";

@@ -246,6 +246,14 @@ test("only the add page may run its script and reach the project", () => {
     assert.match(admin, /connect-src https:\/\/[a-z0-9]+\.supabase\.co/);
   }
   assert.ok(!(securityFor("/administrator/")["Content-Security-Policy"] ?? "").includes("script-src"));
+
+  // The numbers page sits under /admin/ on purpose, so it is covered by the
+  // widening that is already there rather than needing one of its own. This
+  // asserts the covering, which is the reason for the path.
+  for (const path of ["/admin/numbers", "/admin/numbers/", "/admin/numbers/index.html"]) {
+    const numbers = securityFor(path)["Content-Security-Policy"] ?? "";
+    assert.match(numbers, /script-src 'unsafe-inline'/, `${path} must run its own script`);
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -1152,4 +1160,37 @@ test("a reader's own picture is never served as a file, even if the folders over
   assert.equal(direct.status, 404, "asking for the file by name gets nothing");
   const listed = await fetch(`${base}/personal/`);
   assert.equal(listed.status, 404, "and neither does asking for the folder");
+});
+
+test("the numbers page is never stored by anybody", async (t) => {
+  const root = resolve("test-site-numbers");
+  await rm(root, { recursive: true, force: true });
+  await mkdir(join(root, "admin", "numbers"), { recursive: true });
+  await writeFile(join(root, "admin", "numbers", "index.html"), "<p>numbers</p>", "utf8");
+  await writeFile(join(root, "admin", "index.html"), "<p>panel</p>", "utf8");
+
+  const server = start({ root, port: 0 });
+  await new Promise((done) => server.once("listening", done));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const base = `http://127.0.0.1:${address.port}`;
+
+  t.after(async () => {
+    server.close();
+    await rm(root, { recursive: true, force: true });
+  });
+
+  // A page whose only job is to be read fresh. Every spelling of it, because
+  // a rule that covers the slash and not the bare path is a rule that is half
+  // there and looks whole.
+  for (const path of ["/admin/numbers", "/admin/numbers/", "/admin/numbers/index.html"]) {
+    const numbers = await fetch(`${base}${path}`);
+    assert.equal(numbers.status, 200, path);
+    assert.equal(numbers.headers.get("cache-control"), "no-store", path);
+  }
+
+  // And the panel beside it is unchanged, so this did not quietly become a
+  // rule about everything under /admin.
+  const panel = await fetch(`${base}/admin/`);
+  assert.match(panel.headers.get("cache-control") ?? "", /must-revalidate/);
 });

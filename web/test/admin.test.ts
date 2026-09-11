@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { renderAdmin } from "../src/admin.js";
+import { renderAdmin, renderNumbers } from "../src/admin.js";
 
 /**
  * The panel is a scripted page. A syntax error in that script is a blank
@@ -137,4 +137,57 @@ test("the points never reach a public page", () => {
   for (const word of ["rowPoints", "datePoints", 'class="pts"', "article_reach"]) {
     assert.equal(html.includes(word), false, `${word} is on a date page`);
   }
+});
+
+// ---------------------------------------------------------------------------
+// The four numbers, at /admin/numbers/
+// ---------------------------------------------------------------------------
+
+function numbersPage(): string {
+  return renderNumbers({ url: "https://x.supabase.co", key: "k" });
+}
+
+function numbersScript(): string {
+  const html = numbersPage();
+  return html.slice(html.indexOf("<script>") + 8, html.lastIndexOf("</script>"));
+}
+
+test("the numbers page's script parses", () => {
+  const script = numbersScript();
+  assert.ok(script.length > 1000);
+  new Function(script);
+});
+
+test("the numbers page asks the database and carries no figures itself", () => {
+  const script = numbersScript();
+  // The one call it makes. Everything on the screen comes from this.
+  assert.ok(script.includes("/rest/v1/rpc/wall_numbers"), "it asks wall_numbers()");
+  // Nothing is baked in. A number in the file would survive in a cache, in a
+  // deploy artefact and in anybody's browser history, which is the whole thing
+  // this design is avoiding.
+  const html = numbersPage();
+  for (const figure of ["boosters_all\":", "13 buzz", "2 of 4"]) {
+    assert.ok(!html.includes(figure), `no figure is baked into the page: ${figure}`);
+  }
+});
+
+test("the numbers page is noindex and is linked from nothing", () => {
+  assert.match(numbersPage(), /noindex/);
+  // Not from the panel, which is the only other page a curator opens.
+  const panel = renderAdmin({ url: "https://x.supabase.co", key: "k" });
+  assert.ok(!panel.includes("/admin/numbers"), "the curation panel does not link to it");
+});
+
+test("every number on the page carries the sentence saying what would make it lie", () => {
+  const html = numbersPage();
+  // Four numbers, four sentences, and the class is the same one every time so
+  // a fifth number added without its sentence is visible in a diff.
+  assert.equal((html.match(/class="lies"/g) ?? []).length, 4);
+});
+
+test("a small number says so on the page rather than being read as a rate", () => {
+  const script = numbersScript();
+  assert.ok(script.includes("it is a count and not a rate"), "the warning wording is there");
+  assert.ok(script.includes("all > 0 && all < 30"), "and it fires while the rows are few");
+  assert.ok(script.includes("Nobody has buzzed yet"), "and zero is reported as zero rather than hidden");
 });
