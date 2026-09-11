@@ -241,7 +241,7 @@ test("the baked section carries no forms, and the interactive one carries a tap 
   assert.ok(live.includes('name="m" value="9"') && live.includes('name="d" value="9"'));
   // The headline is the link to the receipt, on the tile and in the list.
   assert.ok(live.includes(`<a class="wh" href="${storyPath(onWall)}"`));
-  assert.ok(live.includes(`<li id="w-${pooled.id}"><a href="${storyPath(pooled)}">`));
+  assert.ok(live.includes(`<li id="w-${pooled.id}" data-subject="story:${pooled.id}"><a href="${storyPath(pooled)}">`));
   assert.ok(live.includes("Buzz what you think will still matter about September 9"));
   assert.ok(live.includes("Three buzzes left today."));
   assert.ok(live.includes("You buzzed this"));
@@ -504,7 +504,7 @@ test("the confirmation shows the story, its outlet and its tier, and the buzz is
   assert.ok(block.includes("Spend one buzz on this? You get thirty seconds to take it back, and after that it stands."));
   assert.ok(block.includes('<a href="/september-9/#ask">Not this one</a>'));
   // The same story is still drawn in the feed under its own id, so the two ids differ.
-  assert.ok(one.includes(`<li id="w-${found.id}">`));
+  assert.ok(one.includes(`<li id="w-${found.id}" data-subject="story:${found.id}">`));
 
   const several = wallSection(d, "September 9", LIVE_NOW, { interactive: true, found: [other, found] });
   assert.ok(several.includes("A few stories say that. Which one did you mean?"));
@@ -628,12 +628,12 @@ function song(id: string, year: number, chartDate: string, support: number = 0, 
   });
 }
 
-test("a tile and a row carry the subject the worker filed them under, and news carries none", () => {
+test("a tile and a row carry the subject the worker filed them under, and news carries its own identifier", () => {
   const placedSong = song("aaaaaaaa-0000-0000-0000-000000000001", 1994, "1994-09-10", 3, { status: "placed", rect: { mx: 6, my: 6, w: 3, h: 3 }, placedAt: "2026-09-09T15:00:00Z" });
   const html = wallSection(day([placedSong, story({ id: "bbbbbbbb-0000-0000-0000-000000000002" })]), "September 9", LIVE);
   assert.ok(html.includes(`id="w-${placedSong.id}"`) && html.includes('data-subject="song:1994-09-10"'));
-  const news = html.slice(html.indexOf('id="w-bbbbbbbb'), html.indexOf('id="w-bbbbbbbb') + 200);
-  assert.ok(!news.includes("data-subject"), "the day's news has no subject and gets no picture");
+  const news = html.slice(html.indexOf('id="w-bbbbbbbb'), html.indexOf('id="w-bbbbbbbb') + 500);
+  assert.ok(news.includes('data-subject="story:bbbbbbbb-0000-0000-0000-000000000002"'), "the day's news carries its own identifier, so a preview picture can find it");
   assert.equal(subjectOf({ subjectKind: null, subjectId: null }), null);
   assert.equal(subjectOf({ subjectKind: "person", subjectId: "Q42" }), "person:Q42");
 });

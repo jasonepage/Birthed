@@ -1812,3 +1812,51 @@ Commons files can and cannot be hotlinked under the privacy promise. A
 picture for a song tile whose cover never downloaded. Whether the twelve a
 date should follow the board's own choice after each seal, so a story that
 reached the board by buzz alone gets its picture next year.
+
+## 20. Pictures on the news tiles, September 11, 2026
+
+Section 19 gave the event tiles a picture and left the news tiles, which
+are the biggest block on most boards, drawing a colour. News pictures
+cannot be copied from Wikimedia the way a free Commons file can, and the
+privacy promise forbids a page asking a news site for anything. So the news
+tiles stayed bare, and a board that is half news read as half empty.
+
+**What was decided.** A news page carries an og:image tag, the picture the
+publisher offers for a link card on Facebook, X, iMessage or Slack. A tile
+on the hive is a link card. The worker reads that one tag with the same
+fetch the checker already makes, copies the picture once into the project's
+public `pictures` bucket, and records the story, the page, the picture's
+address and the outlet in `story_pictures`, migration 20260911090000. The
+receipt says the picture is the article's own preview, from the outlet, and
+that it belongs to the publisher. No page on the site asks the publisher's
+server for anything, so the privacy promise holds: a reader's browser asks
+Supabase for the copy and the publisher for nothing.
+
+A story with a subject of its own, an event or a song or a person, gets its
+picture from that subject the way section 19 describes. This is only for the
+stories with no subject, which is the news and reader submissions. A tile is
+keyed by its subject when it has one and by the story itself, `story:<id>`,
+when it does not, and one style rule finds it either way.
+
+**Where it runs.** In the tick, after the news seeder so this run's new
+stories get a picture, before the checker so the pictures are not waiting on
+the slowest page. Once per story: a page read and found to carry no picture
+is recorded with an empty path so it is not read again. A copy that fails
+records nothing, so a later tick tries again.
+
+**What is lost.** A preview picture is the publisher's choice, and some are a
+logo or a stock photograph rather than the scene. The copy is a copy, so a
+picture the publisher later changes on their own page does not change here.
+A publisher who wants a picture off the site writes to the address on the
+privacy page: the row is deleted, the tile draws its colour again, and the
+page is added to the worker's silence list if it should stay off. Because
+these are other people's pictures and not freely licensed, a copy is a
+courtesy the way a link card is, and it comes down on request. The tile
+still carries the same scrim and lighter type as any pictured tile, so a
+long headline on a small news tile is tighter than before.
+
+**Open.** A picture for the film and album tiles, whose posters and covers on
+Wikipedia are almost always fair use and so return nothing from the free
+service; the iTunes artwork the song covers already use could serve them.
+Whether a submission's picture should be shown at all before a person has
+looked at it, since a submitter chooses the page.

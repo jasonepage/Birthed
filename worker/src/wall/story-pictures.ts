@@ -1,0 +1,177 @@
+// Pictures for the news on the hive: the publisher's own preview picture.
+//
+//   node dist/src/wall/story-pictures.js            # every open date
+//   node dist/src/wall/story-pictures.js --date 2026-09-11
+//   node dist/src/wall/story-pictures.js --dry      # say what would be fetched
+//
+// Every news page carries an og:image tag. Publishers put it there so that a
+// shared link shows a picture on Facebook, X, iMessage and Slack, which is
+// exactly what a tile on the hive is: a link card. The worker copies that one
+// picture into the project's public bucket and records where it is; the
+// receipt says whose it is and links the article. No page on the site ever
+// asks the publisher's server for anything, which keeps the privacy page's
+// promise. A publisher that wants a picture gone writes to the address on
+// the privacy page and the row is deleted; the tile draws its colour again.
+// docs/the-wall.md section 20, decided September 11, 2026.
+//
+// Which stories: every story on an open date that has no picture yet and
+// has no subject of its own, which is the news and the submissions. A story
+// with a subject gets its picture from the subject's importer instead
+// (event-pictures.ts, the covers, the faces). A page read once and found to
+// carry no picture is recorded with no path, so it is not read again.
+//
+// One page at a time, a pause between, the same manners as the checker.
+// worker/src/wall/page.ts is not touched: this reads the page with the same
+// fetchPage the checker uses and looks at two meta tags.
+
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+import { loadConfig, loadDotEnv } from "../config.js";
+import { insert, rows, type Db } from "./db.js";
+import { fetchPage, meta } from "./page.js";
+
+/** The storage bucket, the same one the event pictures use. */
+export const BUCKET = "pictures";
+/** A preview picture bigger than this is not copied. Most are under 300 kilobytes. */
+export const MAX_BYTES = 3_000_000;
+const PAUSE_MS = 400;
+
+export interface StoryRow {
+  id: string;
+  wall_date: string;
+  url: string;
+  outlet: string;
+  subject_kind: string | null;
+}
+
+/**
+ * The picture a page offers for its own link card, as an absolute https
+ * address, or null. og:image first, then twitter:image, which is what the
+ * card services themselves fall back to. A relative address is resolved
+ * against the page. Anything that is not https is refused: the site is
+ * https and a copy is made over the same.
+ */
+export function previewPictureOf(html: string | null, pageUrl: string): string | null {
+  if (html === null) return null;
+  for (const key of ["og:image", "og:image:secure_url", "twitter:image", "twitter:image:src"]) {
+    const value = meta(html, key);
+    if (value === null) continue;
+    try {
+      const resolved = new URL(value, pageUrl);
+      if (resolved.protocol !== "https:") continue;
+      return resolved.toString();
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+/** Where the copy lives in the bucket. The extension follows what the server sent. */
+export function storagePath(storyId: string, contentType: string): string {
+  const ext = /png/i.test(contentType) ? "png" : /gif/i.test(contentType) ? "gif" : /webp/i.test(contentType) ? "webp" : /avif/i.test(contentType) ? "avif" : "jpg";
+  return `story/${storyId}.${ext}`;
+}
+
+/** The stories on the given dates that have no subject and no picture row yet. */
+export function storiesToPicture(stories: StoryRow[], pictured: ReadonlySet<string>): StoryRow[] {
+  return stories.filter((s) => s.subject_kind === null && !pictured.has(s.id));
+}
+
+async function store(db: Db, path: string, body: ArrayBuffer, contentType: string): Promise<void> {
+  const response = await fetch(`${db.url}/storage/v1/object/${BUCKET}/${path}`, {
+    method: "POST",
+    headers: { apikey: db.key, Authorization: `Bearer ${db.key}`, "Content-Type": contentType, "x-upsert": "true", "Cache-Control": "public, max-age=31536000" },
+    body,
+  });
+  if (!response.ok) throw new Error(`storage answered ${response.status}: ${(await response.text()).slice(0, 200)}`);
+}
+
+export interface Report { stored: number; none: number; failed: number }
+
+/**
+ * One story: read its page, find the preview picture, copy it, record it.
+ * A page with no picture is recorded with no path so it is not read again.
+ * A failure to copy records nothing, so a later run tries again.
+ */
+export async function pictureStory(
+  db: Db, story: StoryRow, userAgent: string, dry: boolean, log: (line: string) => void,
+  read: (url: string) => ReturnType<typeof fetchPage> = (url) => fetchPage(url),
+): Promise<"stored" | "none" | "failed"> {
+  const page = await read(story.url);
+  const imageUrl = previewPictureOf(page.body, page.finalUrl ?? story.url);
+  if (imageUrl === null) {
+    log(`  ${story.outlet}: no preview picture`);
+    if (!dry) await insert(db, "story_pictures?on_conflict=story_id", [{ story_id: story.id, page_url: story.url, image_url: null, outlet: story.outlet, path: null, fetched_at: new Date().toISOString() }], { ignoreDuplicates: true });
+    return "none";
+  }
+  if (dry) {
+    log(`  ${story.outlet}: ${imageUrl}`);
+    return "stored";
+  }
+  try {
+    const response = await fetch(imageUrl, { headers: { "User-Agent": userAgent, Accept: "image/*" }, redirect: "follow" });
+    if (!response.ok) throw new Error(`picture answered ${response.status}`);
+    const contentType = (response.headers.get("content-type") ?? "").split(";")[0]!.trim() || "image/jpeg";
+    if (!/^image\//.test(contentType)) throw new Error(`not an image: ${contentType}`);
+    const body = await response.arrayBuffer();
+    if (body.byteLength > MAX_BYTES) throw new Error(`too big: ${body.byteLength} bytes`);
+    if (body.byteLength < 1000) throw new Error(`only ${body.byteLength} bytes`);
+    const path = storagePath(story.id, contentType);
+    await store(db, path, body, contentType);
+    await insert(db, "story_pictures?on_conflict=story_id", [{ story_id: story.id, page_url: story.url, image_url: imageUrl, outlet: story.outlet, path, fetched_at: new Date().toISOString() }], { ignoreDuplicates: true });
+    return "stored";
+  } catch (error: unknown) {
+    log(`  ${story.outlet}: ${error instanceof Error ? error.message : String(error)}`);
+    return "failed";
+  }
+}
+
+/** Every open date, or the dates given. */
+export async function run(db: Db, options: { dates?: string[]; userAgent?: string; dry?: boolean; log?: (line: string) => void } = {}): Promise<Report> {
+  const log = options.log ?? ((line: string) => console.log(line));
+  const userAgent = options.userAgent ?? "Mozilla/5.0 (compatible; Birthed/0.1; +https://birthed.app)";
+  const dates = options.dates ?? (await rows<{ wall_date: string }>(db, "wall_days?select=wall_date&closes_at=gt.now()&order=wall_date.asc")).map((d) => d.wall_date);
+  const report: Report = { stored: 0, none: 0, failed: 0 };
+  for (const wallDate of dates) {
+    const stories = await rows<StoryRow>(db, `wall_stories?select=id,wall_date,url,outlet,subject_kind&wall_date=eq.${wallDate}&order=submitted_at.asc`);
+    const pictured = new Set((await rows<{ story_id: string }>(db, `story_pictures?select=story_id&story_id=in.(${stories.map((s) => s.id).join(",") || "00000000-0000-0000-0000-000000000000"})`)).map((r) => r.story_id));
+    const todo = storiesToPicture(stories, pictured);
+    if (todo.length === 0) continue;
+    log(`wall pictures ${wallDate}: ${todo.length} stories to read`);
+    for (const story of todo) {
+      const outcome = await pictureStory(db, story, userAgent, options.dry === true, log);
+      report[outcome] += 1;
+      await new Promise((r) => setTimeout(r, PAUSE_MS));
+    }
+  }
+  log(`wall pictures: ${report.stored} stored, ${report.none} with no preview picture, ${report.failed} failed${options.dry ? " (dry run, nothing fetched or written)" : ""}`);
+  return report;
+}
+
+async function main(): Promise<void> {
+  await loadDotEnv();
+  const dry = process.argv.includes("--dry");
+  const config = loadConfig({ needsWrite: !dry });
+  const at = process.argv.indexOf("--date");
+  const dates = at >= 0 && process.argv[at + 1] !== undefined ? [process.argv[at + 1]!] : undefined;
+  await run({ url: config.supabaseUrl, key: config.serviceRoleKey }, { dates, dry, userAgent: config.userAgent });
+}
+
+function isEntryPoint(): boolean {
+  const argv = process.argv[1];
+  if (argv === undefined) return false;
+  try {
+    return realpathSync(argv) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (isEntryPoint()) {
+  main().catch((error: unknown) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  });
+}

@@ -1,5 +1,5 @@
 // One tick of the wall, for the schedule in render.yaml: the history seeder,
-// the news seeder and then the checker, every quarter hour.
+// the news seeder, the news pictures and then the checker, every quarter hour.
 //
 //   node dist/src/wall/tick.js
 //
@@ -14,6 +14,7 @@ import { run as check } from "./check.js";
 import type { Db } from "./db.js";
 import { run as history } from "./history.js";
 import { run as news } from "./news.js";
+import { run as pictures } from "./story-pictures.js";
 
 async function main(): Promise<void> {
   await loadDotEnv();
@@ -34,6 +35,15 @@ async function main(): Promise<void> {
   } catch (error: unknown) {
     failed = true;
     console.error(`wall news failed: ${error instanceof Error ? error.message : error}`);
+  }
+  // The publisher's preview picture for every new story, read once. After
+  // the news so this run's stories get theirs, before the checker so the
+  // pictures are not waiting on the slowest page. section 20.
+  try {
+    await pictures(db, { userAgent: config.userAgent });
+  } catch (error: unknown) {
+    failed = true;
+    console.error(`wall pictures failed: ${error instanceof Error ? error.message : error}`);
   }
   try {
     await check(db);

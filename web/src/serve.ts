@@ -31,9 +31,9 @@ import { extname, join, normalize, resolve, sep } from "node:path";
 
 import { everyDate, monthName, slug } from "./model.js";
 import { ASK_SLOTS, TODAY, renderStoryPage } from "./render.js";
-import { ASK_MAX, emptyWallDay, fetchWallDay, openWallDates, replaceWall, hivePath, wallKey, wallMarks, wallSection, withChecks, type Anniversary, type TapBack, type WallDay } from "./wall.js";
+import { ASK_MAX, emptyWallDay, fetchWallDay, openWallDates, pictureRules, replaceWall, hivePath, wallKey, wallMarks, wallSection, withChecks, type Anniversary, type TapBack, type WallDay } from "./wall.js";
 import { answer as findAnswer } from "./find.js";
-import { fetchEventPicture } from "./event-pictures.js";
+import { fetchPictureFor, fetchPicturesFor, type StoredPicture } from "./stored-pictures.js";
 import { personalName } from "./share.js";
 
 
@@ -89,9 +89,10 @@ const SECURITY: Record<string, string> = {
     // /add for months. 'self' and nothing else: a form on this site may post
     // to this site and nowhere on earth besides.
     // img-src names the project's address as well as this one, since
-    // September 11, 2026: the events' pictures live in the project's public
-    // bucket, fetched there by the worker, event-pictures.ts. Still no
-    // picture from Wikipedia, Commons or any news site is loaded by a page.
+    // September 11, 2026: the events' and the news stories' pictures live in
+    // the project's public bucket, copied there by the worker,
+    // stored-pictures.ts. Still no picture from Wikipedia, Commons or any
+    // news site is loaded by a page.
     `default-src 'none'; img-src 'self' ${projectBase()}; style-src 'unsafe-inline' 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`,
   "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
 };
@@ -1159,9 +1160,7 @@ async function handle(
       const told = method === "HEAD" ? story : await withChecks(projectBase(), key, story, WALL_TIMEOUT_MS);
       // The picture credit, one small read for the one story, because the
       // day's read carries no pictures either.
-      const credit = method === "HEAD" || story.subjectKind !== "historical_event" || story.subjectId === null
-        ? null
-        : await fetchEventPicture(projectBase(), key, story.subjectId, WALL_TIMEOUT_MS);
+      const credit = method === "HEAD" ? null : await fetchPictureFor(projectBase(), key, story, WALL_TIMEOUT_MS);
       response.end(method === "HEAD" ? undefined : renderStoryPage(told, wall.day, now, { interactive: true, undo, credit }) + marks);
       return;
     }
@@ -1408,7 +1407,7 @@ export function yearMarks(slug: string, year: number | null): string {
 const WALL_FRESH_MS = 20_000;
 const WALL_TIMEOUT_MS = 3000;
 
-const wallCache = new Map<string, { at: number; day: WallDay | null }>();
+const wallCache = new Map<string, { at: number; day: WallDay | null; pictures: StoredPicture[] }>();
 
 /**
  * The fresh wall for a date page, as the section to swap in and the day it
@@ -1436,8 +1435,15 @@ async function liveWall(
 
   const cached = wallCache.get(wallDate);
   let wall: WallDay | null;
+  // The pictures the project holds for this wall's stories, read with the
+  // wall and cached with it. The baked page carries rules for the stories
+  // the build saw; a story that landed since has its rule only here, inside
+  // the swapped section, so a live tile is never a bare tile because the
+  // deploy came before the news.
+  let pictures: StoredPicture[] = [];
   if (!fresh && cached !== undefined && now - cached.at < WALL_FRESH_MS) {
     wall = cached.day;
+    pictures = cached.pictures;
   } else {
     try {
       // No row yet is not a failure: it is tomorrow before anything has
@@ -1445,12 +1451,13 @@ async function liveWall(
       // opens rather than nothing. A read that fails is null, and null is
       // the page as built.
       wall = (await fetchWallDay(projectBase(), key, wallDate, WALL_TIMEOUT_MS)) ?? emptyWallDay(wallDate);
+      pictures = wall.stories.length === 0 ? [] : await fetchPicturesFor(projectBase(), key, wall.stories, WALL_TIMEOUT_MS);
     } catch {
       wall = null;
     }
     // A failure is remembered too, so an outage is asked about once every
     // twenty seconds rather than on every page view.
-    wallCache.set(wallDate, { at: now, day: wall });
+    wallCache.set(wallDate, { at: now, day: wall, pictures });
   }
   if (wall === null) return null;
   // The identifiers a find redirect carries, resolved against this wall in
@@ -1466,7 +1473,7 @@ async function liveWall(
   // never the page.
   const undo = undoOn === null ? null : read.stories.find((s) => s.id === undoOn) ?? null;
   return {
-    section: wallSection(wall, `${monthName(month)} ${day}`, now, { interactive: true, hive, date: { month, day }, found: stories, undo, anniversary }),
+    section: pictureRules(pictures) + wallSection(wall, `${monthName(month)} ${day}`, now, { interactive: true, hive, date: { month, day }, found: stories, undo, anniversary }),
     day: wall,
   };
 }

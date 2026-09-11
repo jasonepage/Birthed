@@ -248,9 +248,14 @@ export function subjectOf(story: Pick<WallStory, "subjectKind" | "subjectId">): 
   return `${story.subjectKind}:${story.subjectId}`;
 }
 
-function subjectAttr(story: Pick<WallStory, "subjectKind" | "subjectId">): string {
-  const subject = subjectOf(story);
-  return subject === null ? "" : ` data-subject="${escapeHtml(subject)}"`;
+/**
+ * The key a picture rule finds the tile by: the story's subject, or for a
+ * story with none, which is the news, the story itself as "story:<id>".
+ * stored-pictures.ts files pictures under the same two shapes.
+ */
+function subjectAttr(story: Pick<WallStory, "id" | "subjectKind" | "subjectId">): string {
+  const subject = subjectOf(story) ?? `story:${story.id}`;
+  return ` data-subject="${escapeHtml(subject)}"`;
 }
 
 export interface Picture {
@@ -258,7 +263,7 @@ export interface Picture {
   subject: string;
   /**
    * A path on this domain, "/covers/abc.jpg", "/faces/Q123.jpg", or a
-   * picture in the project's own public bucket, event-pictures.ts. Never any
+   * picture in the project's own public bucket, stored-pictures.ts. Never any
    * other host: the page sends img-src 'self' and the project's address,
    * and a picture from anywhere else is refused by the browser.
    */
@@ -1528,8 +1533,8 @@ export interface ReceiptOptions {
    */
   undo?: WallStory | null;
   /**
-   * The picture credit for a story whose subject has a stored picture,
-   * event-pictures.ts. The tile shows the picture without a word; the
+   * The picture credit for a story that has a stored picture,
+   * stored-pictures.ts. The tile shows the picture without a word; the
    * receipt is where the words go, the way the sources are.
    */
   credit?: { credit: string; commonsUrl: string | null; licenseUrl: string | null } | null;

@@ -443,15 +443,19 @@ Nathan's decision, the measurements behind it and what it withdraws are in
   `20260911050000_reach_on_both_anniversaries` were applied by Jason on
   September 11, 2026.** The events have been re-imported and the panel's
   "Measure every date" has run.
-- **Event tiles draw their article's lead picture.** `docs/the-wall.md`
-  section 19. Free Commons files only, copied at tile width into the
-  project's public `pictures` bucket by the worker's `npm run pictures`,
-  recorded in `event_pictures`, credited on the receipt. The site's image
-  policy names the project's address and nothing else; no page asks
-  Wikipedia or Commons for a picture. Migrations
-  `20260911070000_albums_and_films_on_the_hive` (album and film tiles) and
-  `20260911080000_event_pictures` (the table and the bucket) are written,
-  tested in a rolled back transaction, and applied only when Jason says.
+- **Event tiles draw their article's lead picture; news tiles draw the
+  publisher's preview picture.** `docs/the-wall.md` sections 19 and 20. Event
+  pictures are free Commons files, copied at tile width by `npm run pictures`
+  into the public `pictures` bucket and recorded in `event_pictures`. News
+  pictures are the page's own og:image, copied by the tick and recorded in
+  `story_pictures`; the receipt says they belong to the publisher and come
+  down on request. The site's image policy names the project's address and
+  nothing else; no page asks Wikipedia, Commons or a news site for a picture.
+  Migrations `20260911070000_albums_and_films_on_the_hive` and
+  `20260911080000_event_pictures` were applied by Jason on September 11, 2026;
+  `20260911090000_story_pictures` is written and tested in a rolled back
+  transaction, applied when Jason says. A shared reader, stored-pictures.ts,
+  keys a tile's picture by its subject or, for the news, by `story:<id>`.
 
 ### What a public figure is for, decided September 6, 2026
 
