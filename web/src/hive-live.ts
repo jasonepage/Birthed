@@ -241,6 +241,18 @@ export const HIVE_LIVE_STYLE = `
 @font-face { font-family: "Fraunces"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("/fonts/fraunces-latin-wght-normal.woff2") format("woff2-variations"); }
 @font-face { font-family: "Fraunces"; font-style: italic; font-weight: 100 900; font-display: swap; src: url("/fonts/fraunces-latin-wght-italic.woff2") format("woff2-variations"); }
 .hivepage { background: radial-gradient(140% 100% at 50% -20%, #2A1D0C 0%, #120D08 58%) fixed; }
+/* The bar on the live page runs the whole width of the window and is the
+   hive's own dark honey rather than the date page's violet black: a strip
+   the width of the board floating on a wider warm page read as a mistake.
+   Its contents stay lined up with the board by padding the bleed back. */
+.hivepage .daybar {
+  margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw);
+  padding-left: max(16px, calc(50vw - 50%)); padding-right: max(16px, calc(50vw - 50%));
+  background: rgba(18, 13, 8, .92); box-shadow: 0 1px 0 rgba(244, 183, 64, .18);
+}
+.hivepage .daybar .barnav .here { color: #FFF3E0; font-family: "Fraunces", Georgia, "Times New Roman", serif; font-size: 15px; font-weight: 700; }
+.hivepage .daybar .get { color: #B7A488; }
+.hivepage .daybar .get:hover { color: #FFCF6B; border-bottom-color: #F4B740; }
 .wlivehive { --honey: #F4B740; --honey-lite: #FFCF6B; --ember: #FF8A3D; --cream: #FFF3E0; --dim: #B7A488; --dimmer: #8A7A63; --line: #3A2E1C; --cell: #1E1710; }
 /* Clear of the sticky bar: the first version sat on it and the top of the
    line was under the bar on a page scrolled by a few pixels. */
