@@ -33,7 +33,7 @@ import { insert, rows, type Db } from "./db.js";
 import { fitHeadline, openDates } from "./news.js";
 import { fold } from "./page.js";
 
-export type SubjectKind = "historical_event" | "birth_fact" | "cultural_event" | "person" | "song";
+export type SubjectKind = "historical_event" | "birth_fact" | "cultural_event" | "person" | "song" | "album" | "film";
 
 export interface HistoryStory {
   wallDate: string;
@@ -246,7 +246,19 @@ export const CHART_NAME = "Billboard Hot 100";
 /** Days a weekly chart covers, counting the issue date itself. The same rule as web/src/songs.ts. */
 const CHART_WINDOW = 7;
 
-export interface SongRow { chart_date: string; song: string; artist: string; source_url: string }
+/**
+ * The three charts the site keeps, each a kind of pixel. Nathan, September
+ * 11, 2026: music, films and albums should reach the hive more often, and
+ * the albums and the films had never been filed at all.
+ */
+export type ChartKind = "song" | "album" | "film";
+export const CHARTS: ReadonlyArray<{ name: string; kind: ChartKind }> = [
+  { name: "Billboard Hot 100", kind: "song" },
+  { name: "Billboard 200", kind: "album" },
+  { name: "US box office", kind: "film" },
+];
+
+export interface SongRow { chart_date: string; song: string; artist: string; source_url: string; chart_name?: string }
 
 function addDays(isoDate: string, days: number): string {
   const date = new Date(`${isoDate}T00:00:00Z`);
@@ -297,19 +309,32 @@ export function songsOn(weeks: SongRow[], month: number, day: number): Array<Son
  * other history row. If a rendered table proves the pairing wrong, the fix
  * is here and not in the match rule.
  */
-export function planSongs(wallDate: string, songs: Array<SongRow & { year: number }>): HistoryStory[] {
+export function planSongs(wallDate: string, songs: Array<SongRow & { year: number }>, kind: ChartKind = "song"): HistoryStory[] {
   const out: HistoryStory[] = [];
   const seen = new Set<string>();
+  const chart = CHARTS.find((c) => c.kind === kind)!;
   for (const s of songs) {
-    const urlKey = subjectKey("song", s.chart_date);
+    const urlKey = subjectKey(kind, s.chart_date);
     if (seen.has(urlKey) || s.source_url === "" || s.song.trim() === "") continue;
     seen.add(urlKey);
+    const title = fold(s.song);
+    const artist = fold(s.artist);
+    const headline = kind === "song" ? `${s.year}: "${title}" by ${artist} was the number one song`
+      : kind === "album" ? `${s.year}: ${title} by ${artist} was the number one album`
+      : `${s.year}: ${title} was the number one film at the box office`;
+    // The quotation is the row as the table prints it. A source needs twenty
+    // characters to quote, and "Butter" BTS is twelve: one short row failed
+    // the whole batch of sources, every date, every run, from the day the
+    // songs shipped, and no song ever reached a hive. A short one carries
+    // the chart's name after it, which is the table's own heading.
+    const bare = fold(kind === "film" ? title : `"${s.song}" ${s.artist}`);
+    const quotation = bare.length >= 20 ? bare : fold(`${bare}, number one on the ${chart.name}`);
     out.push({
       wallDate, urlKey,
-      subjectKind: "song", subjectId: s.chart_date,
-      headline: fitHeadline(`${s.year}: "${fold(s.song)}" by ${fold(s.artist)} was the number one song`),
+      subjectKind: kind, subjectId: s.chart_date,
+      headline: fitHeadline(headline),
       url: s.source_url, outlet: hostOf(s.source_url),
-      quotation: fold(`"${s.song}" ${s.artist}`).slice(0, 1000),
+      quotation: quotation.slice(0, 1000),
       priority: PRIORITY_SONG,
     });
   }
@@ -319,6 +344,12 @@ export function planSongs(wallDate: string, songs: Array<SongRow & { year: numbe
 /** Every Hot 100 week, read once per run and shared by the three open dates. */
 export async function readSongs(db: Db): Promise<SongRow[]> {
   return rows<SongRow>(db, `chart_weeks?select=chart_date,song,artist,source_url&chart_name=eq.${encodeURIComponent(CHART_NAME)}&order=chart_date.asc`);
+}
+
+/** Every week of every chart the site keeps, read once per run. */
+export async function readCharts(db: Db): Promise<SongRow[]> {
+  const names = CHARTS.map((c) => `"${c.name}"`).join(",");
+  return rows<SongRow>(db, `chart_weeks?select=chart_date,song,artist,source_url,chart_name&chart_name=in.(${encodeURIComponent(names)})&order=chart_date.asc`);
 }
 
 // ---------------------------------------------------------------------------
@@ -396,16 +427,16 @@ export async function run(db: Db, options: { now?: Date; dry?: boolean } = {}): 
   // still file, and the log says what was missed.
   let weeks: SongRow[] = [];
   try {
-    weeks = await readSongs(db);
+    weeks = await readCharts(db);
   } catch (error: unknown) {
-    console.error(`wall history: the chart could not be read, so no songs file this run: ${error instanceof Error ? error.message : error}`);
+    console.error(`wall history: the charts could not be read, so no songs, albums or films file this run: ${error instanceof Error ? error.message : error}`);
   }
   for (const wallDate of openDates(now.getTime())) {
     const [, m, d] = wallDate.split("-").map(Number) as [number, number, number];
     const history = await readHistory(db, m, d);
     const dropped: Dropped = { noLink: 0, shortQuotation: 0, noHeadline: 0 };
     const stories = planHistory(wallDate, history, dropped);
-    const songs = planSongs(wallDate, songsOn(weeks, m, d));
+    const songs = CHARTS.flatMap((chart) => planSongs(wallDate, songsOn(weeks.filter((w) => (w.chart_name ?? CHART_NAME) === chart.name), m, d), chart.kind));
     planned += stories.length + songs.length;
     // A row left out is said so, per date and per reason, every run. A stage
     // that drops rows quietly looks exactly like one that drops none.
@@ -421,15 +452,17 @@ export async function run(db: Db, options: { now?: Date; dry?: boolean } = {}): 
     const at = now.toISOString();
     await insert(db, "wall_days", [{ wall_date: wallDate, opens_at: at, live_at: at, closes_at: at }], { ignoreDuplicates: true });
     written += await file(db, wallDate, "history", stories, at);
+    await repairSources(db, wallDate, stories, at);
     // The songs go in their own insert, after the date's history has landed.
     // The first day the songs shipped, the database refused their kind, the
     // refusal took the whole insert with it, and the date's events and people
     // were not filed either. A kind the database will not take must cost that
     // kind and nothing else.
     try {
-      written += await file(db, wallDate, "songs", songs, at);
+      written += await file(db, wallDate, "charts", songs, at);
+      await repairSources(db, wallDate, songs, at);
     } catch (error: unknown) {
-      console.error(`wall history ${wallDate}: the songs were refused and the rest of the date stands: ${error instanceof Error ? error.message.slice(0, 300) : error}`);
+      console.error(`wall history ${wallDate}: the charts were refused and the rest of the date stands: ${error instanceof Error ? error.message.slice(0, 300) : error}`);
     }
   }
   return { planned, written };
@@ -456,6 +489,39 @@ async function file(db: Db, wallDate: string, what: string, stories: HistoryStor
   if (sources.length > 0) await insert(db, "wall_sources", sources);
   console.log(`wall ${what} ${wallDate}: ${inserted.length} new of ${stories.length}`);
   return inserted.length;
+}
+
+/**
+ * Sources for stories that were filed without them. The songs' sources
+ * failed as a batch from the day they shipped, so sixty odd song stories a
+ * date sat in the pool with nothing to verify and no way to leave. A story
+ * that exists and has no source gets the one the plan would have given it;
+ * the plan is the same every run, so this is idempotent. Returns how many
+ * sources were added.
+ */
+export async function repairSources(db: Db, wallDate: string, stories: HistoryStory[], at: string): Promise<number> {
+  if (stories.length === 0) return 0;
+  const byKey = new Map(stories.map((s) => [s.urlKey, s]));
+  const keys = [...byKey.keys()];
+  const existing: Array<{ id: string; url_key: string }> = [];
+  for (let start = 0; start < keys.length; start += 80) {
+    const batch = keys.slice(start, start + 80).map((k) => `"${k}"`).join(",");
+    existing.push(...await rows<{ id: string; url_key: string }>(db, `wall_stories?select=id,url_key&wall_date=eq.${wallDate}&url_key=in.(${encodeURIComponent(batch)})`));
+  }
+  if (existing.length === 0) return 0;
+  const sourced = new Set<string>();
+  for (let start = 0; start < existing.length; start += 80) {
+    const ids = existing.slice(start, start + 80).map((e) => e.id).join(",");
+    for (const row of await rows<{ story_id: string }>(db, `wall_sources?select=story_id&story_id=in.(${ids})`)) sourced.add(row.story_id);
+  }
+  const missing = existing.filter((e) => !sourced.has(e.id));
+  if (missing.length === 0) return 0;
+  await insert(db, "wall_sources", missing.map((row) => {
+    const s = byKey.get(row.url_key)!;
+    return { story_id: row.id, url: s.url, url_key: s.urlKey, outlet: s.outlet, owner: s.outlet, headline: s.headline, quotation: s.quotation, imported: true, verified_at: at };
+  }));
+  console.log(`wall history ${wallDate}: ${missing.length} stories had no source and have one now`);
+  return missing.length;
 }
 
 async function main(): Promise<void> {

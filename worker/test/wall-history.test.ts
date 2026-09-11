@@ -202,6 +202,29 @@ test("the song on a date is the first issue on or after it and no more than six 
   assert.deepEqual(songsOn(WEEKS, 2, 29).map((s) => s.year), [2024]);
 });
 
+test("a quotation under twenty characters carries the chart's name, so one short row cannot fail the batch", () => {
+  // "Butter" BTS is twelve characters, and wall_sources refuses a quotation
+  // under twenty. From the day the songs shipped that one row failed every
+  // date's batch of sources, so no song ever reached a hive.
+  const [butter] = planSongs("2026-09-10", [{ chart_date: "2021-09-11", song: "Butter", artist: "BTS", source_url: "https://en.wikipedia.org/wiki/List_of_Billboard_Hot_100_number_ones_of_2021", year: 2021 }]);
+  assert.equal(butter!.quotation, `"Butter" BTS, number one on the Billboard Hot 100`);
+  assert.ok(butter!.quotation.length >= 20);
+});
+
+test("albums and films are pixels too, keyed by their own kind so a week's song, album and film are three stories", () => {
+  const week = { chart_date: "2024-09-14", source_url: "https://en.wikipedia.org/wiki/List_of_Billboard_200_number-one_albums_of_2024", year: 2024 };
+  const [album] = planSongs("2026-09-10", [{ ...week, song: "Short n' Sweet", artist: "Sabrina Carpenter" }], "album");
+  assert.equal(album!.subjectKind, "album");
+  assert.equal(album!.urlKey, "subject:album:2024-09-14");
+  assert.equal(album!.headline, "2024: Short n' Sweet by Sabrina Carpenter was the number one album");
+  const [film] = planSongs("2026-09-10", [{ ...week, song: "Beetlejuice Beetlejuice", artist: "", source_url: "https://en.wikipedia.org/wiki/List_of_2024_box_office_number-one_films_in_the_United_States" }], "film");
+  assert.equal(film!.subjectKind, "film");
+  assert.equal(film!.headline, "2024: Beetlejuice Beetlejuice was the number one film at the box office");
+  assert.equal(film!.quotation, "Beetlejuice Beetlejuice");
+  const [short] = planSongs("2026-09-10", [{ ...week, song: "Us", artist: "", source_url: "https://en.wikipedia.org/wiki/List_of_2019_box_office_number-one_films_in_the_United_States" }], "film");
+  assert.equal(short!.quotation, "Us, number one on the US box office");
+});
+
 test("a song story is keyed by its issue, quotes the table's own song and artist, and files at the news's priority", () => {
   const stories = planSongs("2026-09-10", songsOn(WEEKS, 9, 10));
   assert.equal(stories.length, 2);
