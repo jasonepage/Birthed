@@ -487,3 +487,32 @@ test("no one kind of history takes more than its share of the board", () => {
   assert.ok(events >= 4, `forty events got ${events} tiles behind twelve birthdays`);
   assert.equal(board.length, 8);
 });
+
+test("among unbacked stories the score decides, ahead of priority and arrival, and one buzz beats every score", () => {
+  // Three history events, same kind, arriving in the order a, b, c, with c
+  // scored highest. The 2001 attacks lost a lottery like this to the theft
+  // of the Hope Diamond because all three tied at priority 1.
+  const events = [
+    story("hope-diamond", { placedAt: 1000, priority: 1, score: 29, subjectKind: "historical_event" }),
+    story("chess-match", { placedAt: 2000, priority: 1, score: 29, subjectKind: "historical_event" }),
+    story("attacks", { placedAt: 3000, priority: 1, score: 89, subjectKind: "historical_event" }),
+  ];
+  const placed = allocate(events).placed.map((p) => p.id);
+  assert.deepEqual(placed.slice(0, 2), ["attacks", "hope-diamond"], "the score first, then arrival among equal scores; the kind cap holds the third");
+
+  // A person at priority 2 with no score sorts as nought and is behind any
+  // scored event, but ahead of an unscored event.
+  const mixed = [
+    story("person", { placedAt: 1000, priority: 2, subjectKind: "person" }),
+    story("event", { placedAt: 2000, priority: 1, score: 29, subjectKind: "historical_event" }),
+    story("fact", { placedAt: 500, priority: 1, subjectKind: "birth_fact" }),
+  ];
+  assert.deepEqual(allocate(mixed).placed.map((p) => p.id), ["event", "person", "fact"]);
+
+  // One buzz beats every score.
+  const backed = [
+    story("scored", { placedAt: 1000, priority: 1, score: 89, subjectKind: "historical_event" }),
+    story("buzzed", { placedAt: 2000, priority: 0, support: 1, subjectKind: null }),
+  ];
+  assert.equal(allocate(backed).placed[0]?.id, "buzzed");
+});

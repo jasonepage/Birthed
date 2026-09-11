@@ -37,6 +37,7 @@ import { insert, rows, update, type Db } from "./db.js";
 import { HostSilence, fetchPage, ownerOf, pageContains, type Fetched, type OwnerRow } from "./page.js";
 import { eligibleForWall, tierFor } from "./pool.js";
 import { NEVER_CHECKED, dueForCheck, shouldRecord, summarize } from "./recheck.js";
+import { scoreEvents, type ReachRow, type ScoredEventRow } from "./points.js";
 import { outletOf } from "./url.js";
 
 // ---------------------------------------------------------------------------
@@ -64,6 +65,8 @@ export interface StoryRow {
   priority: number;
   /** The imported row this story stands for, or null for the day's news. Read by the allocator's variety pass. */
   subject_kind?: string | null;
+  /** The imported row's own identifier, so its score can be looked up. */
+  subject_id?: string | null;
   outlet?: string;
   placed_at: string | null;
   anchor_mx: number | null;
@@ -207,7 +210,11 @@ export function settle(
   sources: SourceRow[],
   owners: OwnerRow[],
   now: string,
+  /** The curation panel's points by "kind:id", from scoreEvents. Optional so the tests that are not about order need not build one. */
+  scores: Map<string, number> = new Map(),
 ): Settled {
+  const scoreOf = (story: StoryRow): number | undefined =>
+    story.subject_kind && story.subject_id ? scores.get(`${story.subject_kind}:${story.subject_id}`) : undefined;
   const updates = new Map<string, StoryUpdate>();
   const touch = (id: string): StoryUpdate => {
     const existing = updates.get(id);
@@ -251,7 +258,7 @@ export function settle(
       if (!its.some((s) => s.verified)) continue;
       if (!eligibleForWall({ support: story.support, submittedAt: story.submitted_at, submittedBy: story.submitted_by }, its, now)) continue;
       touch(story.id).placed_at = now;
-      input.push({ id: story.id, tier, support: story.support, priority: story.priority, placedAt: now, anchor: null,
+      input.push({ id: story.id, tier, support: story.support, priority: story.priority, score: scoreOf(story), placedAt: now, anchor: null,
                    subjectKind: story.subject_kind ?? null, outlet: story.outlet });
       continue;
     }
@@ -259,7 +266,7 @@ export function settle(
     // placed or overflow: placed_at is when it earned its place, and an
     // overflow story keeps that so it is considered in the order it earned
     // rather than as new each run.
-    input.push({ id: story.id, tier, support: story.support, priority: story.priority, placedAt: story.placed_at ?? story.submitted_at, anchor: rect,
+    input.push({ id: story.id, tier, support: story.support, priority: story.priority, score: scoreOf(story), placedAt: story.placed_at ?? story.submitted_at, anchor: rect,
                  subjectKind: story.subject_kind ?? null, outlet: story.outlet });
   }
 
@@ -334,6 +341,35 @@ function chunk<T>(items: T[], size: number): T[][] {
   return out;
 }
 
+/**
+ * The curation panel's points for every history event on a date, read from
+ * the same rows the panel reads: the events with their subjects, the reach
+ * measured on those subjects, Wikipedia's picks and the lead lines. A read
+ * that fails costs the scores and nothing else: the board is then ordered
+ * by priority and arrival, the way it was before scores existed, and the
+ * log says so rather than the tick failing.
+ */
+export async function scoresFor(db: Db, wallDate: string, log: (line: string) => void): Promise<Map<string, number>> {
+  const [, m, d] = wallDate.split("-").map(Number) as [number, number, number];
+  try {
+    const events = await rows<ScoredEventRow>(db, `historical_events?select=id,event_year,subject_url&event_month=eq.${m}&event_day=eq.${d}`);
+    const urls = [...new Set(events.map((e) => e.subject_url).filter((u): u is string => u !== null))];
+    const reach: ReachRow[] = [];
+    for (const batch of chunk(urls, 60)) {
+      reach.push(...await rows<ReachRow>(db, `article_reach?select=source_url,views_year,views_on_date_low,views_median_day,error&source_url=in.(${batch.map((u) => `"${encodeURIComponent(u)}"`).join(",")})`));
+    }
+    const selected = await rows<{ event_year: number }>(db, `selected_anniversaries?select=event_year&event_month=eq.${m}&event_day=eq.${d}`);
+    const leads = await rows<{ subject_id: string }>(db, `lead_lines?select=subject_id&subject_kind=eq.historical_event&event_month=eq.${m}&event_day=eq.${d}`);
+    const scores = scoreEvents(events, reach, new Set(selected.map((s) => s.event_year)), new Set(leads.map((l) => l.subject_id)));
+    const measured = reach.filter((r) => r.error === null && r.views_on_date_low !== null).length;
+    log(`wall scores ${wallDate}: ${scores.size} history rows scored, ${urls.length} name an article, ${measured} of those measured`);
+    return scores;
+  } catch (error: unknown) {
+    log(`wall scores ${wallDate}: could not be read, so the board is ordered by priority alone this run: ${error instanceof Error ? error.message : error}`);
+    return new Map();
+  }
+}
+
 export async function run(db: Db, options: { now?: Date; date?: string; dry?: boolean; log?: (line: string) => void } = {}): Promise<RunReport> {
   const now = options.now ?? new Date();
   const at = now.toISOString();
@@ -357,7 +393,7 @@ export async function run(db: Db, options: { now?: Date; date?: string; dry?: bo
 
   for (const day of days) {
     const stories = await rows<StoryRow>(db,
-      `wall_stories?select=id,wall_date,submitted_at,submitted_by,status,tier,support,priority,subject_kind,outlet,placed_at,anchor_mx,anchor_my,w_modules,h_modules&wall_date=eq.${day.wall_date}&order=submitted_at.asc,id.asc`);
+      `wall_stories?select=id,wall_date,submitted_at,submitted_by,status,tier,support,priority,subject_kind,subject_id,outlet,placed_at,anchor_mx,anchor_my,w_modules,h_modules&wall_date=eq.${day.wall_date}&order=submitted_at.asc,id.asc`);
     const live = stories.filter((s) => s.status !== "false");
     const sources: SourceRow[] = [];
     for (const ids of chunk(live.map((s) => s.id), 80)) {
@@ -419,7 +455,7 @@ export async function run(db: Db, options: { now?: Date; date?: string; dry?: bo
       for (const batch of chunk(checks, 200)) await insert(db, "wall_checks", batch);
     }
 
-    const settled = settle(day, stories, sources, owners, at);
+    const settled = settle(day, stories, sources, owners, at, await scoresFor(db, day.wall_date, log));
     report.graduated += settled.stories.filter((u) => u.placed_at !== undefined && u.status === "placed").length;
     report.overflow += settled.stories.filter((u) => u.status === "overflow").length;
     report.retiered += settled.stories.filter((u) => u.tier !== undefined).length;

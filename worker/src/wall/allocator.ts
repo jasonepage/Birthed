@@ -35,10 +35,15 @@
 //   feeds. The wall still opens carrying the day's news, section 11; it no
 //   longer opens finished.
 //   New stories are laid down after every story already holding a rectangle,
-//   most supported first, then by priority, then by placement time, then id,
-//   so a story people backed reaches the board before one nobody has, the
-//   date's own history opens the board ahead of the news feeds, and the
-//   first to arrive wins among equals. A new story takes the free minimum rectangle whose
+//   most supported first, then by score, then by priority, then by placement
+//   time, then id, so a story people backed reaches the board before one
+//   nobody has, the history people look up on the date opens the board ahead
+//   of the history nobody does, the date's own history opens it ahead of the
+//   news feeds, and the first to arrive wins among equals. The score is the
+//   curation panel's points for a history row, worker/src/wall/points.ts,
+//   decided September 11, 2026: with four coarse priorities a hundred and
+//   sixty four history stories tied at one and the board among them was a
+//   lottery, which the 2001 attacks lost to the theft of the Hope Diamond. A new story takes the free minimum rectangle whose
 //   centre is nearest the board centre, ranked by distance, then clockwise
 //   angle from straight up, then mx, then my.
 //   Target size is min(tier ceiling, MIN_MODULES + floor(support /
@@ -136,9 +141,20 @@ export interface StoryInput {
   /** Boost units so far. */
   support: number;
   /**
-   * Order among stories with equal support when the board has room: the
-   * date's biggest history first, then people, then the rest, then the news
-   * feeds. docs/the-wall.md section 13. Beaten by a single unit of support.
+   * The curation panel's points for the row this story stands for, when it
+   * has any: how many people look the thing up on its date every year, how
+   * many look it up at all, how recent it is, whether Wikipedia picked it,
+   * whether somebody wrote a line. Decides the order among stories with
+   * equal support, ahead of priority. A story with no score, the news and
+   * for now everything that is not a Wikipedia history row, sorts as nought
+   * and falls through to priority. Beaten by a single unit of support.
+   */
+  score?: number;
+  /**
+   * Order among stories with equal support and equal score when the board
+   * has room: the date's biggest history first, then people, then the rest,
+   * then the news feeds. docs/the-wall.md section 13. Beaten by a single
+   * unit of support.
    */
   priority?: number;
   /**
@@ -485,6 +501,7 @@ export function allocate(stories: StoryInput[]): Allocation {
 
   const sorted = stories.filter((s) => !s.anchor).sort((a, b) => {
     if (b.support !== a.support) return b.support - a.support;
+    if ((b.score ?? 0) !== (a.score ?? 0)) return (b.score ?? 0) - (a.score ?? 0);
     if ((b.priority ?? 0) !== (a.priority ?? 0)) return (b.priority ?? 0) - (a.priority ?? 0);
     return byArrival(a, b);
   });
