@@ -763,7 +763,11 @@ function tile(story: WallStory, live: boolean, voice: Voice, view: Viewport, hiv
   const lines = rect.h <= 3 ? 3 : rect.h === 4 ? 5 : rect.h === 5 ? 7 : rect.h === 6 ? 9 : 11;
   // --i is the tile's place in the deal, for the stagger when the board
   // rises in. The same variable the covers and the feed rise on.
-  const style = `grid-column:${rect.mx - view.ox + 1} / span ${rect.w};grid-row:${rect.my - view.oy + 1} / span ${rect.h};--lines:${lines};--i:${index}`;
+  // --tw is the tile's width in modules. Since the pie, docs/the-wall.md
+  // section 18, a tile can be a quarter of the board or the whole of it,
+  // and a headline set for a four module tile leaves a sixteen module one
+  // three quarters empty. The stylesheet grows the type with the width.
+  const style = `grid-column:${rect.mx - view.ox + 1} / span ${rect.w};grid-row:${rect.my - view.oy + 1} / span ${rect.h};--lines:${lines};--tw:${rect.w};--i:${index}`;
   const stamp = story.status === "false" ? `<span class="wstamp">Shown false</span>` : "";
   const classes = `wtile ${size} w-${story.tier}${rect.h <= 3 ? " wh3" : ""}${story.status === "false" ? " wfalse" : ""}`;
   const receipt = storyPath(story);
@@ -1810,7 +1814,15 @@ export const WALL_STYLE = `
 /* Type scales with the window, not the board: a twelve module window draws
    each module a third larger than the whole board would, and the words
    follow. */
-.wtile.mid .wh, .wtile.big .wh { font-size: clamp(10px, calc(38cqi / var(--side, 16)), 22px); -webkit-line-clamp: calc(var(--lines, 3) + var(--more, 0)); }
+/* And with the tile: a headline in a tile twice the minimum width is set
+   about a third larger, and one across the whole board about twice as large,
+   so the pie's biggest share reads as the biggest thing on the page rather
+   than as the emptiest tile. --tw is the tile's width in modules, set on the
+   tile; the minimum is four. */
+.wtile.mid .wh, .wtile.big .wh {
+  font-size: clamp(10px, calc(38cqi / var(--side, 16) * (0.7 + 0.075 * var(--tw, 4))), 40px);
+  -webkit-line-clamp: calc(var(--lines, 3) + var(--more, 0));
+}
 .wtile.mid, .wtile.big { padding: clamp(5px, calc(14cqi / var(--side, 16)), 14px) clamp(6px, calc(16cqi / var(--side, 16)), 16px); }
 .wfoot {
   flex: none; flex-wrap: nowrap; white-space: nowrap; overflow: hidden; margin-top: 0; min-width: 0;
