@@ -9,7 +9,7 @@
 // image service says which free file is the article's lead picture, Commons
 // says who made it and under what licence, the file is fetched at tile width
 // and put in the `pictures` bucket, and event_pictures records the path and
-// the credit. docs/the-wall.md section 18, and pictures.ts for the rules.
+// the credit. docs/the-wall.md section 19, and pictures.ts for the rules.
 //
 // Free, like every other importer here. The pause between fetches is
 // politeness to a volunteer funded service, and a run stopped halfway leaves

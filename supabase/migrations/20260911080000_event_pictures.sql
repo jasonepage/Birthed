@@ -1,4 +1,4 @@
--- Pictures for the events on the hive. docs/the-wall.md section 18, decided
+-- Pictures for the events on the hive. docs/the-wall.md section 19, decided
 -- by Jason, September 11, 2026: the pictures live in Supabase Storage.
 --
 -- Every history row that names its article can have that article's lead

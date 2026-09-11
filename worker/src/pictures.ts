@@ -8,7 +8,7 @@
 // who made it and under what licence, which the receipt prints as credit.
 //
 // Which events get a picture: the best scored on each date, by the same
-// points that choose the board, docs/the-wall.md section 18. Twelve a date
+// points that choose the board, docs/the-wall.md section 19. Twelve a date
 // is every tile that can reach the board and nothing that cannot, about
 // 4,400 pictures for the year, a few hundred megabytes at tile size. The
 // pictures live in Supabase Storage, in the `pictures` bucket, decided by
