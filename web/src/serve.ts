@@ -12,17 +12,16 @@
 // so a Supabase outage cannot take the site down and a request costs a file
 // read.
 //
-// Two requests are the exception and both of them follow an answer: the POST
-// that records one, and the single redirected GET carrying ?kept= that draws
-// the result. Nothing a reader can reach by browsing calls the database, and
-// when the ?kept= call fails the page is served exactly as it was built, so
-// the outage costs a result and never a site.
+// The remembrance question was the first exception to that, and it is gone:
+// its routes came off on September 11, 2026, after the question itself had
+// already come off the page. Nothing was dropped from the database and the
+// answers people gave are still read at build time to order a sealed date.
 //
-// The wall bends this for its three open dates, docs/the-wall.md sections
-// 12 and 13: those pages read the wall at request time, shared and cached,
-// a tap is a POST to /boost shaped exactly like /remember, and the GET that
-// follows it, carrying ?tapped=, reads once more past the cache. Every one
-// of those falls back to the page as built.
+// The wall is the exception now, on its three open dates, docs/the-wall.md
+// sections 12 and 13: those pages read the wall at request time, shared and
+// cached, a tap is a POST to /boost, and the GET that follows it, carrying
+// ?tapped=, reads once more past the cache. Every one of those falls back to
+// the page as built, so an outage costs a count and never a site.
 
 import { randomBytes } from "node:crypto";
 import { createReadStream } from "node:fs";
@@ -31,7 +30,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { extname, join, normalize, resolve, sep } from "node:path";
 
 import { everyDate, monthName, slug } from "./model.js";
-import { ASK_SLOTS, TODAY, renderStoryPage, resultId, resultMarkup, undoForm, type Remembered } from "./render.js";
+import { ASK_SLOTS, TODAY, renderStoryPage } from "./render.js";
 import { ASK_MAX, emptyWallDay, fetchWallDay, openWallDates, replaceWall, hivePath, wallKey, wallMarks, wallSection, withChecks, type Anniversary, type TapBack, type WallDay } from "./wall.js";
 import { answer as findAnswer } from "./find.js";
 import { personalName } from "./share.js";
@@ -84,7 +83,7 @@ const SECURITY: Record<string, string> = {
   // reason for the widening: it is how the calendar can ring today without a
   // script, which this policy still refuses everywhere except /add.
   "Content-Security-Policy":
-    // form-action was 'none' until the remember buttons existed, which would
+    // form-action was 'none' until the first button that posts existed, which would
     // have refused them silently, the same way default-src silently killed
     // /add for months. 'self' and nothing else: a form on this site may post
     // to this site and nowhere on earth besides.
@@ -457,18 +456,17 @@ function send(
 
 
 // ---------------------------------------------------------------------------
-// Remembering.
+// The two cookies.
 //
-// The one thing on this site that writes anything, and it is a plain HTML form
-// that posts and redirects back. No script, on a site that ships none, which
-// means it works with JavaScript turned off entirely. That is not nostalgia:
-// the whole argument this site makes about itself is that it runs nothing, and
-// a voting widget written in JavaScript would have cost that argument for a
-// feature that a 1993 browser could do.
+// Both were the remembrance question's before they were the wall's. The token
+// is the identity behind a buzz from a browser and the year decides which
+// picture a reader gets, and both outlive the question they were written for.
 //
-// The read path is untouched. A GET still costs a file read and nothing else,
-// so a Supabase outage stops people voting and does not stop the site serving,
-// which is the invariant this file was built around.
+// A write is still a plain HTML form that posts and redirects back. No script,
+// on a site that ships none, which means it works with JavaScript turned off
+// entirely. That is not nostalgia: the whole argument this site makes about
+// itself is that it runs nothing, and a button written in JavaScript would
+// have cost that argument for a thing a 1993 browser could do.
 
 const TOKEN_COOKIE = "bt";
 /// The reader's birth year, asked once and kept beside the token.
@@ -560,202 +558,8 @@ function readBody(request: IncomingMessage): Promise<string> {
   });
 }
 
-// birth_fact was missing here and the timeline has been drawing buttons on
-// those rows since the day it shipped. Every answer given on a researched fact
-// was refused with a 400 and the reader was shown "No." with nothing on screen
-// saying why. The check constraint gained the kind in
-// 20260908070000_remembrances_birth_fact_kind.sql and this set was never told.
-const KINDS = new Set(["moment", "cultural_event", "historical_event", "birth_fact", "person"]);
-const DEPTHS = new Set(["there", "remember", "heard", "never"]);
-
-export interface Answer {
-  month: number;
-  day: number;
-  kind: string;
-  id: string;
-  depth: string;
-  birthYear: number | null;
-}
-
-/**
- * A posted form into an answer, or null.
- *
- * Every field is checked here rather than trusted and passed on. The database
- * checks them again, because a client is a thing anybody can write, and this
- * layer exists so a malformed post is a 400 rather than a round trip.
- */
-export function readAnswer(body: string): Answer | null {
-  const form = new URLSearchParams(body);
-  const month = Number(form.get("m"));
-  const day = Number(form.get("d"));
-  const kind = form.get("k") ?? "";
-  const id = (form.get("i") ?? "").trim();
-  const depth = form.get("a") ?? "";
-  const rawYear = form.get("y");
-
-  if (!Number.isInteger(month) || month < 1 || month > 12) return null;
-  if (!Number.isInteger(day) || day < 1 || day > 31) return null;
-  if (!KINDS.has(kind) || !DEPTHS.has(depth)) return null;
-  if (id === "" || id.length > 64) return null;
-
-  const year = Number(rawYear);
-  const birthYear = rawYear !== null && Number.isInteger(year) && year >= 1900 && year <= 2100
-    ? year
-    : null;
-
-  return { month, day, kind, id, depth, birthYear };
-}
-
-/**
- * What happened to one answer, and why this is three values and not a boolean.
- *
- * A boolean said "kept" or "not kept", and the page turned "not kept" into
- * "this date is sealed", which is only one of the reasons it can happen. The
- * others are that the window does not cover the date, that this browser has
- * already answered this row, and that we never reached the database at all.
- * The last one is not the reader's business and is certainly not a fact about
- * the date, and telling somebody a date had sealed when the truth was a
- * missing environment variable is how that fault survived from the day the
- * feature shipped.
- */
-type Recorded = "kept" | "already" | "cooling" | "spent" | "sealed" | "closed" | "bad_token" | "unreachable";
-
-const REASONS = new Set(["kept", "already", "cooling", "spent", "sealed", "closed", "bad_token"]);
-
-async function record(answer: Answer, token: string): Promise<Recorded> {
-  const key = process.env.SUPABASE_ANON_KEY;
-  if (!key) return "unreachable";
-  const url = projectBase();
-  const response = await fetch(`${url}/rest/v1/rpc/remember_status`, {
-    method: "POST",
-    headers: {
-      apikey: key,
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify({
-      month_in: answer.month,
-      day_in: answer.day,
-      subject_kind_in: answer.kind,
-      subject_id_in: answer.id,
-      voter_token_in: token,
-      depth_in: answer.depth,
-      birth_year_in: answer.birthYear,
-    }),
-  });
-  if (!response.ok) return "unreachable";
-  const reason = await response.json();
-  // A reason this server does not know about is not a reason to claim
-  // something about the date. It is our end failing to keep up with the
-  // database, which is exactly the confusion this whole change is about.
-  return typeof reason === "string" && REASONS.has(reason) ? reason as Recorded : "unreachable";
-}
-
-/**
- * What a date's rows scored, for the one request that follows an answer.
- *
- * **This is the only place on the read path that ever calls the database, and
- * it only runs when the query string says somebody just answered.** An
- * ordinary page view still reads a baked file off disk and nothing else, which
- * is the property that keeps this site up when Supabase is not. A failure here
- * returns nothing and the page is served exactly as it was built, so the worst
- * an outage costs is a missing result rather than a missing site.
- */
-async function tallyFor(month: number, day: number): Promise<Map<string, Remembered>> {
-  const out = new Map<string, Remembered>();
-  const key = process.env.SUPABASE_ANON_KEY;
-  if (!key) return out;
-  const url = projectBase();
-
-  try {
-    const response = await fetch(`${url}/rest/v1/rpc/remembrance_tally`, {
-      method: "POST",
-      headers: {
-        apikey: key,
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({ month_in: month, day_in: day }),
-    });
-    if (!response.ok) return out;
-    const rows = (await response.json()) as Array<{
-      subject_kind: string; subject_id: string; edition_year: number;
-      there: number; remembers: number; heard: number; never: number;
-    }>;
-    // This year's edition. An older one is a different question and the row it
-    // belongs under is a comparison this site does not draw yet.
-    const thisYear = new Date().getUTCFullYear();
-    for (const row of rows) {
-      if (row.edition_year !== thisYear) continue;
-      out.set(`${row.subject_kind}:${row.subject_id}`, {
-        there: row.there, remembers: row.remembers, heard: row.heard, never: row.never,
-      });
-    }
-  } catch {
-    return out;
-  }
-  return out;
-}
-
-/**
- * The row a redirect says was just answered, or null.
- *
- * Read from the query string rather than trusted: it decides whether this one
- * request is allowed to call the database, so it is bounded exactly the way a
- * posted answer is.
- */
-export function keptFrom(query: string | undefined): { kind: string; id: string } | null {
-  if (query === undefined || query === "") return null;
-  const value = new URLSearchParams(query).get("kept");
-  if (value === null) return null;
-  const cut = value.indexOf(":");
-  if (cut < 1) return null;
-  const kind = value.slice(0, cut);
-  const id = value.slice(cut + 1);
-  if (!KINDS.has(kind)) return null;
-  if (id === "" || id.length > 64) return null;
-  return { kind, id };
-}
-
-/**
- * Ask the database to take one answer back.
- *
- * It decides. The window, the token match and the sealed check all live in
- * forget(), so there is nothing here to get out of step with them.
- */
-async function unrecord(
-  what: { month: number; day: number; kind: string; id: string },
-  token: string,
-): Promise<boolean> {
-  const key = process.env.SUPABASE_ANON_KEY;
-  if (!key) return false;
-  try {
-    const response = await fetch(`${projectBase()}/rest/v1/rpc/forget`, {
-      method: "POST",
-      headers: {
-        apikey: key,
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        month_in: what.month,
-        day_in: what.day,
-        subject_kind_in: what.kind,
-        subject_id_in: what.id,
-        voter_token_in: token,
-      }),
-    });
-    if (!response.ok) return false;
-    return (await response.json()) === true;
-  } catch {
-    return false;
-  }
-}
-
 // ---------------------------------------------------------------------------
+// Tapping a story on the wall// ---------------------------------------------------------------------------
 // Tapping a story on the wall
 // ---------------------------------------------------------------------------
 
@@ -1005,8 +809,8 @@ async function handle(
   // POST reaches exactly one address and every other verb on every other path
   // is still refused. The allow header names the truth per path rather than
   // advertising POST across a site where it means nothing.
-  const posts = path === "/remember" || path === "/year" || path === "/forget"
-    || path === "/boost" || path === "/unboost" || path === "/find";
+  const posts = path === "/year" || path === "/boost" || path === "/unboost"
+    || path === "/find";
   if (method !== "GET" && method !== "HEAD" && !(method === "POST" && posts)) {
     response.writeHead(405, {
       Allow: posts ? "POST" : "GET, HEAD",
@@ -1015,42 +819,7 @@ async function handle(
     return;
   }
 
-  // Taking one answer back, for half a minute after giving it.
-  //
-  // The window is not checked here. forget() checks it, and it matches on the
-  // token as well as the row, so this cannot reach an answer somebody else
-  // gave however the form is edited. A refusal and a success are two different
-  // sentences and neither of them is the sealed one.
-  if (method === "POST" && path === "/forget") {
-    const address = String(request.headers["x-forwarded-for"] ?? "").split(",")[0]?.trim()
-      || request.socket.remoteAddress || "unknown";
-    const token = tokenFromCookie(request.headers.cookie);
-    const form = new URLSearchParams(await readBody(request));
-    const month = Number(form.get("m"));
-    const day = Number(form.get("d"));
-    const kind = form.get("k") ?? "";
-    const id = (form.get("i") ?? "").trim();
-
-    const sane = Number.isInteger(month) && month >= 1 && month <= 12
-      && Number.isInteger(day) && day >= 1 && day <= 31
-      && KINDS.has(kind) && id !== "" && id.length <= 64;
-    if (!sane || token === null || !underLimit(address)) {
-      response.writeHead(400, { "Content-Type": "text/plain; charset=utf-8", ...SECURITY });
-      response.end("No.\n");
-      return;
-    }
-
-    const gone = await unrecord({ month, day, kind, id }, token);
-    response.writeHead(303, {
-      Location: `/${slug(month, day)}/${gone ? "#undone" : "#toolate"}`,
-      "Cache-Control": "no-store",
-      ...SECURITY,
-    });
-    response.end();
-    return;
-  }
-
-  // The one thing this site asks a reader about themselves, saved once.
+  // The one thing this site asks a reader about themselves, saved once.  // The one thing this site asks a reader about themselves, saved once.
   //
   // Its own address rather than a field on the 150 answer forms, because a
   // control outside a form cannot reach into one without a script and this
@@ -1087,8 +856,8 @@ async function handle(
 
   // One tap on the wall. docs/the-wall.md section 13.
   //
-  // The shape of /remember, exactly: the token cookie is the identity, a
-  // reader with none gets one on this tap, the address is rate limited
+  // The shape the remembrance answer had, exactly: the token cookie is the
+  // identity, a reader with none gets one on this tap, the address is limited
   // before the database is touched, the database decides in one word, and
   // the answer is a redirect back to the date page carrying the word in the
   // query string, which permits the one fresh wall read on the way back,
@@ -1246,79 +1015,7 @@ async function handle(
     return;
   }
 
-  if (method === "POST") {
-    const address = String(request.headers["x-forwarded-for"] ?? "").split(",")[0]?.trim()
-      || request.socket.remoteAddress || "unknown";
-    const token = tokenFromCookie(request.headers.cookie) ?? newToken();
-    let answer: Answer | null = null;
-    try {
-      answer = readAnswer(await readBody(request));
-    } catch {
-      answer = null;
-    }
-    if (answer === null || !underLimit(address)) {
-      response.writeHead(400, { "Content-Type": "text/plain; charset=utf-8", ...SECURITY });
-      response.end("No.\n");
-      return;
-    }
-    // The year comes from the cookie rather than the form, because no form on
-    // this site carries one: /year saves it once and every answer after it
-    // gets it for free. A posted year still wins if one ever arrives, so this
-    // is a fallback and not an override.
-    if (answer.birthYear === null) {
-      answer = { ...answer, birthYear: yearFromCookie(request.headers.cookie) };
-    }
-
-    // Awaited, because a reader who taps and is sent back to a page that has
-    // not recorded them has been lied to, and this is one round trip.
-    const kept = await record(answer, token);
-    // The fragment is the whole feedback mechanism. :target reveals one of two
-    // sentences already in the page, so the site says something back without
-    // running a script.
-    // Still a redirect rather than a rendered response, so a refresh is a GET
-    // and the fragment can put the reader back on the row they answered. The
-    // query string is what permits the one database call on the way back: see
-    // keptFrom and the note at the top of this file.
-    const where = `/${slug(answer.month, answer.day)}/`;
-    const row = `${answer.kind}-${answer.id}`;
-    // Five reasons, five destinations, and not one of them borrowing another
-    // one's explanation. "Sealed" is a claim about the date and it is only
-    // made when the date is actually shut: an answer already given, a token
-    // the database will not take, and a request that never arrived are all
-    // about the reader or about us.
-    const back = kept === "kept"
-      ? `${where}?kept=${encodeURIComponent(`${answer.kind}:${answer.id}`)}#r-${row}`
-      : kept === "already"
-        // By far the most common of these, and the one that spent three
-        // evenings pretending to be a sealed date. A page of a hundred and
-        // fifty rows says nothing about which ones you have already done.
-        ? `${where}?kept=${encodeURIComponent(`${answer.kind}:${answer.id}`)}#already`
-        // A wait, not a wall. The reader is not out of anything and the row is
-        // still there, so this lands back on the row rather than at the top.
-        : kept === "cooling"
-          ? `${where}#cooling`
-        : kept === "spent"
-          // Out of answers on this date, which is a fact about the reader and
-          // not about the date. It is the sixth reason and it gets the sixth
-          // sentence, for the same reason the other five do.
-          ? `${where}#spent`
-          : kept === "sealed" || kept === "closed"
-            ? `${where}#sealed`
-            : `${where}#failed`;
-    response.writeHead(303, {
-      Location: back,
-      "Cache-Control": "no-store",
-      // A year, because the point of the token is that the same browser is not
-      // counted twice on a date it comes back to next year. HttpOnly because
-      // nothing on this site runs a script that would read it.
-      "Set-Cookie": `${TOKEN_COOKIE}=${token}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax; Secure`,
-      ...SECURITY,
-    });
-    response.end();
-    return;
-  }
-
-  // Answered before the disk is touched, because neither of these is a file.
+  // Answered before the disk is touched, because neither of these is a file.  // Answered before the disk is touched, because neither of these is a file.
   // Never stored: a cached "today" is wrong by tomorrow morning, and a cached
   // "random" is the same date for everybody who asks after the first one.
   const redirect = redirectFor(path);
@@ -1466,33 +1163,7 @@ async function handle(
   const file = full === null || inPersonal ? null : await fileFor(full);
 
   if (file !== null) {
-    // The one read that draws a result, and the only one that ever calls the
-    // database. It happens on the single redirected request after somebody has
-    // answered, it is rate limited per address like the answer itself was, and
-    // when anything about it fails the baked page is served untouched.
-    const kept = method === "GET" && file.endsWith(".html") ? keptFrom(query) : null;
-    if (kept !== null) {
-      const address = String(request.headers["x-forwarded-for"] ?? "").split(",")[0]?.trim()
-        || request.socket.remoteAddress || "unknown";
-      const shown = underLimit(address) ? await withResult(file, path, kept) : null;
-      if (shown !== null) {
-        const date = dateFor(path);
-        const now = Date.now();
-        const wall = date === null ? null : await liveWall(date.month, date.day, now, false, date.hive);
-        const token = tokenFromCookie(request.headers.cookie);
-        const standing = wall === null || token === null ? null : await wallStanding(wall.day.wallDate, token);
-        response.writeHead(200, {
-          "Content-Type": "text/html; charset=utf-8",
-          // Never stored. It is one reader's own result on one row and it is
-          // wrong for everybody else and wrong for them a minute later.
-          "Cache-Control": "no-store",
-          ...securityFor(path),
-        });
-        response.end(withWall(shown, wall?.section ?? null) + (standing === null ? "" : wallMarks(standing, wall!.day, now)));
-        return;
-      }
-    }
-    // Your own marks, on a date you have answered before.
+    // Your own marks, on a date you have answered before.    // Your own marks, on a date you have answered before.
     //
     // Only for a request that carries a token, which means only for somebody
     // who has answered something somewhere, so the ordinary visitor still gets
@@ -1830,36 +1501,8 @@ function dateFor(requestPath: string): { month: number; day: number; hive: boole
   return null;
 }
 
-async function withResult(
-  file: string,
-  requestPath: string,
-  kept: { kind: string; id: string },
-): Promise<string | null> {
-  const date = dateFor(requestPath);
-  if (date === null) return null;
-
-  const counts = (await tallyFor(date.month, date.day)).get(`${kept.kind}:${kept.id}`);
-  if (counts === undefined) return null;
-
-  const marked = resultId(kept.kind, kept.id);
-  const anchor = `id="${marked}"></p>`;
-  let html: string;
-  try {
-    html = await readFile(file, "utf8");
-  } catch {
-    return null;
-  }
-  if (!html.includes(anchor)) return null;
-  const inside = resultMarkup(counts) + undoForm(kept.kind, kept.id, date.month, date.day);
-  // The row just answered sits inside the folded history, and the redirect
-  // lands on it. A closed details element would leave the reader looking at
-  // nothing, so the one request that follows an answer opens it.
-  return html
-    .replace('<details class="rest">', '<details class="rest" open>')
-    .replace(anchor, () => `id="${marked}">${inside}</p>`);
-}
-
 /**
+ * Reads the environment when it is called rather than when the module loads,/**
  * Reads the environment when it is called rather than when the module loads,
  * so a test can point it at a temporary directory and an unused port.
  */

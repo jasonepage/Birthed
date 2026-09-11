@@ -1585,3 +1585,41 @@ like every other request that draws something only its reader may see. Before
 this, only marks, a tap or a find did that; an anniversary now does too,
 because on the day it appears it may be the whole of what the reader came
 back for.
+
+---
+
+## 17. The remembrance routes came off, September 11, 2026
+
+The question "were you there" came off the page on September 10, 2026 when the
+hive took the date page's lead. The server kept answering it for a day longer,
+which is how dead code always stays: nothing broke, so nothing said it was
+dead. Cut now.
+
+**Gone from `web/src/serve.ts`.** The handler that took an answer, `/forget`
+which took one back, the query string that permitted one database read on the
+way back, and the four helpers behind them: `readAnswer`, `record`,
+`tallyFor`, `unrecord`, `keptFrom` and `withResult`. Gone from
+`web/src/render.ts`: `resultMarkup`, `undoForm`, `resultId`, the `Remembered`
+shape, the rules in the stylesheet that only those drew, and the `draw`
+keyframes nothing names any more. No page has posted to any of it since the
+buttons came off, and `posts` in `serve.ts` now refuses both paths with a 405
+rather than accepting them.
+
+**Nothing was dropped from the database.** `remembrances`, `day_editions`,
+`remember_settings` and the `remember_status`, `remembrance_tally` and
+`forget` functions are all exactly where they were, with every answer anybody
+gave still in them. That is not tidiness deferred, it is the point: section 6
+says a year of real outcomes is the only thing that can choose a formula, and
+an answer thrown away to keep a source tree neat cannot be got back. The build
+still reads those answers, in `timeline.ts`, to put a sealed date's rows in
+the order its own people remembered them.
+
+**The cookies outlived the question.** `bt` and `by` were the remembrance
+question's and are the wall's now, which is why `web/test/remember.test.ts`
+still exists under that name with the token, limit and year tests in it.
+
+**The privacy page was already right about this** and said so on September 10:
+the answers are kept as they were and the question is no longer asked. It
+needed no edit for this cut, which is the first time that has been true, and
+only because the page was edited on the day the buttons came off rather than
+afterwards.

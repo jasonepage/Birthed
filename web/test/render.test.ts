@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ASK_SLOTS, askCandidates, renderDayPage, renderCalendarPage, renderRobots, renderSitemap, escapeHtml, isReady, undoForm, resultMarkup, songSection } from "../src/render.js";
+import { ASK_SLOTS, askCandidates, renderDayPage, renderCalendarPage, renderRobots, renderSitemap, escapeHtml, isReady, songSection } from "../src/render.js";
 import { everyDate, neighbours, slug } from "../src/model.js";
 
 const page = {
@@ -1357,27 +1357,6 @@ test("the year control is hidden until a date is open, like the buttons", () => 
 });
 
 
-test("an undo is offered beside a result and never on a page being read", () => {
-  const bare = renderDayPage(page, [], [
-    { id: "t", month: 9, day: 4, fact: "Something sourced happened.", category: "event",
-      sourceUrl: "https://example.org/september-4" },
-  ]);
-  // A baked page has no undo anywhere in it. The server adds one next to the
-  // result, on the one request that follows an answer.
-  assert.equal(bare.includes('action="/forget"'), false);
-
-  const beside = undoForm("historical_event", "7214", 9, 4);
-  assert.ok(beside.includes('action="/forget"'));
-  assert.ok(beside.includes('value="historical_event"'));
-  assert.ok(beside.includes('value="7214"'));
-  assert.ok(beside.includes("Undo"));
-});
-
-
-
-
-
-
 // Two candidates from the same decade are one candidate as far as a reader is
 // concerned, because the question the card asks is about a time in their life.
 // Real sentences off the live September 8 page, pasted rather than invented,
@@ -1655,10 +1634,9 @@ test("no animation on a date page plays when the reader asked for reduced motion
   assert.deepEqual(stray, [], "an animation sits outside the motion block");
   // The four the motion work added are present, by name, so this test cannot
   // pass by the block being empty.
-  for (const name of ["burn", "rise", "rail", "draw", "breathe"]) {
+  for (const name of ["burn", "rise", "rail", "breathe"]) {
     assert.ok(style.includes(`@keyframes ${name}`), `${name} keyframes are baked`);
   }
-  assert.ok(style.includes(".rres:not(:empty) { animation: rise"), "the result lands");
   assert.ok(style.includes(":target .mine { animation: rise"), "the reader's own mark lands after it");
   assert.ok(style.includes(".afterword:target { animation: rise"), "the sentence at the top lands");
   assert.ok(style.includes(".ask .rem button:nth-child(7) { animation-delay: 315ms; }"), "the three buttons arrive one beat apart");
@@ -1672,8 +1650,3 @@ test("no animation on a date page plays when the reader asked for reduced motion
   assert.equal(style.includes("animation: breathe"), false, "the dot only breathes when today.css says the date is open");
 });
 
-test("the result bars carry their place in the list so they can land one beat apart", () => {
-  const html = resultMarkup({ there: 0, remembers: 3, heard: 1, never: 1 });
-  assert.ok(html.includes('style="width:60%;--i:0"'));
-  assert.ok(html.includes('style="width:20%;--i:2"'));
-});

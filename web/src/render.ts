@@ -205,8 +205,6 @@ const STYLE = `
   background: rgba(255, 247, 238, .06); color: #FFF7EE; border-color: rgba(255, 247, 238, .18);
 }
 .ask .rem button:hover { border-color: var(--day-soft, #C6B0F5); background: rgba(198, 176, 245, .14); }
-.ask .rres { padding: 0 16px; }
-.ask .undo { padding: 0 16px; }
 .ask .mine { padding: 6px 16px 0; margin: 0; }
 .askrule { margin: 0; padding: 6px 16px 14px; font-size: 12.5px; color: #827B75; line-height: 1.45; }
 /* The row the ask was taken from, where it sits in the feed. Hidden by
@@ -278,7 +276,6 @@ const STYLE = `
 .wlist .fbody a:hover { text-decoration: underline; }
 .wlist .fbody .wmeta { margin-left: 4px; }
 .wlist .rem { display: none; margin: 0 0 0 6px; vertical-align: middle; }
-.wlist .rres:empty { display: none; }
 .wlist .mine { display: none; margin: 4px 0 0; font-size: 12px; font-weight: 700; color: #E7A83A; }
 .wlist .mine::after { content: ""; }
 .state { margin: 26px 0 0; }
@@ -286,26 +283,6 @@ const STYLE = `
   margin: 26px 0 -8px; font-size: 13px; color: ${QUIET};
   border-left: 2px solid var(--day-soft, #C6B0F5); padding-left: 12px;
 }
-.rres:empty { display: none; }
-.rres { display: block; margin: 10px 0 0; max-width: 420px; }
-.rrow { display: flex; align-items: center; gap: 10px; margin: 0 0 4px; }
-.rlab { flex: 0 0 118px; font-size: 11.5px; color: #A49BAE; }
-.rbar { flex: 1 1 auto; height: 5px; border-radius: 999px; background: #241E2E; overflow: hidden; }
-.rbar span { display: block; height: 100%; border-radius: 999px; background: #6E6680; }
-.rnum {
-  flex: 0 0 28px; text-align: right; font-size: 11.5px; font-weight: 700;
-  color: #A49BAE; font-variant-numeric: tabular-nums;
-}
-.rtot { display: block; margin: 7px 0 0; font-size: 11.5px; color: ${QUIET}; }
-/* Quiet, because an undo that shouts is one people press by accident, which is
-   the problem it exists to solve arriving from the other direction. */
-.undo { margin: 4px 0 0; }
-.undo button {
-  font: inherit; font-size: 11.5px; cursor: pointer; background: none;
-  color: ${QUIET}; border: 0; padding: 4px 0; text-decoration: underline;
-}
-.undo button:hover { color: #FFF7EE; }
-
 /* The one thing this site asks a reader about themselves.
 
    Decade, then year. Two taps, nothing to scroll, and every option on screen
@@ -1533,15 +1510,7 @@ nav.pager.cards .after { text-align: right; }
    own words follow one beat later; the afterword at the top of the page
    rises when it is the target. Only the row just answered is the :target and
    only it carries a non-empty result, so nothing else on the page moves. */
-@keyframes draw { from { transform: scaleX(0); } to { transform: none; } }
 @media (prefers-reduced-motion: no-preference) {
-  .rres:not(:empty) { animation: rise 460ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards; }
-  .rbar span {
-    transform-origin: left center;
-    animation: draw 460ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
-    animation-delay: calc(90ms + var(--i, 0) * 45ms);
-  }
-  .rtot, .undo { animation: rise 460ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards; animation-delay: 225ms; }
   :target .mine { animation: rise 460ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards; animation-delay: 270ms; }
   .afterword:target { animation: rise 460ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards; }
 
@@ -2107,92 +2076,6 @@ export function historyRows(rows: TimelineRow[], people: Person[], songs: SongOf
 ${all.join("\n")}
 </ul>
 ${strip}`;
-}
-
-/**
- * Where the server writes a result, and why it is baked in empty.
- *
- * The pages are built ahead of time and cannot know what anybody has answered,
- * so the row carries an empty paragraph and the server fills exactly one of
- * them on the request that follows an answer. Empty paragraphs draw as nothing
- * because of `.rres:empty`, and this is the same trick the two afterword
- * sentences already use: the shape is in the page and the server decides which
- * one the reader sees.
- */
-export function resultId(kind: string, id: string): string {
-  return `rr-${kind}-${id}`.replace(/[^A-Za-z0-9_-]/g, "_");
-}
-
-/**
- * What a row looked like to everybody, drawn after the reader has answered it.
- *
- * Shown to somebody who has answered and to nobody else. A count in front of a
- * reader who has not answered tells them what the popular answer is, and an
- * answer given after reading that is agreement rather than memory, which is
- * the one measurement this whole thing exists to take. A reader who has
- * already committed cannot be biased, and showing them nothing is why this
- * site was write only for its first three days: it took an answer and said
- * "Kept", which is a form rather than a thing worth coming back to.
- *
- * The bars are a span with an inline width and no script anywhere near them.
- * style-src carries 'unsafe-inline' already, for the one inline stylesheet
- * every page on this site has.
- */
-export function resultMarkup(counts: Remembered): string {
-  const total = counts.there + counts.remembers + counts.heard + counts.never;
-  if (total === 0) return "";
-
-  const rows: Array<[string, number]> = [];
-  // "I was there" is no longer offered by either client, and rows that
-  // collected one before it went are still drawn, or the numbers under a row
-  // would not add up to the total printed beside them.
-  if (counts.there > 0) rows.push(["I was there", counts.there]);
-  rows.push(["I remember it", counts.remembers]);
-  rows.push(["Heard of it", counts.heard]);
-  rows.push(["Never heard of it", counts.never]);
-
-  // --i is the bar's place in the list, for the stagger when the result
-  // lands. Same variable the covers and the feed rise on.
-  const bars = rows.map(([label, count], index) => {
-    const share = Math.round((count / total) * 100);
-    return `<span class="rrow"><span class="rlab">${escapeHtml(label)}</span>` +
-      `<span class="rbar"><span style="width:${count > 0 ? Math.max(share, 2) : 0}%;--i:${index}"></span></span>` +
-      `<span class="rnum">${count}</span></span>`;
-  }).join("");
-
-  const said = total === 1 ? "1 answer so far" : `${total} answers so far`;
-  return `${bars}<span class="rtot">${said}</span>`;
-}
-
-/**
- * Taking one answer back, for half a minute.
- *
- * Drawn only beside a result, which is only drawn on the request that follows
- * an answer, so it is never on a page somebody is merely reading. The window
- * is enforced in the database, in forget(), which also matches on the token so
- * it can only ever reach an answer this browser gave. A button pressed too
- * late is refused there and the page says so.
- *
- * An undo rather than a way to change your mind. A misclick is noticed at
- * once; second thoughts about your place in the room take longer than that,
- * and by then the result is on screen, so a longer window is a window to
- * switch to whatever the majority said.
- */
-export function undoForm(kind: string, id: string, month: number, day: number): string {
-  return `<form class="undo" method="post" action="/forget">
-<input type="hidden" name="k" value="${escapeHtml(kind)}">
-<input type="hidden" name="i" value="${escapeHtml(id)}">
-<input type="hidden" name="m" value="${month}">
-<input type="hidden" name="d" value="${day}">
-<button type="submit">Undo</button>
-</form>`;
-}
-
-export interface Remembered {
-  there: number;
-  remembers: number;
-  heard: number;
-  never: number;
 }
 
 /**
