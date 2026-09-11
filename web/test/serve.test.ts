@@ -412,6 +412,17 @@ test("an open date page reads the wall at request time, falls back to the baked 
   await realFetch(`${base}/${openSlug}/`);
   assert.equal(calls.filter((c) => c.includes("wall_days")).length, 1, "one read per open date per twenty seconds");
 
+  // The front door is today's date page and gets the same live wall. The
+  // first version sent the baked file for "/" and the live one for the dated
+  // address, so the two showed different boards. Checked when the server's
+  // idea of today is the open date, which it is except around the boundary
+  // between its clock and the Eastern one.
+  if (todaySlug() === openSlug) {
+    const front = await (await realFetch(`${base}/`)).text();
+    assert.ok(front.includes("Fresh headline from the live read"), "the root shows the live wall too");
+    assert.ok(!front.includes(">baked<"));
+  }
+
   // The day's read never asks for the checks: thousands of rows by the
   // afternoon, and the date page draws none of them. That read is what
   // used to push the live section past its deadline.

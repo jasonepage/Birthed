@@ -1092,11 +1092,19 @@ async function handle(
   // The root, answered with today's date page. Falls through to the ordinary
   // file lookup when that date has not been built, which leaves index.html as
   // the answer rather than a 404.
+  //
+  // Answered by asking for the dated address, not by sending its file. The
+  // first version sent the file, which is the baked page, so "/" showed the
+  // hive as the build saw it while /september-10/ two clicks away showed the
+  // hive as it is, with the live wall swapped in, the reader's own marks and
+  // the buzz buttons. The front door was the one address on the site that
+  // never got today's board. Everything below that knows what to do with a
+  // date path now gets to do it for the root too.
   if (path === "/" || path === "/index.html") {
     const today = await fileFor(join(root, todaySlug()));
     if (today !== null) {
-      send(response, 200, today, "/", method === "HEAD");
-      return;
+      request.url = `/${todaySlug()}/${query === undefined ? "" : `?${query}`}`;
+      return handle(root, request, response);
     }
   }
 
