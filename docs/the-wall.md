@@ -1725,7 +1725,20 @@ somebody backed later. What replaces them: the board is honest about shares
 rather than about arrival, it is always full, and a buzz visibly moves the
 picture, which is the thing the mechanic has never had. Nothing about a buzz
 changes: it is still permanent, still one unit, still counted by the same
-trigger. A story stamped false keeps its rectangle exactly as section 5
+trigger. A third promise goes with them and was not in the brief: section
+5 said a claimed story is capped in size however much support it has, so a
+rumour can be loud and cannot be big, and section 10 set the cap at
+twenty four modules, forty eight for a confirmed story. A pie that is always
+full cannot keep it, because every imported history story is claimed, one
+source, and eight of them capped at twenty four leave a quarter of the
+board empty on every date with no news. So the pie has no ceiling. What is
+left of the protection is the tier colour on the tile and the three a day
+budget, and the fact that the stories a rumour would compete with are the
+whole of the date's history rather than an empty corner. If a cap is wanted
+back, the shape that fits a full board is a share cap on stories a person
+submitted, say no single source submission over a quarter of the board,
+with the rest going to the date's history. That is Nathan's to decide and
+is not built. A story stamped false keeps its rectangle exactly as section 5
 requires, takes a fixed share and is grown by nothing; on a date carrying
 one, the rest of the board is laid out around it by the old growth rules,
 because a pie with a hole in it was not designed in this session and is
