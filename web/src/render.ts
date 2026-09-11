@@ -1285,6 +1285,31 @@ p.calkey .sw.today { background: none; box-shadow: inset 0 0 0 2px ${TODAY}; }
 .bbig { margin: 8px 0 26px; padding: 22px; background: #1C1726; border: 1px solid #2E2740; border-radius: 16px; }
 .bbig .bbarq { font-size: 22px; color: #FFF7EE; }
 .bbig .bbarsub { margin: 12px 0 0; font-size: 14px; color: #A49BAE; line-height: 1.5; }
+
+/* The trigger that opens the popup on a date page. */
+.bopenrow { margin: 2px 0 18px; }
+.bopen {
+  display: inline-block; font-size: 14px; font-weight: 600; color: #FFD98A;
+  text-decoration: none; padding: 7px 14px; border: 1px solid #3A3348; border-radius: 999px;
+}
+.bopen:hover { border-color: #FFD98A; background: #241E2E; }
+
+/* The popup itself. Hidden until its id is the page's target, which a link
+   sets and the close links clear, all without a script. */
+.bmodal { position: fixed; inset: 0; z-index: 60; display: none; }
+.bmodal:target { display: flex; align-items: center; justify-content: center; padding: 20px; }
+.bscrim { position: absolute; inset: 0; background: rgba(10, 6, 14, .72); backdrop-filter: blur(2px); }
+.bcard {
+  position: relative; z-index: 1; width: 100%; max-width: 420px; margin: 0;
+  background: #1C1726; border: 1px solid #2E2740; border-radius: 16px; padding: 26px 24px;
+}
+.bcard .bbarq { font-size: 20px; color: #FFF7EE; }
+.bcard .bbarsub { margin: 12px 0 0; font-size: 13px; color: #A49BAE; line-height: 1.5; }
+.bx {
+  position: absolute; top: 8px; right: 12px; font-size: 26px; line-height: 1; color: #A49BAE;
+  text-decoration: none; padding: 4px 8px; border-radius: 8px;
+}
+.bx:hover { color: #FFF7EE; background: #2A2434; }
 @media (max-width: 460px) {
   .bbarrow { display: grid; grid-template-columns: 1fr 1fr; }
   .bbar button { grid-column: 1 / -1; }
@@ -2051,7 +2076,7 @@ function barEnd(options: { calendar?: boolean } = {}): string {
  * `big` is the hero on the home page; the slim one sits under each date
  * title so the front door is on every page, not only the home.
  */
-export function renderBirthdayBar(big: boolean = false): string {
+function birthdayForm(heading: string, sub: string): string {
   const thisYear = new Date().getUTCFullYear();
   const months = Array.from({ length: 12 }, (_, i) => `<option value="${i + 1}">${monthName(i + 1)}</option>`).join("");
   const days = Array.from({ length: 31 }, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join("");
@@ -2059,16 +2084,38 @@ export function renderBirthdayBar(big: boolean = false): string {
   // print every year from 1920 on into every date page, which bloats the page
   // and drops a stray "1951" next to the real ones. The field carries no year
   // text at all until a reader types one.
-  return `<form class="bbar${big ? " bbig" : ""}" method="post" action="/year" aria-label="See your birthday">
-<p class="bbarq">${big ? "When is your birthday?" : "See your own birthday"}</p>
+  return `<p class="bbarq">${heading}</p>
 <div class="bbarrow">
 <select name="m" required aria-label="Month"><option value="" disabled selected hidden>Month</option>${months}</select>
 <select name="d" required aria-label="Day"><option value="" disabled selected hidden>Day</option>${days}</select>
 <input type="number" name="y" required aria-label="Year" placeholder="Year" min="1920" max="${thisYear}" inputmode="numeric">
 <button type="submit">See my day</button>
 </div>
-${big ? `<p class="bbarsub">See who shares it, the number one song the week you were born, and what the world looked like when you arrived.</p>` : ""}
+${sub ? `<p class="bbarsub">${sub}</p>` : ""}`;
+}
+
+export function renderBirthdayBar(big: boolean = false): string {
+  return `<form class="bbar${big ? " bbig" : ""}" method="post" action="/year" aria-label="See your birthday">
+${birthdayForm(big ? "When is your birthday?" : "See your own birthday", big ? "See who shares it, the number one song the week you were born, and what the world looked like when you arrived." : "")}
 </form>`;
+}
+
+/**
+ * The picker as a popup, for a date page where it should not sit between the
+ * title and the hive. A link opens it, a dark backdrop and a close button
+ * shut it, and all of that is one `:target` rule and no script, which is what
+ * the rest of the page's interaction is too. The link is a plain anchor to
+ * the overlay's id; closing is an anchor back to no id at all.
+ */
+export function renderBirthdayModal(): string {
+  return `<p class="bopenrow"><a class="bopen" href="#birthday">See your own birthday</a></p>
+<div class="bmodal" id="birthday">
+<a class="bscrim" href="#" aria-label="Close" tabindex="-1"></a>
+<form class="bbar bcard" method="post" action="/year" aria-label="See your birthday">
+<a class="bx" href="#" aria-label="Close">&times;</a>
+${birthdayForm("When is your birthday?", "See who shares it, the number one song the week you were born, and what the world looked like when you arrived.")}
+</form>
+</div>`;
 }
 
 export function renderDayPage(
@@ -2275,7 +2322,7 @@ export function renderDayPage(
 ${barEnd()}
 </div>
 <h1>${name}</h1>
-${renderBirthdayBar()}
+${renderBirthdayModal()}
 ${pictureRules([...picturesFor(songs, page.people), ...morePictures])}
 ${wallSection(wall, name, Date.now(), {
     date: { month: page.month, day: page.day },
