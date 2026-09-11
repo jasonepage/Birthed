@@ -647,3 +647,34 @@ test("the pie on the real September 11 shape: eight unbacked tiles, the attacks 
   const cutAreas = out.placed.map((p) => p.w * p.h);
   assert.ok(cutAreas[0]! >= 60, `the attacks hold ${cutAreas[0]} modules`);
 });
+
+test("the unbacked eight are dealt by group: two news, two events, two people, two releases", () => {
+  const stories: StoryInput[] = [];
+  for (let i = 0; i < 6; i++) stories.push(historyStory(`event-${i}`, "historical_event", 1));
+  for (let i = 0; i < 6; i++) stories.push(historyStory(`person-${i}`, "person", 2));
+  for (let i = 0; i < 6; i++) stories.push(historyStory(`fact-${i}`, "birth_fact", 1));
+  for (let i = 0; i < 6; i++) stories.push(historyStory(`song-${i}`, "song", 0));
+  for (let i = 0; i < 3; i++) stories.push(historyStory(`film-${i}`, "film", 0));
+  for (let i = 0; i < 3; i++) stories.push(historyStory(`game-${i}`, "cultural_event", 1));
+  for (let i = 0; i < 6; i++) stories.push(newsStory(`news-${i}`, `outlet-${i}.com`));
+  stories.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
+  const board = varied(stories, 8).slice(0, 8);
+  const count = (f: (s: StoryInput) => boolean): number => board.filter(f).length;
+  assert.equal(count((s) => s.subjectKind === null), 2, "news");
+  assert.equal(count((s) => s.subjectKind === "historical_event"), 2, "events");
+  assert.equal(count((s) => s.subjectKind === "person"), 2, "people");
+  assert.equal(count((s) => ["song", "album", "film", "cultural_event"].includes(s.subjectKind ?? "")), 2, "releases: a song, an album, a film or a game");
+  assert.equal(count((s) => s.subjectKind === "birth_fact"), 0, "a fact reaches the board only through the fill");
+});
+
+test("a date with no releases hands their slots to the thinnest group, never back to the one that sorted first", () => {
+  const stories: StoryInput[] = [];
+  for (let i = 0; i < 12; i++) stories.push(historyStory(`person-${i}`, "person", 2));
+  for (let i = 0; i < 12; i++) stories.push(historyStory(`event-${i}`, "historical_event", 1));
+  for (let i = 0; i < 4; i++) stories.push(newsStory(`news-${i}`, `outlet-${i}.com`));
+  stories.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
+  const board = varied(stories, 8).slice(0, 8);
+  assert.equal(board.length, 8);
+  assert.ok(board.filter((s) => s.subjectKind === "person").length <= 3);
+  assert.ok(board.filter((s) => s.subjectKind === null).length >= 2);
+});
