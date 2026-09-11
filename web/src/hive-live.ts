@@ -242,7 +242,10 @@ export const HIVE_LIVE_STYLE = `
 @font-face { font-family: "Fraunces"; font-style: italic; font-weight: 100 900; font-display: swap; src: url("/fonts/fraunces-latin-wght-italic.woff2") format("woff2-variations"); }
 .hivepage { background: radial-gradient(140% 100% at 50% -20%, #2A1D0C 0%, #120D08 58%) fixed; }
 .wlivehive { --honey: #F4B740; --honey-lite: #FFCF6B; --ember: #FF8A3D; --cream: #FFF3E0; --dim: #B7A488; --dimmer: #8A7A63; --line: #3A2E1C; --cell: #1E1710; }
-.wlivetop { display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; margin: 4px 0 0; }
+/* Clear of the sticky bar: the first version sat on it and the top of the
+   line was under the bar on a page scrolled by a few pixels. */
+.wlivetop { display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; margin: 18px 0 0; padding: 4px 0; }
+.wlivehive { scroll-margin-top: 64px; }
 .wawake { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
 .wlivedot { width: 8px; height: 8px; border-radius: 50%; background: var(--dimmer); flex: none; }
 .wlivedot.won { background: var(--ember); box-shadow: 0 0 10px var(--ember); }
