@@ -27,7 +27,16 @@ import { renderAdd, renderHome, renderPrivacy, renderSupport } from "./pages.js"
 import { renderAdmin, renderNumbers } from "./admin.js";
 
 const OUT = "out";
-const PER_PAGE = 10;
+/**
+ * How many people a date page carries. Ten until September 11, 2026, and a
+ * reader on Reddit who shares May 7 with Tchaikovsky and Brahms found
+ * neither on the page: they are fourteenth and twenty second on that date
+ * by English Wikipedia attention, behind two footballers and a YouTuber.
+ * Thirty reaches them. The list is folded under the hive anyway, so a
+ * longer one costs the reader nothing; the ranking itself is unchanged and
+ * is a separate question, docs/the-wall.md section 21.
+ */
+const PER_PAGE = 30;
 const CONCURRENCY = 8;
 
 interface Row {
