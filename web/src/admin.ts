@@ -64,22 +64,37 @@ export const POINTS_JS = `
     return Math.round(WEIGHTS.reach * Math.min(1, Math.log10(v + 1) / 6));
   }
   /**
-   * The anniversary spike: views on the date against the median day. Twice
-   * the median earns a little, sixteen times earns the full score. Under a
-   * floor of fifty views on the day it is noise and earns nothing.
+   * The anniversary spike: how many more people opened the article on the
+   * date than on an ordinary day, in the LOWER of the last two years, in
+   * absolute views.
+   *
+   * Measured on the real September 11 subjects on September 11, 2026, and
+   * changed from a ratio because of what the ratio said. By ratio the top
+   * of the date was the Des Moines speech at 341 times its median, then the
+   * Battle of Bita Paka at 136 times; the September 11 attacks came twelfth.
+   * Both of those were one year's number: 840 views one anniversary and
+   * 16,224 the next, because Wikipedia's main page featured the article
+   * that day. A main page feature is editors choosing, made visible in
+   * views, which is the thing this component exists to be different from.
+   * A thing people remember spikes every year, so the lower of two years
+   * survives it and a one year feature does not. And the ratio rewarded a
+   * small denominator: every article linked from the date page gets a few
+   * hundred visits on its date from readers of the date page, which is
+   * fifty times the median of an article nobody reads and nothing to do
+   * with memory. So the excess is counted in views, not in multiples, and
+   * under a thousand it earns nothing. A thousand earns nothing, a hundred
+   * thousand earns the full score, and it is a log scale between.
    */
-  function spikeOf(onDate, medianDay) {
-    if (onDate === null || onDate === undefined || medianDay === null || medianDay === undefined) return null;
-    var on = Number(onDate) || 0;
-    var med = Math.max(1, Number(medianDay) || 0);
-    if (on < 50) return 0;
-    var ratio = on / med;
-    if (ratio < 1.5) return 0;
-    return Math.round(WEIGHTS.spike * Math.min(1, Math.log2(ratio) / 4));
+  function spikeOf(onDateLow, medianDay) {
+    if (onDateLow === null || onDateLow === undefined || medianDay === null || medianDay === undefined) return null;
+    var excess = (Number(onDateLow) || 0) - (Number(medianDay) || 0);
+    if (excess < 1000) return 0;
+    return Math.round(WEIGHTS.spike * Math.min(1, (Math.log10(excess) - 3) / 2));
   }
   /**
    * One row's points. Input fields: selected (bool), views (number, or null
-   * when unmeasured), year, written (bool), sourceUrl, dateKind, flags (names),
+   * when unmeasured), viewsOnDateLow and viewsMedianDay (numbers, or null),
+   * year, written (bool), sourceUrl, dateKind, flags (names),
    * answers ({there, remembers, heard, never} or null).
    *
    * A reader answer REPLACES the estimate. It does not average with it. The
@@ -100,9 +115,9 @@ export const POINTS_JS = `
       }
     }
     var parts = [];
-    var spike = spikeOf(input.viewsOnDate, input.viewsMedianDay);
+    var spike = spikeOf(input.viewsOnDateLow, input.viewsMedianDay);
     parts.push(["spike", spike === null ? 0 : spike, spike === null ? "unmeasured"
-      : (Number(input.viewsOnDate) || 0).toLocaleString() + " views on the day against " + (Number(input.viewsMedianDay) || 0).toLocaleString() + " on an ordinary day"]);
+      : "at least " + (Number(input.viewsOnDateLow) || 0).toLocaleString() + " views on each of the last two anniversaries, against " + (Number(input.viewsMedianDay) || 0).toLocaleString() + " on an ordinary day"]);
     var reach = reachOf(input.views);
     parts.push(["reach", reach === null ? 0 : reach, reach === null ? "unmeasured" : (Number(input.views) || 0).toLocaleString() + " views a year on the cited article"]);
     parts.push(["selected", input.selected ? WEIGHTS.selected : 0, input.selected ? "Wikipedia's editors chose it for the day" : "not among Wikipedia's picks for the day"]);
@@ -926,7 +941,7 @@ ${POINTS_JS}
       rest("day_scans?select=id,subject_kind,subject_id,verdict,reason,scanned_by,acted_at,agreed," +
         "proposal_title,proposal_context,proposal_source_url,proposal_year,created_at" +
         "&event_month=eq." + m + "&event_day=eq." + d + "&order=id.asc&limit=300"),
-      rest("historical_events?select=id,event_year,description,suppressed" +
+      rest("historical_events?select=id,event_year,description,suppressed,subject_url" +
         "&event_month=eq." + m + "&event_day=eq." + d + "&order=event_year.desc&limit=200"),
       rest("lead_lines?select=subject_kind,subject_id,line" +
         "&event_month=eq." + m + "&event_day=eq." + d + "&limit=300"),
@@ -959,7 +974,7 @@ ${POINTS_JS}
   var tally = {};      // "kind:id" -> counts, for the open date
 
   function loadReach() {
-    return pageAll("article_reach?select=source_url,views_year,views_on_date,views_median_day,error&order=source_url.asc")
+    return pageAll("article_reach?select=source_url,views_year,views_on_date,views_on_date_low,views_median_day,error&order=source_url.asc")
       .then(function (rows) { reach = {}; rows.forEach(function (r) { reach[r.source_url] = r; }); })
       .catch(function () { reach = {}; });
   }
@@ -1008,10 +1023,11 @@ ${POINTS_JS}
     return r.views_year;
   }
   function reachNote(url) {
-    if (!url) return "no source";
+    if (!url) return "names no article to measure";
     var r = reach[url];
     if (!r) return "not measured yet";
     if (r.error) return r.error;
+    if (r.views_on_date_low === null || r.views_on_date_low === undefined) return "measured before the two year check existed; measure again";
     return null;
   }
 
@@ -1056,10 +1072,14 @@ ${POINTS_JS}
     });
     events.forEach(function (row) {
       var line = leads["historical_event:" + row.id];
+      // The article the line is about, when the importer could name one.
+      // That is what reach is measured on; the date page the sentence was
+      // read from is the same number on every line of the date and is
+      // refused by the measurement.
       items.push({
         kind: "historical_event", id: String(row.id), year: row.event_year, text: row.description, title: null, line: line || null,
         on: !row.suppressed, off: row.suppressed ? "hidden" : null,
-        sourceUrl: "https://en.wikipedia.org/wiki/" + months[m - 1] + "_" + d, dateKind: null, category: "wikipedia", origin: "wikipedia",
+        sourceUrl: row.subject_url || null, dateKind: null, category: "wikipedia", origin: "wikipedia",
         flags: [], flagPairs: [], written: !!line, selected: !!picks[row.event_year], canDraft: !row.suppressed && !line,
       });
     });
@@ -1067,7 +1087,7 @@ ${POINTS_JS}
       var r = it.sourceUrl ? reach[it.sourceUrl] : null;
       it.points = rowPoints({
         selected: it.selected, views: viewsFor(it.sourceUrl), year: it.year, written: it.written,
-        viewsOnDate: r ? r.views_on_date : null, viewsMedianDay: r ? r.views_median_day : null,
+        viewsOnDateLow: r ? r.views_on_date_low : null, viewsMedianDay: r ? r.views_median_day : null,
         sourceUrl: it.sourceUrl, dateKind: it.dateKind, flags: it.flags,
         answers: tally[it.kind + ":" + it.id] || null,
       });
@@ -1167,7 +1187,7 @@ ${POINTS_JS}
       'This date scores <b class="dp">' + date + "</b>: the best row counts in full, the next at 95 percent, then 90, so fixing the top row moves it and adding a dull one does not. " +
       (measured > 0 ? measured + (measured === 1 ? " row is" : " rows are") + " measured by readers and that number replaces the estimate. " : "") +
       (needy > 0 ? needy + " published " + (needy === 1 ? "row is" : "rows are") + " a title with nothing written, so no reader sees " + (needy === 1 ? "it" : "them") + ". " : "") +
-      '<button class="act" id="measure">Measure reach</button> <span class="note" id="measure-note" style="margin:0"></span></p>';
+      '<button class="act" id="measure">Measure reach</button> <button class="act" id="measure-all">Measure every date</button> <span class="note" id="measure-note" style="margin:0"></span></p>';
 
     function rowMarkup(it) {
       var offLabel = it.off ? '<span class="st st-' + esc(it.off === "needs a sentence" ? "candidate" : it.off) + '">' + esc(it.off) + "</span>" : "";
@@ -1203,6 +1223,66 @@ ${POINTS_JS}
     el("rows").innerHTML = html;
     wire();
     el("measure").addEventListener("click", measureReach);
+    el("measure-all").addEventListener("click", measureEveryDate);
+  }
+
+  /**
+   * One call of the measurement for one date. The function measures at most
+   * a batch a call so it never runs into its own time limit, and says how
+   * many sources on the date are still waiting; the caller calls again until
+   * that is nought.
+   */
+  function measureOnce(m, d) {
+    return fetch(API + "/functions/v1/measure-reach", {
+      method: "POST", headers: headers(),
+      body: JSON.stringify({ month: m, day: d }),
+    }).then(function (r) { return r.json(); });
+  }
+
+  /**
+   * Every date, in calendar order, one at a time, from the panel, with a
+   * running line a person can read and a way to stop. No queue, no job
+   * table, no second process: 366 dates at a few dozen free requests each
+   * is a walk of an hour or two in a browser tab, and the rows it writes
+   * are kept, so stopping and starting again later costs nothing but the
+   * dates already fresh being read and skipped. The pageviews service is
+   * called from the function one request at a time, with the User-Agent it
+   * already sends.
+   */
+  var walking = false;
+  function measureEveryDate() {
+    var b = el("measure-all");
+    if (walking) { walking = false; b.textContent = "Stopping after this date"; return; }
+    walking = true;
+    b.textContent = "Stop";
+    var days = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    var dates = [];
+    for (var m = 1; m <= 12; m++) for (var d = 1; d <= days[m - 1]; d++) dates.push([m, d]);
+    var i = 0, measured = 0, unmeasurable = 0, already = 0;
+    function finish(word) {
+      walking = false;
+      b.textContent = "Measure every date";
+      note("measure-note", word + " " + measured + " measured, " + unmeasurable + " could not be, " + already + " already fresh.", "good");
+      return loadReach().then(reloadDate);
+    }
+    function nextDate() {
+      if (!walking) return finish("Stopped at " + i + " of 366 dates.");
+      if (i >= dates.length) return finish("Every date measured.");
+      var m = dates[i][0], d = dates[i][1];
+      function again() {
+        return measureOnce(m, d).then(function (r) {
+          if (r.status !== "done") { note("measure-note", months[m - 1] + " " + d + ": " + (r.error || "failed") + ". Stopped.", "bad"); walking = false; b.textContent = "Measure every date"; return; }
+          measured += r.measured; unmeasurable += r.unmeasurable; already += r.already;
+          note("measure-note", months[m - 1] + " " + d + ": " + r.measured + " measured, " + r.unmeasurable + " could not be, " + r.already + " already fresh" +
+            (r.remaining > 0 ? ", " + r.remaining + " still to go on this date" : "") + " (" + (i + 1) + " of 366 dates)");
+          if (r.remaining > 0 && walking) return again();
+          i += 1;
+          return nextDate();
+        });
+      }
+      return again().catch(function (e) { note("measure-note", String(e.message || e), "bad"); walking = false; b.textContent = "Measure every date"; });
+    }
+    nextDate();
   }
 
   function measureReach() {

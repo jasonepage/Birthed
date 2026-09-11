@@ -67,7 +67,7 @@ function points(): { rowPoints: (input: unknown) => { total: number; measured: b
 
 test("a row's points are computed from stored inputs and shown in parts", () => {
   const { rowPoints } = points();
-  const strong = rowPoints({ selected: true, views: 1_000_000, viewsOnDate: 8000, viewsMedianDay: 500, year: 1998, written: true, sourceUrl: "https://en.wikipedia.org/wiki/Mark_McGwire", dateKind: null, flags: [], answers: null });
+  const strong = rowPoints({ selected: true, views: 1_000_000, viewsOnDateLow: 120_000, viewsMedianDay: 500, year: 1998, written: true, sourceUrl: "https://en.wikipedia.org/wiki/Mark_McGwire", dateKind: null, flags: [], answers: null });
   assert.equal(strong.total, 35 + 25 + 10 + 25 + 15 + 4);
   assert.deepEqual(strong.parts.map((p) => p[0]), ["spike", "reach", "selected", "memory", "written", "sourcing"]);
   const dull = rowPoints({ selected: false, views: 0, year: 2026, written: false, sourceUrl: "https://www.wikidata.org/wiki/Q1", dateKind: null, flags: ["release calendar", "thin"], answers: null });
@@ -82,12 +82,33 @@ test("Wikipedia's pick cannot outrank a thing people look up on the day", () => 
   const { rowPoints } = points();
   // An 1888 editors' pick with nothing else: what the top of September 8 was.
   const pick = rowPoints({ selected: true, views: null, year: 1888, written: false, sourceUrl: "https://en.wikipedia.org/wiki/September_8", dateKind: null, flags: [], answers: null });
-  // A 2015 row nobody selected whose article spikes eight times on the date.
-  const spiky = rowPoints({ selected: false, views: 200_000, viewsOnDate: 4000, viewsMedianDay: 500, year: 2015, written: true, sourceUrl: "https://en.wikipedia.org/wiki/Pizza_Rat", dateKind: null, flags: [], answers: null });
+  // A 2015 row nobody selected whose article draws thousands more on the date, both years.
+  const spiky = rowPoints({ selected: false, views: 200_000, viewsOnDateLow: 4000, viewsMedianDay: 500, year: 2015, written: true, sourceUrl: "https://en.wikipedia.org/wiki/Pizza_Rat", dateKind: null, flags: [], answers: null });
   assert.ok(spiky.total > pick.total * 3, `${spiky.total} against ${pick.total}`);
-  // A spike under fifty views on the day is noise and earns nothing.
-  const noise = rowPoints({ selected: false, views: 1000, viewsOnDate: 30, viewsMedianDay: 2, year: 2015, written: false, sourceUrl: null, dateKind: null, flags: [], answers: null });
+  // A few hundred extra views on the day is readers of the date page clicking through, and earns nothing.
+  const noise = rowPoints({ selected: false, views: 1000, viewsOnDateLow: 630, viewsMedianDay: 13, year: 2015, written: false, sourceUrl: null, dateKind: null, flags: [], answers: null });
   assert.equal(noise.parts[0]?.[1], 0);
+});
+
+test("the spike is the lower of two anniversaries in views, so a main page feature earns nothing and a memory earns everything", () => {
+  const { rowPoints } = points();
+  const base = { selected: false, views: null, year: 2001, written: false, sourceUrl: "https://en.wikipedia.org/wiki/X", dateKind: null, flags: [], answers: null };
+  const spike = (input: Record<string, unknown>): number => rowPoints({ ...base, ...input }).parts[0]?.[1] ?? -1;
+  // Real numbers from the pageviews service on September 11, 2026.
+  // The September 11 attacks: 489,251 and 395,581 on the last two anniversaries, median 14,238.
+  assert.equal(spike({ viewsOnDateLow: 395_581, viewsMedianDay: 14_238 }), 35);
+  // The Des Moines speech: 840 and 16,224, median 25. By ratio it was the
+  // top of the date at 341 times; it was Wikipedia's main page one year.
+  assert.equal(spike({ viewsOnDateLow: 840, viewsMedianDay: 25 }), 0);
+  // The Pentagon: 15,481 and 15,290, median 2,610. Remembered on the day, every year.
+  assert.equal(spike({ viewsOnDateLow: 15_290, viewsMedianDay: 2_610 }), 19);
+  // Alexander Hamilton: 6,971 and 13,518 against a median of 8,096. Famous every day, not on this one.
+  assert.equal(spike({ viewsOnDateLow: 6_971, viewsMedianDay: 8_096 }), 0);
+  // The Kurkse tragedy: 630 and 628 against 13. Fifty times its median, and it is the date page's readers clicking through.
+  assert.equal(spike({ viewsOnDateLow: 628, viewsMedianDay: 13 }), 0);
+  // An article with fewer than two anniversaries is unmeasured, not credited.
+  const young = rowPoints({ ...base, viewsOnDateLow: null, viewsMedianDay: 30 });
+  assert.equal(young.parts[0]?.[2], "unmeasured");
 });
 
 test("a reader answer replaces the estimate and does not average with it", () => {
