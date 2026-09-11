@@ -172,6 +172,15 @@ export interface Snapshot {
   board: {
     tiles: Array<{ story_id: string; mx: number; my: number; w: number; h: number; support: number; tier: Tier }>;
     overflow: string[];
+    /**
+     * The panel's points for every story the allocator was handed that has
+     * any, by story id. docs/the-wall.md section 21: the live hive page runs
+     * the same allocator in the browser between ticks, and it reads these
+     * off the newest snapshot so it cuts the pie from the numbers this run
+     * did. A story with no score is absent, which the page reads as nought,
+     * the same as the allocator does.
+     */
+    scores: Record<string, number>;
   };
 }
 
@@ -303,6 +312,10 @@ export function settle(
 
   const supportOf = new Map(stories.map((s) => [s.id, s.support]));
   const tierOf = (id: string): Tier => updates.get(id)?.tier ?? byId.get(id)!.tier;
+  const scoresOut: Record<string, number> = {};
+  for (const story of input) {
+    if (typeof story.score === "number" && story.score > 0) scoresOut[story.id] = story.score;
+  }
   const snapshot: Snapshot = {
     wall_date: day.wall_date,
     taken_at: now,
@@ -312,6 +325,7 @@ export function settle(
         story_id: p.id, mx: p.mx, my: p.my, w: p.w, h: p.h, support: supportOf.get(p.id) ?? 0, tier: tierOf(p.id),
       })),
       overflow: result.overflow,
+      scores: scoresOut,
     },
   };
 

@@ -266,3 +266,22 @@ test("a story stamped false keeps its exact rectangle and grows by nothing", () 
   assert.equal(settled.stories.length, 0);
   assert.deepEqual(settled.snapshot?.board.tiles[0], { story_id: "f", mx: 8, my: 7, w: 1, h: 1, support: 500, tier: "reported" });
 });
+
+test("the snapshot carries the scores the board was cut with, by story, and only for stories that have one", () => {
+  // docs/the-wall.md section 21: the live hive page reads these off the
+  // newest snapshot so its own copy of the allocator is handed the numbers
+  // this run was. A story with no score is absent rather than written as
+  // nought, which is what the allocator reads a missing score as.
+  const stories = [
+    story("a", { status: "placed", placed_at: EARLIER, anchor_mx: 0, anchor_my: 0, w_modules: 4, h_modules: 3, subject_kind: "historical_event", subject_id: "13857" }),
+    story("b", { status: "overflow", placed_at: EARLIER, subject_kind: "historical_event", subject_id: "2" }),
+    story("c", { status: "placed", placed_at: EARLIER, anchor_mx: 4, anchor_my: 0, w_modules: 4, h_modules: 3 }),
+  ];
+  const scores = new Map([["historical_event:13857", 99], ["historical_event:2", 29]]);
+  const settled = settle(DAY, stories, [
+    source("s1", "a", "https://en.wikipedia.org/wiki/A", { imported: true }),
+    source("s2", "b", "https://en.wikipedia.org/wiki/B", { imported: true }),
+    source("s3", "c", "https://www.npr.org/z"),
+  ], OWNERS, NOW, scores);
+  assert.deepEqual(settled.snapshot?.board.scores, { a: 99, b: 29 });
+});
