@@ -501,16 +501,17 @@ test("an icon only link still has a name when its words are hidden", () => {
   assert.ok(html.includes('href="/random/" aria-label='));
 });
 
-test("the born in strip jumps to a month that exists on the calendar page", () => {
+test("the home page leads with a birthday picker that posts to the one year route", () => {
   const html = renderHome(2026);
-  const jumps = html.match(/href="\/calendar\/#([a-z]+)"/g) ?? [];
-  assert.equal(jumps.length, 12);
-  const calendarPage = renderCalendarPage(2026);
-  for (const jump of jumps) {
-    const anchor = jump.slice('href="/calendar/#'.length, -1);
-    assert.ok(calendarPage.includes(`id="${anchor}"`), `no calendar for #${anchor}`);
-  }
-  // The strip must not have added a script to a page that promises none.
+  // The front door: one form, twelve months, a day, a year, posting to /year,
+  // which sets the birth-year cookie and redirects to that date.
+  assert.ok(html.includes('action="/year"'));
+  const months = html.match(/<option value="\d+">(January|February|March|April|May|June|July|August|September|October|November|December)<\/option>/g) ?? [];
+  assert.equal(months.length, 12);
+  assert.ok(html.includes('name="m"') && html.includes('name="d"') && html.includes('name="y"'));
+  // A number field, not a hundred options: no stray year text on the page.
+  assert.ok(!/<option value="1951">1951<\/option>/.test(html));
+  // The picker must not have added a script to a page that promises none.
   assert.ok(!html.includes("<script"));
 });
 
@@ -1135,7 +1136,7 @@ test("no facts is a missing section rather than a heading over nothing", () => {
   const html = renderHome(2026, []);
   assert.ok(!html.includes("Every date has a day like this in it"));
   // And the page still works.
-  assert.ok(html.includes('href="/calendar/"') && html.includes('class="bornin"'));
+  assert.ok(html.includes('href="/calendar/"') && html.includes('class="bbar'));
 });
 
 test("the front door still runs nothing", () => {
@@ -1389,8 +1390,11 @@ test("the day's biggest lead the list, and the rest still read newest first", ()
     "the selected row leads even though it is the oldest thing here");
 
   // Nothing about the selection is printed. It decides order and says nothing.
+  // (The birthday picker's placeholder option carries a "selected" attribute,
+  // so the guard is the curation wording, not the bare word.)
   assert.equal(html.includes("Wikipedia's editors"), false);
-  assert.equal(html.includes("selected"), false);
+  assert.equal(html.includes("the day's selection"), false);
+  assert.equal(html.includes("selected anniversar"), false);
 });
 
 
@@ -1509,13 +1513,13 @@ test("the first ask stays away from years with no record beside them", () => {
 
 test("the about page explains what the site does before what is on a page", () => {
   const html = renderHome(2026, []);
-  // The thesis, in the headline rather than four screens down.
-  assert.ok(html.includes("Birthed</span> keeps what mattered"));
+  // Birthday first: the headline asks the reader about their own day.
+  assert.ok(html.includes("the day you were born?"));
+  assert.ok(html.includes('action="/year"'), "and the picker to answer it is right there");
   // The underline needs its own colour named. The headline is painted with a
   // gradient and its text colour is transparent, so an underline left on
   // currentColor is drawn in transparent and nothing appears under the word.
   assert.match(html, /\.brandword \{[^}]*text-decoration-color: #EF5680/);
-  assert.ok(html.includes("Every date has a hive."));
   // The four beats, in order, because the thing this site does is a sequence
   // and a reader who does not know it needs the order more than the detail.
   for (const beat of [

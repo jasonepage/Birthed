@@ -1255,6 +1255,40 @@ p.calkey .sw.today { background: none; box-shadow: inset 0 0 0 2px ${TODAY}; }
   border-bottom: 1px solid transparent; padding-bottom: 1px;
 }
 .daybar .get:hover { color: #FFF7EE; border-bottom-color: #6E6680; }
+
+/* The birthday picker. The slim one lives under a date title; .bbig is the
+   home hero. Native selects, styled to sit in the dark rather than to hide
+   that they are selects: a reader knows how to open one and no script is
+   needed to. */
+.bbar { margin: 2px 0 22px; }
+.bbar .bbarq { margin: 0 0 8px; font-size: 15px; font-weight: 600; color: #C9C2D4; }
+.bbarrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; }
+.bbar select {
+  appearance: none; -webkit-appearance: none; font: inherit; font-size: 15px;
+  color: #FFF7EE; background: #201B2A; border: 1px solid #3A3348; border-radius: 10px;
+  padding: 10px 30px 10px 12px; cursor: pointer; min-width: 0;
+  background-image: linear-gradient(45deg, transparent 50%, #A49BAE 50%), linear-gradient(135deg, #A49BAE 50%, transparent 50%);
+  background-position: right 14px center, right 9px center; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
+}
+.bbar select:hover, .bbar input:hover { border-color: var(--day-soft, #C6B0F5); }
+.bbar select:focus-visible, .bbar input:focus-visible { outline: 2px solid #FFD98A; outline-offset: 1px; }
+.bbar input {
+  appearance: none; font: inherit; font-size: 15px; color: #FFF7EE; background: #201B2A;
+  border: 1px solid #3A3348; border-radius: 10px; padding: 10px 12px; width: 6.5em; min-width: 0;
+}
+.bbar input::placeholder { color: #A49BAE; }
+.bbar button {
+  font: inherit; font-size: 15px; font-weight: 700; color: #1A0F16;
+  background: #FFD98A; border: none; border-radius: 10px; padding: 10px 18px; cursor: pointer; flex: 1 0 auto;
+}
+.bbar button:hover { background: #FFE9B0; }
+.bbig { margin: 8px 0 26px; padding: 22px; background: #1C1726; border: 1px solid #2E2740; border-radius: 16px; }
+.bbig .bbarq { font-size: 22px; color: #FFF7EE; }
+.bbig .bbarsub { margin: 12px 0 0; font-size: 14px; color: #A49BAE; line-height: 1.5; }
+@media (max-width: 460px) {
+  .bbarrow { display: grid; grid-template-columns: 1fr 1fr; }
+  .bbar button { grid-column: 1 / -1; }
+}
 @media (max-width: 400px) { .barnav .here { min-width: 44px; font-size: 12px; } }
 
 /* What the page holds, as one object rather than three sentences. */
@@ -2002,6 +2036,41 @@ function barEnd(options: { calendar?: boolean } = {}): string {
 </span>`;
 }
 
+/**
+ * The birthday picker: month, day and year into the one route that already
+ * knows what to do with them.
+ *
+ * This is the front door. A stranger who lands on today's page, or on any
+ * date, tells the site their birthday here and is sent straight to it with
+ * the personal card turned on, because POST /year takes exactly month, day
+ * and year: it sets the birth-year cookie and redirects to that date. So the
+ * whole flow is one form and no new server code, and it runs with no script,
+ * which this site requires: three native selects and a button, which every
+ * phone knows how to open.
+ *
+ * `big` is the hero on the home page; the slim one sits under each date
+ * title so the front door is on every page, not only the home.
+ */
+export function renderBirthdayBar(big: boolean = false): string {
+  const thisYear = new Date().getUTCFullYear();
+  const months = Array.from({ length: 12 }, (_, i) => `<option value="${i + 1}">${monthName(i + 1)}</option>`).join("");
+  const days = Array.from({ length: 31 }, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join("");
+  // The year is a number field, not a hundred options: a year dropdown would
+  // print every year from 1920 on into every date page, which bloats the page
+  // and drops a stray "1951" next to the real ones. The field carries no year
+  // text at all until a reader types one.
+  return `<form class="bbar${big ? " bbig" : ""}" method="post" action="/year" aria-label="See your birthday">
+<p class="bbarq">${big ? "When is your birthday?" : "See your own birthday"}</p>
+<div class="bbarrow">
+<select name="m" required aria-label="Month"><option value="" disabled selected hidden>Month</option>${months}</select>
+<select name="d" required aria-label="Day"><option value="" disabled selected hidden>Day</option>${days}</select>
+<input type="number" name="y" required aria-label="Year" placeholder="Year" min="1920" max="${thisYear}" inputmode="numeric">
+<button type="submit">See my day</button>
+</div>
+${big ? `<p class="bbarsub">See who shares it, the number one song the week you were born, and what the world looked like when you arrived.</p>` : ""}
+</form>`;
+}
+
 export function renderDayPage(
   page: DayPage,
   songs: SongOfTheYear[] = [],
@@ -2206,6 +2275,7 @@ export function renderDayPage(
 ${barEnd()}
 </div>
 <h1>${name}</h1>
+${renderBirthdayBar()}
 ${pictureRules([...picturesFor(songs, page.people), ...morePictures])}
 ${wallSection(wall, name, Date.now(), {
     date: { month: page.month, day: page.day },

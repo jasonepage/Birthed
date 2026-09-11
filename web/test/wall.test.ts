@@ -362,7 +362,7 @@ test("a date with no hive yet lists its history under the promise, without butto
   const people = [{ qid: "Q1", name: "Person 1", birthYear: 1951, deathYear: null, description: "did things", monthlyViews: 100 }];
   const html = renderDayPage({ month: 9, day: 9, people });
   assert.ok(html.indexOf('class="wall wpromise"') < html.indexOf('id="r-person-Q1"'));
-  assert.ok(!html.includes("<form"));
+  assert.ok(!html.includes('class="wbuzz"') && !html.includes('action="/boost"'), "no buzz buttons on a baked page (the birthday picker form is fine)");
   assert.ok(html.includes("When its hive opens, every one of these takes buzzes."));
 });
 
@@ -373,7 +373,7 @@ test("the number one songs are one strip, baked under the feed until the worker 
   assert.equal((html.match(/class="wsongs"/g) ?? []).length, 1, "one strip");
   assert.ok(html.includes('<li id="2001" data-subject="song:2001-09-08">'));
   assert.ok(html.includes("&quot;A Song&quot; by A Band"));
-  assert.ok(!html.includes("<form"), "no buttons before the worker has filed the songs");
+  assert.ok(!html.includes('class="wbuzz"') && !html.includes('action="/boost"'), "no buzz buttons before the worker has filed the songs (the birthday picker form is fine)");
   // Once the worker has filed a song story, the strip is the stories and the baked one is not drawn beside it.
   const filed = story({ id: "aaaaaaaa-0000-0000-0000-000000000009", status: "pool", rect: null, placedAt: null, support: 0, subjectKind: "song", subjectId: "2001-09-08", headline: "2001: A Song by A Band was the number one song" });
   const later = renderDayPage(PAGE, songs, [], [], [], null, new Map(), new Map(), day([story(), filed]));

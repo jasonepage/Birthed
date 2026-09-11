@@ -12,7 +12,7 @@
 
 import { DAYS_IN_MONTH, monthName, slug } from "./model.js";
 import { hostOf, type Highlight } from "./facts.js";
-import { FOOT, FOOT_ADD, SITE, escapeHtml, head } from "./render.js";
+import { FOOT, FOOT_ADD, SITE, escapeHtml, head, renderBirthdayBar } from "./render.js";
 
 /** Where a person can reach us. One place, so it changes in one place. */
 export const SUPPORT_EMAIL = "support@birthed.app";
@@ -231,8 +231,9 @@ ${topBar()}
 <div class="col">
 <section class="hero">
   <div class="herotext">
-    <h1>History is written the day it happens. <span class="glow"><span class="brandword">Birthed</span> keeps what mattered.</span></h1>
-    <p class="lede">Every date has a hive. Everything with a birthday on it, the day's news and everything that ever happened on it, is on one feed, and whoever turns up buzzes what they think will still matter. The most buzzed take the hive, and at midnight it seals for good.</p>
+    <h1>What was the world like <span class="glow">the day you were born?</span></h1>
+    <p class="lede">Pick your birthday. See who shares it, the number one song the week you arrived, and everything that ever happened on your date, on one page you can keep. Then buzz what you think will still matter, and watch the day take shape.</p>
+    ${renderBirthdayBar(true)}
     <p class="actions">
       ${storeButton()}
       <a class="btn ghost" href="/random/">${ICON_DICE}<span>Surprise me</span></a>
@@ -240,7 +241,6 @@ ${topBar()}
     <p class="fine">iPhone only for now. TestFlight is Apple's free app for trying apps before they are on the store. The website works without it.</p>
   </div>
 </section>
-${bornInStrip()}
 </div>
 
 <section class="col how">
