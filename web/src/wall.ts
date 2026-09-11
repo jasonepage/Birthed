@@ -683,21 +683,25 @@ function undoForm(story: WallStory, voice: Voice, back: TapBack = "day"): string
  * one stroke weight, the same box as the marks in the bar, and never an
  * emoji, which is drawn differently by every phone.
  */
-export type TileKind = "happened" | "born" | "song" | "news";
+export type TileKind = "happened" | "born" | "song" | "album" | "film" | "news";
 
 export function tileKind(story: Pick<WallStory, "subjectKind">): TileKind {
   if (story.subjectKind === null) return "news";
   if (story.subjectKind === "person") return "born";
   if (story.subjectKind === "song") return "song";
+  if (story.subjectKind === "album") return "album";
+  if (story.subjectKind === "film") return "film";
   return "happened";
 }
 
-const KIND_WORD: Record<TileKind, string> = { happened: "Happened on this date", born: "Born on this date", song: "The number one song", news: "In the news today" };
+const KIND_WORD: Record<TileKind, string> = { happened: "Happened on this date", born: "Born on this date", song: "The number one song", album: "The number one album", film: "The number one film", news: "In the news today" };
 
 const KIND_MARK: Record<TileKind, string> = {
   happened: `<circle cx="12" cy="12" r="8.6"/><path d="M12 7.6V12l3.2 2.1"/>`,
   born: `<path d="M8.4 11.2h7.2v9.4H8.4zM12 3.6c1.8 1.9 2.7 3.2 2.7 4.4a2.7 2.7 0 0 1-5.4 0c0-1.2.9-2.5 2.7-4.4z"/>`,
   song: `<circle cx="7.5" cy="17" r="2.9"/><circle cx="16.5" cy="15" r="2.9"/><path d="M10.4 17V6.2l9-2.2V15"/>`,
+  album: `<circle cx="12" cy="12" r="8.6"/><circle cx="12" cy="12" r="2.4"/>`,
+  film: `<rect x="3.6" y="6" width="16.8" height="12" rx="1.6"/><path d="M3.6 10.2h16.8M8 6v12M16 6v12"/>`,
   news: `<rect x="3.6" y="5" width="16.8" height="14" rx="2.4"/><path d="M7.2 9.2h5.6M7.2 12.4h9.6M7.2 15.6h9.6"/>`,
 };
 
