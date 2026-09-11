@@ -1,0 +1,24 @@
+-- The hive moves live. docs/the-wall.md section 21, September 11, 2026.
+--
+-- The full screen hive for an open date is a live board now. It lays itself
+-- out in the browser from the buzz counts as they arrive, and it learns of a
+-- buzz the moment one lands by subscribing to inserts on wall_boosts over
+-- Supabase Realtime. A table reaches Realtime through the supabase_realtime
+-- publication, which this project has and which has carried no table until
+-- now. wall_boosts is added and nothing else is.
+--
+-- What a subscriber is sent. Realtime checks the subscriber's row level
+-- security before sending a change, and wall_boosts_public_read already lets
+-- the anonymous role read every row. It sends only the columns the role may
+-- select, and 20260909120000_the_wall_writes.sql took booster_id away from
+-- anon and authenticated by column grant, so the row that reaches a page
+-- carries the story, the date, the units, the instant, the tier and support
+-- at that moment, and how the buzz was authenticated, and never who cast it.
+-- That is the same shape the automatic interface already answers.
+--
+-- Nothing is written through this. Nothing about the budget, the trigger,
+-- the window or the seal changes. A delete, which only wall_forget_boost
+-- can make inside its thirty seconds, is published too, so a page that saw
+-- the buzz land can see it taken back.
+
+alter publication supabase_realtime add table wall_boosts;
