@@ -549,23 +549,14 @@ export const BEE: Voice = { button: "Buzz", one: "buzz", many: "buzzes", past: "
 export const PLAIN: Voice = { button: "Back this", one: "tap", many: "taps", past: "backed", imperative: "Tap" };
 
 /**
- * Dates that speak plainly. docs/the-wall.md section 9 left solemn dates
- * open, with a curated list as one of the two options. This is that list,
- * for the voice only: the wall still opens, still takes support, still
- * seals. It only stops making the pun. Month and day, keyed the way the
- * rest of the build keys a date. A start, to be edited by a person, and
- * September 11 is the one the documents name.
+ * Dates that speak plainly rather than making the buzz pun. Empty since
+ * September 11, 2026, decided by Jason: every date is one product with one
+ * voice, and a hive that says Buzz on one date and Back this on the next
+ * reads as two apps. The solemn voice, PLAIN below, is kept as the second
+ * entry of the Voice type so a date can be added back here without any
+ * other change, but no date uses it now.
  */
-export const PLAIN_DATES: ReadonlySet<string> = new Set([
-  "9-11",  // September 11 attacks
-  "12-7",  // Pearl Harbor
-  "4-19",  // Oklahoma City
-  "4-20",  // Columbine
-  "12-14", // Sandy Hook
-  "6-12",  // Pulse
-  "10-1",  // Las Vegas
-  "5-24",  // Uvalde
-]);
+export const PLAIN_DATES: ReadonlySet<string> = new Set<string>();
 
 export function voiceFor(month: number, day: number): Voice {
   return PLAIN_DATES.has(wallKey(month, day)) ? PLAIN : BEE;

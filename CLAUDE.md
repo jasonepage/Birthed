@@ -564,10 +564,14 @@ Nathan's decision, the measurements behind it and what it withdraws are in
   receipt, because that is what a headline does everywhere else, and a small
   Buzz button spends the unit. The first version made the headline the vote
   and nobody could find the receipt.
-- **The unit is a buzz, except on solemn dates.** The mascot is a bee.
-  `Voice` in `web/src/wall.ts` is the one place the word lives and
-  `PLAIN_DATES` is the list of dates that speak plainly instead. The list is
-  a start and is meant to be edited by a person.
+- **The unit is a buzz, on every date.** The mascot is a bee, so the button
+  says Buzz, the count says buzzes, the mark says You buzzed this. `Voice` in
+  `web/src/wall.ts` is the one place the word lives, mirrored by `HiveVoice`
+  in `Birthed/Domain/Hive.swift`. A solemn second voice (Back this, tap) and
+  a `PLAIN_DATES` list still exist in both, but the list is empty since
+  September 11, 2026, decided by Jason: one product speaks one voice, and a
+  hive that says Buzz on one date and Back this on the next reads as two apps.
+  Refilling the list is the only change needed to bring the solemn voice back.
 - **No honey, no karma.** A reward for backing stories that last was raised
   and refused, because `docs/the-wall.md` sections 6 and 8 refuse any score
   and the outcomes that would feed one are a year away. If it is ever built

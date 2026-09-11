@@ -285,23 +285,23 @@ test("the remaining count says what it means", () => {
   assert.equal(tapsLeftSentence(2, 3, PLAIN), "Two taps left today.");
 });
 
-test("a solemn date speaks plainly: no pun anywhere on its wall", () => {
-  assert.ok(PLAIN_DATES.has("9-11"));
-  assert.equal(voiceFor(9, 11), PLAIN);
+test("every date speaks the one voice, buzz, September 11 included", () => {
+  assert.equal(PLAIN_DATES.size, 0, "no date is solemn any more");
+  assert.equal(voiceFor(9, 11), BEE);
   assert.equal(voiceFor(9, 9), BEE);
   const s = story({ wallDate: "2026-09-11", rect: { mx: 3, my: 5, w: 4, h: 3 }, support: 2 });
   const d = day([s], { wallDate: "2026-09-11", day: 11, liveAt: "2026-09-11T04:00:00Z", opensAt: "2026-09-10T04:00:00Z", closesAt: "2026-09-13T04:00:00Z" });
   const now = Date.parse("2026-09-11T20:00:00Z");
   const html = wallSection(d, "September 11", now, { interactive: true });
-  assert.ok(!/buzz/i.test(html.replace(/class="wbuzz"/g, "")), "no buzz on September 11, outside the class name of the control");
-  assert.ok(html.includes("Three taps left today."));
-  assert.ok(html.includes(">Back this</button>"));
-  assert.ok(html.includes("You backed this"));
-  assert.ok(html.includes("2 taps"));
+  assert.ok(html.includes("Three buzzes left today."));
+  assert.ok(html.includes(">Buzz</button>"));
+  assert.ok(html.includes("You buzzed this"));
+  assert.ok(html.includes("2 buzzes"));
+  assert.ok(!/back this|backed this|taps? left/i.test(html), "no solemn wording anywhere");
   // The wall itself is unchanged: it still opens and still takes support.
   assert.ok(html.includes('action="/boost"'));
   const marks = wallMarks({ left: 1, allowance: 3, backed: [s.id] }, d, now);
-  assert.ok(marks.includes("One tap left today."));
+  assert.ok(marks.includes("One buzz left today."));
 });
 
 test("a reader's own marks reveal their taps and their count, and nothing about anybody else", () => {
@@ -439,10 +439,6 @@ test("the full screen page is the hive, its count and its sentences, and a buzz 
 
 /** The page as a reader sees it: tags gone, entities left alone. Class names
  * and attribute values are markup and are not read by anybody. */
-function visibleText(html: string): string {
-  return html.replace(/<[^>]*>/g, " ");
-}
-
 // ---------------------------------------------------------------------------
 // The typed field. docs/the-wall.md section 15.
 // ---------------------------------------------------------------------------
@@ -518,14 +514,10 @@ test("the confirmation shows the story, its outlet and its tier, and the buzz is
   assert.ok(falseBlock.includes("Later shown false. Takes no buzzes."));
   assert.ok(!falseBlock.includes("<form"));
 
-  // On a solemn date the confirmation speaks plainly too.
+  // September 11 speaks the same voice as every other date now.
   const plain = wallSection(day([found], { wallDate: "2026-09-11", month: 9, day: 11, liveAt: "2026-09-11T04:00:00Z", closesAt: "2026-09-13T04:00:00Z" }),
     "September 11", Date.parse("2026-09-11T20:00:00Z"), { interactive: true, found: [{ ...found, wallDate: "2026-09-11" }] });
-  assert.ok(plain.includes("Spend one tap on this?"));
-  // Visible text only. The class name on the form is "wbuzz" and a reader
-  // never sees a class name, so the sweep reads the page the way a reader
-  // does rather than the way the markup is written.
-  assert.ok(!/buzz/i.test(visibleText(plain)));
+  assert.ok(plain.includes("Spend one buzz on this?"));
 });
 
 // ---------------------------------------------------------------------------

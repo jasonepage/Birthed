@@ -54,16 +54,10 @@ enum HiveDates {
     /// "9-11" for a month and a day, the key shape the rest of the build uses.
     static func key(month: Int, day: Int) -> String { "\(month)-\(day)" }
 
-    static let plainDates: Set<String> = [
-        "9-11",  // September 11 attacks
-        "12-7",  // Pearl Harbor
-        "4-19",  // Oklahoma City
-        "4-20",  // Columbine
-        "12-14", // Sandy Hook
-        "6-12",  // Pulse
-        "10-1",  // Las Vegas
-        "5-24",  // Uvalde
-    ]
+    /// Empty since September 11, 2026, decided by Jason: one product, one
+    /// voice. The hive says Buzz on every date. `HiveVoice.plain` is kept so a
+    /// date can be added back here with no other change, but none uses it now.
+    static let plainDates: Set<String> = []
 
     static func speaksPlainly(month: Int, day: Int) -> Bool {
         plainDates.contains(key(month: month, day: day))

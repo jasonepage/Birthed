@@ -43,28 +43,24 @@ final class HiveTests: XCTestCase {
 
     // MARK: The voice
 
-    func testASolemnDateSpeaksPlainlyAndAnOrdinaryDateSaysBuzz() {
-        XCTAssertEqual(HiveDates.voice(month: 9, day: 11), .plain)
-        XCTAssertEqual(HiveDates.voice(month: 9, day: 11).button, "Back this")
-        XCTAssertEqual(HiveDates.voice(month: 9, day: 11).mark, "You backed this")
+    func testEveryDateSaysBuzzIncludingSeptemberEleven() {
+        XCTAssertEqual(HiveDates.voice(month: 9, day: 11), .bee)
+        XCTAssertEqual(HiveDates.voice(month: 9, day: 11).button, "Buzz")
+        XCTAssertEqual(HiveDates.voice(month: 9, day: 11).mark, "You buzzed this")
         XCTAssertEqual(HiveDates.voice(month: 9, day: 9), .bee)
         XCTAssertEqual(HiveDates.voice(month: 9, day: 9).button, "Buzz")
         XCTAssertEqual(HiveDates.voice(month: 9, day: 9).mark, "You buzzed this")
-        // The whole list, so a date is not quietly dropped from it.
-        XCTAssertEqual(HiveDates.plainDates.count, 8)
-        for key in ["9-11", "12-7", "4-19", "4-20", "12-14", "6-12", "10-1", "5-24"] {
-            XCTAssertTrue(HiveDates.plainDates.contains(key), "\(key) speaks plainly")
-        }
+        // No date is solemn any more: one product, one voice.
+        XCTAssertEqual(HiveDates.plainDates.count, 0)
         // The key is unpadded, the same shape wallKey makes on the website.
-        // A padded key would silently match nothing and every date would buzz.
         XCTAssertEqual(HiveDates.key(month: 9, day: 11), "9-11")
         XCTAssertEqual(HiveDates.key(month: 12, day: 7), "12-7")
     }
 
     func testTheVoiceReachesADateThroughEitherKindOfDate() {
-        XCTAssertEqual(HiveDates.voice(for: WallDate(year: 2026, month: 9, day: 11)!), .plain)
-        XCTAssertEqual(HiveDates.voice(for: CalendarDate(month: 9, day: 11)!), .plain)
-        XCTAssertEqual(HiveDates.voice(for: WallDate(year: 2001, month: 9, day: 11)!), .plain,
+        XCTAssertEqual(HiveDates.voice(for: WallDate(year: 2026, month: 9, day: 11)!), .bee)
+        XCTAssertEqual(HiveDates.voice(for: CalendarDate(month: 9, day: 11)!), .bee)
+        XCTAssertEqual(HiveDates.voice(for: WallDate(year: 2001, month: 9, day: 11)!), .bee,
                        "the year has nothing to do with it")
     }
 
