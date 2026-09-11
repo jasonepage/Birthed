@@ -241,7 +241,8 @@ before up. A tile still never shrinks and never gives up a module it holds;
 the rectangle that comes out of a run always contains the one that went in,
 and only its top left corner may move outward. Pixels, when they arrive, are
 stored in board coordinates rather than tile coordinates, so a corner moving
-outward changes nothing anybody drew. On the seeded September 5 the two seen
+outward changes nothing anybody drew. Withdrawn September 11, 2026: the board
+is a pie now and a tile's size is its share, section 18. On the seeded September 5 the two seen
 directly stories with 71 and 62 units now hold eight and twelve modules and
 the claimed story with 38 still holds its four. The other two options section
 10 listed, a placement margin and a reservation, were not taken: both spend
@@ -1623,3 +1624,134 @@ the answers are kept as they were and the question is no longer asked. It
 needed no edit for this cut, which is the first time that has been true, and
 only because the page was edited on the day the buttons came off rather than
 afterwards.
+
+---
+
+## 18. What takes the board, and how big, September 11, 2026
+
+Two answers were close to random on September 11, 2026 and this section is
+what was found and what changed. Which twelve of two hundred stories take
+the hive, and how much of it each one gets.
+
+**The one number that separates history rows was never collected, and
+could not be.** `article_reach` records how many people look a thing up on
+its date, which the curation panel calls the big signal. It had no rows.
+Two faults stacked. The function had never finished a run, and it could not
+have measured history if it had: every one of the 19,734 rows in
+`historical_events` cited the Wikipedia date page it was read from, 366
+distinct addresses for 19,734 rows, and `measure-reach` rightly refuses a
+date page, because the date page is the same number on every line of the
+date. The importer had kept the sentence and thrown the links away.
+
+**Every history row now names the article it is about.** Wikipedia's own
+markup links the subject of each line. `worker/src/subject.ts` picks that
+one link: only the first sentence is read; a war used as a prefix ("World
+War I: Australia invades...") is context and an event used as a prefix
+("Battle of Stirling Bridge: Scots jointly led by...") is the subject; among
+what is left, one link shaped like an event is the subject and two is a
+refusal; with no event, the first link that names its own article is taken
+unless it is a country, a place, a polity, an organisation, an acronym, or
+where or whose something happened. It refuses rather than guesses, because
+a wrong article here is a city's pageviews ranking a skirmish above the
+thing everybody remembers. On the real September 11 page it names 72 of 85
+lines and refuses 13; the lines are pinned in `worker/test/subject.test.ts`
+from three real pages, and `historical_events.subject_url` holds the answer,
+null meaning "nothing to measure" and not "not yet". `source_url` is
+untouched: the receipt still says where the sentence came from.
+
+**The spike is the lower of two anniversaries, in views, not a ratio.**
+Measured by hand on the 72 September 11 subjects before any table was
+filled, the ratio of the date's views to the median day put the Des Moines
+speech first at 341 times and the Battle of Bita Paka second at 136; the
+September 11 attacks were twelfth. Both leaders were one year's number, 840
+then 16,224 and 590 then 8,659: Wikipedia's main page featured them that
+day. A main page feature is editors choosing, made visible in views, which
+is the thing this component exists to be different from. A thing people
+remember spikes every year, so the lower of the two anniversaries keeps it
+and drops the feature. And every article linked from the date page gets a
+few hundred visits on its date from readers of the date page, which is fifty
+times the median of an article nobody reads, so the excess is counted in
+views rather than multiples and under a thousand earns nothing. With that,
+September 11 reads: the attacks, the Pentagon, the Chilean coup, Benghazi,
+Teutoburg, the Hope Diamond, Stirling Bridge. July 20 reads Apollo 11, Neil
+Armstrong, the Turkish invasion of Cyprus, the 20 July plot. September 4
+reads Mark Spitz, and then almost nothing, because almost nothing happened
+on September 4 that people remember, which is also an answer.
+
+**The panel's points break the tie on the hive.** `priority` was four
+buckets, and on September 11 a hundred and sixty four history stories tied
+at 1, so the board among them was arrival order under the variety caps, and
+the 2001 attacks lost a lottery to the theft of the Hope Diamond. New
+stories now sort by support, then by the panel's points for the row, then
+priority, then arrival. `worker/src/wall/points.ts` is the worker's copy of
+the history part of the panel's formula, held to the panel's copy by a test
+that reads it off disk, the way the word screens are copied from
+`highlight.ts`. One buzz beats every score, as it beats every priority. On
+the September 11 stories as they stand, a fresh board by priority and
+arrival opened with Menelik II's generals, the Hope Diamond and the Scottish
+referendum; by points it opens with the attacks, Benghazi and the Chilean
+coup. People, songs, facts and the news carry no points yet and sort as
+nought among themselves by priority, which is an open question below.
+
+**Priority 3 was empty on 364 dates and the document said otherwise.**
+Section 13 gave the top bucket to a row Wikipedia's editors picked for the
+date or one somebody wrote a lead line for. `selected_anniversaries` holds
+18 rows, all on September 7 and 8, the two dates the anniversaries importer
+was ever run for; `lead_lines` holds none. So the ranking had two levels in
+practice, people and everything else, on every date but two. The points
+already carry both inputs, ten for a pick and fifteen for a line, so the
+bucket is redundant where points exist and stays as the tie break where
+they do not.
+
+**The board is a pie, and it is always full. Decided by Nathan, September
+11, 2026.** Until now a tile only grew, from a minimum, so a quiet date left
+a large empty corner and no buzz ever took anything from anything. From now
+a tile's size is its share of the date's buzzes. The board is sixteen by
+sixteen, 256 modules. Every placed story keeps the minimum of four by
+three, twelve modules, because a tile below that cannot hold a headline.
+Twelve tiles at the minimum are 144 modules, so 112 remain, and those are
+handed out in proportion to each story's share of the date's buzzes. A date
+with no buzzes yet splits them by the points instead, so the board is full
+and meaningful from the moment it opens. When the date seals the shares
+freeze and the board is permanent, as it always was.
+
+**What this breaks, said plainly.** Section 9 promised that a tile never
+shrinks and never gives up a module it holds, and that the rectangle out of
+a run always contains the one that went in. Section 13 promised that
+stored rectangles are laid down first and never displaced. Both promises
+are withdrawn. An early backer can watch their tile thin as others are
+backed, and a tile placed at the first tick can lose its place to a story
+somebody backed later. What replaces them: the board is honest about shares
+rather than about arrival, it is always full, and a buzz visibly moves the
+picture, which is the thing the mechanic has never had. Nothing about a buzz
+changes: it is still permanent, still one unit, still counted by the same
+trigger. A story stamped false keeps its rectangle exactly as section 5
+requires, takes a fixed share and is grown by nothing; on a date carrying
+one, the rest of the board is laid out around it by the old growth rules,
+because a pie with a hole in it was not designed in this session and is
+named as open below.
+
+**How the pie is cut.** The stories that earn a place are chosen as before,
+backed first and then by points under the variety caps, twelve at most,
+eight at most unbacked. Each gets twelve modules plus its share of the rest,
+rounded so the areas sum to 256. Then the tiles are laid in horizontal bands
+across the full width, biggest first, at most four to a band and at most
+five bands, band heights in proportion to the area in them and never under
+three, widths in a band in proportion to the tiles and never under four,
+every band exactly sixteen wide and the bands exactly sixteen tall. The
+partition into bands is chosen from every partition of the sorted tiles
+that fits, by the one whose tiles land nearest their shares. The minimums
+mean a tile can hold a few more modules than its share when the board is
+crowded with small tiles; the pie is honest to the module where it can be
+and honest to the headline where it cannot.
+
+**Open, for Nathan and Jason.** Whether people, songs, facts and the news
+should carry points too, so a famous birthday can outrank a dull event
+rather than sitting behind every scored one; a person has pageviews, a
+song has a chart position, and both would fit the same formula. The pie
+around a stamped false story. Whether a wall opened under the old rules,
+the live September 11, 2026 hive with its eight tiles chosen by lottery,
+should be re-laid before it seals, which is an edit to the live database
+and a person's call. And why the news seeder filed nothing on September 11,
+2026, so that hive opened with no news at all and the board held eight tiles
+rather than twelve.
