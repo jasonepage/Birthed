@@ -110,7 +110,19 @@ async function readAll<T>(url: string, key: string, table: string, select: strin
     const response = await fetch(`${url}/rest/v1/${table}?${query}`, {
       headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: "application/json" },
     });
-    if (!response.ok) throw new Error(`${table} failed with ${response.status}`);
+    // A missing table is no pictures, not a dead build. The migration may not
+    // have run yet, and a picture table is the last thing that should take
+    // the site down: an empty answer leaves every tile drawn as it was, the
+    // way an empty lead-lines or wall table does. Only the first page is
+    // guarded, which is where a missing table shows up; a mid-read failure on
+    // a table that exists is still worth stopping for.
+    if (!response.ok) {
+      if (offset === 0) {
+        console.log(`${table} could not be read (${response.status}), so those tiles draw their colour`);
+        return rows;
+      }
+      throw new Error(`${table} failed with ${response.status}`);
+    }
     const page = (await response.json()) as T[];
     rows.push(...page);
     if (page.length < pageSize) break;

@@ -74,3 +74,19 @@ test("the receipt prints the credit when it is given one, with the Commons page 
   const publisher = storyBody(news, day, Date.parse("2026-09-11T05:00:00Z"), { credit: { credit: previewCreditLine("the Guardian"), commonsUrl: null, licenseUrl: null } });
   assert.ok(publisher.includes(`<p class="wfacts wcredit">Picture: the article&#39;s own preview picture, from the Guardian. It belongs to the publisher.</p>`) || publisher.includes(`<p class="wfacts wcredit">Picture: the article's own preview picture, from the Guardian. It belongs to the publisher.</p>`), publisher);
 });
+
+test("a picture table that does not exist is no pictures, not a dead build", async () => {
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    const u = String(input);
+    if (u.includes("story_pictures")) return new Response('{"code":"42P01"}', { status: 404 });
+    return new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } });
+  }) as typeof fetch;
+  try {
+    const { fetchStoredPictures } = await import("../src/stored-pictures.js");
+    const pictures = await fetchStoredPictures("https://nowhere.invalid", "k");
+    assert.equal(pictures.size, 0, "a 404 on a picture table leaves the build alive with no pictures");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
