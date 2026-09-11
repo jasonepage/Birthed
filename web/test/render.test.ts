@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ASK_SLOTS, askCandidates, renderDayPage, renderCalendarPage, renderRobots, renderSitemap, escapeHtml, isReady, songSection } from "../src/render.js";
+import { ASK_SLOTS, askCandidates, renderDayPage, renderCalendarPage, renderRobots, renderSitemap, escapeHtml, isReady } from "../src/render.js";
 import { everyDate, neighbours, slug } from "../src/model.js";
 
 const page = {
@@ -1228,29 +1228,6 @@ test("the year wraps at both ends rather than running off it", () => {
   assert.match(lastDay, /<link rel="next" href="https:\/\/birthed\.app\/january-1\/">/);
 });
 
-test("the dial's decade jumps point at real years, in the section kept off the page", () => {
-  const songs = [1959, 1962, 1971, 1988, 1994, 2003, 2011, 2024].map((year) => ({
-    year, chartDate: `${year}-09-06`, song: `song ${year}`, artist: "somebody",
-  }));
-  const html = songSection(songs, "September 4");
-  for (const decade of [1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020]) {
-    assert.ok(html.includes(`${decade}s</a>`), `no jump for the ${decade}s`);
-  }
-  // Each one points at the earliest year it has, and that year is a real
-  // anchor further down the page rather than a guess at one.
-  assert.ok(html.includes('href="#1959"'));
-  assert.ok(html.includes('href="#1962"'), "the 1960s jump goes to 1962, the only one it has");
-  assert.match(html, /<li id="1962"/);
-});
-
-test("a date with only a couple of decades gets no bar at all", () => {
-  // February 29 is the case this exists for: seventeen chart years spread thin.
-  const songs = [2020, 2024].map((year) => ({
-    year, chartDate: `${year}-02-29`, song: `song ${year}`, artist: "somebody",
-  }));
-  assert.ok(!songSection(songs, "September 4").includes('class="decades"'));
-});
-
 // ---------------------------------------------------------------------------
 // Saying which kind of day the date actually is.
 //
@@ -1305,7 +1282,7 @@ test("a row from before the column existed is not annotated either", () => {
 //
 // These exist because of a real outage rather than out of thoroughness. A new
 // feature introduced a class called "said" and set display:none on it, and
-// ".said" has been the event sentence, the year dial line, the fact text and
+// ".said" has been the event sentence, the fact text and
 // the song title since long before that. Every event on birthed.app went blank
 // and the page still looked plausible: cards, years, source lines, no words.
 //
@@ -1580,17 +1557,6 @@ test("the link preview says what the site does, not what is on a page", () => {
 });
 
 
-
-test("the year dial's hidden labels stay inside the strip that scrolls", () => {
-  // Without this the page was wider than a phone and iOS drew it at desktop
-  // size and shrank it, viewport tag and all. See the comment on the rule.
-  const html = renderDayPage(page, [
-    { year: 1998, chartDate: "1998-09-04", song: "One", artist: "Somebody", hasArtwork: false },
-    { year: 1999, chartDate: "1999-09-04", song: "Two", artist: "Somebody", hasArtwork: false },
-  ]);
-  const style = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
-  assert.match(style, /\.dial \.ticks label \{[^}]*position: relative/);
-});
 
 /**
  * Every animation on a date page lives inside the no-preference media query,
