@@ -112,7 +112,7 @@ function isEventShaped(title: string): boolean {
   if (isMeta(title) || isWar(title) || GENERAL.has(title)) return false;
   // "Apollo 11 anniversaries" is about remembering, not about the day.
   if (/anniversar/i.test(title)) return false;
-  if (/^\d{4}(?:–\d{2,4})? /.test(title)) return true;
+  if (/^\d{4}(?:\u2013\d{2,4})? /.test(title)) return true;
   if (/\b(?:of|in) \d{4}$/.test(title.replace(/\s*\(.*\)\s*$/, ""))) return true;
   if (MISSION.test(title)) return true;
   // "People's Liberation Army" has "Liberation" in it and is an army.
@@ -264,7 +264,7 @@ function namesItself(link: Link): boolean {
 }
 
 /** The year and the dash that open every line, in any of the forms the pages use. */
-const OPENING = /^\s*(?:<a\b[^>]*>)?\s*(?:AD\s*)?\d{1,4}(?:\s*(?:BC|BCE))?\s*(?:<\/a>)?[\s ]*(?:&#8211;|&#x2013;|&ndash;|&#8212;|&mdash;|–|—|-)\s*/i;
+const OPENING = /^\s*(?:<a\b[^>]*>)?\s*(?:AD\s*)?\d{1,4}(?:\s*(?:BC|BCE))?\s*(?:<\/a>)?[\s ]*(?:&#8211;|&#x2013;|&ndash;|&#8212;|&mdash;|\u2013|\u2014|-)\s*/i;
 
 /**
  * A leading "Something:" prefix, linked or plain. Allows "The " in front and a
