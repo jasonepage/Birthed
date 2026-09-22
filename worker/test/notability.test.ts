@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isAdultContent, isViolentNotoriety, notabilityScore, signals } from "../src/notability.js";
+import { worldScore, isAdultContent, isViolentNotoriety, notabilityScore, signals } from "../src/notability.js";
 
 const plain = { monthlyViews: 100_000, birthYear: 1900, isLiving: false, hasSocial: false, description: null };
 
@@ -256,4 +256,38 @@ test("the screen says why, so a zero can be explained rather than guessed at", (
       description: "American serial killer (1946-1989)",
     }).includes("violence, score forced to 0"),
   );
+});
+
+// ---------------------------------------------------------------------------
+// What the importer keeps. CLAUDE.md section 5, September 22, 2026.
+// ---------------------------------------------------------------------------
+
+test("the world score is the same arithmetic the database column uses", () => {
+  // notable_people.world_score, migration 20260922000000. If these two ever
+  // disagree, the people kept are not the people shown.
+  assert.equal(worldScore(230961, 70, 727527), Math.round(Math.sqrt(230961) * 70));
+  assert.equal(worldScore(0, 300, 1), 0, "nobody reads about them in English");
+  assert.equal(worldScore(1000, 0, 1), 0, "nobody wrote about them anywhere");
+  // A nought stays a nought: the adult content and violence screens decide
+  // who never reaches a date page, ahead of this.
+  assert.equal(worldScore(9_000_000, 339, 0), 0);
+});
+
+test("a dead scientist with the whole world's coverage is not cut by a date's cap", () => {
+  // The shape that removed Albert Einstein from March 14. He is dead, born
+  // before the modern cut, not a creator and not on social media, so he
+  // collects no bonus at all; the people who beat him collect up to 3.15.
+  const einstein = { views: 300_000, langs: 321, score: 300_000 };
+  // Fifty living entertainers: fewer languages, comparable English traffic,
+  // and every multiplier the score has.
+  const crowd = Array.from({ length: 50 }, (_, i) => ({
+    views: 250_000 + i, langs: 25 + (i % 20), score: Math.round((250_000 + i) * 3.15),
+  }));
+
+  const byAttention = [einstein, ...crowd].sort((a, b) => b.score - a.score);
+  assert.ok(byAttention.indexOf(einstein) >= 50, "attention alone cuts him at fifty");
+
+  const byWorld = [einstein, ...crowd]
+    .sort((a, b) => worldScore(b.views, b.langs, b.score) - worldScore(a.views, a.langs, a.score));
+  assert.equal(byWorld[0], einstein, "the world's coverage puts him first");
 });

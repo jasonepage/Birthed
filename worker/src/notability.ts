@@ -246,6 +246,31 @@ export function isInternetNative(
     || mentions(description, weights.commentaryTerms);
 }
 
+/**
+ * What a date page orders by, and what the importer keeps.
+ *
+ * The same arithmetic as `notable_people.world_score`, migration
+ * 20260922000000, and it has to stay the same or the fifty people kept are
+ * not the fifty people shown.
+ *
+ * **Why the importer needs it and not just the reader.** `toRows` sorted by
+ * `notability_score` and cut the date at `maxPerDay`, so attention was
+ * deciding who *existed* and not only who came first. Albert Einstein has
+ * 321 sitelinks, real English pageviews and no bonuses at all: he is dead,
+ * born before the modern cut, not a creator and not on social media. Fifty
+ * living actors, footballers and YouTubers with multipliers of up to 3.15
+ * beat him, so March 14 held exactly fifty people and none of them was
+ * Einstein. The same cut removed Darwin, Mozart and Marie Curie, and the
+ * year floor removed Shakespeare, Leonardo and Galileo underneath it.
+ *
+ * A nought stays a nought, so the adult content and violent notoriety
+ * screens still decide who never reaches a date page, ahead of this.
+ */
+export function worldScore(monthlyViews: number, sitelinks: number, score: number): number {
+  if (score <= 0) return 0;
+  return Math.round(Math.sqrt(Math.max(0, monthlyViews)) * Math.max(0, sitelinks));
+}
+
 export function selectCandidates<T extends CandidateInput>(
   people: T[],
   cap: number,

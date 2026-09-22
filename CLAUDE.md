@@ -558,12 +558,29 @@ Stripped of the cynicism the thread left four notes, and three are fixed:
   again for a date, and the query has not been executed against Wikidata from
   here because neither shell in this session can reach it. The first run is
   the test.
-- **Open, and it is not the floor.** Einstein, Darwin, Mozart and Marie Curie
-  are all born inside the old window and are all missing from the table
-  anyway. Seven of fifteen household names checked were absent. The floor
-  explains three of them and nothing explains the other four yet. It needs one
-  look at what Wikidata returns for Darwin, who shares February 12, 1809 with
-  Lincoln, who is present.
+- **The other four had a second cause, and it is found.** Einstein, Darwin,
+  Mozart and Marie Curie are inside the old window and were missing anyway.
+  All three of the first were put to the query service on September 22, 2026
+  and every one of them passes every filter the importer's query has: the
+  exact date literal, day precision, human, an English article, 321, 279 and
+  274 sitelinks. The query was never the problem.
+- **`toRows` was.** It sorted by `notability_score` and cut the date at
+  `maxPerDay`, so attention decided who *existed* and not only who came
+  first. Einstein is dead, born before the modern cut, not a creator and not
+  on social media, so he collects no bonus at all while the people who beat
+  him collect up to 3.15. March 14 held exactly fifty people, `maxPerDay` was
+  exactly fifty, and none of them was Einstein.
+- **The cut is ordered by `worldScore` now**, the same arithmetic as the
+  database column, in `worker/src/notability.ts` so the two cannot drift. A
+  test pins the shape: one dead scientist with 321 languages against fifty
+  living entertainers with every multiplier, cut at fifty.
+- **`IMPORT_MAX_PER_DAY` is 120, not 50.** Fifty was the whole of a date. The
+  mural draws forty tiles on its own and the date page carries thirty people
+  under it, and a site that means to be the record of a date cannot hold
+  fifty of them.
+- **None of this is true of the live table until the importer runs again.**
+  The change is to what a run keeps, so every date has to be re-imported for
+  Einstein to appear.
 
 ### What a public figure is for, decided September 6, 2026
 

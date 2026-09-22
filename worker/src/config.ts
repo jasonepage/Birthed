@@ -58,7 +58,12 @@ export function loadConfig(options: { needsWrite: boolean } = { needsWrite: true
     yearFrom: numberOr("WIKIDATA_YEAR_FROM", 1400),
     yearTo: numberOr("WIKIDATA_YEAR_TO", 2015),
     minSitelinks: numberOr("WIKIDATA_MIN_SITELINKS", 3),
-    maxPerDay: numberOr("IMPORT_MAX_PER_DAY", 50),
+    // 120, not 50. Fifty was the whole of a date, and with the cut ordered by
+    // attention it was fifty living entertainers: March 14 held exactly fifty
+    // people and Einstein was not among them. The mural draws forty tiles on
+    // its own, the date page carries thirty people under it, and a site that
+    // means to be the record of a date cannot hold fifty of them.
+    maxPerDay: numberOr("IMPORT_MAX_PER_DAY", 120),
     candidateCap: numberOr("IMPORT_CANDIDATE_CAP", 160),
   };
 }

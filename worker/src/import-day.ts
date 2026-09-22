@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { loadConfig, loadDotEnv } from "./config.js";
 import { fetchPeopleBornOn, type WikidataPerson } from "./wikidata.js";
 import { monthlyViewsForTitles, titleFromArticleUrl } from "./pageviews.js";
-import { isAdultContent, isViolentNotoriety, notabilityScore, selectCandidates, signals } from "./notability.js";
+import { isAdultContent, isViolentNotoriety, notabilityScore, selectCandidates, signals, worldScore } from "./notability.js";
 import { upsertNotablePeople, type NotablePersonRow } from "./upsert.js";
 
 const WIKIDATA_LICENSE = "CC0-1.0";
@@ -56,7 +56,14 @@ export function toRows(
         content_license: WIKIDATA_LICENSE,
       };
     })
-    .sort((a, b) => b.notability_score - a.notability_score)
+    // What the world wrote about them, not what English Wikipedia clicked.
+    // CLAUDE.md section 5, September 22, 2026. Sorting the cut by
+    // notability_score let attention decide who existed and not only who came
+    // first, and it is why March 14 held exactly fifty people and Einstein
+    // was not one of them.
+    .sort((a, b) =>
+      worldScore(b.monthly_views, b.sitelink_count, b.notability_score)
+      - worldScore(a.monthly_views, a.sitelink_count, a.notability_score))
     .slice(0, maxPerDay);
 }
 
