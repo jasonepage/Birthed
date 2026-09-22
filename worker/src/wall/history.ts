@@ -447,7 +447,7 @@ export function monthDayOf(value: string): string {
  * and two copies of this query would drift the first time one was edited.
  */
 export function hivePeoplePath(month: number, day: number, limit: number | null = null): string {
-  return `notable_people?select=wikidata_qid,name,birth_year,death_year,short_description&birth_month=eq.${month}&birth_day=eq.${day}&adult_content=eq.false&order=notability_score.desc${limit === null ? "" : `&limit=${limit}`}`;
+  return `notable_people?select=wikidata_qid,name,birth_year,death_year,short_description&birth_month=eq.${month}&birth_day=eq.${day}&adult_content=eq.false&order=world_score.desc${limit === null ? "" : `&limit=${limit}`}`;
 }
 
 export async function readHistory(db: Db, month: number, day: number): Promise<DateHistory> {

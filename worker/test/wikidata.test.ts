@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { dateLiterals, buildQuery, nameFromArticle } from "../src/wikidata.js";
 
-const OPTIONS = { yearFrom: 1600, yearTo: 2015, minSitelinks: 10, userAgent: "test" };
+const OPTIONS = { yearFrom: 1400, yearTo: 2015, minSitelinks: 10, userAgent: "test" };
 
 test("one literal per year in the range", () => {
   assert.equal(dateLiterals(9, 4, 1600, 1602).length, 3);
@@ -41,7 +41,7 @@ test("the query reads precision from the statement, not the truthy property", ()
 test("the query binds one exact date per year in the range", () => {
   const query = buildQuery(9, 4, OPTIONS);
   const bound = query.match(/\^\^xsd:dateTime/g) ?? [];
-  assert.equal(bound.length, 2015 - 1600 + 1);
+  assert.equal(bound.length, 2015 - 1400 + 1);
 });
 
 test("the label service is asked for mul as well as English", () => {

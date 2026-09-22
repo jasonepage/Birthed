@@ -53,14 +53,16 @@ test("the hive run walks all 366 dates, February 29 included", () => {
   assert.equal(dates.filter((d) => d.month === 4 && d.day === 31).length, 0);
 });
 
-test("the hive run asks for the people the history seeder files, the most looked up first, with a limit for faces only", () => {
+test("the hive run asks for the people the history seeder files, the world's first, with a limit for faces only", () => {
   assert.ok(!hivePeoplePath(9, 10).includes("limit="), "the seeder files everybody on the date");
   const path = hivePeoplePath(9, 10, FACES_PER_DATE);
   assert.ok(path.startsWith("notable_people?"));
   assert.ok(path.includes("birth_month=eq.9"));
   assert.ok(path.includes("birth_day=eq.10"));
   assert.ok(path.includes("adult_content=eq.false"));
-  assert.ok(path.includes("order=notability_score.desc"));
+  // The same order a date page uses, so the faces fetched are the faces
+  // drawn. CLAUDE.md section 5, September 22, 2026.
+  assert.ok(path.includes("order=world_score.desc"));
   assert.ok(path.endsWith(`limit=${FACES_PER_DATE}`));
 });
 

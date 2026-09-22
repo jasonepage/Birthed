@@ -76,7 +76,7 @@ async function fetchDay(month: number, day: number, url: string, key: string): P
     select: "wikidata_qid,name,birth_year,death_year,short_description,image_file",
     birth_month: `eq.${month}`,
     birth_day: `eq.${day}`,
-    order: "notability_score.desc",
+    order: "world_score.desc",
     // Forty rather than three: the card names three, and the hive card
     // needs to know which people on the date have a face on disk.
     limit: "40",

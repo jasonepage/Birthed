@@ -495,12 +495,8 @@ Stripped of the cynicism the thread left four notes, and three are fixed:
   with Tchaikovsky and Brahms found neither: fourteenth and twenty second
   on the date by English Wikipedia attention, behind two footballers and a
   YouTuber. `PER_PAGE` in `web/src/build.ts`. The list is folded under the
-  hive, so a longer one costs nothing on screen. **The ranking itself is
-  unchanged and is the open question:** "notability by attention" is
-  English Wikipedia's attention, which is why the same reader called the
-  site American and entertainment heavy. Blending sitelink count, how many
-  languages have an article, would lift a Tchaikovsky over a Tielemans. That
-  is Nathan's and Jason's to decide, not a session's.
+  hive, so a longer one costs nothing on screen. The ranking was left open
+  here and was settled on September 22, 2026; see below.
 - **The panel tells a reader born before 1959 that there is no song for
   their week**, instead of promising one the chart cannot give. "The most
   popular songs stopped 10 years before I was born." `FIRST_CHART_YEAR` in
@@ -517,6 +513,57 @@ Stripped of the cynicism the thread left four notes, and three are fixed:
   front door be today's page, with the year asked only after the reader
   already likes it, is the trust fix. That changes the first screen and is
   a decision, not a patch.
+
+### The ranking, decided September 22, 2026
+
+- **A date page is ordered by `notable_people.world_score`, not by
+  `notability_score`.** It is `sqrt(monthly_views) * sitelink_count`, a stored
+  generated column, migration `20260922000000_the_world_score`, applied to the
+  live project the day it was written.
+- **Why.** `notability_score` is English Wikipedia attention with bonuses, and
+  read as an ordering of a date it produced: Theo James first on December 16
+  with **Beethoven eighth and Jane Austen sixth**; a teenage footballer first
+  on October 2 with **Gandhi below him**; Kaley Cuoco over Churchill on
+  November 30; three footballers over Tagore, who has articles in 245
+  languages, on May 7. The reader who called the site American and
+  entertainment heavy was reading that ordering.
+- **A blend, because both pure orderings were already tried and both failed.**
+  `worker/src/notability.ts` records them: sitelinks alone gave a page of
+  European footballers, attention alone gave working screen actors and, on
+  five dates, a serial killer. The square root is the whole trick. It keeps
+  attention in the answer, so Elvis, Elon Musk, John Cena and Michael Jackson
+  still lead the dates they led and a reader born on May 7 still finds MrBeast
+  near the top, while stopping one viral English month from outweighing four
+  hundred years in two hundred languages.
+- **`notability_score` is untouched and still does its other job.** It carries
+  the adult content and violent notoriety screens, which force it to nought,
+  and a nought there is a nought in `world_score`, checked in the expression
+  rather than left to the ordering. Nobody those screens caught can reach a
+  date page through the new column.
+- **Nathan's call, September 22, 2026**, with the argument that organising
+  knowledge by date rather than by name is worth doing properly, and that a
+  date page which puts Beethoven eighth on his own birthday is not that.
+
+### History before 1600 does not exist, found September 22, 2026
+
+- **`WIKIDATA_YEAR_FROM` defaulted to 1600**, so the earliest person in
+  `notable_people` was born in 1600 and 21,971 of the 25,741 rows are people
+  born after 1900. Four centuries, 1600 to 1800, hold 946 people between them.
+  No Shakespeare, no Leonardo, no Galileo, nobody at all before 1600.
+- **The floor is 1400 now.** Day-precision birth records thin out fast before
+  then, so 1400 buys Leonardo, Shakespeare, Galileo, Michelangelo and
+  Copernicus without making the `VALUES` list so long the query service times
+  out. `WIKIDATA_YEAR_FROM` still overrides it.
+- **Not run.** Changing the floor changes nothing until the importer runs
+  again for a date, and the query has not been executed against Wikidata from
+  here because neither shell in this session can reach it. The first run is
+  the test.
+- **Open, and it is not the floor.** Einstein, Darwin, Mozart and Marie Curie
+  are all born inside the old window and are all missing from the table
+  anyway. Seven of fifteen household names checked were absent. The floor
+  explains three of them and nothing explains the other four yet. It needs one
+  look at what Wikidata returns for Darwin, who shares February 12, 1809 with
+  Lincoln, who is present.
 
 ### What a public figure is for, decided September 6, 2026
 

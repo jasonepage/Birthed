@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 
-import { PRIORITY_HISTORY, PRIORITY_PERSON, PRIORITY_PICK, PRIORITY_SONG, mayLead, monthDay, monthDayOf, personHeadline, planHistory, planSongs, songsOn, withoutStatedYears, type DateHistory, type Dropped, type PersonRow, type SongRow } from "../src/wall/history.js";
+import { PRIORITY_HISTORY, PRIORITY_PERSON, PRIORITY_PICK, PRIORITY_SONG, hivePeoplePath, mayLead, monthDay, monthDayOf, personHeadline, planHistory, planSongs, songsOn, withoutStatedYears, type DateHistory, type Dropped, type PersonRow, type SongRow } from "../src/wall/history.js";
 import { allocate, type StoryInput } from "../src/wall/allocator.js";
 import { changesFor } from "../src/wall/repair-person-headlines.js";
 
@@ -339,4 +339,22 @@ test("the repair picks only the rows whose headline this project would write dif
   assert.deepEqual(changesFor(stories, people), [
     { id: "a", wallDate: "2026-09-21", was: "Luke Wilson, American actor (born 1971), born 1971", now: "Luke Wilson, American actor, born 1971" },
   ]);
+});
+
+// ---------------------------------------------------------------------------
+// What a date page is ordered by. CLAUDE.md section 5, September 22, 2026.
+// ---------------------------------------------------------------------------
+
+test("a date asks for its people by what the world wrote, not by what English Wikipedia clicked", () => {
+  const path = hivePeoplePath(12, 16);
+  // world_score is sqrt(monthly_views) * sitelink_count, migration
+  // 20260922000000. Ordering by notability_score put Beethoven eighth on his
+  // own birthday and Gandhi under a teenage footballer on October 2.
+  assert.ok(path.includes("order=world_score.desc"), path);
+  assert.ok(!path.includes("notability_score"), "attention alone is not the order any more");
+  // The screens are unchanged and still run ahead of it.
+  assert.ok(path.includes("adult_content=eq.false"));
+  assert.ok(path.includes("birth_month=eq.12") && path.includes("birth_day=eq.16"));
+  // And the limit still rides on the end when one is asked for.
+  assert.ok(hivePeoplePath(12, 16, 30).endsWith("&limit=30"));
 });

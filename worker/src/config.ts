@@ -49,7 +49,13 @@ export function loadConfig(options: { needsWrite: boolean } = { needsWrite: true
       : (process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? ""),
     // The query service asks for a descriptive agent with a way to reach you.
     userAgent: `Birthed/0.1 (https://birthed.app; ${contact}) node-fetch`,
-    yearFrom: numberOr("WIKIDATA_YEAR_FROM", 1600),
+    // 1400, not 1600. At 1600 the earliest person in the table was born in
+    // 1600 and nobody before that existed at all: no Shakespeare, no
+    // Leonardo, no Galileo. Day-precision birth records thin out fast below
+    // 1400, so this is about as far back as the query can usefully reach
+    // without making the VALUES list long enough to time the service out.
+    // CLAUDE.md section 5, September 22, 2026.
+    yearFrom: numberOr("WIKIDATA_YEAR_FROM", 1400),
     yearTo: numberOr("WIKIDATA_YEAR_TO", 2015),
     minSitelinks: numberOr("WIKIDATA_MIN_SITELINKS", 3),
     maxPerDay: numberOr("IMPORT_MAX_PER_DAY", 50),

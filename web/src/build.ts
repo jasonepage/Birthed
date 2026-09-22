@@ -65,7 +65,7 @@ async function fetchDay(month: number, day: number, url: string, key: string, fa
     select: "wikidata_qid,name,birth_year,death_year,short_description,monthly_views,image_file",
     birth_month: `eq.${month}`,
     birth_day: `eq.${day}`,
-    order: "notability_score.desc",
+    order: "world_score.desc",
     limit: String(PER_PAGE),
   });
   const response = await fetch(`${url}/rest/v1/notable_people?${query}`, {

@@ -13,6 +13,18 @@
 // for. So attention is the base and the signals below tilt it toward people
 // who are famous on the internet rather than famous in the credits.
 //
+// The third is a blend, and it is not in this file. notability_score stayed
+// exactly as described above and is still what decides who is screened out
+// and who gets the internet tilt. What a date page orders by, since
+// September 22, 2026, is notable_people.world_score, which is
+// sqrt(monthly_views) * sitelink_count. Neither of the two failures above
+// tried a blend: the first used sitelinks alone and got footballers, the
+// second used attention alone and got working screen actors and, on five
+// dates, a serial killer. Attention alone also put Beethoven eighth on
+// December 16 and Gandhi under a teenage footballer on October 2, which is
+// the thing that finally settled it. CLAUDE.md section 5, and the migration
+// 20260922000000 carries the reasoning.
+//
 // Every input is stored on the row, so retuning is an UPDATE, not an import.
 
 export interface NotabilityWeights {
