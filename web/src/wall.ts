@@ -96,6 +96,27 @@ export interface WallStory {
   subjectKind: string | null;
   subjectId: string | null;
   sources: WallSource[];
+  /**
+   * How the story aged, written by the worker on its first, fifth and
+   * tenth anniversary: held, false or forgotten. docs/the-wall.md section
+   * 23. Absent until the first anniversary, so a sealed board today draws
+   * nothing from it.
+   */
+  outcomes?: WallOutcome[];
+}
+
+export type WallOutcomeKind = "held" | "false" | "forgotten";
+export interface WallOutcome {
+  anniversary: number;
+  outcome: WallOutcomeKind;
+  note: string | null;
+  recordedAt: string;
+}
+
+interface OutcomeRow { story_id: string; anniversary: number; outcome: WallOutcomeKind; note: string | null; recorded_at: string }
+
+function outcomeFrom(o: Omit<OutcomeRow, "story_id">): WallOutcome {
+  return { anniversary: o.anniversary, outcome: o.outcome, note: o.note, recordedAt: o.recorded_at };
 }
 
 export interface WallDay {
@@ -182,6 +203,14 @@ export async function fetchWall(url: string, key: string): Promise<WallDay[]> {
     "wall_sources?select=id,story_id,url,outlet,owner,headline,quotation,verified_at,added_at&order=added_at.asc,id.asc");
   const checks = await rows<CheckRow>(url, key,
     "wall_checks?select=source_id,checked_at,kind,passed,http_status,detail&order=checked_at.asc,id.asc");
+  const outcomes = await rows<OutcomeRow>(url, key,
+    "wall_outcomes?select=story_id,anniversary,outcome,note,recorded_at&order=anniversary.asc,id.asc");
+  const outcomesByStory = new Map<string, WallOutcome[]>();
+  for (const o of outcomes) {
+    const list = outcomesByStory.get(o.story_id) ?? [];
+    list.push(outcomeFrom(o));
+    outcomesByStory.set(o.story_id, list);
+  }
 
   const checksBySource = new Map<string, WallCheck[]>();
   for (const c of checks) {
@@ -210,6 +239,7 @@ export async function fetchWall(url: string, key: string): Promise<WallDay[]> {
       falseAt: s.false_at, falseNote: s.false_note,
       subjectKind: s.subject_kind ?? null, subjectId: s.subject_id ?? null,
       sources: sourcesByStory.get(s.id) ?? [],
+      outcomes: outcomesByStory.get(s.id) ?? [],
     });
     storiesByDate.set(s.wall_date, list);
   }
@@ -223,9 +253,10 @@ export async function fetchWall(url: string, key: string): Promise<WallDay[]> {
 
 interface EmbeddedStoryRow extends StoryRow {
   wall_sources: Array<SourceRow & { wall_checks: CheckRow[] }>;
+  wall_outcomes?: Array<Omit<OutcomeRow, "story_id">>;
 }
 
-function storyFrom(s: StoryRow, sources: WallSource[]): WallStory {
+function storyFrom(s: StoryRow, sources: WallSource[], outcomes: WallOutcome[] = []): WallStory {
   return {
     id: s.id, wallDate: s.wall_date, submittedAt: s.submitted_at, headline: s.headline, url: s.url, outlet: s.outlet,
     status: s.status, tier: s.tier, support: s.support, priority: s.priority ?? 0, placedAt: s.placed_at,
@@ -235,6 +266,7 @@ function storyFrom(s: StoryRow, sources: WallSource[]): WallStory {
     falseAt: s.false_at, falseNote: s.false_note,
     subjectKind: s.subject_kind ?? null, subjectId: s.subject_id ?? null,
     sources,
+    outcomes,
   };
 }
 
@@ -372,8 +404,9 @@ export async function fetchWallDay(url: string, key: string, wallDate: string, t
 
     const storiesResponse = await fetch(
       `${url}/rest/v1/wall_stories?select=id,wall_date,submitted_at,headline,url,outlet,status,tier,support,priority,placed_at,anchor_mx,anchor_my,w_modules,h_modules,false_at,false_note,subject_kind,subject_id,`
-      + `wall_sources(id,story_id,url,outlet,owner,headline,quotation,verified_at,added_at)`
-      + `&wall_date=eq.${wallDate}&order=submitted_at.asc,id.asc&wall_sources.order=added_at.asc`,
+      + `wall_sources(id,story_id,url,outlet,owner,headline,quotation,verified_at,added_at),`
+      + `wall_outcomes(anniversary,outcome,note,recorded_at)`
+      + `&wall_date=eq.${wallDate}&order=submitted_at.asc,id.asc&wall_sources.order=added_at.asc&wall_outcomes.order=anniversary.asc`,
       { headers, signal: controller.signal },
     );
     if (!storiesResponse.ok) throw new Error(`wall: wall_stories answered ${storiesResponse.status}`);
@@ -386,7 +419,7 @@ export async function fetchWallDay(url: string, key: string, wallDate: string, t
         id: src.id, url: src.url, outlet: src.outlet, owner: src.owner, headline: src.headline, quotation: src.quotation,
         verifiedAt: src.verified_at, addedAt: src.added_at,
         checks: (src.wall_checks ?? []).map((c) => ({ checkedAt: c.checked_at, kind: c.kind, passed: c.passed, httpStatus: c.http_status, detail: c.detail })),
-      })))),
+      })), (s.wall_outcomes ?? []).map(outcomeFrom))),
     };
   } finally {
     clearTimeout(timer);
@@ -756,6 +789,58 @@ export function viewportFor(rects: Array<{ mx: number; my: number; w: number; h:
   return { ox, oy, side };
 }
 
+// ---------------------------------------------------------------------------
+// Hindsight, docs/the-wall.md section 23
+// ---------------------------------------------------------------------------
+
+/** The latest verdict on a story, or null before its first anniversary. */
+export function latestOutcome(story: Pick<WallStory, "outcomes">): WallOutcome | null {
+  const all = story.outcomes ?? [];
+  if (all.length === 0) return null;
+  return [...all].sort((a, b) => b.anniversary - a.anniversary)[0]!;
+}
+
+/**
+ * The mark in a tile's corner. The checker's stamp stands on its own and
+ * wins; a verdict from the anniversary job marks a tile held or forgotten.
+ * Nothing before the first anniversary, so a sealed board today is drawn
+ * exactly as it was.
+ */
+export function outcomeStamp(story: Pick<WallStory, "status" | "outcomes">): string {
+  if (story.status === "false") return `<span class="wstamp">Shown false</span>`;
+  const latest = latestOutcome(story);
+  if (latest === null || latest.outcome === "false") return "";
+  return latest.outcome === "held"
+    ? `<span class="wstamp wheld" title="Buzzed again on a later year's hive for this date">Held</span>`
+    : `<span class="wstamp wforgot" title="On the board that day. Not buzzed on any later hive for this date">Forgotten</span>`;
+}
+
+const YEARS_ON: Record<number, string> = { 1: "One year on", 5: "Five years on", 10: "Ten years on" };
+
+/**
+ * The line under a sealed board once its stories have a verdict: "One year
+ * on: two held, one forgotten." Counts the tiles on the board at the latest
+ * anniversary any of them has reached. Null when none has, which is every
+ * board until September 9, 2027.
+ */
+export function hindsightLine(day: Pick<WallDay, "stories">): string | null {
+  const onWall = day.stories.filter((s) => s.rect !== null && (s.status === "placed" || s.status === "false"));
+  const latest = Math.max(0, ...onWall.flatMap((s) => (s.outcomes ?? []).map((o) => o.anniversary)));
+  if (latest === 0) return null;
+  const counts = { held: 0, false: 0, forgotten: 0 };
+  for (const s of onWall) {
+    const at = (s.outcomes ?? []).find((o) => o.anniversary === latest);
+    if (at) counts[at.outcome] += 1;
+  }
+  const word = (n: number, one: string, many: string): string => `${n === 1 ? "one" : n === 2 ? "two" : n === 3 ? "three" : n} ${n === 1 ? one : many}`;
+  const partsOut: string[] = [];
+  if (counts.held > 0) partsOut.push(`${word(counts.held, "held", "held")}`);
+  if (counts.false > 0) partsOut.push(`${word(counts.false, "was shown false", "were shown false")}`);
+  if (counts.forgotten > 0) partsOut.push(`${word(counts.forgotten, "forgotten", "forgotten")}`);
+  if (partsOut.length === 0) return null;
+  return `${YEARS_ON[latest] ?? `${latest} years on`}: ${partsOut.join(", ")}.`;
+}
+
 function tile(story: WallStory, live: boolean, voice: Voice, view: Viewport, hive: boolean, index: number = 0): string {
   const rect = story.rect!;
   const size = tileClass(rect);
@@ -773,7 +858,7 @@ function tile(story: WallStory, live: boolean, voice: Voice, view: Viewport, hiv
   // and a headline set for a four module tile leaves a sixteen module one
   // three quarters empty. The stylesheet grows the type with the width.
   const style = `grid-column:${rect.mx - view.ox + 1} / span ${rect.w};grid-row:${rect.my - view.oy + 1} / span ${rect.h};--lines:${lines};--tw:${rect.w};--i:${index}`;
-  const stamp = story.status === "false" ? `<span class="wstamp">Shown false</span>` : "";
+  const stamp = outcomeStamp(story);
   const classes = `wtile ${size} w-${story.tier}${rect.h <= 3 ? " wh3" : ""}${story.status === "false" ? " wfalse" : ""}`;
   const receipt = storyPath(story);
 
@@ -810,7 +895,7 @@ export function liveTile(story: WallStory, live: boolean, voice: Voice, index: n
     + (story.status === "false" ? " Later shown false." : "");
   const lines = rect.h <= 3 ? 3 : rect.h === 4 ? 5 : rect.h === 5 ? 7 : rect.h === 6 ? 9 : 11;
   const style = `--x:${rect.mx};--y:${rect.my};--w:${rect.w};--h:${rect.h};--lines:${lines};--tw:${rect.w};--i:${index}`;
-  const stamp = story.status === "false" ? `<span class="wstamp">Shown false</span>` : "";
+  const stamp = outcomeStamp(story);
   const classes = `wtile big w-${story.tier}${rect.h <= 3 ? " wh3" : ""}${story.status === "false" ? " wfalse" : ""}`;
   const takes = live && story.status !== "false";
   return `<div class="${classes}" id="w-${story.id}" style="${style}"${subjectAttr(story)} role="listitem">`
@@ -1257,9 +1342,11 @@ ${HISTORY_START}${history}${HISTORY_END}
         ? `<b>Nothing reached the hive</b><span>Nothing reached the hive before it sealed.</span>`
         : `<b>Nothing on the hive yet</b><span>What people ${voice.past} lands here.</span>`}</p>`
     : "";
+  const hindsight = closed ? hindsightLine(day) : null;
   const board = `<div class="wboard${onWall.length === 0 ? " wblank" : ""}${closed ? " wsealed" : ""}" role="list" aria-label="The hive, ${onWall.length} stories" style="--side:${view.side}">
 ${tiles}${empty}
-</div>`;
+</div>${hindsight === null ? "" : `
+<p class="whindsight">${escapeHtml(hindsight)} <span class="whindsightsay">The board is as it sealed. The marks are what happened since.</span></p>`}`;
 
   const full = onWall.length > 0 && !hive
     ? `<p class="wfull"><a href="${hivePath(month, d)}">Open the hive full screen</a></p>`
@@ -1843,6 +1930,13 @@ export const WALL_STYLE = `
   position: absolute; left: 0; right: 0; bottom: 0; padding: 2px 4px; font-size: 9px; font-weight: 800;
   letter-spacing: .06em; text-transform: uppercase; background: #2A1A08; color: #FFF3DC; text-align: center;
 }
+/* Hindsight, docs/the-wall.md section 23: the verdict on a sealed tile. */
+.wstamp.wheld { background: #F4B740; color: #1B1206; }
+.wstamp.wforgot { background: #3A2E1C; color: #B7A488; }
+.whindsight { margin: 10px 0 0; font-size: 14px; color: #2A1A08; }
+.whindsight .whindsightsay { color: #6B5A42; font-size: 12px; }
+.wlivehive .whindsight, .hivepage .whindsight { color: #FFF3E0; }
+.wlivehive .whindsightsay, .hivepage .whindsightsay { color: #B7A488; }
 
 /* Boosting from the web, docs/the-wall.md section 13. Later than everything
    above on purpose: several of these override rules written for tiles that

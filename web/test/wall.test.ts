@@ -6,7 +6,7 @@ import {
   eastern,
   yearsAgo,
   BEE, PLAIN, PLAIN_DATES, VIEW_MIN, allowanceOn, emptyWallDay, fetchWall, hivePath, newestByDate, storyPath, takingBoosts,
-  tapsLeftSentence, tierLabel, units, viewportFor, voiceFor, wallMarks, wallSection, pictureRules, songParts, subjectOf, takeTurns, FEED_SHOWN, tileKind, kindMark, WALL_STYLE, type WallDay, type WallStory,
+  tapsLeftSentence, tierLabel, units, viewportFor, voiceFor, wallMarks, wallSection, pictureRules, songParts, subjectOf, takeTurns, FEED_SHOWN, tileKind, kindMark, WALL_STYLE, hindsightLine, latestOutcome, outcomeStamp, type WallDay, type WallStory,
 } from "../src/wall.js";
 import { picturesFor } from "../src/render.js";
 
@@ -875,4 +875,28 @@ test("the way to get the picture is a link, and nothing more than a link", () =>
   // A date with nothing on its board has no picture worth offering.
   const bare = wallSection(day([]), "September 9", Date.parse("2026-09-09T20:00:00Z"), { date: { month: 9, day: 9 } });
   assert.ok(!bare.includes("yours.png"));
+});
+
+// Hindsight, docs/the-wall.md section 23. The sealed board never changes;
+// a verdict written on the anniversary marks a tile and adds one line.
+test("a sealed board with no outcomes is drawn exactly as it was, and a verdict marks the tile and adds one line", () => {
+  const sealedAt = Date.parse("2027-09-10T00:00:00Z");
+  const plain = wallSection(day([story()]), "September 9", sealedAt);
+  assert.ok(!plain.includes("whindsight") && !plain.includes("wheld") && !plain.includes("wforgot"), "nothing before the first anniversary");
+
+  const held = story({ outcomes: [{ anniversary: 1, outcome: "held", note: "Buzzed again on the hive for 2027-09-09.", recordedAt: "2027-09-09T05:00:00Z" }] });
+  const forgot = story({ id: "22222222-2222-3333-4444-555555555555", rect: { mx: 10, my: 7, w: 2, h: 1 }, support: 2, outcomes: [{ anniversary: 1, outcome: "forgotten", note: null, recordedAt: "2027-09-09T05:00:00Z" }] });
+  const shownFalse = story({ id: "33333333-2222-3333-4444-555555555555", rect: { mx: 12, my: 7, w: 2, h: 1 }, status: "false", falseAt: "2026-09-10T00:00:00Z", outcomes: [{ anniversary: 1, outcome: "false", note: null, recordedAt: "2027-09-09T05:00:00Z" }] });
+  const html = wallSection(day([held, forgot, shownFalse]), "September 9", sealedAt);
+  assert.ok(html.includes('<span class="wstamp wheld"'), "held is marked");
+  assert.ok(html.includes('<span class="wstamp wforgot"'), "forgotten is marked");
+  assert.ok(html.includes('<span class="wstamp">Shown false</span>'), "the checker's stamp stands");
+  assert.ok(html.includes("One year on: one held, one was shown false, one forgotten."), "and the line counts them");
+  assert.ok(html.includes("The board is as it sealed. The marks are what happened since."));
+
+  // The latest anniversary is the one counted, and an open day draws no line however it aged.
+  assert.equal(hindsightLine({ stories: [story({ outcomes: [{ anniversary: 1, outcome: "forgotten", note: null, recordedAt: "" }, { anniversary: 5, outcome: "held", note: null, recordedAt: "" }] })] }), "Five years on: one held.");
+  assert.equal(latestOutcome(story())?.outcome, undefined);
+  assert.equal(outcomeStamp(story({ outcomes: [{ anniversary: 1, outcome: "false", note: null, recordedAt: "" }] })), "", "a false verdict without the stamp draws nothing rather than a second word for it");
+  assert.equal(hindsightLine({ stories: [story({ status: "pool", rect: null, outcomes: [{ anniversary: 1, outcome: "held", note: null, recordedAt: "" }] })] }), null, "a story that never left the pool is not counted");
 });
