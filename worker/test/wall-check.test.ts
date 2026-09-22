@@ -229,11 +229,15 @@ test("the pie has no tier ceiling: a claimed story alone is the whole board", ()
 });
 
 test("a story beyond the twelve becomes overflow, keeps placed_at, and is offered again next run; one the pie moves off gives up its rectangle", () => {
-  // Twelve placed stories with more support than the newcomer fill the
-  // board; the thirteenth is overflow.
+  // A full board of stories with more support than the newcomer; the one
+  // past the cap is overflow. Sixty since September 22, 2026, section 27,
+  // because that is what the board holds now.
   const full: StoryRow[] = [];
-  for (let n = 0; n < 12; n++) {
-    full.push(story(`f${n}`, { status: "placed", support: 10, placed_at: EARLIER, anchor_mx: (n % 4) * 4, anchor_my: Math.floor(n / 4) * 3, w_modules: 4, h_modules: 3 }));
+  for (let n = 0; n < 60; n++) {
+    full.push(story(`f${String(n).padStart(2, "0")}`, {
+      status: "placed", support: 10, placed_at: EARLIER,
+      anchor_mx: (n % 8) * 2, anchor_my: Math.floor(n / 8) * 2, w_modules: 2, h_modules: 2,
+    }));
   }
   const late = story("late", { support: 5 });
   const sources = [...full.map((s) => source(`src-${s.id}`, s.id, "https://www.npr.org/x")), source("src-late", "late", "https://www.npr.org/late")];

@@ -82,24 +82,53 @@ export const MODULE_PX = 16;
 export const BOARD_PX = BOARD_MODULES * MODULE_PX;
 
 /**
- * The smallest tile: what a headline needs. On a phone the board is about
- * 368 pixels across, so a module is 23 pixels and four by three is 92 by 69,
- * four lines of about fourteen characters; on a desktop it is 140 by 105 and
- * most headlines fit whole.
+ * The smallest tile: a picture. docs/the-wall.md section 27.
+ *
+ * It was four by three until September 22, 2026, because that is what a
+ * headline needs, and that one number was why the board held eleven tiles
+ * out of a pool of 744. A cover or a face reads at forty pixels and a
+ * sentence does not, so the floor is what a picture needs instead: two
+ * modules by two, which is 80 by 80 on a 645 pixel board and 45 by 45 on a
+ * phone. The words move to the tiles that have room for them and to the
+ * receipt.
  */
-export const MIN_W = 4;
-export const MIN_H = 3;
+export const MIN_W = 2;
+export const MIN_H = 2;
 export const MIN_MODULES = MIN_W * MIN_H;
 
-/** The most tiles the board holds. What qualifies beyond this is overflow. */
-export const MAX_PLACED = 12;
+/**
+ * The most tiles the board holds. What qualifies beyond this is overflow.
+ *
+ * Sixty, not twelve. The board is 256 modules and the floor is four, so the
+ * hard ceiling is sixty four; sixty leaves the allocator room to give the
+ * buzzed tiles their share without the last few stories fighting for single
+ * squares. A mural is the point.
+ */
+export const MAX_PLACED = 60;
 
 /**
  * The most tiles that may hold a story with no support. The rest of the
  * board waits for stories somebody backed, so a story people chose can
  * always reach it while the day is young, whatever the feeds put there first.
+ *
+ * **This was the number that starved the board, not MAX_PLACED.** On
+ * September 21, 2026 the hive drew eleven tiles from a pool of 744: eight
+ * unbacked plus the three somebody had buzzed. Eight was right for a board
+ * that held twelve tiles of four by three. On a board of sixty two by twos
+ * it is the whole mural, refused. docs/the-wall.md section 27.
+ *
+ * Forty. The reason for holding any back is unchanged and still good: the
+ * feeds qualify forty stories at the first tick, tiles never shrink, and a
+ * board the seeder filled could never be joined by anything a person later
+ * chose.
+ *
+ * Forty rather than forty eight because of the square rather than the rule.
+ * Forty eight minimum tiles hold 192 of the board's 256 modules and leave
+ * the rest in fragments, and a backed story needs six modules in one piece:
+ * the test that puts five of them on a seeded board could place one. Forty
+ * leaves ninety six modules, and all five land.
  */
-export const UNBACKED_PLACED = 8;
+export const UNBACKED_PLACED = 40;
 
 /**
  * Variety among the tiles nobody has backed yet. docs/the-wall.md section 15.
@@ -117,25 +146,31 @@ export const UNBACKED_PLACED = 8;
  * worth something; an empty one is not.
  */
 /** How many unbacked tiles may be the day's news rather than the date's own history. */
-export const NEWS_UNBACKED = 2;
+export const NEWS_UNBACKED = 8;
 /** How many unbacked tiles any one outlet may hold. The date's history is exempt: every event shares one encyclopedia and that says nothing about variety. */
-export const PER_OUTLET_UNBACKED = 2;
-/** How many unbacked tiles any one kind of history may hold, so a board is not eight birthdays. */
-export const PER_KIND_UNBACKED = 2;
+export const PER_OUTLET_UNBACKED = 3;
+/** How many unbacked tiles any one kind of history may hold, so a board is not forty birthdays. */
+export const PER_KIND_UNBACKED = 10;
 
 /**
- * The groups the unbacked tiles are dealt to, and each group's share of
- * the eight. Nathan, September 11, 2026: music, films, games, birthdays and
- * television should reach the hive more often. Before this the board was
- * three news, two events, two people and one of whatever was left, which
- * was usually a fact. Now: two news, two events, two people, and two
- * releases, where a release is a number one song, album or film, or a row
- * from the culture table (a game, a patch, a meme, a show). What the
- * quotas cannot fill, the fill hands to the thinnest group, so a date with
- * no releases still fills its board.
+ * The groups the unbacked tiles are dealt to, and each group's share of the
+ * forty eight. Nathan, September 11, 2026: music, films, games, birthdays
+ * and television should reach the hive more often. The shares kept that
+ * shape when the board grew on September 22, 2026, section 27, because the
+ * shape was the right one and only the board was too small for it: eight
+ * news, ten events, ten people, ten releases and two of whatever is left,
+ * where a release is a number one song, album or film, or a row from the
+ * culture table (a game, a patch, a meme, a show).
+ *
+ * News is the one held below the others on purpose. It is the group with
+ * hundreds of rows a day and the only one that is not about the date, so
+ * left to its own weight it would be the mural.
+ *
+ * What the quotas cannot fill, the fill hands to the thinnest group, so a
+ * date with no releases still fills its board.
  */
 export type TileGroup = "news" | "event" | "person" | "release" | "other";
-export const GROUP_QUOTA: Readonly<Record<TileGroup, number>> = { news: NEWS_UNBACKED, event: PER_KIND_UNBACKED, person: PER_KIND_UNBACKED, release: 2, other: 0 };
+export const GROUP_QUOTA: Readonly<Record<TileGroup, number>> = { news: NEWS_UNBACKED, event: PER_KIND_UNBACKED, person: PER_KIND_UNBACKED, release: 10, other: 2 };
 
 export function groupOf(story: Pick<StoryInput, "subjectKind">): TileGroup {
   const kind = story.subjectKind ?? null;
@@ -156,9 +191,17 @@ export function groupOf(story: Pick<StoryInput, "subjectKind">): TileGroup {
  */
 export const UNITS_PER_MODULE = 1;
 
-/** The most modules a claimed story may hold, however much support it has. Twice the minimum. */
+/**
+ * The most modules a story may hold, however much support it has.
+ *
+ * Absolute numbers since September 22, 2026, not multiples of the minimum.
+ * They were written as twice and four times a twelve module floor, and read
+ * that way against the new four module floor they would shrink the biggest
+ * tile on the board to a quarter of what it was, which is the opposite of
+ * what section 27 is for: the tiles people buzzed should tower over the
+ * field, not join it.
+ */
 export const CLAIMED_CEILING = 24;
-/** The most modules a reported or seen directly story may hold. Four times the minimum. */
 export const CONFIRMED_CEILING = 48;
 
 /** Width may keep growing while it is at most this many times the height. */

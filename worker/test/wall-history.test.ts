@@ -80,7 +80,9 @@ test("people, facts and written releases file too, and a bare title does not", (
 
 test("when the board has room and nobody has buzzed, the date's picks go on before the feeds, and one buzz beats any priority", () => {
   const stories: StoryInput[] = [];
-  for (let i = 0; i < 20; i++) stories.push({ id: `news-${String(i).padStart(2, "0")}`, tier: "claimed", support: 0, priority: 0, placedAt: 1 });
+  // More than the board holds, so there is something for the order to
+  // decide. Sixty since the mural, docs/the-wall.md section 27.
+  for (let i = 0; i < 80; i++) stories.push({ id: `news-${String(i).padStart(2, "0")}`, tier: "claimed", support: 0, priority: 0, placedAt: 1 });
   stories.push({ id: "pick", tier: "claimed", support: 0, priority: PRIORITY_PICK, placedAt: 2 });
   stories.push({ id: "person", tier: "claimed", support: 0, priority: PRIORITY_PERSON, placedAt: 2 });
   stories.push({ id: "buzzed-news", tier: "claimed", support: 1, priority: 0, placedAt: 3 });

@@ -74,11 +74,17 @@ test("the first place for a new tile is the minimum rectangle centred on the boa
   }
 });
 
-test("the minimum tile is what a headline needs, and the board caps at a readable number", () => {
-  assert.deepEqual({ w: MIN_W, h: MIN_H, modules: MIN_MODULES }, { w: 4, h: 3, modules: 12 });
-  assert.equal(MAX_PLACED, 12);
-  // Twelve tiles at the minimum leave nearly half the square for growth.
-  assert.ok(MAX_PLACED * MIN_MODULES <= BOARD_MODULES * BOARD_MODULES * 0.6);
+test("the minimum tile is what a picture needs, and the board is a mural", () => {
+  // Two by two since September 22, 2026. docs/the-wall.md section 27: four
+  // by three is what a sentence needs, and that one number is why a pool of
+  // 744 drew eleven tiles.
+  assert.deepEqual({ w: MIN_W, h: MIN_H, modules: MIN_MODULES }, { w: 2, h: 2, modules: 4 });
+  assert.equal(MAX_PLACED, 60);
+  // Sixty tiles at the minimum nearly fill the square, which is the point:
+  // a pie is always full and a mural has no gaps in it.
+  assert.ok(MAX_PLACED * MIN_MODULES <= BOARD_MODULES * BOARD_MODULES);
+  // And the cap that actually starved the board is the one that moved most.
+  assert.equal(UNBACKED_PLACED, 40);
 });
 
 test("target size is min(tier ceiling, minimum plus one module per unit)", () => {
@@ -88,8 +94,8 @@ test("target size is min(tier ceiling, minimum plus one module per unit)", () =>
   assert.equal(targetModules("claimed", 4), MIN_MODULES + 4);
   assert.equal(targetModules("claimed", 1000), CLAIMED_CEILING);
   assert.equal(targetModules("reported", 1000), CONFIRMED_CEILING);
-  assert.equal(targetModules("seen_direct", 35), 47);
-  assert.equal(targetModules("seen_direct", 36), CONFIRMED_CEILING);
+  assert.equal(targetModules("seen_direct", 35), MIN_MODULES + 35);
+  assert.equal(targetModules("seen_direct", 44), CONFIRMED_CEILING);
   assert.ok(CLAIMED_CEILING > MIN_MODULES && CONFIRMED_CEILING > CLAIMED_CEILING);
 });
 
@@ -105,9 +111,9 @@ test("one tap is one unit, and the first tap visibly grows the tile", () => {
   const untouched = allocateByGrowth([story("a", { support: 0 })]).placed[0]!;
   const tapped = allocateByGrowth([story("a", { support: 1 })]).placed[0]!;
   assert.equal(area(untouched), MIN_MODULES);
-  // Target thirteen. No step of one module exists, so the preferred whole
-  // column is taken: four by three becomes five by three.
-  assert.deepEqual({ w: tapped.w, h: tapped.h }, { w: 5, h: 3 });
+  // Target five. No step of one module exists, so the preferred whole
+  // column is taken: two by two becomes three by two.
+  assert.deepEqual({ w: tapped.w, h: tapped.h }, { w: 3, h: 2 });
   assert.ok(contains(tapped, untouched) || area(tapped) > area(untouched));
 });
 
@@ -116,20 +122,19 @@ test("a handful of taps keeps showing, and growth prefers width while w is at mo
     const p = allocateByGrowth([story("a", { support })]).placed[0]!;
     return area(p);
   });
-  // 12, 15, 20, 24, 28, 35, 40, 48: every step is a whole column or row and
-  // each one is larger than the last.
-  assert.deepEqual(sizes, [12, 15, 20, 24, 28, 35, 40, 48]);
+  // Every step is a whole column or row and each one is larger than the
+  // last, from a four module floor to the confirmed ceiling.
+  assert.deepEqual(sizes, [4, 6, 8, 15, 20, 24, 28, 40]);
   const big = allocateByGrowth([story("a", { support: 200 })]).placed[0]!;
   assert.deepEqual({ w: big.w, h: big.h }, { w: 8, h: 6 });
 });
 
 test("a step that does not overshoot is taken before one that does", () => {
-  // Four by three with a target of sixteen: right to five by three (fifteen,
-  // under), then the only fitting steps overshoot and the preferred one is
-  // taken, five by four. A rule that stopped at fifteen would leave the
-  // fourth tap invisible.
-  const p = allocateByGrowth([story("a", { support: 4 })]).placed[0]!;
-  assert.deepEqual({ w: p.w, h: p.h }, { w: 5, h: 4 });
+  // A target of thirteen: four by three is twelve, under, and every step
+  // from there overshoots, so the preferred one is taken, five by three. A
+  // rule that stopped at twelve would leave the ninth tap invisible.
+  const p = allocateByGrowth([story("a", { support: 9 })]).placed[0]!;
+  assert.deepEqual({ w: p.w, h: p.h }, { w: 5, h: 3 });
 });
 
 test("a tile keeps every module it holds across repeated runs, and later runs only grow", () => {
@@ -158,9 +163,9 @@ test("a tile keeps every module it holds across repeated runs, and later runs on
 });
 
 test("a tile never shrinks when its support falls, and a stored rectangle below the minimum is kept, not thrown away", () => {
-  const anchor = { mx: 8, my: 7, w: 3, h: 2 };
+  const anchor = { mx: 8, my: 7, w: 2, h: 1 };
   const result = allocateByGrowth([story("a", { support: 0, anchor })]);
-  // Six modules held, a target of twelve: it grows toward the minimum like
+  // Two modules held, a target of four: it grows toward the minimum like
   // any tile toward its target, and every module it held is still its own.
   assert.ok(contains(result.placed[0]!, anchor));
   assert.equal(area(result.placed[0]!), MIN_MODULES);
@@ -179,15 +184,25 @@ test("growth respects tier ceilings", () => {
 
 test("the board caps at MAX_PLACED and the rest is overflow, in the list under the board", () => {
   const stories: StoryInput[] = [];
-  for (let i = 0; i < MAX_PLACED + 5; i++) {
+  for (let i = 0; i < MAX_PLACED + 20; i++) {
     stories.push(story(`s${String(i).padStart(3, "0")}`, {
       support: 1,
       placedAt: Date.UTC(2026, 8, 9, 0, 0, i),
     }));
   }
   const result = allocateByGrowth(stories);
-  assert.equal(result.placed.length, MAX_PLACED);
-  assert.deepEqual(result.overflow, ["s012", "s013", "s014", "s015", "s016"]);
+  // The cap and the square are both limits and the tighter one wins. A
+  // backed story takes more than the minimum, so a board of them runs out of
+  // modules before it runs out of slots, and which happens first is not a
+  // number worth pinning. What must hold is that nothing is lost, nothing
+  // overlaps and nothing is drawn under the minimum.
+  assert.ok(result.placed.length <= MAX_PLACED, `${result.placed.length} placed`);
+  assert.ok(result.placed.length >= 30, `only ${result.placed.length} placed on a mural`);
+  assert.equal(result.placed.length + result.overflow.length, stories.length);
+  assert.deepEqual(
+    [...result.placed.map((p) => p.id), ...result.overflow].sort(),
+    stories.map((s) => s.id).sort(),
+  );
   noOverlap(result.placed);
   for (const p of result.placed) assert.ok(area(p) >= MIN_MODULES);
 });
@@ -195,14 +210,15 @@ test("the board caps at MAX_PLACED and the rest is overflow, in the list under t
 test("stories nobody backed fill at most UNBACKED_PLACED tiles, and the rest of the board waits for backed ones", () => {
   assert.ok(UNBACKED_PLACED < MAX_PLACED);
   const unbacked: StoryInput[] = [];
-  for (let i = 0; i < 20; i++) {
+  const many = UNBACKED_PLACED + 12;
+  for (let i = 0; i < many; i++) {
     unbacked.push(story(`u${String(i).padStart(2, "0")}`, { placedAt: Date.UTC(2026, 8, 9, 0, 0, i) }));
   }
-  // The seeder's first tick: forty qualify, eight are placed, the board is
-  // not finished.
+  // The seeder's first tick: hundreds qualify, UNBACKED_PLACED are placed,
+  // and the board is not finished.
   const seeded = allocateByGrowth(unbacked);
   assert.equal(seeded.placed.length, UNBACKED_PLACED);
-  assert.equal(seeded.overflow.length, 20 - UNBACKED_PLACED);
+  assert.equal(seeded.overflow.length, many - UNBACKED_PLACED);
 
   // Later, five stories people backed arrive: four take the reserved tiles,
   // the fifth waits, and the unbacked ones still in the list stay there.
@@ -215,10 +231,10 @@ test("stories nobody backed fill at most UNBACKED_PLACED tiles, and the rest of 
     ...unbacked.map((s) => ({ ...s, anchor: anchors.get(s.id) ?? null })),
     ...backed,
   ]);
-  assert.equal(later.placed.length, MAX_PLACED);
-  assert.deepEqual(later.placed.filter((p) => p.id.startsWith("b")).map((p) => p.id), ["b0", "b1", "b2", "b3"]);
-  assert.ok(later.overflow.includes("b4"));
-  assert.equal(later.overflow.filter((id) => id.startsWith("u")).length, 20 - UNBACKED_PLACED);
+  // Every one of them reaches the board, which is the whole reason a dozen
+  // slots are held back from the feeds.
+  assert.deepEqual(later.placed.filter((p) => p.id.startsWith("b")).map((p) => p.id), ["b0", "b1", "b2", "b3", "b4"]);
+  assert.equal(later.overflow.filter((id) => id.startsWith("u")).length, many - UNBACKED_PLACED);
   noOverlap(later.placed);
 });
 
@@ -301,7 +317,7 @@ test("a tile blocked on the right and below grows left and up instead", () => {
   // The case section 10 of docs/the-wall.md found: the first story on a busy
   // day is surrounded within the hour on the two sides growth used to go.
   const result = allocateByGrowth([
-    story("centre", { support: 4, placedAt: 1, anchor: { mx: 6, my: 6, w: 4, h: 3 } }),
+    story("centre", { support: 12, placedAt: 1, anchor: { mx: 6, my: 6, w: 4, h: 3 } }),
     story("right", { support: 0, placedAt: 2, anchor: { mx: 10, my: 6, w: 4, h: 3 } }),
     story("below", { support: 0, placedAt: 3, anchor: { mx: 6, my: 9, w: 4, h: 3 } }),
   ]);
@@ -314,7 +330,7 @@ test("a tile blocked on the right and below grows left and up instead", () => {
 });
 
 test("right is preferred over left and down over up", () => {
-  const result = allocateByGrowth([story("a", { support: 4, anchor: { mx: 6, my: 6, w: 4, h: 3 } })]);
+  const result = allocateByGrowth([story("a", { support: 12, anchor: { mx: 6, my: 6, w: 4, h: 3 } })]);
   assert.deepEqual(result.placed[0], { id: "a", mx: 6, my: 6, w: 5, h: 4 });
 });
 
@@ -381,7 +397,7 @@ function historyStory(id: string, kind: string, priority = 1, support = 0): Stor
 
 test("one newsroom cannot take the board", () => {
   const stories = ["a", "b", "c", "d", "e"].map((k) => newsStory(`polygon-${k}`, "polygon.com"));
-  const order = varied(stories, 8).map((s) => s.id);
+  const order = varied(stories, UNBACKED_PLACED).map((s) => s.id);
   // Two of them are chosen, and the rest are not refused, only considered
   // after everything else. On a date with nothing else they still land.
   assert.deepEqual(order.slice(0, 2), ["polygon-a", "polygon-b"]);
@@ -392,15 +408,19 @@ test("the day's news takes a minority of the board and the date's own history ta
   const stories: StoryInput[] = [];
   // The news arrives first and in bulk, which is exactly the shape that
   // produced a wall of wire copy.
-  for (let i = 0; i < 10; i++) stories.push(newsStory(`news-${i}`, `outlet-${i}.com`));
-  for (let i = 0; i < 10; i++) stories.push(historyStory(`event-${i}`, "historical_event"));
-  for (let i = 0; i < 10; i++) stories.push(historyStory(`person-${i}`, "person"));
-  for (let i = 0; i < 10; i++) stories.push(historyStory(`culture-${i}`, "cultural_event"));
+  for (let i = 0; i < 30; i++) stories.push(newsStory(`news-${i}`, `outlet-${i}.com`));
+  for (let i = 0; i < 30; i++) stories.push(historyStory(`event-${i}`, "historical_event"));
+  for (let i = 0; i < 30; i++) stories.push(historyStory(`person-${i}`, "person"));
+  for (let i = 0; i < 30; i++) stories.push(historyStory(`culture-${i}`, "cultural_event"));
 
-  const board = varied(stories, 8).slice(0, 8);
+  const board = varied(stories, UNBACKED_PLACED).slice(0, UNBACKED_PLACED);
   const news = board.filter((s) => s.subjectKind === null);
-  assert.equal(news.length, NEWS_UNBACKED, "today gets a few tiles and not the board");
-  assert.equal(board.length - news.length, 8 - NEWS_UNBACKED, "the date's history takes the rest");
+  // Its reserved share at least, and the date's own history keeps the bulk.
+  // The fill tops news up when a group runs out of candidates, which is
+  // right: an empty slot helps nobody.
+  assert.ok(news.length >= NEWS_UNBACKED, `today got ${news.length} of its ${NEWS_UNBACKED} reserved slots`);
+  assert.ok(news.length < board.length / 3, `today took ${news.length} of ${board.length}`);
+  assert.ok(board.length - news.length >= UNBACKED_PLACED - board.length / 3, "the date's history takes the rest");
 
   for (const kind of ["historical_event", "person", "cultural_event"]) {
     const n = board.filter((s) => s.subjectKind === kind).length;
@@ -412,7 +432,7 @@ test("the date's history is not capped by outlet, because every event shares one
   // Eight events all citing en.wikipedia.org. Capping these by outlet would
   // leave six slots empty for no reason anybody could see on the screen.
   const stories = Array.from({ length: 8 }, (_, i) => historyStory(`event-${i}`, "historical_event"));
-  const board = varied(stories, 8).slice(0, 8);
+  const board = varied(stories, UNBACKED_PLACED).slice(0, UNBACKED_PLACED);
   assert.equal(board.length, 8);
   assert.ok(board.every((s) => s.outlet === "en.wikipedia.org"));
 });
@@ -421,9 +441,9 @@ test("the caps never leave the board emptier than it could be", () => {
   // Only one newsroom has filed anything. The cap says two, and the board
   // has eight slots, so the other six are filled in plain order rather than
   // left blank.
-  const stories = Array.from({ length: 9 }, (_, i) => newsStory(`bbc-${i}`, "bbc.com"));
-  const board = varied(stories, 8).slice(0, 8);
-  assert.equal(board.length, 8, "a varied board is worth something and an empty one is not");
+  const stories = Array.from({ length: UNBACKED_PLACED + 1 }, (_, i) => newsStory(`bbc-${i}`, "bbc.com"));
+  const board = varied(stories, UNBACKED_PLACED).slice(0, UNBACKED_PLACED);
+  assert.equal(board.length, UNBACKED_PLACED, "a varied board is worth something and an empty one is not");
 });
 
 test("one buzz beats every variety rule", () => {
@@ -448,9 +468,9 @@ test("a story with no outlet and no kind is its own outlet rather than everybody
     { id: "two", tier: "claimed", support: 0, priority: 0, placedAt: 1 },
     { id: "three", tier: "claimed", support: 0, priority: 0, placedAt: 1 },
   ];
-  const board = varied(stories, 8).slice(0, 8);
+  const board = varied(stories, UNBACKED_PLACED).slice(0, UNBACKED_PLACED);
   assert.equal(board.length, 3, "three stories with nothing said about them are three stories");
-  assert.equal(PER_OUTLET_UNBACKED, 2, "and this is the cap they would have breached");
+  assert.equal(PER_OUTLET_UNBACKED, 3, "and this is the cap they would have breached");
 });
 
 test("today still gets its tiles when every history story outranks it", () => {
@@ -467,34 +487,38 @@ test("today still gets its tiles when every history story outranks it", () => {
   for (let i = 0; i < 136; i++) stories.push(newsStory(`news-${i}`, `outlet-${i % 9}.com`));
   stories.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
 
-  const board = varied(stories, 8).slice(0, 8);
+  const board = varied(stories, UNBACKED_PLACED).slice(0, UNBACKED_PLACED);
   const news = board.filter((s) => s.subjectKind === null);
-  assert.equal(news.length, NEWS_UNBACKED, "today's news is reserved slots, not merely capped");
-  assert.equal(board.length, 8);
+  // At least its reserved share, and never the board. The fill can hand it
+  // more when the date's own history runs out of candidates, which is right:
+  // an empty slot helps nobody.
+  assert.ok(news.length >= NEWS_UNBACKED, `today's news got ${news.length} of its ${NEWS_UNBACKED} reserved slots`);
+  assert.ok(news.length < board.length / 2, `today's news took ${news.length} of ${board.length}`);
+  assert.equal(board.length, UNBACKED_PLACED);
 });
 
 test("and the reservation never costs a slot when there is no news to put in it", () => {
-  const stories = Array.from({ length: 20 }, (_, i) => historyStory(`event-${i}`, "historical_event"));
-  const board = varied(stories, 8).slice(0, 8);
-  assert.equal(board.length, 8, "a date with no news yet still fills its board");
+  const stories = Array.from({ length: UNBACKED_PLACED + 4 }, (_, i) => historyStory(`event-${i}`, "historical_event"));
+  const board = varied(stories, UNBACKED_PLACED).slice(0, UNBACKED_PLACED);
+  assert.equal(board.length, UNBACKED_PLACED, "a date with no news yet still fills its board");
   assert.ok(board.every((s) => s.subjectKind !== null));
 });
 
 test("no one kind of history takes more than its share of the board", () => {
   const stories: StoryInput[] = [];
-  for (let i = 0; i < 12; i++) stories.push(historyStory(`person-${i}`, "person", 2));
-  for (let i = 0; i < 40; i++) stories.push(historyStory(`event-${i}`, "historical_event", 1));
+  for (let i = 0; i < 60; i++) stories.push(historyStory(`person-${i}`, "person", 2));
+  for (let i = 0; i < 60; i++) stories.push(historyStory(`event-${i}`, "historical_event", 1));
   stories.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
-  const board = varied(stories, 8).slice(0, 8);
+  const board = varied(stories, UNBACKED_PLACED).slice(0, UNBACKED_PLACED);
   const people = board.filter((s) => s.subjectKind === "person").length;
   const events = board.filter((s) => s.subjectKind === "historical_event").length;
-  // The caps take two of each and the fill takes the rest, so with only two
-  // kinds available an even board is the best there is. What must never
+  // The caps take a dozen of each and the fill takes the rest, so with only
+  // two kinds available an even board is the best there is. What must never
   // happen is the kind that outranks taking most of the board while the
-  // other one has forty candidates waiting.
-  assert.ok(people <= 4, `twelve birthdays outranked forty events and took ${people} tiles`);
-  assert.ok(events >= 4, `forty events got ${events} tiles behind twelve birthdays`);
-  assert.equal(board.length, 8);
+  // other one has sixty candidates waiting.
+  assert.ok(people <= UNBACKED_PLACED / 2, `birthdays outranked events and took ${people} tiles`);
+  assert.ok(events >= UNBACKED_PLACED / 2, `sixty events got ${events} tiles behind the birthdays`);
+  assert.equal(board.length, UNBACKED_PLACED);
 });
 
 test("among unbacked stories the score decides, ahead of priority and arrival, and one buzz beats every score", () => {
@@ -545,8 +569,8 @@ test("shares: twelve modules each and the rest in proportion, summing to the boa
   assert.deepEqual(even, [64, 64, 64, 64]);
   const skewed = shares([5, 2, 1, 0], 256, MIN_MODULES);
   assert.equal(skewed.reduce((a, b) => a + b, 0), 256);
-  assert.deepEqual(skewed, [12 + 130, 12 + 52, 12 + 26, 12]);
-  assert.throws(() => shares(new Array(22).fill(1), 256, MIN_MODULES));
+  assert.deepEqual(skewed, [MIN_MODULES + 150, MIN_MODULES + 60, MIN_MODULES + 30, MIN_MODULES]);
+  assert.throws(() => shares(new Array(65).fill(1), 256, MIN_MODULES));
 });
 
 test("proportional: a clamp, not a base, so a band owed most of the board gets most of it", () => {
@@ -607,7 +631,7 @@ test("a stored rectangle no longer holds a place: a story backed later takes the
   const out = allocate([...filler, story("late", { support: 1, placedAt: 9000 }), story("old", { anchor: stale, placedAt: 100, subjectKind: "person" })]);
   full(out.placed);
   assert.ok(out.placed.some((p) => p.id === "late"), "the backed story is on the board");
-  assert.equal(out.placed.length, 9, "eight unbacked at most, plus the backed one");
+  assert.equal(out.placed.length, 10, "every one of them fits on a mural");
   assert.ok(out.overflow.includes("old") || out.placed.some((p) => p.id === "old"));
 });
 
@@ -642,39 +666,48 @@ test("the pie on the real September 11 shape: eight unbacked tiles, the attacks 
     ...Array.from({ length: 20 }, (_, i) => story(`more${i}`, { score: 29, subjectKind: "historical_event", placedAt: 5000 + i })),
   ]);
   full(out.placed);
-  assert.equal(out.placed.length, UNBACKED_PLACED);
+  // Twenty eight stories and a board that holds forty eight, so all of them
+  // are on it. The point of this test is the cut, not the count.
+  assert.equal(out.placed.length, 28);
   assert.equal(out.placed[0]!.id, "attacks");
   const cutAreas = out.placed.map((p) => p.w * p.h);
-  assert.ok(cutAreas[0]! >= 60, `the attacks hold ${cutAreas[0]} modules`);
+  assert.ok(cutAreas[0]! >= 20, `the attacks hold ${cutAreas[0]} modules`);
+  assert.ok(cutAreas[0]! === Math.max(...cutAreas), "and hold more than anything else");
 });
 
-test("the unbacked eight are dealt by group: two news, two events, two people, two releases", () => {
+test("the unbacked forty are dealt by group: eight news, ten events, ten people, ten releases", () => {
   const stories: StoryInput[] = [];
-  for (let i = 0; i < 6; i++) stories.push(historyStory(`event-${i}`, "historical_event", 1));
-  for (let i = 0; i < 6; i++) stories.push(historyStory(`person-${i}`, "person", 2));
-  for (let i = 0; i < 6; i++) stories.push(historyStory(`fact-${i}`, "birth_fact", 1));
-  for (let i = 0; i < 6; i++) stories.push(historyStory(`song-${i}`, "song", 0));
-  for (let i = 0; i < 3; i++) stories.push(historyStory(`film-${i}`, "film", 0));
-  for (let i = 0; i < 3; i++) stories.push(historyStory(`game-${i}`, "cultural_event", 1));
-  for (let i = 0; i < 6; i++) stories.push(newsStory(`news-${i}`, `outlet-${i}.com`));
+  // More of every kind than its quota, so the quota is what decides rather
+  // than what happens to be there.
+  for (let i = 0; i < 20; i++) stories.push(historyStory(`event-${i}`, "historical_event", 1));
+  for (let i = 0; i < 20; i++) stories.push(historyStory(`person-${i}`, "person", 2));
+  for (let i = 0; i < 20; i++) stories.push(historyStory(`fact-${i}`, "birth_fact", 1));
+  for (let i = 0; i < 14; i++) stories.push(historyStory(`song-${i}`, "song", 0));
+  for (let i = 0; i < 6; i++) stories.push(historyStory(`film-${i}`, "film", 0));
+  for (let i = 0; i < 6; i++) stories.push(historyStory(`game-${i}`, "cultural_event", 1));
+  for (let i = 0; i < 20; i++) stories.push(newsStory(`news-${i}`, `outlet-${i}.com`));
   stories.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
-  const board = varied(stories, 8).slice(0, 8);
+  const board = varied(stories, UNBACKED_PLACED).slice(0, UNBACKED_PLACED);
   const count = (f: (s: StoryInput) => boolean): number => board.filter(f).length;
-  assert.equal(count((s) => s.subjectKind === null), 2, "news");
-  assert.equal(count((s) => s.subjectKind === "historical_event"), 2, "events");
-  assert.equal(count((s) => s.subjectKind === "person"), 2, "people");
-  assert.equal(count((s) => ["song", "album", "film", "cultural_event"].includes(s.subjectKind ?? "")), 2, "releases: a song, an album, a film or a game");
-  assert.equal(count((s) => s.subjectKind === "birth_fact"), 0, "a fact reaches the board only through the fill");
+  assert.equal(board.length, UNBACKED_PLACED);
+  assert.equal(count((s) => s.subjectKind === null), NEWS_UNBACKED, "news");
+  assert.equal(count((s) => s.subjectKind === "historical_event"), PER_KIND_UNBACKED, "events");
+  assert.equal(count((s) => s.subjectKind === "person"), PER_KIND_UNBACKED, "people");
+  assert.equal(count((s) => ["song", "album", "film", "cultural_event"].includes(s.subjectKind ?? "")), 10, "releases: a song, an album, a film or a game");
+  assert.equal(count((s) => s.subjectKind === "birth_fact"), 2, "a fact takes the slots left over for whatever is not one of the four");
 });
 
 test("a date with no releases hands their slots to the thinnest group, never back to the one that sorted first", () => {
   const stories: StoryInput[] = [];
-  for (let i = 0; i < 12; i++) stories.push(historyStory(`person-${i}`, "person", 2));
-  for (let i = 0; i < 12; i++) stories.push(historyStory(`event-${i}`, "historical_event", 1));
-  for (let i = 0; i < 4; i++) stories.push(newsStory(`news-${i}`, `outlet-${i}.com`));
+  for (let i = 0; i < 40; i++) stories.push(historyStory(`person-${i}`, "person", 2));
+  for (let i = 0; i < 40; i++) stories.push(historyStory(`event-${i}`, "historical_event", 1));
+  for (let i = 0; i < 20; i++) stories.push(newsStory(`news-${i}`, `outlet-${i}.com`));
   stories.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
-  const board = varied(stories, 8).slice(0, 8);
-  assert.equal(board.length, 8);
-  assert.ok(board.filter((s) => s.subjectKind === "person").length <= 3);
-  assert.ok(board.filter((s) => s.subjectKind === null).length >= 2);
+  const board = varied(stories, UNBACKED_PLACED).slice(0, UNBACKED_PLACED);
+  assert.equal(board.length, UNBACKED_PLACED);
+  // The people sorted first and there are no releases at all, so the slots
+  // the releases would have taken are the test: they go to the groups with
+  // candidates left, never back to the one that already had its share.
+  assert.ok(board.filter((s) => s.subjectKind === "person").length <= UNBACKED_PLACED / 2);
+  assert.ok(board.filter((s) => s.subjectKind === null).length >= NEWS_UNBACKED);
 });

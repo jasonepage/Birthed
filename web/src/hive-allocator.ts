@@ -27,16 +27,16 @@ export const HIVE_ALLOCATOR_JS = `
 var HiveAllocator = (function () {
   "use strict";
   var BOARD_MODULES = 16;
-  var MIN_W = 4;
-  var MIN_H = 3;
+  var MIN_W = 2;
+  var MIN_H = 2;
   var MIN_MODULES = MIN_W * MIN_H;
-  var MAX_PLACED = 12;
-  var UNBACKED_PLACED = 8;
+  var MAX_PLACED = 60;
+  var UNBACKED_PLACED = 40;
   var WIDTH_PREFERENCE = 1.5;
   var MAX_PER_BAND = Math.floor(BOARD_MODULES / MIN_W);
   var MAX_BANDS = Math.floor(BOARD_MODULES / MIN_H);
-  var GROUP_QUOTA = { news: 2, event: 2, person: 2, release: 2, other: 0 };
-  var PER_OUTLET_UNBACKED = 2;
+  var GROUP_QUOTA = { news: 8, event: 10, person: 10, release: 10, other: 2 };
+  var PER_OUTLET_UNBACKED = 3;
 
   function groupOf(story) {
     var kind = story.subjectKind == null ? null : story.subjectKind;

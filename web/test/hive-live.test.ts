@@ -49,14 +49,16 @@ const OPTIONS = { project: "https://lunqqhjwqrpbujwxwdzk.supabase.co", key: "pub
 
 test("the port cuts a full board with no overlaps, biggest share first", () => {
   const web = hiveAllocator();
-  const areas = web.shares([30, 5, 1, 0, 0, 0, 0, 0], 256, 12);
+  // Four modules, not twelve: the smallest tile is a picture now.
+  // docs/the-wall.md section 27.
+  const areas = web.shares([30, 5, 1, 0, 0, 0, 0, 0], 256, web.MIN_MODULES);
   assert.equal(areas.reduce((a, b) => a + b, 0), 256);
-  assert.ok(areas.every((a) => a >= 12));
+  assert.ok(areas.every((a) => a >= web.MIN_MODULES));
   const rects = web.cutBands([...areas].sort((a, b) => b - a));
   assert.equal(rects.reduce((sum, r) => sum + r.w * r.h, 0), 256, "the bands fill the board");
   for (let i = 0; i < rects.length; i++) {
     const a = rects[i]!;
-    assert.ok(a.w >= 4 && a.h >= 3, "never smaller than a headline needs");
+    assert.ok(a.w >= web.MIN_W && a.h >= web.MIN_H, "never smaller than a picture needs");
     assert.ok(a.mx + a.w <= 16 && a.my + a.h <= 16, "inside the board");
     for (let j = i + 1; j < rects.length; j++) {
       const b = rects[j]!;

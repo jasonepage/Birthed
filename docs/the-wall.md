@@ -2403,3 +2403,107 @@ arithmetic in pixels is not the answer.
 **Seen, for once.** The board for September 21 was rendered from its real
 rows and screenshotted at 645 and 390 pixels, before and after. Not seen on
 the live site, which needs a deploy.
+
+## 27. The mural, September 22, 2026
+
+**Nathan's judgment, and the numbers behind it.** The hive was underwhelming:
+it fit two or three stories a reader could actually read, and a date is
+supposed to be a mural. He is right, and it is arithmetic rather than taste.
+For September 21 there were **744 stories in the pool and eleven on the
+board**. Eleven is not a coincidence and it was not `MAX_PLACED`, which
+allowed twelve. It was `UNBACKED_PLACED`, which allowed **eight** tiles to
+hold a story nobody had buzzed, plus the three somebody had. Eight plus
+three. A wall with seven hundred pieces left in the box is not a wall.
+
+**Two numbers did it, and they were both right once.** `UNBACKED_PLACED` of
+eight was right for a board that held twelve tiles, and twelve was all it
+could hold because **the smallest tile was sized to hold a sentence**. Four
+by three on a sixteen module board is four across and five down. Everything
+else, including the emptiness, follows from that one number.
+
+**So the smallest tile is a picture, and it is two by two.** A cover or a
+face reads at forty pixels. A sentence does not. This is the whole decision
+and the rest is consequence:
+
+- **The smallest tile is two modules by two**, which makes the board hold
+  tens of tiles instead of eleven. `MAX_PLACED` rises to sixty and
+  `UNBACKED_PLACED` to forty. The reason for holding any back is unchanged
+  and still good: the feeds qualify forty stories at the first tick, tiles
+  never shrink, and a board the seeder filled could never be joined by
+  anything a person later chose.
+- **Forty rather than more, and the square is why.** Forty eight minimum
+  tiles hold 192 of the board's 256 modules and leave the rest in fragments,
+  and a backed story needs six modules in one piece: at forty eight, the
+  test that puts five backed stories onto a seeded board could place one.
+  Forty leaves ninety six modules and all five land.
+- **The group shares keep their shape and grow with the board**: eight news,
+  ten events, ten people, ten releases, two of whatever is left. News stays
+  below the others on purpose, because it is the group with hundreds of rows
+  a day and the only one that is not about the date, so on its own weight it
+  would be the whole mural.
+
+**What it produces, on the real shape.** Run against September 21's actual
+pool, 400 news, 209 releases, 75 people and 53 events with three of them
+buzzed: **43 tiles, the board full to all 256 modules**, thirteen events,
+ten people, ten releases and ten news, the most buzzed story holding 48
+modules and the smallest holding four.
+- **A small tile draws its picture and no words.** The headline is the
+  receipt's job and the big tiles' job.
+- **A tile with no picture leads with its year, set large.** "1862" reads at
+  any size and a sentence does not. A date board is about years, so the year
+  is the one word every tile can always say.
+- **A caption appears only where there is room for one.** On a narrow board
+  the small cells are pictures alone. A caption nobody can read is what made
+  the old board feel empty, not what saved it.
+
+**What this does not change, and the list matters.** The board is still
+sixteen modules square, so every stored rectangle, every anchor and the
+pixel coordinates section 9 promised are untouched, and **every sealed board
+is exactly as it was**. The pie from section 18 is untouched: a tile's size
+is still its share of the date's buzzes, and one buzz still beats every
+priority and every cap. What changes is the floor under that pie. A story
+nobody backed used to need a twelfth of the board to exist at all, so most of
+them could not exist; now it needs a sixty-fourth, and the ones people chose
+still tower over them.
+
+**The ceilings stop being multiples of the minimum.** `CLAIMED_CEILING` and
+`CONFIRMED_CEILING` were written as twice and four times a twelve module
+floor. Read that way against a four module floor they would shrink the
+biggest tile on the board to a quarter of what it was, which is the opposite
+of the point: the buzzed tiles should still be large and readable. They are
+absolute numbers now, and the comments say so.
+
+**Where the pictures come from, and the cap that was the real bottleneck.**
+Nothing new has to be invented. On September 22, 2026 the project held 1,157
+chart covers and 4,307 faces on disk and 395 publisher pictures for a single
+date's news. For the history, `PICTURES_PER_DATE` in `worker/src/pictures.ts`
+was set to twelve with the comment "every tile that can reach the board",
+which was true of an eleven tile board and is the reason the mural was
+starved. It had also only ever been run on 36 of the 366 dates, and about
+85 percent of what it asked for came back: 369 pictures from roughly 432
+attempts. There are 19,750 history rows and 15,148 of them name their
+article. The cap rises to the new board and the job is run everywhere.
+
+**Generated pictures are refused, for now and with a reason.** Nathan raised
+drawing cartoons for the events that have no photograph, which is a real gap
+and a fair idea. It is not taken, because every tile on this board carries a
+source and a colour saying how well sourced it is, and that is the only thing
+separating this from any other content wall. A generated picture of a real
+event has no source, and a tile is a thing people screenshot: a drawing of
+the Taiping Rebellion, cropped off this board, is a fake historical image
+with birthed.app on it. The 1993 tile is the sharpest case, where the drawing
+would be a civilian airliner being shot down.
+
+If it is ever built, these are its edges, and they are narrow on purpose: no
+real identifiable person, no scene of a real event, nothing about a death, a
+disaster or a war; openly a graphic rather than a picture, a mark for the
+subject and not a depiction of it; a visible sign on the tile that it is a
+drawing, the way the tier chips work; named in the receipt and on the about
+page in the same commit. Until then the year, set large, is the answer, and
+Commons has paintings, engravings and maps for the old events, which are real
+artifacts rather than illustrations of one.
+
+**Whose call this was.** Nathan's, handed over on September 22, 2026, after
+two rounds of looking at rendered boards. The picture that decided it was
+made from this date's real rows and its real covers and faces, and it is the
+reason the rest of this section is specific.
