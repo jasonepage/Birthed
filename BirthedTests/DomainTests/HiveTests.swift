@@ -352,7 +352,8 @@ final class HiveTests: XCTestCase {
         XCTAssertTrue(HiveCopy.tooLate(voice: .plain).contains("tap"))
         XCTAssertFalse(HiveCopy.tooLate(voice: .plain).contains("buzz"),
                        "a solemn date does not make the pun, here either")
-        XCTAssertEqual(HiveCopy.undo, "Undo")
+        XCTAssertEqual(HiveCopy.undo, "Buzzkill")
+        XCTAssertEqual(HiveCopy.stung, "Stung")
     }
 
     // MARK: The order of the feed

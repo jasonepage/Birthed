@@ -617,10 +617,16 @@ enum HiveCopy {
 
     // MARK: Taking a misclick back, docs/the-wall.md, the last entry in section 16
 
-    /// The button. One word, and the plainest one there is, because a reader
-    /// looking for it is a reader who has just done something they did not
-    /// mean and is not in the mood to read a label.
-    static let undo = "Undo"
+    /// The button. One word, and since September 22, 2026 it is the bee word
+    /// the website uses: the hive speaks one voice and "Undo" was the one
+    /// place it dropped it. The line under it still says plainly what it
+    /// does. If `HiveDates` is ever refilled, the solemn voice needs its own
+    /// word here, because nobody should see "Buzzkill" on a date of mourning.
+    static let undo = "Buzzkill"
+
+    /// A story later shown false, on its tile and its feed row. The website's
+    /// word. The receipt still says "shown false" in full.
+    static let stung = "Stung"
 
     /// Under the button, while it is up. It says how long, so nobody is left
     /// wondering whether it will still be there in a minute, and it says what
@@ -647,7 +653,7 @@ enum HiveCopy {
     /// found and shown, and this is what the confirmation says instead of a
     /// button.
     static func takesNone(voice: HiveVoice) -> String {
-        "This story has been shown false and takes no \(voice.many)."
+        "Stung. This story was later shown false and takes no \(voice.many)."
     }
 
     /// A story this install already backed, on the confirmation.

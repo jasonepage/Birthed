@@ -301,7 +301,10 @@ struct MyDayView: View {
                 .foregroundStyle(stagePalette.type)
                 .lineLimit(2)
                 .minimumScaleFactor(0.6)
-            Text(observed.displayName())
+            // "Your Bee Day", the website's name for the reader's own
+            // birthday, as the line under the headline rather than a kicker
+            // over it: the one kicker above the fold belongs to the song.
+            Text("Your Bee Day, \(observed.displayName())")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(stagePalette.type.opacity(0.65))
                 .padding(.top, 6)

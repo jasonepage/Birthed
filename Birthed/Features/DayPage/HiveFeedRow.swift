@@ -39,7 +39,7 @@ struct HiveStoryRow: View {
                 Text(story.outlet)
                 WallChip(tier: story.tier)
                 if story.status == .shownFalse {
-                    Text("SHOWN FALSE")
+                    Text(HiveCopy.stung.uppercased())
                         .font(.system(size: 9, weight: .heavy))
                         .kerning(0.5)
                 }

@@ -1079,7 +1079,7 @@ private struct HiveTile: View {
             if story.status == .shownFalse {
                 VStack {
                     Spacer(minLength: 0)
-                    Text("SHOWN FALSE")
+                    Text(HiveCopy.stung.uppercased())
                         .font(.system(size: 7, weight: .heavy))
                         .kerning(0.5)
                         .frame(maxWidth: .infinity)
@@ -1236,7 +1236,7 @@ private struct HiveTile: View {
             .buttonStyle(.plain)
             .disabled(working)
             .opacity(working ? 0.5 : 1)
-            .accessibilityLabel("\(HiveCopy.undo) that \(voice.one): \(story.headline)")
+            .accessibilityLabel("\(HiveCopy.undo): take back your \(voice.one) on \(story.headline)")
             .accessibilityHint(HiveCopy.undoWindow)
         } else if buzzed {
             Text(voice.mark)
@@ -1288,7 +1288,7 @@ private struct HiveTile: View {
         if let ageLine { line += " \(ageLine)." }
         if buzzed { line += " \(voice.mark)." }
         if undoable { line += " \(HiveCopy.undoWindow)" }
-        if story.status == .shownFalse { line += " Later shown false." }
+        if story.status == .shownFalse { line += " \(HiveCopy.stung): later shown false." }
         return line
     }
 }
@@ -1356,15 +1356,22 @@ private struct HiveFullScreenView: View {
         NavigationStack {
             GeometryReader { outer in
                 let fit = max(0, outer.size.width - 32)
-                let side = zoomed ? max(fit * 2, 640) : fit
+                let side = zoomed ? fit * 2 : fit
                 let axes: Axis.Set = zoomed ? [.horizontal, .vertical] : .vertical
                 VStack(alignment: .leading, spacing: 10) {
                     heading
                         .padding(.horizontal, 16)
                     if let day = wall.day {
                         ScrollView(axes) {
+                            // Enlarged, not laid out again. Laid out at twice
+                            // the width, the fonts stayed the size they are on
+                            // Today and the big tiles were mostly empty; drawn
+                            // at the fitted size and scaled, the zoomed board
+                            // is the Today board, bigger, words included.
                             HiveBoard(day: day, date: date, ageLines: ageLines, onOpen: { selected = $0 })
-                                .frame(width: side, height: side)
+                                .frame(width: fit, height: fit)
+                                .scaleEffect(side / max(fit, 1), anchor: .topLeading)
+                                .frame(width: side, height: side, alignment: .topLeading)
                                 .padding(16)
                         }
                         .scrollIndicators(.hidden)
