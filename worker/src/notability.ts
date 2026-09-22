@@ -92,6 +92,10 @@ export const DEFAULT_WEIGHTS: NotabilityWeights = {
     "rapist", "child abuser", "sex offender", "cult leader",
     "assassin", "mobster", "gangster", "crime boss", "mafia",
     "kidnapper", "arsonist", "torturer", "slave trader",
+    // Found on the September 22, 2026 hive as "Hamida Djandoubi, sentenced
+    // to death in France". Wikidata describes some killers by their sentence
+    // rather than by their crime, and no word above reaches that.
+    "sentenced to death", "death row",
   ],
 };
 

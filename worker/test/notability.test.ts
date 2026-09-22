@@ -221,6 +221,7 @@ test("the five real rows that were opening date pages all score zero", () => {
     ["American murderer and human trophy collector (1906-1983)", "Ed Gein, August 27"],
     ["American serial killer (1942-1994)", "John Wayne Gacy, March 17"],
     ["dictator of Italy from 1922 to 1945", "Benito Mussolini, July 29"],
+    ["sentenced to death in France", "Hamida Djandoubi, September 22 hive"],
   ] as const) {
     assert.equal(isViolentNotoriety(description), true, who);
     assert.equal(

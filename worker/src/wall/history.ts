@@ -32,6 +32,7 @@ import { loadConfig, loadDotEnv } from "../config.js";
 import { insert, rows, type Db } from "./db.js";
 import { fitHeadline, openDates } from "./news.js";
 import { fold } from "./page.js";
+import { isViolentNotoriety } from "../notability.js";
 
 export type SubjectKind = "historical_event" | "birth_fact" | "cultural_event" | "person" | "song" | "album" | "film";
 
@@ -281,7 +282,13 @@ export function planHistory(wallDate: string, history: DateHistory, dropped?: Dr
     });
   }
 
-  history.people.forEach((p, index) => {
+  // The violence screen, here and not only in the score. The score forces
+  // these people to nought, which keeps them off the top of a date page, but
+  // the hive reads every person on the date in world_score order with no
+  // floor, so a nought was last in line and still filed as a story with a
+  // Buzz button on it. Screened by description so a term added to the list
+  // applies on the next tick, without waiting for a re-import.
+  history.people.filter((p) => !isViolentNotoriety(p.short_description)).forEach((p, index) => {
     const description = fold(p.short_description ?? "");
     const headline = personHeadline(p);
     // The quotation has to be twenty characters the page carries. A name

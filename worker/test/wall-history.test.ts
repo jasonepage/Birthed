@@ -358,3 +358,24 @@ test("a date asks for its people by what the world wrote, not by what English Wi
   // And the limit still rides on the end when one is asked for.
   assert.ok(hivePeoplePath(12, 16, 30).endsWith("&limit=30"));
 });
+
+// ---------------------------------------------------------------------------
+// The violence screen on the hive. September 22, 2026.
+// ---------------------------------------------------------------------------
+
+test("the hive never files a person the violence screen catches", () => {
+  // The score forced these people to nought, and the hive read every person
+  // on the date with no floor, so a nought still became a story with a Buzz
+  // button. "Hamida Djandoubi, sentenced to death in France" was on the
+  // September 22, 2026 hive that way.
+  const planned = planHistory("2026-09-22", history({
+    events: [], facts: [], culture: [], leadLines: [],
+    people: [
+      person({ wikidata_qid: "Q10", name: "Tatiana Maslany", birth_year: 1985, short_description: "Canadian actress" }),
+      person({ wikidata_qid: "Q11", name: "Hamida Djandoubi", birth_year: 1949, death_year: 1977, short_description: "sentenced to death in France" }),
+      person({ wikidata_qid: "Q12", name: "Ted Bundy", birth_year: 1946, death_year: 1989, short_description: "American serial killer (1946-1989)" }),
+    ],
+  }));
+  const people = planned.filter((s) => s.subjectKind === "person").map((s) => s.subjectId);
+  assert.deepEqual(people, ["Q10"]);
+});
