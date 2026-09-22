@@ -8,18 +8,36 @@
 // who made it and under what licence, which the receipt prints as credit.
 //
 // Which events get a picture: the best scored on each date, by the same
-// points that choose the board, docs/the-wall.md section 19. Twelve a date
-// is every tile that can reach the board and nothing that cannot, about
-// 4,400 pictures for the year, a few hundred megabytes at tile size. The
-// pictures live in Supabase Storage, in the `pictures` bucket, decided by
-// Jason on September 11, 2026, because the repository is the wrong place for
-// a gigabyte and Supabase is a company the privacy page already names.
+// points that choose the board, docs/the-wall.md section 19. The pictures
+// live in Supabase Storage, in the `pictures` bucket, decided by Jason on
+// September 11, 2026, because the repository is the wrong place for a
+// gigabyte and Supabase is a company the privacy page already names.
 //
 // The network parts are in event-pictures.ts. Everything here takes data and
 // returns data.
 
-/** How many events a date gets pictures for: every tile that can reach the board. */
-export const PICTURES_PER_DATE = 12;
+/**
+ * How many events a date gets pictures for: every tile that can reach the
+ * board, which is the rule and not the number.
+ *
+ * It was twelve, and twelve was right when the board held eleven tiles. It
+ * is the reason the mural was starved of pictures as well as of tiles: on
+ * September 22, 2026 the project held 369 event pictures for 19,750 history
+ * rows, 15,148 of which name an article, and the job had only ever been run
+ * on 36 of the 366 dates. Of what it did ask for, about 85 percent came
+ * back.
+ *
+ * Forty, which is what UNBACKED_PLACED allows a date. docs/the-wall.md
+ * section 27.
+ *
+ * **What this costs, because it is the one thing to check before running
+ * it.** At about 85 percent and 366 dates this asks for something like
+ * twelve thousand pictures where there are now 369, at tile width. The old
+ * comment put 4,400 at a few hundred megabytes, so this is of the order of a
+ * gigabyte in the bucket. That is a storage bill rather than a model bill,
+ * and it is Jason's to approve before the job runs everywhere.
+ */
+export const PICTURES_PER_DATE = 40;
 /** The width the picture is fetched at. A tile is at most sixteen modules, about 640 pixels on a desktop. */
 export const PICTURE_WIDTH = 640;
 /** The storage bucket, public, created by migration 20260911080000. */

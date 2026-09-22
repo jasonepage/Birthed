@@ -1,16 +1,18 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 
-import { creditLine, eventsToPicture, fetchUrl, plainWords, publicUrl, readCredits, readPageImages, storagePath, titleOf } from "../src/pictures.js";
+import { PICTURES_PER_DATE, creditLine, eventsToPicture, fetchUrl, plainWords, publicUrl, readCredits, readPageImages, storagePath, titleOf } from "../src/pictures.js";
 
-test("the twelve best scored events on a date that have no picture yet, most points first", () => {
-  const events = Array.from({ length: 20 }, (_, i) => ({ id: i + 1, subject_url: i === 3 ? null : `https://en.wikipedia.org/wiki/E${i + 1}` }));
+test("the best scored events on a date that have no picture yet, most points first", () => {
+  // As many as the board can hold, which is PICTURES_PER_DATE and was twelve
+  // when the board held eleven tiles. docs/the-wall.md section 27.
+  const events = Array.from({ length: PICTURES_PER_DATE + 8 }, (_, i) => ({ id: i + 1, subject_url: i === 3 ? null : `https://en.wikipedia.org/wiki/E${i + 1}` }));
   const scores = new Map(events.map((e) => [`historical_event:${e.id}`, e.id % 7]));
   const chosen = eventsToPicture(events, scores, new Set(["6"]));
-  assert.equal(chosen.length, 12);
+  assert.equal(chosen.length, PICTURES_PER_DATE);
   assert.ok(!chosen.some((e) => e.id === 4), "no subject, no picture");
   assert.ok(!chosen.some((e) => e.id === 6), "already pictured");
-  assert.equal(chosen[0]!.id, 13, "the highest score first, ties by id");
+  assert.equal(scores.get(`historical_event:${chosen[0]!.id}`), 6, "the highest score first");
 });
 
 test("a subject address becomes the title the API wants", () => {
