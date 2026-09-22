@@ -324,7 +324,10 @@ export function pictureRules(pictures: Picture[]): string {
   const safe = (text: string): string => text.replace(/["\\]/g, "").replace(/[^A-Za-z0-9:_./-]/g, "");
   const each = pictures.map((p) => `[data-subject="${safe(p.subject)}"]{--pic:url("${safe(p.path)}")}`).join("");
   const all = pictures.map((p) => `.wtile[data-subject="${safe(p.subject)}"]`).join(",");
-  return `<style class="wpics">${each}${all}{color:#FFF7EE;--wink:#FFF7EE;--wbtn:#FFE9B0;--wbtn-ink:#2A1A08;--wmark:#FFE9B0;justify-content:flex-end;--scrim:linear-gradient(to top,rgba(20,12,4,.94) 0%,rgba(20,12,4,.62) 48%,rgba(20,12,4,.18) 100%)}</style>`;
+  // A pictured small tile is the picture and nothing else: its year is what
+  // stands in when there is none. docs/the-wall.md section 27.
+  const noYear = pictures.map((p) => `.wtile.small[data-subject="${safe(p.subject)}"] .wyr,.wtile.tiny[data-subject="${safe(p.subject)}"] .wyr`).join(",");
+  return `<style class="wpics">${each}${noYear}{display:none}${all}{color:#FFF7EE;--wink:#FFF7EE;--wbtn:#FFE9B0;--wbtn-ink:#2A1A08;--wmark:#FFE9B0;justify-content:flex-end;--scrim:linear-gradient(to top,rgba(20,12,4,.94) 0%,rgba(20,12,4,.62) 48%,rgba(20,12,4,.18) 100%)}</style>`;
 }
 
 /** How many feed rows are shown before the fold. A dozen is a screen on a phone and a sample of every kind. */
@@ -657,6 +660,27 @@ function chip(tier: WallTier): string {
  * tile is as mute as a small one: letters stacked down a column are not a
  * headline.
  */
+/**
+ * The year a tile can say when it cannot say a sentence. docs/the-wall.md
+ * section 27.
+ *
+ * A date board is about years, so the year is the one word every tile can
+ * carry at any size: "1862" reads at forty pixels and a headline does not.
+ * Taken from the wording the story already has rather than from a new
+ * column, because every shape the seeders write puts it there: a history
+ * row and a release open with it, and a person closes with it.
+ *
+ * Null when there is none to be sure of, and a tile with no year and no
+ * picture keeps its outlet, which is what it had before.
+ */
+export function tileYear(headline: string): string | null {
+  const opens = /^(1[0-9]{3}|20[0-9]{2}):/.exec(headline);
+  if (opens !== null) return opens[1]!;
+  const born = /,\s(?:born\s)?(1[0-9]{3}|20[0-9]{2})(?:\sto\s(?:1[0-9]{3}|20[0-9]{2}))?\s*$/.exec(headline);
+  if (born !== null) return born[1]!;
+  return null;
+}
+
 function tileClass(rect: { w: number; h: number }): string {
   if (rect.w >= 4 && rect.h >= 3) return "big";
   if (rect.w >= 3 && rect.h >= 2) return "mid";
@@ -941,12 +965,19 @@ function tile(story: WallStory, live: boolean, voice: Voice, view: Viewport, hiv
   const receipt = storyPath(story);
 
   if (size === "tiny" || size === "small") {
-    // A stored rectangle from before the minimum existed. Too small for a
-    // headline; it links to its receipt and takes no control.
-    const inner = size === "tiny"
-      ? `<span class="wn">${count}</span>`
-      : `<span class="wo">${escapeHtml(story.outlet)}</span> <span class="wn">${count}</span>`;
-    return `<a class="${classes}" id="w-${story.id}" href="${receipt}" style="${style}"${subjectAttr(story)} title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${inner}${stamp}</a>`;
+    // The mural's ordinary tile since September 22, 2026. docs/the-wall.md
+    // section 27: too small for a sentence, so it is its picture, and where
+    // there is no picture it is its year, which reads at any size. The
+    // headline is still the whole label a screen reader and a hover get, and
+    // the receipt is one tap away.
+    //
+    // Both are drawn. The stylesheet hides the year on a tile that has a
+    // picture, because whether a picture exists is known only to the rules
+    // pictureRules writes and not here.
+    const year = tileYear(story.headline);
+    const inner = `<span class="wyr">${escapeHtml(year ?? story.outlet)}</span>`
+      + (count === "" ? "" : `<span class="wn">${count}</span>`);
+    return `<a class="${classes}${year === null ? " wnoyr" : ""}" id="w-${story.id}" href="${receipt}" style="${style}"${subjectAttr(story)} title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${inner}${stamp}</a>`;
   }
 
   const takes = live && story.status !== "false";
@@ -2062,10 +2093,30 @@ export const WALL_STYLE = `
 .wchecks th, .wchecks td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #241E2E; vertical-align: top; }
 .wchecks th { color: #827B75; font-weight: 600; }
 
-.wtile.tiny .wn { position: absolute; inset: 0; display: grid; place-items: center; font-size: 9px; font-weight: 700; opacity: .85; }
-.wtile.small { display: flex; align-items: center; gap: 4px; padding: 2px 4px; font-size: 9px; line-height: 1.2; white-space: nowrap; overflow: hidden; }
-.wtile.small .wo { opacity: .8; }
-.wtile.small .wn { font-weight: 700; }
+/* The mural's ordinary tile. docs/the-wall.md section 27: it is its picture,
+   and where there is no picture it is its year. Both are always in the
+   markup; the rule below hides the year on a tile that turned out to have a
+   picture, because only pictureRules knows which those are. */
+.wtile.tiny, .wtile.small {
+  display: grid; place-items: center; padding: 2px; overflow: hidden;
+}
+.wyr {
+  position: relative; z-index: 1; font-family: Georgia, "Times New Roman", serif; font-weight: 700;
+  line-height: 1; letter-spacing: -.01em; color: var(--wink, #2A1A08);
+  font-size: clamp(9px, calc(21cqi * var(--tw, 2) / var(--side, 16)), 34px);
+}
+/* A tile with no year says its outlet instead, which is what it said before,
+   and an outlet is a word rather than four numerals so it is set smaller and
+   allowed to wrap out of sight. */
+.wtile.wnoyr .wyr {
+  font-family: inherit; font-weight: 600; font-size: clamp(7px, calc(11cqi * var(--tw, 2) / var(--side, 16)), 13px);
+  opacity: .75; text-align: center; overflow: hidden; max-width: 100%;
+}
+.wtile[data-subject] .wyr { display: block; }
+.wtile.small .wn, .wtile.tiny .wn {
+  position: absolute; right: 2px; top: 2px; z-index: 2;
+  font-size: clamp(7px, calc(13cqi * var(--tw, 2) / var(--side, 16)), 12px); font-weight: 800;
+}
 .wtile.mid, .wtile.big { padding: 5px 6px; display: flex; flex-direction: column; justify-content: space-between; }
 .wtile.mid .wh, .wtile.big .wh {
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;

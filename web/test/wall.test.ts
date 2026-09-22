@@ -6,7 +6,7 @@ import {
   eastern,
   yearsAgo,
   BEE, PLAIN, PLAIN_DATES, VIEW_MIN, allowanceOn, emptyWallDay, fetchWall, hivePath, newestByDate, storyPath, takingBoosts,
-  tapsLeftSentence, tierLabel, units, viewportFor, voiceFor, wallMarks, wallSection, pictureRules, songParts, subjectOf, takeTurns, FEED_SHOWN, tileKind, kindMark, WALL_STYLE, hindsightLine, latestOutcome, outcomeStamp, recordStanding, yoursLine, fitType, type WallDay, type WallStory,
+  tapsLeftSentence, tierLabel, units, viewportFor, voiceFor, wallMarks, wallSection, pictureRules, songParts, subjectOf, takeTurns, FEED_SHOWN, tileKind, kindMark, WALL_STYLE, hindsightLine, latestOutcome, outcomeStamp, recordStanding, yoursLine, fitType, tileYear, type WallDay, type WallStory,
 } from "../src/wall.js";
 import { picturesFor } from "../src/render.js";
 
@@ -1013,4 +1013,49 @@ test("a tile carries its size and its line budget, and the headline can never pu
   assert.ok(WALL_STYLE.includes("flex: 1 1 auto; min-height: 0;"));
   // And the guess these replaced is gone.
   assert.ok(!WALL_STYLE.includes("--more"), "the container query that added a line is retired");
+});
+
+// ---------------------------------------------------------------------------
+// The mural's ordinary tile. docs/the-wall.md section 27.
+// ---------------------------------------------------------------------------
+
+test("a tile knows the one word it can always say, which is its year", () => {
+  // The three shapes the seeders write, and nothing else is guessed at.
+  assert.equal(tileYear("1993: A Transair Georgian Airlines Tu-134 is shot down by a missile."), "1993");
+  assert.equal(tileYear("2015: A rat dragged a slice of pizza down the stairs."), "2015");
+  assert.equal(tileYear("Luke Wilson, American actor, born 1971"), "1971");
+  assert.equal(tileYear("Michael Jackson, American singer, 1958 to 2009"), "1958", "a life gives the year it began");
+  assert.equal(tileYear("1784: the Pennsylvania Packet began publishing"), "1784");
+  // And the shapes that have no year to be sure of.
+  assert.equal(tileYear("Apple's clever software lets iPhone batteries skirt shipping limits"), null);
+  assert.equal(tileYear("The Mac Mini is still mighty, just not as cheap"), null);
+  assert.equal(tileYear("A headline mentioning 1998 in the middle of it"), null, "a year in passing is not the date's year");
+  assert.equal(tileYear(""), null);
+});
+
+test("a small tile is its picture, or its year, and never a sentence it cannot finish", () => {
+  const small = story({ rect: { mx: 0, my: 0, w: 2, h: 2 }, support: 0, headline: "1862: Taiping Rebellion: The Ever Victorious Army defeats Taiping forces at the Battle of Cixi." });
+  const html = wallSection(day([small]), "September 21", LIVE_NOW, { hive: true });
+  assert.ok(html.includes('class="wyr">1862<'), "the year, which reads at any size");
+  // The sentence is not drawn into the tile, because the tile cannot finish
+  // it. There is no headline element on a small tile at all.
+  assert.ok(!html.includes('class="wh"'), "a small tile draws no headline");
+  // It is still the whole of what a screen reader and a hover are handed,
+  // and the receipt is one tap away.
+  assert.match(html, /aria-label="1862: Taiping Rebellion/);
+  assert.match(html, /href="\/september-9\/wall\//);
+  // A story with no year falls back to what the tile said before.
+  const newsy = story({ rect: { mx: 0, my: 0, w: 2, h: 2 }, outlet: "theverge.com", headline: "The Mac Mini is still mighty, just not as cheap" });
+  const newsHtml = wallSection(day([newsy]), "September 21", LIVE_NOW, { hive: true });
+  assert.ok(newsHtml.includes('class="wyr">theverge.com<'));
+  assert.ok(newsHtml.includes("wnoyr"), "and says so, so the stylesheet can set it smaller");
+});
+
+test("a pictured small tile is the picture and nothing else", () => {
+  // Which tiles have a picture is known only to the rules pictureRules
+  // writes, so the year is always drawn and hidden there.
+  const rules = pictureRules([{ subject: "person:Q39829", path: "/faces/Q39829.jpg" }]);
+  assert.ok(rules.includes('.wtile.small[data-subject="person:Q39829"] .wyr'));
+  assert.ok(rules.includes("{display:none}"));
+  assert.ok(rules.includes('--pic:url("/faces/Q39829.jpg")'));
 });
