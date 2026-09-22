@@ -404,6 +404,58 @@ story off the board completely.
 This does not change the pool, the tiers, the receipts or the budget. A seeded
 story is a submitted story whose submitter is the importer.
 
+**Added September 21, 2026: a feed that points at other people's pages.**
+The list above is fourteen newsrooms, and the sentence that justifies it is
+that the feed list is the vetting and the outlet published it under its own
+name. Hacker News is neither of those things. It publishes nothing. Its front
+page is a list of other people's pages, ranked by its readers. It is on the
+list anyway, for the reason the September 21 handoff gives: the people most
+likely to find this product early read that page, and a board seeded from
+NPR, the BBC, Variety and Billboard carries nothing they would recognise.
+
+Three rules follow, and every one of them is settled by the address rather
+than by taste, which is what keeps the receipt honest:
+
+- **The outlet is the page's own host and never the aggregator's.** The feed
+  entry carries an empty outlet and the address decides. A tile whose link
+  goes to a research paper names the paper's host, because that is who
+  published it and those are the words the receipt quotes. `outletOf` was
+  already there and already did this for a link a person pastes.
+- **An item pointing back at the aggregator is not a story.** An "Ask Hacker
+  News" thread is a conversation on the site itself, and the only words it
+  has to quote are its own page title. It would verify, which is worse than
+  failing: a receipt for a discussion about the day is not a receipt for the
+  day. The rule is by host, so it needs no headline pattern and catches every
+  shape of the thing.
+- **A headline ending in a year in brackets is an old page resurfaced.** That
+  front page marks an article from 2019 "(2019)" by its own convention, and
+  filing it on today's hive says it happened today. It joins the screen in
+  section 15 rather than becoming a rule of its own, because it answers the
+  same question that screen asks.
+
+**What this costs, stated.** The cap on how many unbacked tiles one outlet
+may hold counts hosts, so an aggregator is not restrained by it: both of the
+board's news tiles could have arrived by way of one front page, under two
+different hosts. That is accepted rather than fixed, because one buzz beats
+every cap and the pool is what a board is chosen from. Many of these links
+will also never leave the pool, because a paper, a code repository or a
+personal page often carries no description the checker can match, and a story
+whose quotation does not verify is never placed. That is the existing control
+doing its job rather than a fault to work around.
+
+**Ars Technica is the outlet beside it.** It publishes under its own name,
+it carries a short description on every item, which is what the quotation
+needs, and it is read by the same people. The Verge and Polygon were already
+on the list and stay.
+
+**Open, and the first tick is the test.** "Show Hacker News" items are let
+through, because the screen in section 15 lets a headline through when in
+doubt and somebody shipping a thing is a thing that happened. Whether a board
+is better or worse for them is not a judgment anybody can make on fixtures.
+Unmeasured as well: the date an item lands on is the moment it was submitted
+to that front page, so an article published the evening before lands on the
+next morning's hive.
+
 **`wall_sources.is_primary_doc` exists because the highest tier could not be
 reached.** `tierFor` in `worker/src/wall/pool.ts` has always taken a
 `seenDirect` argument and nothing in the schema recorded it, so it was always

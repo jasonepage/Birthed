@@ -31,7 +31,17 @@ import { normalizeUrl, outletOf } from "./url.js";
 
 export interface Feed {
   url: string;
+  /**
+   * The outlet every item on this feed belongs to, or empty when the feed
+   * points at other people's pages and the address is what decides.
+   */
   outlet: string;
+  /**
+   * The feed's own host, set only when the outlet is empty. An item pointing
+   * back at it is a conversation on that site rather than a page about the
+   * day, and is left out. docs/the-wall.md section 11, September 21, 2026.
+   */
+  ownHost?: string;
 }
 
 /**
@@ -75,6 +85,20 @@ export const FEEDS: Feed[] = [
   // What was won and lost
   { url: "https://www.espn.com/espn/rss/news", outlet: "espn.com" },
   { url: "https://www.theguardian.com/uk/sport/rss", outlet: "theguardian.com" },
+
+  // What was built and broken. Added September 21, 2026, and the reasoning
+  // is in docs/the-wall.md section 11: the people most likely to find this
+  // product early read the first of these, and a board seeded from NPR, the
+  // BBC, Variety and Billboard carries nothing they would recognise.
+  //
+  // Hacker News publishes nothing of its own. Its front page is a list of
+  // other people's pages, so its outlet is empty and the address of each
+  // item decides who published it, and an item pointing back at the site
+  // itself is left out by ownHost. Its description is the word "Comments"
+  // and a link, which is under the twenty characters a quotation needs, so
+  // the headline stands in until the page itself is read.
+  { url: "https://news.ycombinator.com/rss", outlet: "", ownHost: "news.ycombinator.com" },
+  { url: "https://feeds.arstechnica.com/arstechnica/index", outlet: "arstechnica.com" },
 ];
 
 /**
@@ -107,9 +131,20 @@ export const PER_FEED_PER_DATE = 5;
  * Not a deletion. Section 11 says the feed list is the vetting, and this is
  * the same vetting applied one level finer. Nothing is removed from any
  * table; these were never filed.
+ *
+ * The last pattern was added on September 21, 2026 with the Hacker News
+ * front page, where a headline ending in a year in brackets is that site's
+ * own mark for an old page somebody has put up again. Filing one on today's
+ * hive says it happened today. It sits here rather than in a rule of its own
+ * because it answers the question this screen asks.
  */
 const NOT_A_THING_THAT_HAPPENED =
-  /\?\s*$|^(opinion|analysis|review|explainer|column)\b|here['’]?s (what|how|why|when|where|everything)|everything you need|top [0-9]+|[0-9]+ (things|ways|reasons)\b|finally gets a release|release date|:\s*here['’]|weigh in\b|what to know\b|explained\s*$|ranked\s*$|hands.on\b|first look\b|is the (last|best|worst|most)\b|who needs\b|tour [0-9]{4}\b/i;
+  /\?\s*$|^(opinion|analysis|review|explainer|column)\b|here['’]?s (what|how|why|when|where|everything)|everything you need|top [0-9]+|[0-9]+ (things|ways|reasons)\b|finally gets a release|release date|:\s*here['’]|weigh in\b|what to know\b|explained\s*$|ranked\s*$|hands.on\b|first look\b|is the (last|best|worst|most)\b|who needs\b|tour [0-9]{4}\b|\((19|20)[0-9]{2}\)\s*$/i;
+
+/** What a feed is called in a log line: its outlet, or its own host when it has no outlet of its own. */
+export function feedName(feed: Feed): string {
+  return feed.outlet || feed.ownHost || feed.url;
+}
 
 /**
  * Whether a headline is a thing that happened, and so whether it belongs on
@@ -266,6 +301,13 @@ export function planNews(feedItems: Array<{ feed: Feed; items: FeedItem[] }>, no
       } catch {
         continue;
       }
+      // Who published the page, which for a feed that points at other
+      // people's pages is decided by the address and not by the feed.
+      const outlet = feed.outlet || outletOf(urlKey);
+      // And an item pointing back at that feed's own site is a conversation
+      // there rather than a page about the day. Its page title would quote
+      // and verify, which is worse than failing.
+      if (feed.ownHost !== undefined && outlet === feed.ownHost) continue;
       const key = `${wallDate}|${urlKey}`;
       if (seen.has(key)) continue;
       const headline = fitHeadline(item.title);
@@ -278,7 +320,7 @@ export function planNews(feedItems: Array<{ feed: Feed; items: FeedItem[] }>, no
       seen.add(key);
       perDate.set(wallDate, (perDate.get(wallDate) ?? 0) + 1);
       out.push({
-        wallDate, headline, url: urlKey, urlKey, outlet: feed.outlet || outletOf(urlKey),
+        wallDate, headline, url: urlKey, urlKey, outlet,
         quotation: quotation.slice(0, 1000),
       });
     }
@@ -367,12 +409,12 @@ async function readFeed(feed: Feed, userAgent: string): Promise<FeedItem[]> {
   try {
     const response = await fetch(feed.url, { headers: { "User-Agent": userAgent }, signal: controller.signal });
     if (!response.ok) {
-      console.warn(`wall news: ${feed.outlet} answered ${response.status}`);
+      console.warn(`wall news: ${feedName(feed)} answered ${response.status}`);
       return [];
     }
     return parseFeed(await response.text());
   } catch (error: unknown) {
-    console.warn(`wall news: ${feed.outlet} could not be read: ${error instanceof Error ? error.message : error}`);
+    console.warn(`wall news: ${feedName(feed)} could not be read: ${error instanceof Error ? error.message : error}`);
     return [];
   } finally {
     clearTimeout(timer);

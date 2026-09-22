@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 
-import { PER_FEED_PER_DATE, fitHeadline, mayMatter, openDates, parseFeed, plain, planNews, quotationFor, withPageQuotations, withoutTruncationMark, type Feed, type PlannedStory } from "../src/wall/news.js";
+import { FEEDS, PER_FEED_PER_DATE, feedName, fitHeadline, mayMatter, openDates, parseFeed, plain, planNews, quotationFor, withPageQuotations, withoutTruncationMark, type Feed, type PlannedStory } from "../src/wall/news.js";
 import type { Fetched } from "../src/wall/page.js";
 
 // 20:30 Coordinated Universal Time on September 9 is 16:30 Eastern, so the
@@ -132,6 +132,10 @@ const NOT_A_THING_THAT_HAPPENED = [
   "Zelda: Ocarina of Time Is the Last Game That Needs a Jump Button",
   "Have we found alien life? Hundreds of scientists weigh in",
   "NFL Season 2026-2027 Livestream: Here’s Where to Watch Pro Football Games Online",
+  // That front page's own mark for an old page somebody has put up again.
+  // docs/the-wall.md section 11, September 21, 2026.
+  "The Unix Magic Poster (1994)",
+  "A Guide to Undefined Behavior in C and C++ (2010)",
 ];
 
 const THINGS_THAT_HAPPENED = [
@@ -151,6 +155,13 @@ const THINGS_THAT_HAPPENED = [
   "Trump officials push to exclude undocumented immigrants from US census",
   "Curiosity Blog, Sols 4995-5001: 5,000 (Martian) Days on Mars",
   "Geologists reveal the Americas collided millions of years earlier than thought",
+  // And the front page's ordinary shapes, which the screen must not take
+  // with it. A year inside the sentence is not the mark; only a year in
+  // brackets at the end is.
+  "Show HN: I built a compiler that fits in a tweet",
+  "Rust 1.94 released",
+  "Cloudflare outage on September 21, 2026",
+  "OpenSSH 10.2 fixes a remote code execution bug found in 2024 code",
 ];
 
 test("a ballot of ticket guides and console opinion is not a ballot", () => {
@@ -304,4 +315,106 @@ test("the truncation mark comes off before a story is planned", () => {
   }];
   const planned = planNews([{ feed, items }], NOW);
   assert.equal(planned[0]!.quotation, "Apple has seen reason: It has a black model in the iPhone Pro lineup again. Last year, Apple went bold with its colors for");
+});
+
+// ---------------------------------------------------------------------------
+// A feed that points at other people's pages, and the outlet beside it.
+// docs/the-wall.md section 11, September 21, 2026.
+//
+// Both fixtures are the shape the live feeds sent on September 21, 2026,
+// copied rather than invented, for the reason the headline lists above give.
+// ---------------------------------------------------------------------------
+
+const HACKER_NEWS: Feed = { url: "https://news.ycombinator.com/rss", outlet: "", ownHost: "news.ycombinator.com" };
+const ARS_TECHNICA: Feed = { url: "https://feeds.arstechnica.com/arstechnica/index", outlet: "arstechnica.com" };
+
+// The front page carries the word "Comments" and a link as every item's
+// description, and its link is the other site's page.
+const HACKER_NEWS_RSS = `<?xml version="1.0"?><rss version="2.0"><channel><title>Hacker News</title>
+<item><title>NASA's Mars Sample Return mission is dead</title><link>https://www.science.org/content/article/nasa-s-mars-sample-return-mission-dead</link><pubDate>Wed, 09 Sep 2026 19:14:12 +0000</pubDate><comments>https://news.ycombinator.com/item?id=49791939</comments><description><![CDATA[<a href="https://news.ycombinator.com/item?id=49791939">Comments</a>]]></description></item>
+<item><title>Tell HN: My account came back after two weeks</title><link>https://news.ycombinator.com/item?id=49792730</link><pubDate>Wed, 09 Sep 2026 18:12:12 +0000</pubDate><comments>https://news.ycombinator.com/item?id=49792730</comments><description><![CDATA[<a href="https://news.ycombinator.com/item?id=49792730">Comments</a>]]></description></item>
+<item><title>The Unix Magic Poster (1994)</title><link>https://example.org/unix-magic-poster</link><pubDate>Wed, 09 Sep 2026 17:00:00 +0000</pubDate><comments>https://news.ycombinator.com/item?id=49790001</comments><description><![CDATA[<a href="https://news.ycombinator.com/item?id=49790001">Comments</a>]]></description></item>
+</channel></rss>`;
+
+// Ars Technica's own feed, which carries a short description of its own and
+// the whole article after it. The description is the one that is quoted.
+const ARS_RSS = `<?xml version="1.0"?><rss xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/" version="2.0"><channel><title>Ars Technica - All content</title>
+<item>
+<title>Muse, Meta's extraordinarily privileged AI assistant, has a serious 0-day</title>
+<link>https://arstechnica.com/security/2026/09/muse-metas-extraordinarily-privileged-ai-assistant-has-a-serious-0-day/</link>
+<comments>https://arstechnica.com/security/2026/09/muse-metas-extraordinarily-privileged-ai-assistant-has-a-serious-0-day/#comments</comments>
+<dc:creator><![CDATA[ Dan Goodin ]]></dc:creator>
+<pubDate>Wed, 09 Sep 2026 15:24:38 +0000</pubDate>
+<category><![CDATA[ Security ]]></category>
+<description><![CDATA[ A simple ClickFix attack is only one way to completely hijack the new agent. ]]></description>
+<content:encoded><![CDATA[ <p>Meta founder and CEO Mark Zuckerberg has gone to <a href="https://example.com/x">great lengths</a> to hype the security of its new assistant.</p> ]]></content:encoded>
+</item>
+</channel></rss>`;
+
+test("the front page's items are read, and their descriptions are the word Comments", () => {
+  const items = parseFeed(HACKER_NEWS_RSS);
+  assert.equal(items.length, 3);
+  assert.equal(items[0]!.title, "NASA's Mars Sample Return mission is dead");
+  assert.equal(items[0]!.link, "https://www.science.org/content/article/nasa-s-mars-sample-return-mission-dead");
+  assert.equal(items[0]!.description, "Comments");
+  assert.equal(items[0]!.publishedAt, Date.parse("2026-09-09T19:14:12Z"));
+});
+
+test("a page from the front page belongs to whoever published it, and the thread and the old page are left out", () => {
+  const planned = planNews([{ feed: HACKER_NEWS, items: parseFeed(HACKER_NEWS_RSS) }], NOW);
+  assert.deepEqual(planned.map((p) => [p.outlet, p.headline]), [
+    ["science.org", "NASA's Mars Sample Return mission is dead"],
+  ]);
+  // The outlet is never the aggregator, on the story or on the address.
+  assert.equal(planned[0]!.urlKey, "https://science.org/content/article/nasa-s-mars-sample-return-mission-dead");
+  // The description is under the twenty characters a quotation needs, so the
+  // headline stands in until withPageQuotations reads the page itself.
+  assert.equal(planned[0]!.quotation, "NASA's Mars Sample Return mission is dead");
+});
+
+test("an item pointing back at the feed's own site is a conversation there, not a page about the day", () => {
+  // Without the rule its page title would quote and verify, which is worse
+  // than failing, so the rule is checked on its own rather than only through
+  // the whole fixture above.
+  //
+  // The fixture's thread is not a question, deliberately. Most of them are,
+  // and the screen in section 15 already refuses a question headline, so a
+  // question here would pass this test without the rule under test ever
+  // running.
+  const thread = parseFeed(HACKER_NEWS_RSS)[1]!;
+  assert.equal(thread.link, "https://news.ycombinator.com/item?id=49792730");
+  assert.equal(planNews([{ feed: HACKER_NEWS, items: [thread] }], NOW).length, 0);
+  // And the same item on a feed that claims no host of its own is filed,
+  // which is what says the rule is the host and not the headline.
+  const anyone: Feed = { url: "https://example.org/rss", outlet: "example.org" };
+  assert.equal(planNews([{ feed: anyone, items: [thread] }], NOW).length, 1);
+});
+
+test("Ars Technica's own short description is the quotation, not the article after it", () => {
+  const items = parseFeed(ARS_RSS);
+  assert.equal(items.length, 1);
+  assert.equal(items[0]!.description, "A simple ClickFix attack is only one way to completely hijack the new agent.");
+  const planned = planNews([{ feed: ARS_TECHNICA, items }], NOW);
+  assert.deepEqual(planned.map((p) => [p.outlet, p.quotation]), [
+    ["arstechnica.com", "A simple ClickFix attack is only one way to completely hijack the new agent."],
+  ]);
+  assert.ok(!planned[0]!.quotation.includes("Zuckerberg"), "the whole article is not the quotation");
+});
+
+test("both feeds are on the list, and only the aggregator has no outlet of its own", () => {
+  const front = FEEDS.find((f) => f.url === HACKER_NEWS.url);
+  assert.ok(front !== undefined, "the front page is seeded");
+  assert.equal(front!.outlet, "", "its outlet is the address of each item, never the aggregator");
+  assert.equal(front!.ownHost, "news.ycombinator.com");
+  assert.ok(FEEDS.some((f) => f.outlet === "arstechnica.com"), "and the outlet beside it");
+  // Every other feed publishes under its own name and says so.
+  for (const feed of FEEDS) {
+    if (feed.ownHost === undefined) assert.notEqual(feed.outlet, "", `an outlet is named for ${feed.url}`);
+  }
+});
+
+test("a feed with no outlet of its own still has a name for a log line", () => {
+  assert.equal(feedName(HACKER_NEWS), "news.ycombinator.com");
+  assert.equal(feedName(ARS_TECHNICA), "arstechnica.com");
+  assert.equal(feedName({ url: "https://example.org/rss", outlet: "" }), "https://example.org/rss");
 });
