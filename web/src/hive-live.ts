@@ -28,7 +28,7 @@ import { slug } from "./model.js";
 import { HIVE_ALLOCATOR_JS } from "./hive-allocator.js";
 import {
   SAVE_PICTURE, afterwords, allowanceOn, anniversaryBlock, liveTile, storyPath, subjectOf, takingBoosts, tapsLeftSentence,
-  tiersDiffer, tileKind, kindMark, voiceFor, yoursLine, type Anniversary, type TileKind, type WallDay, type WallStory,
+  KIND_WORD, tiersDiffer, tileKind, kindMark, voiceFor, yoursLine, type Anniversary, type TileKind, type WallDay, type WallStory,
 } from "./wall.js";
 
 function escapeHtml(value: string): string {
@@ -84,6 +84,32 @@ export interface LiveStory {
   kind: TileKind;
   receipt: string;
   rect: { mx: number; my: number; w: number; h: number } | null;
+  /** A line from the source that says more than the headline, for the peek card. Only on stories that can hold a place. */
+  quote?: string;
+}
+
+const QUOTE_MAX = 320;
+
+function letters(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+/**
+ * The source's own sentence, when it tells a reader something the headline
+ * does not. An imported event's quotation is its headline without the year,
+ * and a person's is their name and description, so both are dropped; a news
+ * story's is a sentence from the article, which is the point. Cut at a word
+ * under QUOTE_MAX characters. September 22, 2026.
+ */
+export function quoteFor(headline: string, quotation: string | undefined): string {
+  const quote = (quotation ?? "").replace(/\s+/g, " ").trim();
+  if (quote.length < 20) return "";
+  const q = letters(quote), h = letters(headline);
+  if (q === "" || h.includes(q) || q.includes(h)) return "";
+  if (quote.length <= QUOTE_MAX) return quote;
+  const cut = quote.slice(0, QUOTE_MAX);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > QUOTE_MAX / 2 ? cut.slice(0, space) : cut).replace(/[\s,;:.]+$/, "")}\u2026`;
 }
 
 export function liveStories(day: WallDay, scores: Map<string, number> = new Map()): LiveStory[] {
@@ -102,6 +128,11 @@ export function liveStories(day: WallDay, scores: Map<string, number> = new Map(
     kind: tileKind(s),
     receipt: storyPath(s),
     rect: s.rect,
+    // The peek card's extra line, only for a story that can be on the board,
+    // so the data island does not carry a quotation for every row of the feed.
+    ...(s.status === "placed" || s.status === "overflow" || s.status === "false"
+      ? (() => { const quote = quoteFor(s.headline, s.sources[0]?.quotation); return quote === "" ? {} : { quote }; })()
+      : {}),
   }));
 }
 
@@ -176,6 +207,7 @@ export function liveHiveSection(day: WallDay, name: string, now: number, options
   const d = day.day;
   const kinds: Record<string, string> = {};
   for (const kind of ["happened", "born", "song", "album", "film", "news"] as TileKind[]) kinds[kind] = kindMark(kind);
+  const kindWords: Record<string, string> = { ...KIND_WORD };
   const data = {
     date: day.wallDate, month, day: d, name,
     project: options.project, key: options.key,
@@ -184,6 +216,7 @@ export function liveHiveSection(day: WallDay, name: string, now: number, options
     voice,
     stories: liveStories(day, options.scores ?? new Map()),
     kinds,
+    kindWords,
   };
   const dots = Array.from({ length: allowance }, (_, i) => `<span class="wdot${i < left ? "" : " wspent"}"></span>`).join("");
   const sentence = tapsLeftSentence(left, allowance, voice);
@@ -407,11 +440,37 @@ export const HIVE_LIVE_STYLE = `
 .wlivehive .wsave { text-align: center; margin: 14px auto 0; }
 .wlivehive .wsaids { margin: 8px 0 0; }
 .wlivehive .wsaid { margin: 0 0 10px; }
+/* The peek, September 22, 2026. Resting a pointer on a tile opens a bigger
+   card over it, on this screen only: the whole headline, a line from the
+   source when it says more, and the button, so a buzz can follow reading
+   rather than a squint at four words. The board itself never changes. */
+.wpeek { position: fixed; z-index: 60; width: 360px; max-width: calc(100vw - 16px); border-radius: 14px; border: 1px solid var(--honey); background: #1E1710; color: #FFF3E0; overflow: hidden; box-shadow: 0 18px 50px rgba(0, 0, 0, .6), 0 0 0 1px rgba(0, 0, 0, .4), 0 0 34px rgba(244, 150, 50, .18); animation: wpeekin .16s ease-out; }
+.wpeek[hidden] { display: none; }
+@keyframes wpeekin { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: none; } }
+.wpeek .wpeekpic { height: 140px; background: var(--pic, none) center / cover no-repeat, #17110A; position: relative; }
+.wpeek .wpeekpic::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, #1E1710 0%, rgba(30, 23, 16, 0) 60%); }
+.wpeek .wpeekbody { padding: 12px 16px 14px; display: flex; flex-direction: column; gap: 8px; }
+.wpeek .wpeekkind { display: flex; align-items: center; gap: 6px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #B7A488; }
+.wpeek .wpeekkind .wkind svg { width: 14px; height: 14px; }
+.wpeek .wpeekkind .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.wpeek .wpeekh { font-family: "Fraunces", Georgia, "Times New Roman", serif; font-optical-sizing: auto; font-weight: 700; font-size: 20px; line-height: 1.2; color: #FFF3E0; text-decoration: none; }
+.wpeek .wpeekh:hover { text-decoration: underline; text-decoration-color: rgba(255, 243, 224, .45); }
+.wpeek .wpeekq { margin: 0; padding: 0 0 0 10px; border-left: 3px solid #F4B740; font-size: 14px; line-height: 1.45; color: #D9CBB4; }
+.wpeek .wpeekmeta { font-size: 12px; color: #B7A488; }
+.wpeek .wpeekmeta b { color: #FFCF6B; font-weight: 700; }
+.wpeek .wpeekbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.wpeek .wpeekbuzz { border: 0; border-radius: 999px; padding: 7px 18px; font: inherit; font-size: 14px; font-weight: 800; background: linear-gradient(180deg, #FFCF6B, #F4B740); color: #1B1206; cursor: pointer; box-shadow: 0 0 14px rgba(244, 183, 64, .35); }
+.wpeek .wpeekbuzz:hover { filter: brightness(1.06); }
+.wpeek .wpeekbuzz:disabled { background: #35291A; color: #8A7A63; box-shadow: none; cursor: default; filter: none; }
+.wpeek .wpeeknote { font-size: 13px; color: #FFCF6B; font-weight: 700; }
+.wpeek .wpeekread { font-size: 13px; color: #B7A488; text-decoration: none; border-bottom: 1px solid #3A2E1C; margin-left: auto; }
+.wpeek .wpeekread:hover { color: #FFF3E0; border-color: #F4B740; }
 @media (prefers-reduced-motion: reduce) {
   .wlive .wtile, .wlive .wcell, .wdot { transition: none; }
   .wlive .wripple, .wlive .wsurge, .wlive .wtile.warriving, .wlive .wtile.wpulse .wcell, .wlive .wn.wpop { animation: none; }
   .wlive .wripple, .wlive .wsurge { display: none; }
   .wswarmrow { animation: none; }
+  .wpeek { animation: none; }
 }
 `;
 
@@ -770,11 +829,13 @@ export const HIVE_LIVE_JS = `
         say({ already: "walready", spent: "wspent", not_yet: "wnotyet", closed: "wclosed", "false": "wfalse" }[word] || "wfailed");
       }
       paintBudget();
+      peekRefresh(s);
     }).catch(function () {
       delete pendingOwn[s.id];
       s.support = Math.max(0, s.support - 1); delete backed[s.id]; left = Math.min(D.allowance, left + 1);
       var t = document.getElementById("w-" + s.id); if (t) { t.classList.remove("wbacked"); var m = q(".wmine", t); if (m) m.style.display = ""; var bb = q(".wbuzz button", t); if (bb) bb.disabled = false; }
       layout(); paintBudget(); say("wfailed");
+      peekRefresh(s);
     });
   }
   board.addEventListener("click", function (ev) {
@@ -793,6 +854,123 @@ export const HIVE_LIVE_JS = `
       if (s) youBuzz(s, null);
     }
   });
+
+  // The peek. A pointer that rests on a tile opens a bigger card over it:
+  // the whole headline, a line from the source when it says more, and the
+  // button. Pointer devices only; a phone keeps the tap that opens the
+  // receipt, and a keyboard keeps the tile's own link and button.
+  var peek = null, peekFor = null, peekShow = null, peekHide = null;
+  var canPeek = false;
+  try { canPeek = window.matchMedia("(hover: hover) and (pointer: fine)").matches; } catch (e) {}
+  function peekEl() {
+    if (peek) return peek;
+    peek = el("div", "wpeek"); peek.hidden = true;
+    peek.setAttribute("role", "group"); peek.setAttribute("aria-label", "More about this story");
+    peek.addEventListener("mouseenter", function () { if (peekHide) { clearTimeout(peekHide); peekHide = null; } });
+    peek.addEventListener("mouseleave", function () { schedulePeekHide(); });
+    peek.addEventListener("click", function (ev) {
+      var b = ev.target && ev.target.closest ? ev.target.closest(".wpeekbuzz") : null;
+      if (!b || !peekFor) return;
+      ev.preventDefault();
+      youBuzz(peekFor, null);
+      fillPeek(peekFor);
+    });
+    document.body.appendChild(peek);
+    return peek;
+  }
+  function fillPeek(s) {
+    var p = peekEl();
+    p.innerHTML = "";
+    var t = document.getElementById("w-" + s.id);
+    var cell = t ? q(".wcell", t) : null;
+    var pic = "";
+    try { pic = cell ? getComputedStyle(cell).getPropertyValue("--pic").trim() : ""; } catch (e) {}
+    if (pic && pic !== "none") { var band = el("div", "wpeekpic"); band.style.setProperty("--pic", pic); p.appendChild(band); }
+    var body = el("div", "wpeekbody");
+    var kind = el("div", "wpeekkind");
+    var mark = el("span"); mark.innerHTML = D.kinds[s.kind] || "";
+    Array.prototype.forEach.call(mark.querySelectorAll(".sr"), function (x) { x.remove(); });
+    while (mark.firstChild) kind.appendChild(mark.firstChild);
+    var word = el("span"); word.textContent = (D.kindWords && D.kindWords[s.kind]) || ""; kind.appendChild(word);
+    body.appendChild(kind);
+    var h = el("a", "wpeekh"); h.href = s.receipt; h.textContent = s.headline; body.appendChild(h);
+    if (s.quote) { var qt = el("p", "wpeekq"); qt.textContent = s.quote; body.appendChild(qt); }
+    var meta = el("div", "wpeekmeta");
+    var count = units(s.support);
+    if (count) { var bc = el("b"); bc.textContent = count; meta.appendChild(bc); meta.appendChild(document.createTextNode(" \u00b7 ")); }
+    meta.appendChild(document.createTextNode(s.outlet));
+    body.appendChild(meta);
+    var bar = el("div", "wpeekbar");
+    if (!sealed && s.status !== "false") {
+      if (backed[s.id]) { var done = el("span", "wpeeknote"); done.textContent = "You " + voice.past + " this"; bar.appendChild(done); }
+      else {
+        var b = el("button", "wpeekbuzz"); b.type = "button"; b.textContent = voice.button;
+        b.setAttribute("aria-label", voice.button + ": " + s.headline);
+        if (left <= 0) { b.disabled = true; b.title = "No " + voice.many + " left today"; }
+        bar.appendChild(b);
+      }
+    }
+    var read = el("a", "wpeekread"); read.href = s.receipt; read.textContent = "Every source"; bar.appendChild(read);
+    body.appendChild(bar);
+    p.appendChild(body);
+  }
+  function placePeek(t) {
+    var p = peekEl();
+    var r = t.getBoundingClientRect(), b = board.getBoundingClientRect();
+    var vw = window.innerWidth, vh = window.innerHeight;
+    var w = Math.min(420, Math.max(300, r.width + 40), vw - 16);
+    p.style.width = w + "px";
+    var x = r.left + r.width / 2 - w / 2;
+    x = Math.max(Math.max(8, b.left), Math.min(x, Math.min(vw - 8, b.right) - w));
+    p.style.left = Math.round(x) + "px";
+    p.style.top = "0px";
+    p.hidden = false;
+    var ph = p.offsetHeight;
+    var y = r.top - 10;
+    if (y + ph > vh - 8) y = r.bottom + 10 - ph;
+    y = Math.max(8, Math.min(y, vh - 8 - ph));
+    p.style.top = Math.round(y) + "px";
+  }
+  function showPeek(t) {
+    var s = byId[t.id.slice(2)]; if (!s) return;
+    peekFor = s;
+    fillPeek(s);
+    placePeek(t);
+  }
+  function peekRefresh(s) {
+    if (peek && !peek.hidden && peekFor && peekFor.id === s.id) fillPeek(s);
+  }
+  function hidePeek() {
+    if (peekShow) { clearTimeout(peekShow); peekShow = null; }
+    if (peekHide) { clearTimeout(peekHide); peekHide = null; }
+    peekFor = null;
+    if (peek) peek.hidden = true;
+  }
+  function schedulePeekHide() {
+    if (peekShow) { clearTimeout(peekShow); peekShow = null; }
+    if (peekHide) clearTimeout(peekHide);
+    peekHide = setTimeout(hidePeek, 160);
+  }
+  if (canPeek) {
+    board.addEventListener("mouseover", function (ev) {
+      var t = ev.target && ev.target.closest ? ev.target.closest(".wtile") : null;
+      if (!t) return;
+      if (peekHide) { clearTimeout(peekHide); peekHide = null; }
+      if (peekFor && t.id === "w-" + peekFor.id && peek && !peek.hidden) return;
+      if (peekShow) clearTimeout(peekShow);
+      peekShow = setTimeout(function () { peekShow = null; if (document.body.contains(t)) showPeek(t); }, peekFor ? 90 : 260);
+    });
+    board.addEventListener("mouseout", function (ev) {
+      var to = ev.relatedTarget;
+      if (to && peek && peek.contains(to)) return;
+      var t = ev.target && ev.target.closest ? ev.target.closest(".wtile") : null;
+      if (t && to && t.contains(to)) return;
+      schedulePeekHide();
+    });
+    window.addEventListener("scroll", hidePeek, { passive: true });
+    window.addEventListener("resize", hidePeek);
+    document.addEventListener("keydown", function (ev) { if (ev.key === "Escape") hidePeek(); });
+  }
 
   // Other people's buzzes, over Realtime.
   var dot = document.getElementById("wlivedot");

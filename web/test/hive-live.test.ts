@@ -2,7 +2,7 @@ import { strict as assert } from "node:assert";
 import { test } from "node:test";
 
 import { hiveAllocator } from "../src/hive-allocator.js";
-import { HIVE_LIVE_JS, HIVE_LIVE_STYLE, HIVE_SHARE_JS, clockFor, heatFor, jsonIsland, liveHiveSection, liveStories, rectVars, shareLine } from "../src/hive-live.js";
+import { HIVE_LIVE_JS, HIVE_LIVE_STYLE, HIVE_SHARE_JS, clockFor, heatFor, jsonIsland, liveHiveSection, liveStories, quoteFor, rectVars, shareLine } from "../src/hive-live.js";
 import { renderDayPage, renderHivePage } from "../src/render.js";
 import { liveTile, wallSection, BEE, type WallDay, type WallStory } from "../src/wall.js";
 
@@ -233,4 +233,50 @@ test("the rally link is the page's address plus the tile's id after the hash, co
   assert.ok(html.includes('id="wrallied"') && html.includes("nothing about you or them travels with it"), "the copied sentence is on the live page");
   const baked = wallSection(day([story()]), "September 11", NOW);
   assert.ok(!baked.includes("wrallied") && !baked.includes("wrallybtn"), "and not on a baked page, which has no script to copy with");
+});
+
+// The peek, September 22, 2026: a pointer resting on a tile opens a bigger
+// card with the whole headline and, when it says more, a line from the source.
+
+test("the peek's extra line is the source's sentence only when it says more than the headline", () => {
+  // An imported event's quotation is its headline without the year.
+  assert.equal(quoteFor("1975: Sara Jane Moore tries to assassinate U.S. President Gerald Ford.", "Sara Jane Moore tries to assassinate U.S. President Gerald Ford."), "");
+  // A person's is the name and the description, which the headline already says.
+  assert.equal(quoteFor("Tatiana Maslany, Canadian actress, born 1985", "Tatiana Maslany Canadian actress"), "");
+  // A news story's is a sentence from the article, which is the point.
+  assert.equal(
+    quoteFor("Council approves the river crossing after a decade of study", "The council voted seven to two on Tuesday night to approve the crossing."),
+    "The council voted seven to two on Tuesday night to approve the crossing.",
+  );
+  // Too short to be worth a line, or missing.
+  assert.equal(quoteFor("Anything at all", "Too short."), "");
+  assert.equal(quoteFor("Anything at all", undefined), "");
+  // Long ones are cut at a word, with an ellipsis and no trailing comma.
+  const long = quoteFor("A headline", `${"word ".repeat(100)}end`);
+  assert.ok(long.length <= 321 && long.endsWith("\u2026") && !/[ ,]\u2026$/.test(long));
+});
+
+test("the data island carries the extra line only for stories that can be on the board", () => {
+  const quoted = [{
+    id: "s1", url: "https://www.example.org/news/river-crossing", outlet: "example.org", owner: "Example Media",
+    headline: "Council approves the river crossing after a decade of study",
+    quotation: "The council voted seven to two on Tuesday night to approve the crossing.",
+    verifiedAt: "2026-09-11T04:05:00Z", addedAt: "2026-09-11T04:01:00Z", checks: [],
+  }];
+  const onBoard = story({ sources: quoted });
+  const inFeed = story({ id: "aaaaaaaa-0000-0000-0000-00000000e002", status: "pool", rect: null, sources: quoted });
+  const live = liveStories(day([onBoard, inFeed]));
+  assert.equal(live.find((s) => s.id === onBoard.id)?.quote, "The council voted seven to two on Tuesday night to approve the crossing.");
+  assert.equal(live.find((s) => s.id === inFeed.id)?.quote, undefined);
+});
+
+test("the peek is pointer only, never touches the board, and writes a source's words as text", () => {
+  assert.ok(HIVE_LIVE_JS.includes('matchMedia("(hover: hover) and (pointer: fine)")'), "a phone keeps its tap");
+  assert.ok(HIVE_LIVE_JS.includes("qt.textContent = s.quote"), "the quotation goes in as text, never markup");
+  assert.ok(HIVE_LIVE_JS.includes("h.textContent = s.headline"));
+  assert.ok(HIVE_LIVE_JS.includes("youBuzz(peekFor, null)"), "the card's button is the same buzz as the tile's");
+  assert.ok(HIVE_LIVE_STYLE.includes(".wpeek {"));
+  assert.ok(!/position:\s*fixed[^}]*\.wtile/.test(HIVE_LIVE_STYLE));
+  // The script still parses.
+  assert.doesNotThrow(() => new Function(HIVE_LIVE_JS));
 });

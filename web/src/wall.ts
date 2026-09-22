@@ -859,7 +859,7 @@ export function tileKind(story: Pick<WallStory, "subjectKind">): TileKind {
   return "happened";
 }
 
-const KIND_WORD: Record<TileKind, string> = { happened: "Happened on this date", born: "Born on this date", song: "The number one song", album: "The number one album", film: "The number one film", news: "In the news today" };
+export const KIND_WORD: Record<TileKind, string> = { happened: "Happened on this date", born: "Born on this date", song: "The number one song", album: "The number one album", film: "The number one film", news: "In the news today" };
 
 const KIND_MARK: Record<TileKind, string> = {
   happened: `<circle cx="12" cy="12" r="8.6"/><path d="M12 7.6V12l3.2 2.1"/>`,
