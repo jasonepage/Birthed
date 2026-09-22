@@ -870,13 +870,8 @@ h2.plain { font-family: var(--serif); font-weight: 800; font-size: clamp(22px, 5
    make a glow that nobody can see. A background image on the body has no such
    problem. Left to scroll with the page rather than fixed: a fixed attachment
    is repainted on every frame of a scroll on iOS and it shows. */
-body.home {
-  background-image:
-    radial-gradient(1100px 620px at 6% -12%, rgba(244, 183, 64, 0.20), transparent 60%),
-    radial-gradient(900px 560px at 98% -6%, rgba(244, 183, 64, 0.16), transparent 62%),
-    radial-gradient(760px 520px at 48% 4%, rgba(255, 136, 168, 0.06), transparent 66%);
-  background-repeat: no-repeat;
-}
+/* body.home had three radial washes of its own, pink and violet. Gone,
+   September 22, 2026: the About page wears the same page as every date. */
 /* The calendar wants room and prose does not, so the page is wide and the
    words inside it are not. */
 .wrap.home { max-width: 1120px; padding-top: 24px; }
@@ -924,17 +919,11 @@ body.home {
 .home .hero { margin: 8px 0 0; max-width: 760px; }
 .home .hero h1 { font-size: clamp(35px, 6.6vw, 60px); letter-spacing: -0.012em; }
 .herotext { min-width: 0; }
-/* The second half of the sentence, lit. Guarded, because the fallback for an
-   unsupported background-clip is transparent text, which is a headline nobody
-   can read rather than a headline that is not pink. */
-.glow { color: var(--honey); }
-@supports ((-webkit-background-clip: text) or (background-clip: text)) {
-  .glow {
-    background-image: linear-gradient(118deg, var(--cream) 0%, var(--honey-lite) 50%, var(--honey) 100%);
-    -webkit-background-clip: text; background-clip: text;
-    color: transparent;
-  }
-}
+/* The second half of the sentence, in honey italic: the live hive's own
+   headline, "September 22. What will still matter?", said the same way. It
+   was a pink to violet gradient clipped to the type, the one thing every
+   generated landing page has, September 22, 2026. */
+.glow { color: var(--honey); font-style: italic; font-weight: 600; }
 /* The name, underlined rather than emboldened. The headline is Georgia at 800
    and Georgia ships one bold, so there is no weight left to reach for and
    asking for more only gets a browser's synthetic smear.
@@ -988,6 +977,15 @@ body.home {
 .beats p { margin: 0; color: var(--dim); font-size: 14.5px; line-height: 1.62; }
 
 .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 22px 0 0; }
+/* A small hive on the About page, so a stranger sees what a tile and a buzz
+   are before reading a word about them. Drawn with the board's own rules,
+   which is the point: it is not a picture of the hive, it is the hive, with
+   nothing to press. September 22, 2026. */
+.wboard.wsample { max-width: 360px; margin: 26px 0 0; pointer-events: none; }
+.wsample .wtile { cursor: default; }
+.wsample .wtile .wh { font-size: clamp(12px, calc(38cqi / var(--side, 8) * var(--fit, 1)), 22px); }
+.wsample .wtile.big { justify-content: flex-end; gap: 10px; }
+.wsamplesay { margin: 8px 0 0; font-size: 13px; color: var(--dim); max-width: 520px; }
 .actions .btn { margin: 0; }
 .btn.brand {
   display: inline-flex; align-items: center; gap: 8px;

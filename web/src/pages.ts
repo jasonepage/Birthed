@@ -60,6 +60,29 @@ export { calendar, isLeapYear, monthAnchor };
 // different order.
 
 /**
+ * A hive the size of a paragraph, sealed, so a reader sees what a tile and a
+ * buzz are before the rules say so. The board's own markup and rules, with
+ * made up counts and nothing to press: the button is drawn disabled and the
+ * board takes no pointer at all. The stories are real ones from September
+ * 22, so the sample is a day rather than lorem ipsum, and their receipts are
+ * not linked because a sample is not a record.
+ */
+function sampleHive(): string {
+  // The button is drawn, because it is what the reader is being shown, and
+  // it is out of the tab order and hidden from a screen reader, because it
+  // does nothing.
+  const tile = (col: string, row: string, tw: number, tier: string, headline: string, buzzes: string, kind: string): string =>
+    `<div class="wtile big w-${tier}" style="grid-column:${col};grid-row:${row};--tw:${tw};--fit:.9;--lines:4" role="listitem"><span class="wh">${escapeHtml(headline)}</span><span class="wfoot"><span class="wkind wk-${kind}"></span><span class="wbuzz"><button type="button" tabindex="-1" aria-hidden="true">Buzz</button></span><span class="wn">${buzzes}</span></span></div>`;
+  return `<div class="wboard wsealed wsample" style="--side:8" role="list" aria-label="A sample hive">
+${tile("1 / span 5", "1 / span 4", 5, "reported", "1948: Gail Halvorsen starts parachuting candy to children in the Berlin Airlift.", "7 buzzes", "happened")}
+${tile("6 / span 3", "1 / span 4", 3, "claimed", "Michael Faraday, British scientist, 1791 to 1867", "3 buzzes", "born")}
+${tile("1 / span 3", "5 / span 4", 3, "claimed", "1991: The Dead Sea Scrolls are made public for the first time.", "2 buzzes", "happened")}
+${tile("4 / span 5", "5 / span 4", 5, "seen_direct", "1862: A preliminary Emancipation Proclamation is released by Abraham Lincoln.", "4 buzzes", "happened")}
+</div>
+<p class="wsamplesay">A hive, sealed. Each tile is a story with a birthday on the date, and its size is its share of the day's buzzes. Tap Buzz on a live hive and its story grows.</p>`;
+}
+
+/**
  * Twelve month buttons, each jumping to that month on the calendar page.
  *
  * The twelve grids used to sit at the foot of this page as well as on
@@ -215,6 +238,7 @@ ${siteBar()}
     <p class="actions"><a class="btn play" href="/today/">Play today's hive</a></p>
   </div>
 </section>
+${sampleHive()}
 </div>
 
 <section class="col how">
