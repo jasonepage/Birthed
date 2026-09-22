@@ -66,6 +66,11 @@ struct MyDayView: View {
     /// birthday, because "fifteen years older than Fortnite" becomes sixteen.
     /// An empty string means nobody has chosen, and the first line stands.
     @AppStorage("mine.preferredWorldLine") private var preferredWorldSubject = ""
+    /// The deal for the panel's top card. New when the screen is made, which
+    /// is once a launch, so every launch leads with something different.
+    @State private var pickSalt = FactOrder.newSalt()
+    /// How far through the deal the reader has tapped.
+    @State private var pickIndex = 0
 
     private let calendar = BirthdayCalendar()
     private let facts = DateFacts()
@@ -131,21 +136,42 @@ struct MyDayView: View {
         return worldThen.filter { $0.id != leadLine.id }
     }
 
+    /// The panel's top card, dealt once a launch from what was already found
+    /// about this birthday plus the charts. `MinePick` has the rules.
+    private var picks: [MinePick] {
+        MinePick.deal(facts: factsService.facts,
+                      hasCharts: song != nil || yearCharts.game != nil,
+                      salt: pickSalt)
+    }
+
+    private var pick: MinePick? {
+        picks.isEmpty ? nil : picks[pickIndex % picks.count]
+    }
+
+    /// The fact standing in the panel, which the list below leaves out so it
+    /// is not read twice.
+    private var pickedFactID: Int? {
+        if case let .fact(fact) = pick { return fact.id }
+        return nil
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
                     stage
-                    // The rest of the world they arrived into. The one the
-                    // reader is looking at is in the panel above, so this is
-                    // everything except that one.
-                    WorldThenSection(lines: restLines, palette: palette) { line in
+                    // What was found about this person's day, first, because
+                    // it is the only thing on the screen that is about them
+                    // rather than about every day.
+                    foundFacts
+                    // The table's "older than" lines, under the found facts
+                    // and out of the panel since September 22, 2026: they are
+                    // the same every launch and they were not chosen by
+                    // anybody. They stay because they are free, certain and
+                    // shareable.
+                    WorldThenSection(lines: worldThen, palette: palette) { line in
                         sharingLine = line
                     }
-                    // Under the world, because these are the only facts on
-                    // this screen that are about this person's day rather
-                    // than about every day.
-                    foundFacts
                     // Below the fold, and two chips shorter. Greeting card
                     // content, for an audience that does not send greeting
                     // cards, on the screen they came to see themselves on.
@@ -238,14 +264,15 @@ struct MyDayView: View {
 
             Spacer().frame(height: 24)
 
-            if song != nil || yearCharts.game != nil {
-                chartBlock
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            if let pick {
+                pickCard(pick)
+                    .id(pick.id)
+                    .transition(.opacity.combined(with: .move(edge: .trailing)))
             } else if profile.birthday.year == nil {
                 yearNudge
             }
 
-            if song != nil || yearCharts.game != nil || profile.birthday.year == nil {
+            if pick != nil || profile.birthday.year == nil {
                 Spacer().frame(height: 26)
             }
 
@@ -394,8 +421,6 @@ struct MyDayView: View {
     /// band it replaces: this space has something standing in it.
     private var bottomBand: some View {
         VStack(alignment: .leading, spacing: 12) {
-            olderThanLine
-
             if isBirthday {
                 Text("Hold the candle to blow it out")
                     .font(.footnote)
@@ -408,65 +433,6 @@ struct MyDayView: View {
                alignment: .bottomLeading)
     }
 
-    /// The one sentence in the app that measures the world against the reader
-    /// rather than describing their date.
-    ///
-    /// "You are fifteen years older than Fortnite" is the mirror. It comes
-    /// from a table, so it is certain, costs nothing and needs no network,
-    /// which is why it can stand in the panel next to things the reader can
-    /// see are true.
-    ///
-    /// The sentence is also the control. Tapping it swaps in the next line
-    /// from the list below, and the choice is remembered, because the loudest
-    /// line by the table's ordering is not always the one that lands for a
-    /// given reader. It is the sentence itself and not a button beside it,
-    /// for the reason in `CLAUDE.md` section 5: a row showing a value with a
-    /// control under it is two controls doing one control's job. The cycle
-    /// glyph rides at the end of the sentence, inside the same tap target,
-    /// so it reads as part of the line rather than as a second thing.
-    ///
-    /// Nothing at all without a birth year, and nothing for a birth after the
-    /// last date any of the timelines is checked through. Absent beats wrong.
-    @ViewBuilder
-    private var olderThanLine: some View {
-        if let lead = leadLine {
-            Button(action: swapLeadLine) {
-                olderThanText(lead)
-                    .font(.system(size: 23, weight: .bold, design: .serif))
-                    .foregroundStyle(stagePalette.type)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .buttonStyle(.plain)
-            .disabled(worldThen.count < 2)
-            .accessibilityLabel(lead.text)
-            .accessibilityHint(worldThen.count < 2 ? "" : "Shows another thing you are older than")
-        }
-    }
-
-    /// The sentence, with the cycle glyph set inline after the last word so
-    /// it lands at the end of the text rather than floating beside a block of
-    /// it. Concatenated rather than laid out, because a glyph in a stack next
-    /// to a sentence that wraps to three lines sits against the first line.
-    private func olderThanText(_ lead: WorldThen.Line) -> Text {
-        let sentence = Text(lead.text)
-        guard worldThen.count > 1 else { return sentence }
-        let glyph = Text(Image(systemName: "arrow.triangle.2.circlepath"))
-            .font(.system(size: 15, weight: .semibold))
-            .foregroundStyle(stagePalette.type.opacity(0.38))
-        return sentence + Text("  ") + glyph
-    }
-
-    /// The next line in the list, wrapping round. Stored by subject, so the
-    /// choice survives the sentence changing on the reader's next birthday.
-    private func swapLeadLine() {
-        guard worldThen.count > 1 else { return }
-        let current = leadLine.flatMap { line in
-            worldThen.firstIndex(where: { $0.id == line.id })
-        } ?? 0
-        preferredWorldSubject = worldThen[(current + 1) % worldThen.count].kicker
-    }
 
     // MARK: The candle, and the light it throws
 
@@ -628,6 +594,88 @@ struct MyDayView: View {
             .font(.caption.weight(.heavy))
             .kerning(3)
             .foregroundStyle(Theme.accentSoft)
+    }
+
+    /// One card from the deal, and under it the way to the next one. The
+    /// control is its own small row rather than the whole card, because the
+    /// chart card already has a cover to play and a store to open.
+    @ViewBuilder
+    private func pickCard(_ pick: MinePick) -> some View {
+        VStack(alignment: .trailing, spacing: 8) {
+            switch pick {
+            case .charts:
+                chartBlock
+            case let .fact(fact):
+                factPick(fact)
+            }
+            if picks.count > 1 {
+                Button {
+                    withAnimation(.snappy) { pickIndex += 1 }
+                } label: {
+                    HStack(spacing: 6) {
+                        Text("Another")
+                            .font(.footnote.weight(.semibold))
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundStyle(stagePalette.type.opacity(0.5))
+                    .padding(.vertical, 4)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Shows something else about your day")
+            }
+        }
+        .sensoryFeedback(.selection, trigger: pickIndex)
+    }
+
+    /// A found fact as the panel's card: what kind of thing it is, the
+    /// sentence, where it came from, and the like.
+    private func factPick(_ fact: BirthFact) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(FoundFactsSection.label(for: fact.category))
+                    .font(.caption.weight(.heavy))
+                    .kerning(2.5)
+                    .foregroundStyle(stagePalette.accent)
+                Spacer(minLength: 8)
+                Button {
+                    Task { await factsService.toggleLike(fact) }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: fact.likedByMe ? "hand.thumbsup.fill" : "hand.thumbsup")
+                        if fact.likes > 0 { Text("\(fact.likes)") }
+                    }
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(fact.likedByMe ? stagePalette.accent : stagePalette.type.opacity(0.5))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(fact.likedByMe ? "Liked" : "Like")
+            }
+
+            Text(fact.fact)
+                .font(.system(size: 22, weight: .bold, design: .serif))
+                .foregroundStyle(stagePalette.type)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let source = fact.sourceURL {
+                Button {
+                    openURL(source)
+                } label: {
+                    Text((source.host() ?? source.absoluteString) + " \u{2197}")
+                        .font(.caption)
+                        .foregroundStyle(stagePalette.type.opacity(0.45))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(stagePalette.type.opacity(0.08))
+        )
+        .onAppear { factsService.noteSeen(fact.id) }
     }
 
     /// The one fact on this screen that somebody would read out loud to a
@@ -803,7 +851,7 @@ struct MyDayView: View {
 
     private var foundFacts: some View {
         FoundFactsSection(
-            facts: factsService.facts,
+            facts: factsService.facts.filter { $0.id != pickedFactID },
             status: factsService.status,
             dateName: searchedDateName,
             palette: palette,
