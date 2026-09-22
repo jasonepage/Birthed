@@ -2237,3 +2237,99 @@ refuses to build.
 Rally on a tile copies a link; opening that link in a second browser
 scrolls to the tile, outlines it, shows the line, and a buzz there counts
 as any buzz does.
+
+## 25. The private record, September 21, 2026
+
+**What it is.** One page, `/yours/`, listing the stories this browser has
+buzzed, newest first, with what became of each one. Nobody else can see it.
+Section 8 refuses a leaderboard, a public profile and any karma formula, and
+this is none of the three: it is the anniversary block from section 15
+widened from one calendar date to all of them, and that block's rules carry
+over whole. Sections 22 and 23 both named it as the next thing and left it
+to a decision of its own. This is the decision.
+
+**The rules it inherits, and they are not up for negotiation.**
+
+- **It is a list and never a total.** No count of your buzzes, no rank, no
+  streak, no score, no "you have backed 14 stories". The anniversary already
+  promises on the live privacy page that it carries no number of any kind,
+  and a number here would make that false on the day it shipped. A reader
+  who wants to know how many can count the rows.
+- **Nothing about anybody else is on it.** Not how many other people buzzed
+  the same story, not who they were, not how this reader compares to them.
+- **It states one new fact and no others.** The headline and the date are
+  already public on the date page, and so is the story's outcome. The only
+  thing this page adds is that this browser buzzed these things, and it adds
+  it only for that browser.
+- **No script.** A page the server renders and answers `no-store`, like
+  every page that carries one reader's own words. It needs no exception in
+  the security policy and it must never acquire one.
+
+**What a row says.** The headline, linked to its receipt, the date it was
+on, and one word for where the story stands:
+
+- **Open**, while the date is still taking buzzes.
+- **On the board** or **In the pool**, once the date has sealed: whether the
+  story took a tile or never left the pool. That is a fact about the story
+  and it is on the sealed page for everybody.
+- **Held**, **Forgotten** or **Shown false**, once the story has an outcome
+  from section 23. The first of those cannot exist before September 9, 2027,
+  so every row on this page today stops at the line above.
+
+The ladder runs in that order and a later fact replaces an earlier one
+rather than sitting beside it, so a row stays one sentence.
+
+**Where the identity comes from, and what that costs.** The `bt` cookie,
+which is the token every one of those buzzes was cast with and the one the
+anniversary is already read by. So the record follows the cookie and not the
+person. Clear it and the page is empty, while the buzzes it named are still
+in the database and still counted, and there is no honest way around that
+without an account, which reading here must never require. It is the same
+trade section 13 named for the buzz itself. The page says this on it in one
+line, because a reader who cleared a cookie and found an empty page should
+be told why rather than left thinking the buzzes were lost.
+
+**The read is one function, and it is the anniversary's shape.**
+`wall_web_record(voter_token_in text)`: security definer, search path
+pinned, revoked from everybody but the anonymous role, hashing the token
+through `wall_web_booster_id` exactly as `wall_web_standing` does, and
+answering an empty list for a token under sixteen characters rather than
+looking anything up. Bounded to the two hundred most recent, because a page
+is not a scroll and a browser that spends three buzzes a day for a year has
+a thousand of them.
+
+A function of its own rather than another field on `wall_web_standing`,
+which is the opposite of what section 15 decided for the anniversary, and
+for the opposite reason: the anniversary rides on that function because the
+date page was calling it anyway, and this page calls nothing else at all.
+It takes no wall date, because the whole point is that it is not about one.
+
+**Where the link is.** Under the board on a date page or a hive, for a
+browser carrying the token and for no other, because the only thing that
+ever mints that token is tapping Buzz. Any request that draws the link is
+answered `no-store`, on the rule that already covers the reader's marks and
+their Undo button: a page carrying anything that is one reader's own is
+never stored. Nothing links to it for anybody else, and `robots.txt` refuses
+it, so it is neither in the index nor in the sitemap. The privacy page names
+the address in prose, which is the other way to find it, and the privacy
+page is edited in the same commit as the code, as always.
+
+**What it is not, said again because this is the page most likely to grow
+one.** Not a profile: it holds no name, no birth year, no setting and no
+preference. Not a step toward one. Not shared and not shareable, and it has
+no picture. It does not tell a reader they were early, or right, or better
+at this than anybody. If a future session finds itself adding a number to
+this page, the number is the thing to cut.
+
+**The app's version is not built.** Per install rather than per browser, and
+read from the marks the phone already keeps in `HiveMarks` plus a fetch for
+the headlines, which are not on the phone. Same design, same rules, same
+ladder. Nathan's call on September 21, 2026 was to do the web alone this
+time rather than add to the Swift that has not been compiled since
+September 10.
+
+**Not seen in a browser.** What a person has to see: buzz something, find
+the link under the board, open it and find that story on it with the date
+and the word Open; a browser that has never buzzed gets no link and, at the
+address itself, the empty page and its one line; and a sealed date's row
+reads On the board or In the pool.
