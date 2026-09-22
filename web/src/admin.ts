@@ -22,7 +22,7 @@ import { SITE, escapeHtml, head } from "./render.js";
  * Built the way osu! builds performance points, for four properties and not
  * for the number: computed from stored inputs and never hand set, comparable
  * across dates, top heavy so three excellent rows beat forty mediocre ones,
- * and a ranking rather than a judgement. docs/panel-brief.md, section 4.
+ * and a ranking rather than a judgement. notes/panel-brief.md, section 4.
  *
  * It never reaches a public page, an API a reader can hit, or the share card.
  * A test asserts the date page does not contain it.

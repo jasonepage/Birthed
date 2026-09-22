@@ -1,7 +1,7 @@
 # App icon
 
 The mark is a birthday candle: the pink straw from the founding observation in
-`PRD.md` section 2, lit. The candle runs off the bottom edge so the icon reads
+`docs/specs/PRD.md` section 2, lit. The candle runs off the bottom edge so the icon reads
 as a composition rather than a sticker centred on a square.
 
 Made bold on September 5, 2026. The first version put a 150 wide candle under

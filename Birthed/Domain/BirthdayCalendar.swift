@@ -3,7 +3,7 @@ import Foundation
 /// Every "when" question in the product goes through this type.
 ///
 /// Three rules govern the whole file, and all three exist because of a real
-/// defect rather than a preference. `SDS.md` section 5.2.
+/// defect rather than a preference. `docs/specs/SDS.md` section 5.2.
 ///
 /// One. Never move between days by adding seconds. Some days are 23 or 25
 /// hours long, so everything here moves by day components. `NFR-004`.

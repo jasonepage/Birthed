@@ -1,6 +1,6 @@
 # The seal, as a movement. Designed, not built.
 
-Written 9 September 2026, with the motion work. `docs/animation-brief.md`
+Written 9 September 2026, with the motion work. `notes/animation-brief.md`
 asked for this to be designed and left unbuilt, because the first date seals
 tonight with three answers from one person and there is nothing yet to show.
 

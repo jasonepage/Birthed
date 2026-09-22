@@ -17,7 +17,7 @@ import Foundation
 /// **Nothing else may decide which of the two a row is written under.**
 /// If the write path and the read path ever disagree, an annual requirement
 /// silently becomes permanent, or a permanent one resets every year, and
-/// neither failure shows up anywhere in the interface. `SDS.md` section 6.5.
+/// neither failure shows up anywhere in the interface. `docs/specs/SDS.md` section 6.5.
 struct CycleCalculator {
     /// Written on requirements that carry over forever, such as having created
     /// an account.

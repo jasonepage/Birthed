@@ -192,7 +192,7 @@ into wrong would make every number dishonest.
 
 `docs/the-pixel-problem.md` section 4 says do not build a live canvas, and gives
 the reason: a number that moves is a direction, a direction is a weapon, and
-this site carries September 11. `docs/first-impression-brief.md` forbids the
+this site carries September 11. `notes/first-impression-brief.md` forbids the
 same things.
 
 **That is overruled for the wall.** The wall is live. Tiles resize while the

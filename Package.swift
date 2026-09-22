@@ -7,7 +7,7 @@ import PackageDescription
 // It does not replace the app target. Both compile the same files: the app
 // through the synchronised folder in the Xcode project, this package through
 // the paths below. That is deliberate. The domain layer carries nearly all of
-// the product's correctness risk, per SDS.md section 11, and it needs a
+// the product's correctness risk, per docs/specs/SDS.md section 11, and it needs a
 // feedback loop measured in seconds.
 //
 //     swift test

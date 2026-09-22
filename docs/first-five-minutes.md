@@ -188,7 +188,7 @@ The row is still a control the user touched, which is what the rule was
 protecting. The difference is that it is in front of them at the moment it
 makes sense instead of three taps away in a screen they will never open.
 
-**Nathan decided this on September 6, 2026: build it.** `FR-070` in `SRS.md`
+**Nathan decided this on September 6, 2026: build it.** `FR-070` in `docs/specs/SRS.md`
 has been rewritten to match, and it is item 2 of the build order at the foot
 of this document.
 

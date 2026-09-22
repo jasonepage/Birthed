@@ -3,7 +3,7 @@ import Foundation
 /// What the user still has to do to actually get one reward, and by when.
 ///
 /// `FR-061` to `FR-064`. Pure, so it runs offline, needs no round trip, and is
-/// testable against a fixed clock with fixture rules. `SDS.md` section 7.
+/// testable against a fixed clock with fixture rules. `docs/specs/SDS.md` section 7.
 struct QualificationEngine {
     let cycleCalculator: CycleCalculator
 

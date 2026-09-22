@@ -3,7 +3,7 @@
 **Status:** Draft 1
 **Date:** September 4, 2026
 **Scope:** Version 1.0, iOS only
-**Companion documents:** `PRD.md` (why), `SRS.md` (what)
+**Companion documents:** `docs/specs/PRD.md` (why), `docs/specs/SRS.md` (what)
 
 ---
 
@@ -80,7 +80,7 @@ These four types carry essentially all of the product's correctness risk, and no
 
 **Why the strict separation.** SwiftData is the newest and least battle-tested piece of this stack. Keeping the domain free of it means that if SwiftData has to be replaced with GRDB or raw SQLite, the replacement touches one layer and no tests change.
 
-**Navigation.** A single `TabView` with three tabs matching `PRD.md` section 10.9: Today, Mine, Me. `NavigationStack` per tab with a typed path enum.
+**Navigation.** A single `TabView` with three tabs matching `docs/specs/PRD.md` section 10.9: Today, Mine, Me. `NavigationStack` per tab with a typed path enum.
 
 ---
 
@@ -650,7 +650,7 @@ Consolidation in `FR-077` groups pending deadline notifications by fire date bef
 
 The iOS pending-request limit is 64. The scheduler must respect it by scheduling only the nearest 60 requests and rebuilding on each app foreground. With consolidation this is not a practical constraint, but it must not be discovered in production.
 
-**Two notifications are free and the rest are not.** The birthday morning notification in `FR-073` and the single 45 days out summary in `FR-072` are scheduled for every user regardless of entitlement. The per offer deadline ladder in `FR-071` is scheduled only when `hasPro` is true, and the scheduler rebuilds the whole set when the entitlement changes, exactly as it does when the birthday, the catalog or the time zone changes. The reasoning is in `PRD.md` section 15: a free user who never hears from the app has no occasion to come back and upgrade.
+**Two notifications are free and the rest are not.** The birthday morning notification in `FR-073` and the single 45 days out summary in `FR-072` are scheduled for every user regardless of entitlement. The per offer deadline ladder in `FR-071` is scheduled only when `hasPro` is true, and the scheduler rebuilds the whole set when the entitlement changes, exactly as it does when the birthday, the catalog or the time zone changes. The reasoning is in `docs/specs/PRD.md` section 15: a free user who never hears from the app has no occasion to come back and upgrade.
 
 ---
 
@@ -711,7 +711,7 @@ create table events (
 );
 ```
 
-The one metric that matters most, from `PRD.md` section 14, is day 30 retention among users whose birthday is more than 60 days away. That is a query over this table with a bucket filter, and it should be on a dashboard from week one, because it is the number that tells you whether the identity bet is working.
+The one metric that matters most, from `docs/specs/PRD.md` section 14, is day 30 retention among users whose birthday is more than 60 days away. That is a query over this table with a bucket filter, and it should be on a dashboard from week one, because it is the number that tells you whether the identity bet is working.
 
 ---
 
@@ -750,4 +750,4 @@ Nothing else in this document accommodates agents. If the human product does not
 3. **`MKLocalSearch` result quality for chain names.** Searching a brand name near a user usually returns that brand's locations, but it is not contractually guaranteed and results for common words may be noisy. Needs a real-device check in slice 6.
 4. **Anonymous to permanent account conversion.** Supabase supports it, but the exact behavior when the same Apple identity already has a permanent account elsewhere needs testing before shipping Sign in with Apple.
 5. **WeatherKit call volume** against the included allowance, once the day plan is used by every user on their birthday. Expected to be far under, but worth measuring.
-6. **Resolved, not open.** The App Store category was decided in `PRD.md` section 17: Finance primary, Lifestyle secondary, as a deliberate head-to-head placement against Freebird. This item is kept only so nobody reopens it from an older copy of this document.
+6. **Resolved, not open.** The App Store category was decided in `docs/specs/PRD.md` section 17: Finance primary, Lifestyle secondary, as a deliberate head-to-head placement against Freebird. This item is kept only so nobody reopens it from an older copy of this document.

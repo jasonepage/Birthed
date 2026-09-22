@@ -3,7 +3,7 @@
 **Status:** Draft 2. Direction changed from draft 1, see section 4.4.
 **Date:** September 4, 2026
 **Owner:** Jason Page
-**Related documents:** `SRS.md` (requirements), `SDS.md` (architecture), `docs/research/`
+**Related documents:** `docs/specs/SRS.md` (requirements), `docs/specs/SDS.md` (architecture), `docs/research/`
 
 ---
 
@@ -192,7 +192,7 @@ Architecturally and conceptually, the center of Birthed is not the user. **It is
 
 September 4 is a thing that exists whether or not anyone has signed up. It has famous people born on it. It has historical events. It has a set of rewards available to anyone born on it. It has some number of Birthed users who claim it.
 
-That single object serves four purposes at once: it is the identity content, it is the share card, it is the twins count, and later it is the web page that pulls in search traffic. Everything in the product is a view onto a day. Section 10 and `SDS.md` both build on this.
+That single object serves four purposes at once: it is the identity content, it is the share card, it is the twins count, and later it is the web page that pulls in search traffic. Everything in the product is a view onto a day. Section 10 and `docs/specs/SDS.md` both build on this.
 
 ---
 
@@ -326,7 +326,7 @@ Ordered by importance. Cut from the bottom.
 
 The core object from 5.1, rendered. For any calendar day: notable people born on it, a few historical events, the rewards available to people born on it, and how many Birthed users claim it.
 
-Sourcing note: Wikidata publishes structured birth date facts under a public domain dedication, which makes commercial reuse straightforward, and it is queryable by date. Wikipedia article text carries a share-alike license that requires attribution, so summaries need care. Images need per-file license checks. `SDS.md` covers this and it is a real piece of work, not a free lunch.
+Sourcing note: Wikidata publishes structured birth date facts under a public domain dedication, which makes commercial reuse straightforward, and it is queryable by date. Wikipedia article text carries a share-alike license that requires attribution, so summaries need care. Images need per-file license checks. `docs/specs/SDS.md` covers this and it is a real piece of work, not a free lunch.
 
 ### 10.2 Your day, the home screen
 
@@ -334,7 +334,7 @@ Your birthday. A countdown. Your famous twins. Your reward status in one line. O
 
 ### 10.3 Reward catalog with real qualification rules
 
-**At least 50 United States national chains fully verified at launch, growing toward 150 or more afterward.** Decided September 4, 2026. The Verified 50 is the gate to ship, and the tail publishes from the server with no application release, per `SRS.md` FR-052a and FR-138. The reasoning is that FR-050 already switches qualification tracking off for Unconfirmed offers, so the tail past 50 adds rows rather than value on day one, and there is one reviewer. The three-tier confidence model in `SRS.md` FR-045 is what makes that honest rather than reckless. An offer we have not confirmed still ships, visibly marked Unconfirmed, with a warning attached and qualification tracking switched off. That is strictly better than the listicles, which present everything with identical confidence and are demonstrably wrong about Red Robin and Buffalo Wild Wings. The promise becomes "we tell you what we know and what we do not," which is more defensible than a short list claiming perfection.
+**At least 50 United States national chains fully verified at launch, growing toward 150 or more afterward.** Decided September 4, 2026. The Verified 50 is the gate to ship, and the tail publishes from the server with no application release, per `docs/specs/SRS.md` FR-052a and FR-138. The reasoning is that FR-050 already switches qualification tracking off for Unconfirmed offers, so the tail past 50 adds rows rather than value on day one, and there is one reviewer. The three-tier confidence model in `docs/specs/SRS.md` FR-045 is what makes that honest rather than reckless. An offer we have not confirmed still ships, visibly marked Unconfirmed, with a warning attached and qualification tracking switched off. That is strictly better than the listicles, which present everything with identical confidence and are demonstrably wrong about Red Robin and Buffalo Wild Wings. The promise becomes "we tell you what we know and what we do not," which is more defensible than a short list claiming perfection.
 
 Every offer stores its rules as structured data covering at minimum:
 
@@ -395,7 +395,7 @@ Three tabs. **Today** (the day page for today, the daily-open reason), **Mine** 
 
 ## 12. Future versions
 
-**Version 1.5, roughly three months post launch.** Friends' birthdays, with the qualification engine pointed at gift timing. Reward expiry notifications, since Dutch Bros gives 30 days from collection and IHOP's points expire in 365 days, which is a legitimate post-birthday notification stream. Version 1.0 already records the collection date, per `SRS.md` FR-069, so this stream has an anchor to count from.
+**Version 1.5, roughly three months post launch.** Friends' birthdays, with the qualification engine pointed at gift timing. Reward expiry notifications, since Dutch Bros gives 30 days from collection and IHOP's points expire in 365 days, which is a legitimate post-birthday notification stream. Version 1.0 already records the collection date, per `docs/specs/SRS.md` FR-069, so this stream has an anchor to count from.
 
 **Version 2.** The artificial intelligence concierge, reasoning over the verified catalog, confirmed qualification state, weather, budget and interests. It must cite which verified record it drew on and must never state a rule absent from the catalog. Also activity risk scoring, starting with fishing and thrifting, only in markets where the underlying data exists.
 
@@ -503,7 +503,7 @@ Requirements, not nice to haves:
 
 ### 16.4 Technical risks
 
-Covered in `SDS.md`. In short: the freshness pipeline is the real risk, not the app. Calendar date handling is the sharpest correctness risk, including February 29 birthdays, time zones, and the daylight saving bug that appears in a competitor's reviews as reminders firing an hour off in winter.
+Covered in `docs/specs/SDS.md`. In short: the freshness pipeline is the real risk, not the app. Calendar date handling is the sharpest correctness risk, including February 29 birthdays, time zones, and the daylight saving bug that appears in a competitor's reviews as reminders firing an hour off in winter.
 
 ---
 
@@ -511,14 +511,14 @@ Covered in `SDS.md`. In short: the freshness pipeline is the real risk, not the 
 
 **Decided September 4, 2026:**
 
-- **Day page depth.** 10 to 50 people per date, plus up to 5 events, sourced from Wikidata with Wikipedia and Wikidata both credited. Wikipedia article text is not used, for the licensing reason in `SDS.md` section 8.1.
+- **Day page depth.** 10 to 50 people per date, plus up to 5 events, sourced from Wikidata with Wikipedia and Wikidata both credited. Wikipedia article text is not used, for the licensing reason in `docs/specs/SDS.md` section 8.1.
 - **Catalog size.** At least 50 brands at the Verified tier is the gate to ship. 150 or more is a post launch target, published from the server with no application release. Revised September 4, 2026.
 - **Day plan.** Full scheduler with weather and routing ships in version one.
 - **Accounts.** Silent anonymous account on first launch, Sign in with Apple offered later from settings. No sign-in wall anywhere.
 - **First vertical slice.** The day page, end to end.
 - **Backend.** Supabase.
 - **Free tier boundary.** Identity content free, utility paid, as proposed in section 15, with two carve-outs decided September 4, 2026: the birthday morning notification and one 45 days out summary are free, and the day plan is free during a user's first birthday window only.
-- **Human review.** Jason reviews, but the language model is the primary aggregator at every stage before review, including discovering candidate brands and drafting the rules. See `SDS.md` section 10.
+- **Human review.** Jason reviews, but the language model is the primary aggregator at every stage before review, including discovering candidate brands and drafting the rules. See `docs/specs/SDS.md` section 10.
 - **Brand operating hours** are gathered by the pipeline alongside the reward terms, not by a separate manual pass.
 - **App Store category.** Finance primary, Lifestyle secondary. Freebird also chose Finance, so this is a deliberate head-to-head placement in the category where deal-seekers already browse.
 

@@ -3,7 +3,7 @@ import Foundation
 /// What the feature layer is allowed to ask for.
 ///
 /// This is a protocol rather than a concrete type so that the network client
-/// underneath can change without anything above it moving. `SDS.md` section 3
+/// underneath can change without anything above it moving. `docs/specs/SDS.md` section 3
 /// puts the data layer at the swap point on purpose.
 /// `Sendable`, because the day page reads four things at once with `async let`
 /// and a child task may only capture what it is allowed to carry.

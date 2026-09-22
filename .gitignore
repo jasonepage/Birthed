@@ -41,3 +41,7 @@ supabase/.temp/
 # Written by web/test/serve.test.ts, which builds a small site in the repo
 # root to serve it. It is rebuilt on every run and is never an input.
 web/test-site/
+
+# Working notes: handoff briefs for sessions, drafts and proposals. They stay
+# on the machine that wrote them and out of the public repository.
+notes/

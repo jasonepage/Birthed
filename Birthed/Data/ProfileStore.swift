@@ -8,7 +8,7 @@ import Observation
 /// and the server copy is a mirror pushed when it can be.
 ///
 /// Deliberately not SwiftData. A profile is five scalars, not a cache, and
-/// `SDS.md` section 4 reserves SwiftData for the catalog and the day pages.
+/// `docs/specs/SDS.md` section 4 reserves SwiftData for the catalog and the day pages.
 @Observable
 final class ProfileStore {
     private enum Key {

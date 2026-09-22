@@ -3,7 +3,7 @@
 // This has to be a function rather than a client call, for two reasons.
 // Removing a row from auth.users needs the service role, and row level
 // security correctly stops a client doing that. And two tables do not cascade
-// on their own, so they are handled explicitly here. SDS.md section 13.
+// on their own, so they are handled explicitly here. docs/specs/SDS.md section 13.
 //
 // The caller is identified from their own token, never from the request body,
 // so nobody can delete somebody else's account by guessing an identifier.

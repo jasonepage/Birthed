@@ -54,7 +54,7 @@ to a reader.
 - Degrees Fahrenheit only, never Celsius.
 - Cite requirement identifiers in commit messages where one applies, for
   example `feat(dayplan): order by redemption window close (FR-092)`. The
-  identifiers are in `SRS.md`.
+  identifiers are in `docs/specs/SRS.md`.
 - Say what is unknown rather than guessing. If a design question is not
   answered in the specifications, ask in the pull request rather than
   inventing an answer and burying it in code.
@@ -83,7 +83,7 @@ to a reader.
 - A dependency where the standard library will do. The website has no
   runtime dependencies on purpose.
 - Anything that lets one user contact another. Messaging, following, feeds,
-  rooms and wishes are refused in `PRD.md` section 4.4 and `CLAUDE.md`
+  rooms and wishes are refused in `docs/specs/PRD.md` section 4.4 and `CLAUDE.md`
   section 5.
 - A score, karma, honey or any reward for buzzing. `docs/the-wall.md`
   sections 6 and 8 refuse it.

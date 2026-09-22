@@ -134,10 +134,11 @@ before changing anything.
   <img src="docs/readme/how-it-fits.svg" alt="Facts come from Wikidata, Wikipedia, public news feeds and Wikimedia Commons into the worker, which runs every fifteen minutes and is the only holder of the service role key. It writes to Supabase, which has row level security on every table. The website and the iPhone app read from it with the anonymous key." width="100%">
 </p>
 
-The specifications are `PRD.md` (what the product is and refuses to be),
-`SRS.md` (numbered requirements) and `SDS.md` (the design). Large parts of all
-three describe the reward catalog, which is on the shelf. The decisions made
-since are in `CLAUDE.md` section 5, and they win where the two disagree.
+The specifications are in `docs/specs/`: `PRD.md` (what the product is and
+refuses to be), `SRS.md` (numbered requirements) and `SDS.md` (the design).
+Large parts of all three describe the reward catalog, which is on the shelf.
+The decisions made since are in `CLAUDE.md` section 5, and they win where the
+two disagree.
 
 ## How the hive works
 
@@ -213,7 +214,7 @@ is edited in the same commit as any code that changes what it describes.
 | `design/` | The app icon source. |
 | `docs/` | How each decision was reached, including the ones that turned out wrong. |
 | `docs/research/` | The research the decisions rest on. |
-| `PRD.md`, `SRS.md`, `SDS.md` | Product, requirements and design specifications. Large parts describe the reward catalog, which is built in the schema, tested, and unused. |
+| `docs/specs/` | Product, requirements and design specifications. Large parts describe the reward catalog, which is built in the schema, tested, and unused. |
 | `CLAUDE.md` | The working instructions and the decision record. It is blunt about what is broken and what has never been run. |
 | `render.yaml` | The two Render services. |
 
@@ -317,7 +318,7 @@ command line interface.
 
 - Names, birth and death years and one line descriptions of people come from
   Wikidata, under Creative Commons Zero. Every row records its source and
-  license. Wikipedia article text is not used; `SDS.md` section 8.1 says why.
+  license. Wikipedia article text is not used; `docs/specs/SDS.md` section 8.1 says why.
 - Historical events come from Wikipedia's date articles, under Creative
   Commons Attribution ShareAlike, each with the page it came from.
 - Chart weeks (the number one song, album and film) are parsed from

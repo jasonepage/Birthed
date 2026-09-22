@@ -1,7 +1,7 @@
 # Creative direction for the date page
 
 Written 8 September 2026 by Nathan's session, after reading
-`docs/first-impression-brief.md`, `docs/first-impression-proposal.md` and
+`notes/first-impression-brief.md`, `notes/first-impression-proposal.md` and
 `docs/opus-worklist.md`, and after looking at the live September 8 page.
 
 This is a creative note, not a build plan. The work list is still the work

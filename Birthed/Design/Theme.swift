@@ -2,7 +2,7 @@ import SwiftUI
 
 /// The visual vocabulary of the app, in one place.
 ///
-/// The accent is the pink straw from the founding observation in `PRD.md`
+/// The accent is the pink straw from the founding observation in `docs/specs/PRD.md`
 /// section 2, and it is the same value as the app icon and the share card. If
 /// one changes they all change.
 enum Theme {

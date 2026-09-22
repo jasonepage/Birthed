@@ -3,13 +3,13 @@
 **Status:** Draft 1
 **Date:** September 4, 2026
 **Scope:** Version 1.0, iOS only
-**Companion documents:** `PRD.md` (why), `SDS.md` (how)
+**Companion documents:** `docs/specs/PRD.md` (why), `docs/specs/SDS.md` (how)
 
 ---
 
 ## 1. Purpose and conventions
 
-This document turns `PRD.md` into requirements an engineer can build and a tester can verify. It does not explain product reasoning. That is in the product requirements document.
+This document turns `docs/specs/PRD.md` into requirements an engineer can build and a tester can verify. It does not explain product reasoning. That is in the product requirements document.
 
 **Identifier scheme.** `FR-nnn` is a functional requirement, meaning something the system does. `NFR-nnn` is a non-functional requirement, meaning a constraint on how well it does it.
 
@@ -395,7 +395,7 @@ Revised September 6, 2026. The original rule put the prompt behind a switch in S
 
 **NFR-070** The system must record, at minimum: onboarding completion rate, day page views per user per week, day 30 retention segmented by days until the user's birthday, offers marked done, offers claimed, problem reports per 1,000 offer views, share image generations, and paywall view to purchase rate.
 
-**NFR-071** Day 30 retention among users whose birthday is more than 60 days away must be reportable as its own metric, since `PRD.md` section 14 names it as the primary signal for whether the product's core bet is working.
+**NFR-071** Day 30 retention among users whose birthday is more than 60 days away must be reportable as its own metric, since `docs/specs/PRD.md` section 14 names it as the primary signal for whether the product's core bet is working.
 
 ---
 

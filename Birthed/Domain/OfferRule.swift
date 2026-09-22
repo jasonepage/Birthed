@@ -49,7 +49,7 @@ enum OfferRule: Equatable {
 }
 
 /// The five things a person can be asked to do, each of which maps to one
-/// `requirement_key` in the database. `SDS.md` section 7.
+/// `requirement_key` in the database. `docs/specs/SDS.md` section 7.
 enum RequirementKey: String, CaseIterable, Equatable {
     case account
     case app

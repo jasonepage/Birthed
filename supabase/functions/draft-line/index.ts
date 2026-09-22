@@ -6,7 +6,7 @@
 // Returns two or three candidate sentences and the source text they were
 // drawn from. It writes nothing. The curator picks one, edits it, and presses
 // a key in /admin, and that keypress is the only thing that puts a word on a
-// page. docs/panel-brief.md, section 1.
+// page. notes/panel-brief.md, section 1.
 //
 // Three rather than one on purpose. One suggestion is a thing you accept or
 // reject; three is a thing you choose between, and choosing is faster and

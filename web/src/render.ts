@@ -100,7 +100,7 @@ function birthYearLabel(person: Person): string {
 const STYLE = `
 
 
-/* The first screen, decided September 8, 2026. docs/first-impression-proposal.md.
+/* The first screen, decided September 8, 2026. notes/first-impression-proposal.md.
 
    The state line is the first thing after the bar. Four sentences are baked
    into every page and one is shown: the sealed one by default, so a page with

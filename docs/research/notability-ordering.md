@@ -4,7 +4,7 @@ Run date: September 4, 2026. Query: `import-day.ts 9 4 --dry-run --print`,
 years 1600 to 2015, minimum 10 sitelinks.
 
 **The query itself is proven.** 714 people matched in 6.6 seconds. Binding
-exact dates with `VALUES` works, and open technical question 1 in `SDS.md`
+exact dates with `VALUES` works, and open technical question 1 in `docs/specs/SDS.md`
 section 17 is closed. The naive `MONTH()` and `DAY()` filter is not needed and
 would very likely have timed out.
 

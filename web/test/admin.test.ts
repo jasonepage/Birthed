@@ -24,7 +24,7 @@ test("a row with no sentence offers a draft, and the draft writes to the right t
   assert.ok(script.includes("canDraft: !!row.verified && !line"), "a shown fact with no card line can be drafted");
   assert.ok(script.includes("canDraft: !row.suppressed && !line"), "a shown Wikipedia line with no card line can be drafted");
   assert.ok(script.includes('data-draft="'), "and the button is drawn for them");
-  // The trap in docs/panel-brief.md: same job, two tables.
+  // The trap in notes/panel-brief.md: same job, two tables.
   assert.ok(script.includes("cultural_events?id=eq.\" + drafting.id"), "a culture row's sentence is context_string");
   assert.ok(script.includes("lead_lines?on_conflict=subject_kind,subject_id"), "a timeline row's sentence is a lead line");
   // Nothing saves until a key is pressed.

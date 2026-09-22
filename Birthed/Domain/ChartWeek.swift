@@ -10,7 +10,7 @@ import Foundation
 /// It still does not carry a `Date`. The comparison that matters is "is this
 /// the chart week that covers that birth date", and doing that on instants
 /// would make the answer depend on which side of midnight the reader is
-/// standing. `SDS.md` section 5 and `NFR-001`.
+/// standing. `docs/specs/SDS.md` section 5 and `NFR-001`.
 struct ChartWeek: Equatable, Hashable {
     /// The issue date printed on the chart, month and day.
     let date: CalendarDate

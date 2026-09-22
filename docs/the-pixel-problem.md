@@ -98,7 +98,7 @@ everybody is today.** One in 366 people has their birthday today and the front
 door already serves today's page.
 
 The tempting version of this breaks the site. A live count of people here now,
-a row climbing while you watch, anything that ticks. `docs/first-impression-brief.md`
+a row climbing while you watch, anything that ticks. `notes/first-impression-brief.md`
 forbids all of it, and it is right: a number that moves is a direction, a
 direction is a weapon, and this site carries September 11.
 

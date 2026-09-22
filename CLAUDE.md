@@ -14,9 +14,9 @@ An iOS app about birthdays. The core object is the **calendar day**, not the use
 
 ## 2. Read these, in this order
 
-1. `PRD.md` sections 5, 10, 11 for what the product is and, more importantly, what it refuses to be. Section 4.4 if you want to know why the direction is what it is.
-2. `SRS.md` for numbered requirements. Every feature traces to an `FR-nnn`. Cite them in commit messages.
-3. `SDS.md` sections 5, 6, 7 before writing a single line of date or qualification code. These three sections contain the entire correctness risk of the product.
+1. `docs/specs/PRD.md` sections 5, 10, 11 for what the product is and, more importantly, what it refuses to be. Section 4.4 if you want to know why the direction is what it is.
+2. `docs/specs/SRS.md` for numbered requirements. Every feature traces to an `FR-nnn`. Cite them in commit messages.
+3. `docs/specs/SDS.md` sections 5, 6, 7 before writing a single line of date or qualification code. These three sections contain the entire correctness risk of the product.
 4. `docs/research/reward-terms.md` section B if you touch the reward schema. It is 30 real rule categories pulled from real brand terms, and it is why the schema looks the way it does.
 
 Do not re-derive product decisions. They are made. Section 5 below lists them.
@@ -43,9 +43,9 @@ Do not re-derive product decisions. They are made. Section 5 below lists them.
 
 | Piece | Choice | Note |
 |---|---|---|
-| Database | Supabase Postgres | Schema in `SDS.md` section 6 |
+| Database | Supabase Postgres | Schema in `docs/specs/SDS.md` section 6 |
 | Auth | Supabase anonymous sign-in, plus Sign in with Apple later | Silent, no sign-in screen ever |
-| Authorization | Row level security | Policies in `SDS.md` section 6.6 |
+| Authorization | Row level security | Policies in `docs/specs/SDS.md` section 6.6 |
 | Light scheduled jobs | Supabase Edge Functions, Deno and TypeScript | Short tasks only |
 | Migrations | Supabase CLI, checked into `supabase/migrations/` | Never edit the database by hand |
 
@@ -96,8 +96,11 @@ supabase/
 worker/
   Dockerfile
   src/
-docs/research/
-PRD.md  SRS.md  SDS.md  CLAUDE.md
+docs/
+  research/
+  specs/            PRD.md  SRS.md  SDS.md
+notes/              local only, gitignored: session briefs and drafts
+CLAUDE.md
 ```
 
 **The Domain folder is load-bearing.** Nothing in it may import SwiftUI, SwiftData, MapKit, WeatherKit, or a networking library. If a type in Domain needs data, it takes it as a parameter. This is what makes exhaustive testing possible without a simulator.
@@ -140,7 +143,7 @@ What this changes:
   people's birthdays are the only mechanic in this category that produces a
   recurring reason to open the app: yours comes round once a year, somebody
   you know has one most weeks. It also reverses the deferral of friends to
-  version 1.5 in `PRD.md` section 12, deliberately.
+  version 1.5 in `docs/specs/PRD.md` section 12, deliberately.
 - **No second button to make the first one work.** A row showing a value with a
   "Change" button under it is two controls doing one control's job. The row is
   the control, text is edited in place and saved as you type, and a screen
@@ -148,20 +151,20 @@ What this changes:
 - **The day page being good is now the entire product.** Whoever appears at the
   top of September 4 is not a tuning detail any more. It is the thing.
 
-The reward specifications in `PRD.md` sections 10.3 to 10.6, `SRS.md` sections
-6 and 7, and `SDS.md` sections 6.3 and 7 are accurate and unbuilt. Treat them
+The reward specifications in `docs/specs/PRD.md` sections 10.3 to 10.6, `docs/specs/SRS.md` sections
+6 and 7, and `docs/specs/SDS.md` sections 6.3 and 7 are accurate and unbuilt. Treat them
 as a shelf, not a plan.
 
 - **Name** is Birthed. Domain is birthed.app. Bundle identifier `app.birthed.ios`.
 - **Identity content is the front door, rewards are the retention engine.** Not the other way round.
-- **No user-to-user contact of any kind** in version 1.0. No messaging, matching, rooms, feeds, following, or wishes. `PRD.md` section 4.4 has the evidence, which is three shipped competitors with two combined ratings.
+- **No user-to-user contact of any kind** in version 1.0. No messaging, matching, rooms, feeds, following, or wishes. `docs/specs/PRD.md` section 4.4 has the evidence, which is three shipped competitors with two combined ratings.
 - **Silent anonymous account** on first launch. No sign-in wall in front of anything, ever.
 - **50 or more brands at the Verified tier is the gate to ship.** The catalog grows toward 150 or more after launch, published from the server with no application release, per `FR-138` and `FR-052a`. The three-tier confidence model, Verified, Reported and Unconfirmed, is unchanged. Unconfirmed offers ship, clearly marked, with qualification tracking switched off.
 - **Full day plan** with weather and routing is in version 1.0.
-- **Identity content from Wikidata**, not Wikipedia article text, for licensing reasons in `SDS.md` section 8.1. **Credit both anyway.**
+- **Identity content from Wikidata**, not Wikipedia article text, for licensing reasons in `docs/specs/SDS.md` section 8.1. **Credit both anyway.**
 - **No celebrity photographs** in version 1.0. Names, years and descriptions only.
 - **App Store category:** Lifestyle primary. Finance was the primary in the rewards era and is wrong now; the secondary is still set to Finance in App Store Connect and should become Entertainment, which is where this audience browses and where Famous Birthdays sits. Reference is the alternative, less crowded and easier to chart in.
-- **The profile is stored in `UserDefaults`, not SwiftData.** It is five scalars, not a cache, and `SDS.md` section 4 reserves SwiftData for the catalog and the day pages. The session token is in the keychain, because it is a bearer credential.
+- **The profile is stored in `UserDefaults`, not SwiftData.** It is five scalars, not a cache, and `docs/specs/SDS.md` section 4 reserves SwiftData for the catalog and the day pages. The session token is in the keychain, because it is a bearer credential.
 - **`twin_count` is deliberately callable by the anonymous role.** Supabase's security advisor flags every `security definer` function that anonymous clients can execute, and it is right to. This one is intentional: it is the only way `FR-026` can return a count without exposing anybody's row, the privacy floor from `NFR-033` is applied inside it, and its search path is pinned. Do not "fix" the warning by revoking execute, or the twin count stops working.
 - **Free tier:** all identity content, the birthday morning notification (`FR-073`), one summary notification 45 days out (`FR-072`), and the day plan during the user's first birthday window only (`FR-141b`). **Paid tier:** qualification tracking, the per offer deadline ladder (`FR-071`), the day plan in every later cycle, and the catalog beyond a curated free 15.
 
@@ -617,7 +620,7 @@ Stripped of the cynicism the thread left four notes, and three are fixed:
   wanted on April 23 it has to be as a written fact rather than as a row in
   `notable_people`, because the row would be asserting a date nobody knows.
 - **Untested: whether the longer query still answers.** The `VALUES` list goes
-  from 416 literals to 616, and `SDS.md` section 17 has always named the query
+  from 416 literals to 616, and `docs/specs/SDS.md` section 17 has always named the query
   service's sixty second limit as the one unknown that could change the
   approach. The first run of `import:all` is the test, and it is 366 queries
   against a volunteer-funded service.
@@ -1028,7 +1031,7 @@ Do **not** build in this slice: accounts, offers, the catalog, notifications, th
 - The share image generates with the network disabled.
 - Attribution to Wikipedia and Wikidata is reachable within two taps.
 
-**Starting query, expected to need tuning.** This filters every entity carrying a date of birth, which will likely time out on the public endpoint. If it does, the fallbacks are to narrow by sitelink count first, to slice by birth year, or to import from a Wikidata dump instead. **Test this before assuming the plan works.** It is open technical question 1 in `SDS.md` section 17 and it is the only unknown that could change the approach.
+**Starting query, expected to need tuning.** This filters every entity carrying a date of birth, which will likely time out on the public endpoint. If it does, the fallbacks are to narrow by sitelink count first, to slice by birth year, or to import from a Wikidata dump instead. **Test this before assuming the plan works.** It is open technical question 1 in `docs/specs/SDS.md` section 17 and it is the only unknown that could change the approach.
 
 ```sparql
 SELECT ?person ?personLabel ?personDescription ?birth ?death ?sitelinks WHERE {
@@ -1051,7 +1054,7 @@ LIMIT 50
 
 ## 8. Then, in order
 
-**Slice 2.** The Domain module and its full test suite from `SRS.md` NFR-003, plus onboarding, the anonymous account and the countdown. Nothing here is visually hard, and every future date bug is prevented in this slice.
+**Slice 2.** The Domain module and its full test suite from `docs/specs/SRS.md` NFR-003, plus onboarding, the anonymous account and the countdown. Nothing here is visually hard, and every future date bug is prevented in this slice.
 
 **Slice 3.** Three offers with deliberately different rule shapes: **Starbucks** for advance signup plus an annually recurring prior purchase plus a tier-dependent window, **Sephora** for a birthday-month anchor plus per-channel minimum spend, and **Dutch Bros** for an app requirement plus a window anchored to collection rather than to the birthday. Full schema, qualification engine, catalog screen. If the model handles these three it handles the other 147.
 

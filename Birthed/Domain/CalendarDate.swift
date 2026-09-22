@@ -4,7 +4,7 @@ import Foundation
 ///
 /// September 4 is not a moment in time. It is a label that recurs, so it is
 /// stored and passed around as two small integers and never as a `Date`, a
-/// timestamp, or anything that has been through a time zone. `SDS.md` section
+/// timestamp, or anything that has been through a time zone. `docs/specs/SDS.md` section
 /// 5.1 and `NFR-001`.
 ///
 /// Note for slice 2: the domain layer should be marked `nonisolated` once the
