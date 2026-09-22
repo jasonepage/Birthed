@@ -475,9 +475,11 @@ test("the typed field is on the live section only, posts a plain form to /find, 
   assert.ok(live.includes(`name="q" type="text" maxlength="${ASK_MAX}"`));
   assert.ok(live.includes('name="m" value="9"') && live.includes('name="d" value="9"'));
   assert.ok(live.includes(">Find</button>"));
-  // Said under the board now, so the field sits right above the hive.
-  assert.ok(live.includes("makes its story bigger."));
-  assert.ok(live.indexOf("makes its story bigger.") > live.indexOf('class="wboard'), "the note is under the board");
+  // The ways on from the board are one row of pills under it, and the old
+  // fragment between them is gone. Nathan, September 22, 2026.
+  assert.ok(!live.includes("makes its story bigger."), "cut, September 22, 2026");
+  assert.ok(live.indexOf('class="wways"') > live.indexOf('class="wboard'), "the row is under the board");
+  assert.ok(live.includes('<a href="/about/">How the hive works</a>'));
   assert.ok(!live.includes("Typing spends nothing."), "cut, September 22, 2026");
   // No script anywhere near it: a form and a button and nothing else.
   assert.ok(!/<script|onsubmit|oninput/i.test(live));
@@ -685,7 +687,7 @@ test("the picture rules name a tile by its subject and put nothing but a path on
   assert.ok(css.startsWith('<style class="wpics">') && css.endsWith("</style>"));
   assert.ok(css.includes('[data-subject="song:1994-09-10"]{--pic:url("/covers/0123456789abcdef.jpg")}'));
   assert.ok(css.includes('[data-subject="person:Q42"]{--pic:url("/faces/Q42.jpg")}'));
-  assert.ok(css.includes('.wtile[data-subject="song:1994-09-10"],.wtile[data-subject="person:Q42"]{color:#FFF7EE'), "one shared rule for the light type and the scrim");
+  assert.ok(css.includes('.wtile[data-subject="song:1994-09-10"],.wtile[data-subject="person:Q42"]{color:var(--cream)'), "one shared rule for the light type and the scrim");
   assert.equal(pictureRules([]), "");
   // A subject or a path with quotes or a closing tag in it cannot break out of the rule.
   const odd = pictureRules([{ subject: `song:1994"]}</style><script>`, path: `/covers/x.jpg")}` }]);
@@ -1086,13 +1088,16 @@ test("a tile knows the one word it can always say, which is its year", () => {
   assert.equal(tileYear(""), null);
 });
 
-test("a small tile is its picture, or its year, and never a sentence it cannot finish", () => {
+test("a small tile draws the start of its headline, and carries its year for a board too narrow for words", () => {
   const small = story({ rect: { mx: 0, my: 0, w: 2, h: 2 }, support: 0, headline: "1862: Taiping Rebellion: The Ever Victorious Army defeats Taiping forces at the Battle of Cixi." });
   const html = wallSection(day([small]), "September 21", LIVE_NOW, { hive: true });
+  // The headline, which the stylesheet clamps, the way the live hive's small
+  // tiles read it. Nathan, September 22, 2026: a bare year tells a reader
+  // nothing.
+  assert.ok(html.includes('class="wh wsh">1862: Taiping Rebellion'), "a small tile draws its headline");
+  // And the year, for a phone, where a two module tile is forty pixels and
+  // the old rule that a year reads at any size is still right.
   assert.ok(html.includes('class="wyr">1862<'), "the year, which reads at any size");
-  // The sentence is not drawn into the tile, because the tile cannot finish
-  // it. There is no headline element on a small tile at all.
-  assert.ok(!html.includes('class="wh"'), "a small tile draws no headline");
   // It is still the whole of what a screen reader and a hover are handed,
   // and the receipt is one tap away.
   assert.match(html, /aria-label="1862: Taiping Rebellion/);

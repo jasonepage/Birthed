@@ -332,7 +332,7 @@ export function pictureRules(pictures: Picture[]): string {
   const noYear = pictures.map((p) => `.wtile.small[data-subject="${safe(p.subject)}"] .wyr,.wtile.tiny[data-subject="${safe(p.subject)}"] .wyr`).join(",");
   // A comb cell has room for its picture only when there is one.
   const cells = pictures.map((p) => `.wcell[data-subject="${safe(p.subject)}"] .wcellpic`).join(",");
-  return `<style class="wpics">${each}${noYear}{display:none}${cells}{display:block}${all}{color:#FFF7EE;--wink:#FFF7EE;--wbtn:#FFE9B0;--wbtn-ink:#2A1A08;--wmark:#FFE9B0;justify-content:flex-end;--scrim:linear-gradient(to top,rgba(20,12,4,.94) 0%,rgba(20,12,4,.62) 48%,rgba(20,12,4,.18) 100%)}</style>`;
+  return `<style class="wpics">${each}${noYear}{display:none}${cells}{display:block}${all}{color:var(--cream);--wink:var(--cream);--wbtn:var(--honey-lite);--wbtn-ink:var(--on-honey);--wmark:var(--honey-lite);justify-content:flex-end;--scrim:linear-gradient(to top,rgba(20,12,4,.94) 0%,rgba(20,12,4,.62) 48%,rgba(20,12,4,.18) 100%)}</style>`;
 }
 
 /**
@@ -1010,17 +1010,24 @@ function tile(story: WallStory, live: boolean, voice: Voice, view: Viewport, hiv
   const receipt = storyPath(story);
 
   if (size === "tiny" || size === "small") {
-    // The mural's ordinary tile since September 22, 2026. docs/the-wall.md
-    // section 27: too small for a sentence, so it is its picture, and where
-    // there is no picture it is its year, which reads at any size. The
-    // headline is still the whole label a screen reader and a hover get, and
-    // the receipt is one tap away.
+    // The mural's ordinary tile. docs/the-wall.md section 27 made it its
+    // picture, and where there was no picture its year, because a sentence
+    // does not read at forty pixels. Nathan's call on September 22, 2026,
+    // looking at the two boards side by side: the live hive's small tiles,
+    // which draw the first words of the headline and cut it, read far better
+    // than a board of bare years, and "2017" or "patents.google.c" on its own
+    // tells a reader nothing. So the tile draws the headline, clamped, the
+    // way the live tile does. The year is still in the markup and the
+    // stylesheet shows it instead of the words on a board too narrow for
+    // words, which is a phone, where the old rule was right. A tile with no
+    // year says its outlet there, as it did before.
     //
-    // Both are drawn. The stylesheet hides the year on a tile that has a
-    // picture, because whether a picture exists is known only to the rules
-    // pictureRules writes and not here.
+    // Whether a tile has a picture is known only to the rules pictureRules
+    // writes; there the year is hidden on a pictured tile, and the headline
+    // reads over the picture through the scrim the same rules set.
     const year = tileYear(story.headline);
-    const inner = `<span class="wyr">${escapeHtml(year ?? story.outlet)}</span>`
+    const inner = `<span class="wh wsh">${escapeHtml(story.headline)}</span>`
+      + `<span class="wyr">${escapeHtml(year ?? story.outlet)}</span>`
       + (count === "" ? "" : `<span class="wn">${count}</span>`);
     return `<a class="${classes}${year === null ? " wnoyr" : ""}" id="w-${story.id}" href="${receipt}" style="${style}"${subjectAttr(story)} title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${inner}${stamp}</a>`;
   }
@@ -1808,7 +1815,7 @@ ${tiles}${empty}
 <p class="whindsight">${escapeHtml(hindsight)} <span class="whindsightsay">The board is as it sealed. The marks are what happened since.</span></p>`}`;
 
   const full = onWall.length > 0 && !hive
-    ? `<p class="wfull"><a href="${hivePath(month, d)}">Open the hive full screen</a></p>`
+    ? `<a class="wfull" href="${hivePath(month, d)}">Open the hive full screen</a>`
     : "";
 
   /**
@@ -1895,11 +1902,17 @@ ${shown.map((s) => listRow(s, live, voice, agreed.alsoIn.get(s.id) ?? null)).joi
   // Nathan, September 10, 2026: three paragraphs of explanation under the
   // board was a wall of text, and the people who need it are on the About
   // page anyway.
-  const under = live
-    ? `<p class="wnote wunder">A ${voice.one} makes its story bigger. <a href="/about/">How the hive works</a></p>`
-    : closed
-      ? `<p class="wnote wunder">${escapeHtml(sealedLine(day, onWall, voice))} Every story is a link to its source. <a href="/about/">How the hive works</a></p>`
-      : "";
+  // Nathan, September 22, 2026: "A buzz makes its story bigger" between two
+  // buttons, and a third button on its own line under them, was three
+  // awkward buttons and a fragment. The sentence is gone, the About page
+  // says it, and the three ways on from the board are one row of matching
+  // pills: the full screen hive, how it works, and, for a browser that has
+  // buzzed something, everything it has buzzed. A sealed date keeps its one
+  // line above the row, because that line is a fact about this board.
+  const under = closed
+    ? `<p class="wnote wunder">${escapeHtml(sealedLine(day, onWall, voice))} Every story is a link to its source.</p>`
+    : "";
+  const ways = `<p class="wways">${full}<a href="/about/">How the hive works</a>${options.yours === true ? `<a href="/yours/">Everything you have ${voice.past}</a>` : ""}</p>`;
 
   // The number ones went to the comb with the rest, September 22, 2026:
   // sixty covers and sixty forms were 51 kilobytes of a date page. The card
@@ -1917,11 +1930,10 @@ ${shown.map((s) => listRow(s, live, voice, agreed.alsoIn.get(s.id) ?? null)).joi
 ${lede === "" ? "" : `<p class="wlede">${lede}</p>`}
 ${live ? askForm(day, name, voice) : ""}${countLine(day, now, voice, live)}${foundBlock(options.found ?? [], day, live, voice)}${afterwords(voice, name, options.undo ?? null)}
 ${board}
-<div class="wafter">${onWall.length > 0 ? legend : ""}${save}${full}</div>
-${under}
+<div class="wafter">${onWall.length > 0 ? legend : ""}${save}</div>
+${under}${ways}
 </section>
 ${anniversaryBlock(options.anniversary ?? [], day, voice)}
-${yoursLine(options.yours, voice)}
 <section class="feed2" aria-labelledby="feedhead">
 <h2 class="section" id="feedhead">Today's feed</h2>
 <p class="wnote">Everything with a birthday on ${escapeHtml(name)}, today's and every year's. ${feedNote}</p>
@@ -1960,7 +1972,7 @@ export function wallMarks(standing: { left: number; allowance: number; backed: s
     if (!/^[0-9a-f-]{36}$/.test(id)) continue;
     // The mark takes a line, so the headline gives one up rather than
     // showing the top of a line it cannot finish.
-    rules.push(`#w-${id} .wmine{display:block}#w-${id} .wmeta .wmine{display:inline}#w-${id} .wh{-webkit-line-clamp:calc(var(--lines, 3) - 1)}#w-${id}{outline:3px solid var(--wink, #2A1A08);outline-offset:-3px}`);
+    rules.push(`#w-${id} .wmine{display:block}#w-${id} .wmeta .wmine{display:inline}#w-${id} .wh{-webkit-line-clamp:calc(var(--lines, 3) - 1)}#w-${id}{outline:3px solid var(--wink, var(--on-honey));outline-offset:-3px}`);
   }
   if (rules.length === 0) return "";
   return `<style>${rules.join("")}</style>`;
@@ -2200,19 +2212,23 @@ export const WALL_STYLE = `
    the field and the count. The heading is a line rather than a second
    headline: the name above it is the headline, and thirty two point type
    twice in a row was a screen with no board on it. */
-.whead { margin: 0 0 6px; font-size: 13px; line-height: 1.5; color: #C9C2D4; }
-.whead .section { font-family: Georgia, "Times New Roman", serif; font-weight: 800; font-size: 15px; color: #FFF7EE; margin-right: 6px; }
-.wstate { display: block; margin: 0; font-size: 13px; font-weight: 600; color: #A49BAE; }
-.wstate b { color: #FFF7EE; font-weight: 800; }
+.whead { margin: 0 0 6px; font-size: 13px; line-height: 1.5; color: var(--cream-2); }
+.whead .section { font-family: var(--serif); font-weight: 800; font-size: 15px; color: var(--cream); margin-right: 6px; }
+.wstate { display: block; margin: 0; font-size: 13px; font-weight: 600; color: var(--dim); }
+.wstate b { color: var(--cream); font-weight: 800; }
 /* The coined words, underlined in honey. */
-.wstate .wkey { font-style: normal; color: #FFF7EE; text-decoration: underline; text-decoration-color: #E7A83A; text-decoration-thickness: 2px; text-underline-offset: 3px; }
-.wlede { margin: 0 0 12px; color: #B9B2AD; font-size: 15px; line-height: 1.4; max-width: 58ch; text-wrap: pretty; }
+.wstate .wkey { font-style: normal; color: var(--cream); text-decoration: underline; text-decoration-color: var(--honey); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.wlede { margin: 0 0 12px; color: var(--dim); font-size: 15px; line-height: 1.4; max-width: 58ch; text-wrap: pretty; }
 .wunder { margin: 8px 0 0; max-width: 62ch; }
+/* The board is the live hive's board, September 22, 2026: dark honeycomb
+   under dark cells with cream headlines and honey buttons. The date page
+   used to draw the same stories as pale wax tiles with dark type, so the
+   same board wore two looks and the date page's was the weak one. */
 .wboard {
   display: grid; grid-template-columns: repeat(var(--side, 16), minmax(0, 1fr)); grid-template-rows: repeat(var(--side, 16), minmax(0, 1fr));
-  gap: 2px; width: 100%; max-width: 100%; aspect-ratio: 1 / 1; margin: 0 auto;
-  padding: 2px; box-sizing: border-box; border-radius: 10px; background: #100D16;
-  box-shadow: inset 0 0 0 1px rgba(255, 247, 238, .08);
+  gap: 4px; width: 100%; max-width: 100%; aspect-ratio: 1 / 1; margin: 0 auto;
+  padding: 4px; box-sizing: border-box; border-radius: 16px; border: 1px solid var(--line);
+  background: radial-gradient(circle at 50% 40%, rgba(255, 150, 50, .05), transparent 60%), url("/honeycomb.svg") 0 0 / 56px 96px repeat, #17110A;
 }
 /* On a phone the board runs edge to edge, because a gutter either side of
    the one picture on the page is forty pixels of nothing. The sticky bar
@@ -2233,13 +2249,13 @@ export const WALL_STYLE = `
 .wboard.wblank {
   display: grid; place-items: center; aspect-ratio: 16 / 7; position: relative;
   background:
-    radial-gradient(ellipse 62% 70% at 50% 50%, #100D16 38%, rgba(16, 13, 22, 0) 100%),
-    linear-gradient(rgba(255, 247, 238, .07) 1px, transparent 1px) 0 0 / calc(100% / 16) calc(100% / 16),
-    linear-gradient(90deg, rgba(255, 247, 238, .07) 1px, transparent 1px) 0 0 / calc(100% / 16) calc(100% / 16),
-    #100D16;
+    radial-gradient(ellipse 62% 70% at 50% 50%, var(--cell) 38%, rgba(16, 13, 22, 0) 100%),
+    linear-gradient(rgba(255, 243, 224, .07) 1px, transparent 1px) 0 0 / calc(100% / 16) calc(100% / 16),
+    linear-gradient(90deg, rgba(255, 243, 224, .07) 1px, transparent 1px) 0 0 / calc(100% / 16) calc(100% / 16),
+    var(--cell);
 }
-.wnothing { grid-column: 1 / -1; grid-row: 1 / -1; align-self: center; justify-self: center; margin: 0; padding: 0 8%; text-align: center; font-size: 14px; line-height: 1.5; color: #827B75; text-wrap: balance; max-width: 40ch; }
-.wnothing b { display: block; margin: 0 0 6px; font-family: Georgia, "Times New Roman", serif; font-weight: 800; font-size: clamp(20px, 5.4cqi, 30px); line-height: 1.15; color: #EFE0B8; }
+.wnothing { grid-column: 1 / -1; grid-row: 1 / -1; align-self: center; justify-self: center; margin: 0; padding: 0 8%; text-align: center; font-size: 14px; line-height: 1.5; color: var(--dimmer); text-wrap: balance; max-width: 40ch; }
+.wnothing b { display: block; margin: 0 0 6px; font-family: var(--serif); font-weight: 800; font-size: clamp(20px, 5.4cqi, 30px); line-height: 1.15; color: #EFE0B8; }
 .wnothing span { display: block; }
 /* A sealed board is edged in honey, the one quiet sign on the picture
    itself that this one is finished. A chip on the board covered a tile. */
@@ -2251,84 +2267,81 @@ export const WALL_STYLE = `
 .wafter .wlegend { margin: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .wafter .wlegend .wchip { margin: 0; }
 .wafter .wlegend .wlegendsay { margin-left: 4px; }
-.wafter .wfull, .wafter .wsave { margin: 0; flex: none; }
+.wafter .wsave { margin: 0; flex: none; }
 /* Both labels are in the page and one of them is shown. The reader's own
    version is revealed by a rule serve.ts appends on the open dates, because
    the baked page is shared and cannot know who is reading it. */
 .wsave { margin: 8px 0 0; text-align: right; font-size: 13px; }
-.wsave a { color: #A49BAE; text-decoration: none; border-bottom: 1px solid #3A3348; }
-.wsave a:hover { color: #FFD98A; border-color: #FFD98A; }
+.wsave a { color: var(--dim); text-decoration: none; border-bottom: 1px solid var(--line); }
+.wsave a:hover { color: var(--honey-lite); border-color: var(--honey-lite); }
 .wsavemine { display: none; }
 .whive .wsave { max-width: 60ch; margin: 8px auto 0; }
-.wfull { margin: 8px 0 0; text-align: right; font-size: 13px; }
-.wfull a { color: #A49BAE; text-decoration: none; border-bottom: 1px solid #3A3348; }
-.wfull a:hover { color: #FFD98A; border-color: #FFD98A; }
 .walso { opacity: .85; }
 /* The comb card. Honey on the page's dark, a honeycomb drawn faintly behind
    the words and fading out to the right, and the counts set as a row of
    small cells. The whole card is the link. */
 .wcomb {
   position: relative; display: grid; gap: 6px; margin: 14px 0 0; padding: 20px 20px 18px; overflow: hidden;
-  border-radius: 16px; text-decoration: none; color: #FFF7EE;
-  background: linear-gradient(135deg, #2A1F0E 0%, #1B1520 70%);
-  box-shadow: inset 0 0 0 1px rgba(231, 168, 58, .35);
+  border-radius: 16px; text-decoration: none; color: var(--cream);
+  background: linear-gradient(135deg, #2A1F0E 0%, var(--cell) 70%);
+  box-shadow: inset 0 0 0 1px rgba(244, 183, 64, .35);
   transition: box-shadow 160ms ease, transform 160ms ease;
 }
 .wcomb:hover { box-shadow: inset 0 0 0 1px rgba(255, 217, 138, .8); }
 .wcomb:active { transform: scale(.995); }
-.wcombhex { position: absolute; inset: 0; width: 100%; height: 100%; color: #E7A83A; opacity: .22; pointer-events: none;
+.wcombhex { position: absolute; inset: 0; width: 100%; height: 100%; color: var(--honey); opacity: .22; pointer-events: none;
   -webkit-mask-image: linear-gradient(90deg, rgba(0,0,0,.15) 0%, #000 55%, #000 100%); mask-image: linear-gradient(90deg, rgba(0,0,0,.15) 0%, #000 55%, #000 100%); }
 .wcomb > span, .wcombtop > :not(svg) { position: relative; }
-.wcombkick { margin: 0; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #FFD98A; }
-.wcombhead { font-family: Georgia, "Times New Roman", serif; font-weight: 800; font-size: 24px; line-height: 1.15; }
-.wcombsay { font-size: 14px; line-height: 1.45; color: #D9CFC4; max-width: 52ch; }
+.wcombkick { margin: 0; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--honey-lite); }
+.wcombhead { font-family: var(--serif); font-weight: 800; font-size: 24px; line-height: 1.15; }
+.wcombsay { font-size: 14px; line-height: 1.45; color: var(--cream-2); max-width: 52ch; }
 .wcombcounts, .wcombjump { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 0; }
 .wcombcounts span, .wcombjump a {
   font-size: 13px; color: #EFE0B8; padding: 4px 10px; border-radius: 8px;
-  background: rgba(231, 168, 58, .12); box-shadow: inset 0 0 0 1px rgba(231, 168, 58, .28); text-decoration: none;
+  background: rgba(244, 183, 64, .12); box-shadow: inset 0 0 0 1px rgba(244, 183, 64, .28); text-decoration: none;
 }
-.wcombcounts b, .wcombjump b { color: #FFD98A; font-weight: 800; margin-right: 3px; }
-.wcombjump a:hover { background: rgba(231, 168, 58, .22); }
-.wcombgo { justify-self: start; margin-top: 8px; font-size: 14px; font-weight: 800; color: #2A1A08; background: #E7A83A; padding: 8px 16px; border-radius: 999px; }
-.wcomb:hover .wcombgo { background: #FFD98A; }
+.wcombcounts b, .wcombjump b { color: var(--honey-lite); font-weight: 800; margin-right: 3px; }
+.wcombjump a:hover { background: rgba(244, 183, 64, .22); }
+.wcombgo { justify-self: start; margin-top: 8px; font-size: 14px; font-weight: 800; color: var(--on-honey); background: var(--honey); padding: 8px 16px; border-radius: 999px; }
+.wcomb:hover .wcombgo { background: var(--honey-lite); }
 /* The comb's own page: the same honey panel as a heading, then the kinds. */
 .wcombtop { position: relative; overflow: hidden; margin: 8px 0 0; padding: 22px 20px 18px; border-radius: 18px;
-  background: linear-gradient(135deg, #2A1F0E 0%, #1B1520 70%); box-shadow: inset 0 0 0 1px rgba(231, 168, 58, .35); }
+  background: linear-gradient(135deg, #2A1F0E 0%, var(--cell) 70%); box-shadow: inset 0 0 0 1px rgba(244, 183, 64, .35); }
 .wcombtop .wcombsay { margin: 8px 0 0; }
 .wcombtop .wstate { margin: 8px 0 0; }
 .wcombtitle { margin: 4px 0 0; font-size: clamp(26px, 6vw, 36px); line-height: 1.1; }
 .wcombgroup { margin: 28px 0 0; scroll-margin-top: 72px; }
 .wcombgroup h2.section { margin: 0 0 10px; }
-.wcombn { font-size: .6em; font-weight: 700; color: #A49BAE; vertical-align: middle; margin-left: 4px; }
+.wcombn { font-size: .6em; font-weight: 700; color: var(--dim); vertical-align: middle; margin-left: 4px; }
 .wcombback { margin-top: 26px; }
 /* The comb's cells. A grid of small cards rather than a list of rows, with
    the wide ones filling the gaps, each kind edged in its own colour. */
 .wcells { grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); grid-auto-flow: dense; gap: 8px; }
 .wcells li.wcell {
-  --kc: #E7A83A;
+  --kc: var(--honey);
   display: flex; flex-direction: column; gap: 6px; padding: 0 0 11px; overflow: hidden; position: relative;
-  border-radius: 14px; background: #17141F; box-shadow: inset 0 2px 0 var(--kc), inset 0 0 0 1px rgba(255, 247, 238, .05);
+  border-radius: 14px; background: var(--cell); box-shadow: inset 0 2px 0 var(--kc), inset 0 0 0 1px rgba(255, 243, 224, .05);
   font-size: 14px; line-height: 1.35;
 }
 .wcells li.wcell::before { margin: 10px 12px 0; }
 .wcells .wcwide { grid-column: span 2; }
-.wcells .wc-happened { --kc: #E7A83A; }
+.wcells .wc-happened { --kc: var(--honey); }
 .wcells .wc-born { --kc: #EF5680; }
 .wcells .wc-album, .wcells .wc-film { --kc: #9B8CF0; }
 .wcells .wc-news { --kc: #5CB8A8; }
-.wcellpic { display: none; aspect-ratio: 16 / 9; background: #241E2E var(--pic, none) center 22% / cover no-repeat; }
+.wcellpic { display: none; aspect-ratio: 16 / 9; background: var(--line) var(--pic, none) center 22% / cover no-repeat; }
 .wc-born .wcellpic { aspect-ratio: 4 / 3; background-position: center 18%; }
 .wcelltop { display: flex; align-items: center; gap: 6px; margin: 10px 12px 0; color: var(--kc); }
 .wcelltop .wkind svg { width: 16px; }
-.wcelltop .wn { margin-left: auto; font-size: 12px; font-weight: 800; color: #FFD98A; }
-.wcells a.wch { margin: 0 12px; font-weight: 650; color: #F3EDE4; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; overflow: hidden; }
-.wcells .wcwide a.wch { font-family: Georgia, "Times New Roman", serif; font-size: 17px; font-weight: 800; line-height: 1.25; }
+.wcelltop .wn { margin-left: auto; font-size: 12px; font-weight: 800; color: var(--honey-lite); }
+.wcells a.wch { margin: 0 12px; font-weight: 650; color: var(--cream-2); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; overflow: hidden; }
+.wcells .wcwide a.wch { font-family: var(--serif); font-size: 17px; font-weight: 800; line-height: 1.25; }
 .wcellfoot { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: auto 12px 0; }
 .wcellfoot .wbuzz { margin-left: auto; }
 @keyframes wcellin { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
 @keyframes wcbuzz {
-  0%, 100% { box-shadow: inset 0 2px 0 var(--kc), inset 0 0 0 1px rgba(231, 168, 58, .35); }
-  50% { box-shadow: inset 0 2px 0 var(--kc), inset 0 0 0 1px rgba(255, 217, 138, .9), 0 0 22px rgba(231, 168, 58, .22); }
+  0%, 100% { box-shadow: inset 0 2px 0 var(--kc), inset 0 0 0 1px rgba(244, 183, 64, .35); }
+  50% { box-shadow: inset 0 2px 0 var(--kc), inset 0 0 0 1px rgba(255, 217, 138, .9), 0 0 22px rgba(244, 183, 64, .22); }
 }
 /* The honeycomb behind the comb's heading drifts one cell at a time, so the
    loop has no seam: the pattern is 25.2 by 45 pixels after its scale. */
@@ -2343,19 +2356,19 @@ export const WALL_STYLE = `
   .wcells li.wcbacked { animation: wcellin 560ms cubic-bezier(.2, .7, .2, 1) both, wcbuzz 2.8s ease-in-out 800ms infinite; animation-delay: calc(var(--i, 0) * 32ms), 800ms; }
   .wcombtop .wcombhex { animation: wcombdrift 30s linear infinite; }
 }
-.wsongs .wonhive { font-weight: 700; color: #FFD98A; text-decoration: none; border-bottom: 1px solid #5A4420; }
-.wsongs .wonhive:hover { border-color: #FFD98A; }
+.wsongs .wonhive { font-weight: 700; color: var(--honey-lite); text-decoration: none; border-bottom: 1px solid var(--line-strong); }
+.wsongs .wonhive:hover { border-color: var(--honey-lite); }
 .whivesealed { max-width: 60ch; margin: 10px auto 0; text-align: center; }
 .feed2 { margin: 30px 0 0; }
 .feed2 h2.section { margin-bottom: 2px; }
 .feed2 > .wnote { margin: 0 0 12px; max-width: 60ch; }
 .feed2 .wlist + .wlist { margin-top: 8px; }
-.wmore { margin: 22px 0 0; border-top: 1px solid #241E2E; padding-top: 4px; }
-.wmore > summary { cursor: pointer; list-style: none; padding: 10px 0; font-size: 15px; font-weight: 600; color: #C9C2D4; }
+.wmore { margin: 22px 0 0; border-top: 1px solid var(--line); padding-top: 4px; }
+.wmore > summary { cursor: pointer; list-style: none; padding: 10px 0; font-size: 15px; font-weight: 600; color: var(--cream-2); }
 .wmore > summary::-webkit-details-marker { display: none; }
-.wmore > summary::before { content: "+"; display: inline-block; width: 20px; color: #A49BAE; }
+.wmore > summary::before { content: "+"; display: inline-block; width: 20px; color: var(--dim); }
 .wmore[open] > summary::before { content: "\\2212"; }
-.wmore > summary:hover { color: #FFD98A; }
+.wmore > summary:hover { color: var(--honey-lite); }
 /* The full screen page: the hive as big as the window allows, and little else. */
 .wreceiptbuzz { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 10px 0 0; }
 /* The mark's outline is for a tile; on the receipt the words are enough. */
@@ -2376,11 +2389,11 @@ export const WALL_STYLE = `
 .hivepage footer { max-width: min(100%, calc(100vh - 40px), 1040px); margin-left: auto; margin-right: auto; }
 /* The three open hives, drawn at request time above an open date's hive. */
 .wdays { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 14px; }
-.wdays .wday { display: inline-flex; align-items: baseline; gap: 6px; padding: 6px 14px; border-radius: 999px; border: 1px solid #4A3A24; background: rgba(30, 23, 16, .7); color: #B7A488; font-size: 13px; text-decoration: none; }
+.wdays .wday { display: inline-flex; align-items: baseline; gap: 6px; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--line-strong); background: rgba(30, 23, 16, .7); color: var(--dim); font-size: 13px; text-decoration: none; }
 .wdays .wday b { color: #FFF3E0; font-weight: 700; }
-.wdays a.wday:hover { border-color: #F4B740; color: #FFCF6B; }
-.wdays .wday.here { border-color: #F4B740; background: linear-gradient(180deg, #FFCF6B, #F4B740); color: #3A2A10; }
-.wdays .wday.here b { color: #1B1206; }
+.wdays a.wday:hover { border-color: var(--honey); color: var(--honey-lite); }
+.wdays .wday.here { border-color: var(--honey); background: linear-gradient(180deg, var(--honey-lite), var(--honey)); color: #3A2A10; }
+.wdays .wday.here b { color: var(--on-honey); }
 .whive .wboard { width: 100%; }
 .whive .wlegend { max-width: 60ch; margin: 12px auto 0; }
 /* Honey. Decided September 10, 2026: the tile's colour is its tier, and the
@@ -2390,13 +2403,18 @@ export const WALL_STYLE = `
    is the candle's own colour, so the site keeps one palette. */
 .wtile {
   position: relative; display: block; min-width: 0; min-height: 0; overflow: hidden;
-  border-radius: 3px; text-decoration: none; color: #2A1A08; box-sizing: border-box;
-  background: #EFE0B8; --wink: #2A1A08; --wbtn: #2A1A08; --wbtn-ink: #FFE9B0; --wmark: #8A3F05;
+  border-radius: 10px; text-decoration: none; color: var(--cream); box-sizing: border-box;
+  background: var(--cell); border: 1px solid var(--line-strong);
+  --wink: var(--cream); --wbtn: var(--honey); --wbtn-ink: var(--on-honey); --wmark: var(--honey-lite);
+  /* The tier is a stripe down the left edge, the live tile's own mark, in
+     three tones of honey: how well the story is sourced, never whether it
+     is true. */
+  --stripe: #9C8862;
+  box-shadow: inset 4px 0 0 var(--stripe);
 }
-.wtile.w-claimed { background: #EFE0B8; }
-.wtile.w-reported { background: #E7A83A; }
-.wtile.w-seen_direct { background: #B05A0C; color: #FFF3DC; --wink: #FFF3DC; --wbtn: #FFE9B0; --wbtn-ink: #2A1A08; --wmark: #FFE9B0; }
-.wtile:hover { outline: 2px solid var(--wink); outline-offset: -2px; }
+.wtile.w-reported { --stripe: #F0B84E; }
+.wtile.w-seen_direct { --stripe: #FF9A3C; }
+.wtile:hover { border-color: var(--honey); }
 /* Juice, September 10, 2026, in style and nowhere else because the site
    sends default-src 'none'. Three things: the tiles rise in when the board
    loads, the way the covers do; a tile lifts under the pointer; and the
@@ -2407,26 +2425,26 @@ export const WALL_STYLE = `
    which can only name one element. Every ring here is a box shadow rather
    than an outline, because the reader's own mark already owns the outline. */
 .wtile { transition: transform 160ms ease, box-shadow 160ms ease; }
-.wtile:hover { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(0, 0, 0, .5); z-index: 2; }
+.wtile:hover { transform: translateY(-2px); box-shadow: inset 4px 0 0 var(--stripe), 0 10px 22px rgba(0, 0, 0, .5); z-index: 2; }
 /* The section is a column so the sentence for a tap can move: after a tap
    that counted the browser lands on the tile, so the sentence and the count
    go under the board where the reader is looking, and the tile lands a
    third of the way down the window with room for them beneath it. */
 .wall:not(.whive) { display: flex; flex-direction: column; }
 .wall:not(.whive) > * { order: 0; }
-.wall:not(.whive) > .wunder, .wall:not(.whive) > .wafter { order: 2; }
+.wall:not(.whive) > .wunder, .wall:not(.whive) > .wafter, .wall:not(.whive) > .wways { order: 2; }
 .day:has(.wtile:target) .wall > .wsaids { order: 1; margin: 12px 0 0; }
 .wtile:target, .wlist li:target, .wsongs li:target {
   z-index: 3; scroll-margin-top: 34vh;
-  box-shadow: 0 0 0 3px #FFD98A, 0 0 28px rgba(255, 217, 138, .55);
+  box-shadow: 0 0 0 3px var(--honey-lite), 0 0 28px rgba(255, 217, 138, .55);
 }
-.wtile:target { outline: 3px solid #FFD98A !important; outline-offset: -3px; }
+.wtile:target { outline: 3px solid var(--honey-lite) !important; outline-offset: -3px; }
 .wlist li:target, .wsongs li:target { position: relative; }
 .day:has(.wtile:target, .wlist li:target, .wsongs li:target, .wreceiptbuzz:target) #wkept { display: block; }
 @keyframes wpop {
   0% { transform: scale(.92); box-shadow: 0 0 0 0 rgba(255, 217, 138, .95), 0 0 0 rgba(255, 217, 138, 0); }
   55% { transform: scale(1.04); }
-  100% { transform: none; box-shadow: 0 0 0 3px #FFD98A, 0 0 28px rgba(255, 217, 138, .55); }
+  100% { transform: none; box-shadow: 0 0 0 3px var(--honey-lite), 0 0 28px rgba(255, 217, 138, .55); }
 }
 @media (prefers-reduced-motion: no-preference) {
   .wboard .wtile { animation: rise 460ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards; animation-delay: calc(var(--i, 0) * 45ms); }
@@ -2446,68 +2464,84 @@ export const WALL_STYLE = `
 .wtile.tiny .wn { z-index: 1; }
 /* The strip of number ones under the feed. */
 .wsongs { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
-.wsongs li { display: flex; flex-direction: column; gap: 6px; background: #17141F; border-radius: 12px; padding: 8px; font-size: 13px; line-height: 1.35; scroll-margin-top: 72px; --wbtn: #E7A83A; --wbtn-ink: #2A1A08; --wmark: #E7A83A; --wink: #E7A83A; }
+.wsongs li { display: flex; flex-direction: column; gap: 6px; background: var(--cell); border-radius: 12px; padding: 8px; font-size: 13px; line-height: 1.35; scroll-margin-top: 72px; --wbtn: var(--honey); --wbtn-ink: var(--on-honey); --wmark: var(--honey); --wink: var(--honey); }
 .wsongs li:target { box-shadow: 0 0 0 2px #EF5680; }
 .wsongs .wart {
   /* width: 100% is not decoration. In a column flex box an aspect-ratio
      box with no width takes its width from its height, which is nothing,
      and draws as nothing. */
   display: block; width: 100%; aspect-ratio: 1; border-radius: 8px; overflow: hidden; position: relative; text-decoration: none;
-  background: #241E2E var(--pic, none) center / cover no-repeat;
+  background: var(--line) var(--pic, none) center / cover no-repeat;
 }
-.wsongs .wart:hover { outline: 2px solid #E7A83A; outline-offset: -2px; }
+.wsongs .wart:hover { outline: 2px solid var(--honey); outline-offset: -2px; }
 .wsongs .wyr {
   position: absolute; left: 6px; bottom: 6px; padding: 2px 7px; border-radius: 999px;
-  background: rgba(20,12,4,.82); color: #FFE9B0; font-family: Georgia, "Times New Roman", serif; font-weight: 800; font-size: 13px;
+  background: rgba(20,12,4,.82); color: var(--honey-lite); font-family: var(--serif); font-weight: 800; font-size: 13px;
 }
-.wsongs .wsongt { font-weight: 600; color: #E9E1DB; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-.wsongs .wsongf { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #9C9490; }
+.wsongs .wsongt { font-weight: 600; color: var(--cream-2); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.wsongs .wsongf { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dim); }
 .wsongs .wsongf .wn { font-weight: 700; }
 .wsongs .wmine { display: none; }
 .wchip {
   display: inline-block; padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 700;
   letter-spacing: .04em; text-transform: uppercase; vertical-align: middle;
 }
-.wchip.w-claimed { background: #EFE0B8; color: #2A1A08; }
-.wchip.w-reported { background: #E7A83A; color: #2A1A08; }
-.wchip.w-seen_direct { background: #B05A0C; color: #FFF3DC; }
-.wempty, .wlegend, .wnote { font-size: 13px; color: #827B75; line-height: 1.45; }
+.wchip.w-claimed { background: #9C8862; color: var(--on-honey); }
+.wchip.w-reported { background: #F0B84E; color: var(--on-honey); }
+.wchip.w-seen_direct { background: #FF9A3C; color: var(--on-honey); }
+.wempty, .wlegend, .wnote { font-size: 13px; color: var(--dimmer); line-height: 1.45; }
 .wlegend { margin: 10px 0 0; }
-.wunder a, .wlegend a { color: #A49BAE; text-decoration: none; border-bottom: 1px solid #3A3348; }
-.wunder a:hover { color: #FFD98A; border-color: #FFD98A; }
+.wunder a, .wlegend a { color: var(--dim); text-decoration: none; border-bottom: 1px solid var(--line); }
+.wunder a:hover { color: var(--honey-lite); border-color: var(--honey-lite); }
 .wlegend .wchip { margin-right: 4px; }
-.wsub { font-family: Georgia, "Times New Roman", serif; font-weight: 800; font-size: 19px; margin: 26px 0 4px; }
+.wsub { font-family: var(--serif); font-weight: 800; font-size: 19px; margin: 26px 0 4px; }
 .wsub.small { font-size: 15px; margin-top: 14px; }
 .wlist { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
-.wlist li { display: block; background: #17141F; border-radius: 12px; padding: 10px 13px; font-size: 15px; line-height: 1.4; }
+.wlist li { display: block; background: var(--cell); border-radius: 12px; padding: 10px 13px; font-size: 15px; line-height: 1.4; }
 .wlist a { text-decoration: none; font-weight: 600; }
 .wlist a:hover { text-decoration: underline; }
-.wmeta { font-size: 13px; color: #9C9490; }
-.wback { font-size: 13px; color: #827B75; margin: 0 0 14px; }
-.wback a { color: #A49BAE; text-decoration: none; border-bottom: 1px solid #3A3348; }
+.wmeta { font-size: 13px; color: var(--dim); }
+.wback { font-size: 13px; color: var(--dimmer); margin: 0 0 14px; }
+.wback a { color: var(--dim); text-decoration: none; border-bottom: 1px solid var(--line); }
 .wtitle { font-size: clamp(26px, 6vw, 40px); }
 .wlink { font-size: 14px; word-break: break-all; margin: 0 0 12px; }
-.wlink a { color: #A49BAE; }
-.wfacts { margin: 0 0 6px; font-size: 15px; color: #C9C2D4; }
-.wfalsenote { background: #17141F; border-left: 3px solid #FFF7EE; padding: 8px 12px; margin: 10px 0; font-size: 15px; }
+.wlink a { color: var(--dim); }
+.wfacts { margin: 0 0 6px; font-size: 15px; color: var(--cream-2); }
+.wfalsenote { background: var(--cell); border-left: 3px solid var(--cream); padding: 8px 12px; margin: 10px 0; font-size: 15px; }
 .wsource { margin: 0 0 8px; }
 .wsource p { margin: 0 0 6px; }
-.wquote { margin: 8px 0; padding: 10px 14px; border-left: 3px solid var(--day, #8B5CF6); background: #17141F; font-family: Georgia, "Times New Roman", serif; font-size: 16px; line-height: 1.45; }
+.wquote { margin: 8px 0; padding: 10px 14px; border-left: 3px solid var(--day, var(--honey)); background: var(--cell); font-family: var(--serif); font-size: 16px; line-height: 1.45; }
 .wscroll { overflow-x: auto; }
 .wchecks { border-collapse: collapse; font-size: 12.5px; min-width: 520px; }
-.wchecks th, .wchecks td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #241E2E; vertical-align: top; }
-.wchecks th { color: #827B75; font-weight: 600; }
+.wchecks th, .wchecks td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.wchecks th { color: var(--dimmer); font-weight: 600; }
 
 /* The mural's ordinary tile. docs/the-wall.md section 27: it is its picture,
    and where there is no picture it is its year. Both are always in the
    markup; the rule below hides the year on a tile that turned out to have a
    picture, because only pictureRules knows which those are. */
 .wtile.tiny, .wtile.small {
-  display: grid; place-items: center; padding: 2px; overflow: hidden;
+  display: flex; flex-direction: column; justify-content: flex-end; padding: 4px 5px 4px 8px; overflow: hidden;
+}
+/* The start of the headline, clamped, the way the live hive's small tiles
+   read: three lines at most, cut with an ellipsis, over the picture when
+   there is one. On a board narrower than 480 pixels a two module tile is
+   under sixty pixels and no words fit, so the year is shown instead. */
+.wsh {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
+  font-family: var(--serif); font-optical-sizing: auto; font-weight: 600; text-wrap: pretty;
+  font-size: clamp(9px, calc(27cqi / var(--side, 16)), 16px); line-height: 1.14; max-height: calc(3 * 1.14em);
+}
+.wtile.tiny .wsh { display: none; }
+.wtile.small .wyr { display: none; }
+@container (max-width: 479px) {
+  .wtile.small .wsh { display: none; }
+  .wtile.small .wyr { display: block; }
+  .wtile.small { justify-content: center; align-items: center; padding: 2px; }
 }
 .wyr {
-  position: relative; z-index: 1; font-family: Georgia, "Times New Roman", serif; font-weight: 700;
-  line-height: 1; letter-spacing: -.01em; color: var(--wink, #2A1A08);
+  position: relative; z-index: 1; font-family: var(--serif); font-weight: 700;
+  line-height: 1; letter-spacing: -.01em; color: var(--wink, var(--cream));
   font-size: clamp(9px, calc(21cqi * var(--tw, 2) / var(--side, 16)), 34px);
 }
 /* A tile with no year says its outlet instead, which is what it said before,
@@ -2517,7 +2551,7 @@ export const WALL_STYLE = `
   font-family: inherit; font-weight: 600; font-size: clamp(7px, calc(11cqi * var(--tw, 2) / var(--side, 16)), 13px);
   opacity: .75; text-align: center; overflow: hidden; max-width: 100%;
 }
-.wtile[data-subject] .wyr { display: block; }
+.wtile.tiny[data-subject] .wyr { display: block; }
 .wtile.small .wn, .wtile.tiny .wn {
   position: absolute; right: 2px; top: 2px; z-index: 2;
   font-size: clamp(7px, calc(13cqi * var(--tw, 2) / var(--side, 16)), 12px); font-weight: 800;
@@ -2525,22 +2559,22 @@ export const WALL_STYLE = `
 .wtile.mid, .wtile.big { padding: 5px 6px; display: flex; flex-direction: column; justify-content: space-between; }
 .wtile.mid .wh, .wtile.big .wh {
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
-  font-family: Georgia, "Times New Roman", serif; font-weight: 700; font-size: 11px; line-height: 1.2; text-wrap: pretty;
+  font-family: var(--serif); font-weight: 700; font-size: 11px; line-height: 1.2; text-wrap: pretty;
 }
 .wtile.big .wh { -webkit-line-clamp: 4; font-size: 13px; }
 .wfoot { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; font-size: 9px; opacity: .9; margin-top: 3px; }
 .wtile.mid .wtile.wfalse { opacity: .55; }
 .wstamp {
   position: absolute; left: 0; right: 0; bottom: 0; padding: 2px 4px; font-size: 9px; font-weight: 800;
-  letter-spacing: .06em; text-transform: uppercase; background: #2A1A08; color: #FFF3DC; text-align: center;
+  letter-spacing: .06em; text-transform: uppercase; background: var(--on-honey); color: #FFF3DC; text-align: center;
 }
 /* Hindsight, docs/the-wall.md section 23: the verdict on a sealed tile. */
-.wstamp.wheld { background: #F4B740; color: #1B1206; }
-.wstamp.wforgot { background: #3A2E1C; color: #B7A488; }
-.whindsight { margin: 10px 0 0; font-size: 14px; color: #2A1A08; }
+.wstamp.wheld { background: var(--honey); color: var(--on-honey); }
+.wstamp.wforgot { background: var(--line); color: var(--dim); }
+.whindsight { margin: 10px 0 0; font-size: 14px; color: var(--on-honey); }
 .whindsight .whindsightsay { color: #6B5A42; font-size: 12px; }
 .wlivehive .whindsight, .hivepage .whindsight { color: #FFF3E0; }
-.wlivehive .whindsightsay, .hivepage .whindsightsay { color: #B7A488; }
+.wlivehive .whindsightsay, .hivepage .whindsightsay { color: var(--dim); }
 
 /* Boosting from the web, docs/the-wall.md section 13. Later than everything
    above on purpose: several of these override rules written for tiles that
@@ -2548,15 +2582,16 @@ export const WALL_STYLE = `
 /* The headline is a link to the receipt and looks like the headline it was.
    The one control that spends a unit is a small button in the footer. */
 .wtile .wh, .wtile .wh:hover { color: inherit; text-decoration: none; }
-.wtile .wh:hover { text-decoration: underline; text-decoration-color: rgba(42, 26, 8, .5); text-underline-offset: 2px; }
+.wtile .wh:hover { text-decoration: underline; text-decoration-color: rgba(255, 243, 224, .5); text-underline-offset: 2px; }
 .wtile .wh:focus-visible { outline: 2px solid var(--wink); outline-offset: 2px; border-radius: 2px; }
 .wbuzz { display: inline; margin: 0; flex: none; }
 .wbuzz button {
   margin: 0; padding: 1px 7px; border: 0; border-radius: 999px; cursor: pointer;
-  background: var(--wbtn, #2A1A08); color: var(--wbtn-ink, #FFE9B0); font: inherit; font-weight: 800; line-height: 1.4;
+  background: linear-gradient(180deg, var(--honey-lite), var(--honey)); color: var(--on-honey); font: inherit; font-weight: 800; line-height: 1.4;
 }
+.wbuzz button:disabled { background: #35291A; color: var(--dimmer); cursor: default; filter: none; }
 .wbuzz button:hover { filter: brightness(1.15); }
-.wbuzz button:focus-visible { outline: 2px solid var(--wink, #2A1A08); outline-offset: 2px; }
+.wbuzz button:focus-visible { outline: 2px solid var(--wink, var(--on-honey)); outline-offset: 2px; }
 /* The reader's own mark, revealed by wallMarks on the stories this browser
    backed. A line of its own inside the tile, so it covers nothing and costs
    the reader one line of a headline they already read. */
@@ -2602,10 +2637,10 @@ export const WALL_STYLE = `
 /* The two container rules that used to add a line on a wider board are gone
    with the guess they corrected: fitType works in modules, so a board twice
    the size draws the same tile twice as large with the same words in it. */
-.wcount { margin: 0 0 10px; font-size: 15px; font-weight: 600; color: #E9E1DB; }
+.wcount { margin: 0 0 10px; font-size: 15px; font-weight: 600; color: var(--cream-2); }
 .wsaid {
   display: none; margin: 0 0 14px; padding: 13px 15px; border-radius: 12px;
-  background: #171227; border: 1px solid #2A2434; color: #E9E1DB; font-size: 14px; line-height: 1.5;
+  background: var(--cell); border: 1px solid var(--line); color: var(--cream-2); font-size: 14px; line-height: 1.5;
 }
 .wsaid:target { display: block; }
 /* Taking a misclick back. A quiet outline button rather than a second amber
@@ -2623,18 +2658,18 @@ export const WALL_STYLE = `
   /* display:block explicitly. The site's list rules put a row into flex, and
      inherited that turned the label and the headline into two columns. */
   display: block; margin: 0 0 8px; padding: 10px 13px; border-radius: 10px;
-  background: #171227; border: 1px solid #2A2434;
+  background: var(--cell); border: 1px solid var(--line);
 }
 .wannivwhen {
-  display: block; margin: 0 0 3px; color: #E7A83A;
+  display: block; margin: 0 0 3px; color: var(--honey);
   font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
 }
 .wannivlist a {
-  display: block; color: #E9E1DB; font-family: Georgia, "Times New Roman", serif;
+  display: block; color: var(--cream-2); font-family: var(--serif);
   font-weight: 700; font-size: 16px; line-height: 1.35; text-decoration: none;
 }
 .wannivlist a:hover { text-decoration: underline; text-underline-offset: 2px; }
-.wannivlist a:focus-visible { outline: 2px solid #E7A83A; outline-offset: 2px; border-radius: 3px; }
+.wannivlist a:focus-visible { outline: 2px solid var(--honey); outline-offset: 2px; border-radius: 3px; }
 /* The private record. docs/the-wall.md section 25. The link under the board
    is one quiet line, drawn only for a browser that has buzzed something, and
    the page it leads to borrows the anniversary's row so the two read as the
@@ -2643,71 +2678,71 @@ export const WALL_STYLE = `
 /* The three ways on from the board, as buttons rather than grey underlined
    words, Jason, September 22, 2026: the full screen hive, how it works, and
    everything this browser has buzzed. One size, one shape, honey outline. */
-.wfull a, .wunder a, .wyours a {
+.wways { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 14px 0 0; }
+.wways a, .wyours a {
   display: inline-flex; align-items: center; min-height: 40px; padding: 9px 18px; box-sizing: border-box;
-  font-size: 15px; font-weight: 700; line-height: 1.2; color: #FFE9B0; text-decoration: none;
-  border: 1px solid #5A4420; border-bottom-width: 1px; border-radius: 999px; background: rgba(231, 168, 58, .08);
+  font-size: 15px; font-weight: 700; line-height: 1.2; color: var(--honey-lite); text-decoration: none;
+  border: 1px solid var(--line-strong); border-radius: 999px; background: rgba(244, 183, 64, .08);
 }
-.wfull a:hover, .wunder a:hover, .wyours a:hover { color: #2A1A08; background: #E7A83A; border-color: #E7A83A; }
-.wfull { font-size: 15px; }
-.wunder { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin: 12px 0 0; font-size: 14px; }
+.wways a:hover, .wyours a:hover { color: var(--on-honey); background: var(--honey); border-color: var(--honey); }
+.wunder { margin: 12px 0 0; font-size: 14px; }
 .wyours { margin: 10px 0 0; }
 .wyourshead {
-  margin: 18px 0 6px; color: #E9E1DB;
-  font-family: Georgia, "Times New Roman", serif; font-size: 26px; line-height: 1.2;
+  margin: 18px 0 6px; color: var(--cream-2);
+  font-family: var(--serif); font-size: 26px; line-height: 1.2;
 }
 .wyourslist { margin: 14px 0 0; padding: 0; list-style: none; }
 .wyourslist li {
   display: block; margin: 0 0 8px; padding: 10px 13px; border-radius: 10px;
-  background: #171227; border: 1px solid #2A2434;
+  background: var(--cell); border: 1px solid var(--line);
 }
 .wyourslist a {
-  display: block; color: #E9E1DB; font-family: Georgia, "Times New Roman", serif;
+  display: block; color: var(--cream-2); font-family: var(--serif);
   font-weight: 700; font-size: 16px; line-height: 1.35; text-decoration: none;
 }
 .wyourslist a:hover { text-decoration: underline; text-underline-offset: 2px; }
-.wyourslist a:focus-visible { outline: 2px solid #E7A83A; outline-offset: 2px; border-radius: 3px; }
+.wyourslist a:focus-visible { outline: 2px solid var(--honey); outline-offset: 2px; border-radius: 3px; }
 .wyoursmeta {
   display: flex; gap: 10px; margin: 5px 0 0;
   font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
 }
-.wyourswhen { color: #9A93A8; }
-.wyoursstate { color: #E7A83A; }
+.wyourswhen { color: var(--dim); }
+.wyoursstate { color: var(--honey); }
 .wsaid > p { margin: 0; }
 .wundoline { margin: 10px 0 0; }
 .wundo { display: inline; margin: 0; }
 .wundo button {
-  margin: 0; padding: 2px 11px; border: 1px solid #55506A; border-radius: 999px; cursor: pointer;
-  background: transparent; color: #E9E1DB; font: inherit; font-weight: 700; line-height: 1.5;
+  margin: 0; padding: 2px 11px; border: 1px solid var(--dimmer); border-radius: 999px; cursor: pointer;
+  background: transparent; color: var(--cream-2); font: inherit; font-weight: 700; line-height: 1.5;
 }
-.wundo button:hover { border-color: #8F88A6; background: rgba(255, 255, 255, .06); }
-.wundo button:focus-visible { outline: 2px solid #E7A83A; outline-offset: 2px; }
-.wundonote { margin-left: 7px; color: #A49BAE; font-size: 13px; }
-.wlist li { --wbtn: #E7A83A; --wbtn-ink: #2A1A08; --wmark: #E7A83A; --wink: #E7A83A; }
+.wundo button:hover { border-color: var(--dim); background: rgba(255, 255, 255, .06); }
+.wundo button:focus-visible { outline: 2px solid var(--honey); outline-offset: 2px; }
+.wundonote { margin-left: 7px; color: var(--dim); font-size: 13px; }
+.wlist li { --wbtn: var(--honey); --wbtn-ink: var(--on-honey); --wmark: var(--honey); --wink: var(--honey); }
 .wlist .wbuzz { margin-left: 6px; }
 .wlist .wbuzz button { font-size: 12px; padding: 2px 9px; }
 .wlist .wmine { margin-left: 6px; }
 /* The typed field, docs/the-wall.md section 15. A form like the buzz, and
    the confirmation is drawn under it on the one request that follows. */
 .wask { margin: 0 0 12px; }
-.wasklabel { display: block; margin: 0 0 8px; font-family: Georgia, "Times New Roman", serif; font-weight: 800; font-size: 19px; color: #FFF7EE; }
+.wasklabel { display: block; margin: 0 0 8px; font-family: var(--serif); font-weight: 800; font-size: 19px; color: var(--cream); }
 .waskrow { display: flex; gap: 8px; align-items: stretch; }
 .wask .input { flex: 1; min-width: 0; padding: 11px 14px; border-radius: 12px; }
 .wask button {
   flex: none; margin: 0; padding: 0 18px; border: 0; border-radius: 12px; cursor: pointer;
-  background: #E7A83A; color: #2A1A08; font: inherit; font-weight: 800;
+  background: var(--honey); color: var(--on-honey); font: inherit; font-weight: 800;
 }
 .wask button:hover { filter: brightness(1.1); }
-.wask button:focus-visible { outline: 2px solid #FFD98A; outline-offset: 2px; }
+.wask button:focus-visible { outline: 2px solid var(--honey-lite); outline-offset: 2px; }
 .wask .wnote { margin: 8px 0 0; }
 .wsaid.wfound { display: block; }
-.wfoundhead { margin: 0 0 8px; font-family: Georgia, "Times New Roman", serif; font-weight: 800; font-size: 19px; }
+.wfoundhead { margin: 0 0 8px; font-family: var(--serif); font-weight: 800; font-size: 19px; }
 .wfound .wlist { margin: 0 0 10px; }
 .wfound .wnote { margin: 0; }
-.wfound .wnote a { color: #A49BAE; }
+.wfound .wnote a { color: var(--dim); }
 /* A run of identical checks, folded. The details element is the fold. */
 .wevery { margin: 6px 0 0; }
-.wevery > summary { cursor: pointer; color: #827B75; }
-.wevery > ul { margin: 6px 0 0; padding: 0 0 0 16px; list-style: disc; color: #827B75; }
+.wevery > summary { cursor: pointer; color: var(--dimmer); }
+.wevery > ul { margin: 6px 0 0; padding: 0 0 0 16px; list-style: disc; color: var(--dimmer); }
 .wevery > ul > li { display: list-item; background: none; border-radius: 0; padding: 1px 0; font-size: 12px; }
 `;
