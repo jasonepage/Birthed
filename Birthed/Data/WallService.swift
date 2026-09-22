@@ -54,6 +54,11 @@ final class WallService {
     /// is not drawn under the next.
     private var loadedFor: CalendarDate?
 
+    /// Event pictures for the tiles on `day`, by `WallStory.pictureKey`.
+    /// Empty until they arrive and on a date with none, which draws every
+    /// tile as a plain cell. See `HivePicture` for which pictures and why.
+    private(set) var pictures: [String: HivePicture] = [:]
+
     /// Units this account may still spend on `day`, by the server, or nil
     /// until the server has said. The only number the wall shows anybody
     /// before a date closes, and it is the reader's own.
@@ -239,6 +244,7 @@ final class WallService {
             loadedFor = date
             day = nil
             unitsLeft = nil
+            pictures = [:]
             return
         }
 
@@ -252,6 +258,12 @@ final class WallService {
         day = loaded
         unitsLeft = left
 
+        // After the board, never in front of it: a picture is decoration and
+        // the tiles draw without one. A slow answer for an earlier date is
+        // dropped rather than drawn on this one.
+        let found = await readPictures(for: loaded)
+        if loadedFor == date { pictures = found }
+
         // The reconciliation. A rank read while the hive was open can still
         // move and is corrected on the next read; one read after it sealed
         // cannot, and is written down as settled and never touched again.
@@ -262,6 +274,38 @@ final class WallService {
             notes.reconcile(with: loaded, now: now)
             if notes != before { writeNotes() }
         }
+    }
+
+    /// The pictures for the history rows on a board, in one read. Its own
+    /// request rather than `rows`, because a missing picture table is no
+    /// pictures, not the missing wall that `tableIsMissing` records.
+    private func readPictures(for day: WallDay?) async -> [String: HivePicture] {
+        guard let day else { return [:] }
+        let ids = Set(day.stories.compactMap { story -> String? in
+            guard story.subjectKind == "historical_event", let id = story.subjectID,
+                  !id.isEmpty, id.allSatisfy(\.isNumber) else { return nil }
+            return id
+        }).sorted()
+        guard !ids.isEmpty else { return [:] }
+        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
+        components?.path = "/rest/v1/event_pictures"
+        components?.percentEncodedQuery = "select=event_id,path,file,artist,license,commons_url"
+            + "&path=not.is.null&event_id=in.(\(ids.joined(separator: ",")))"
+        guard let url = components?.url else { return [:] }
+        var request = URLRequest(url: url)
+        request.setValue(anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.timeoutInterval = 15
+        guard let (data, response) = try? await session.data(for: request),
+              let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+              let list = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+        else { return [:] }
+        var out: [String: HivePicture] = [:]
+        for row in list {
+            if let read = HivePicture.from(row: row, project: baseURL) { out[read.key] = read.picture }
+        }
+        return out
     }
 
     /// True after a read answered 404, which is the project before the wall

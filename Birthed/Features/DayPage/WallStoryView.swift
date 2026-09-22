@@ -37,6 +37,9 @@ struct WallStoryView: View {
                 if let story {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 14) {
+                            if let picture = story.pictureKey.flatMap({ wall.pictures[$0] }) {
+                                pictureHeader(picture)
+                            }
                             headline(story)
                             buzzControl(story)
                             sources(story)
@@ -57,6 +60,44 @@ struct WallStoryView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
                 }
+            }
+        }
+    }
+
+    // MARK: The picture
+
+    /// The event's lead picture, and under it the credit Commons gives the
+    /// file. A freely licensed picture is only free with its credit, so the
+    /// picture is never drawn here without the line.
+    private func pictureHeader(_ picture: HivePicture) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            AsyncImage(url: picture.url) { phase in
+                if let image = phase.image {
+                    image.resizable().scaledToFill()
+                } else {
+                    Theme.card
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 170)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .accessibilityHidden(true)
+            if let page = picture.commonsURL {
+                Button {
+                    openURL(page)
+                } label: {
+                    Text(picture.credit)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
+                        .underline()
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Opens the file's page on Wikimedia Commons.")
+            } else {
+                Text(picture.credit)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -113,7 +154,7 @@ struct WallStoryView: View {
             Text(voice.button.uppercased())
                 .font(.caption.weight(.heavy))
                 .kerning(2.0)
-                .foregroundStyle(HivePalette.amber)
+                .foregroundStyle(palette.accent)
 
             Text(story.status == .shownFalse
                  ? HiveCopy.takesNone(voice: voice)
