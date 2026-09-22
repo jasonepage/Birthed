@@ -1051,6 +1051,19 @@ export interface WallOptions {
    * own. No count, no rank, nobody else's.
    */
   anniversary?: Anniversary[];
+
+  /**
+   * Whether to draw the link to this browser's own record. docs/the-wall.md
+   * section 25.
+   *
+   * True for a request carrying the token cookie and for no other, because
+   * the only thing that ever mints that token is tapping Buzz, so the link
+   * is shown to readers who have a record and to nobody else. A request
+   * that draws it is answered `no-store` for the same reason the marks and
+   * the Undo button make one: the page carries something that is one
+   * reader's own.
+   */
+  yours?: boolean;
 }
 
 /** One buzz this browser cast on this day in an earlier year. */
@@ -1059,6 +1072,57 @@ export interface Anniversary {
   headline: string;
   /** "2025-09-10". */
   wallDate: string;
+}
+
+// ---------------------------------------------------------------------------
+// The private record. docs/the-wall.md section 25.
+// ---------------------------------------------------------------------------
+
+/** One buzz on this browser's own record, as wall_web_record answers it. */
+export interface RecordRow {
+  storyId: string;
+  headline: string;
+  /** "2026-09-09". */
+  wallDate: string;
+  /** Whether the date has sealed, by the database's clock rather than this one. */
+  sealed: boolean;
+  /** The story's own status: pool, placed, overflow or false. */
+  status: string;
+  /** The latest anniversary's verdict, or null, which is every row until September 9, 2027. */
+  outcome: WallOutcomeKind | null;
+}
+
+/**
+ * Where one story on the record stands, in one word or two.
+ *
+ * The ladder in section 25, and a later fact replaces an earlier one rather
+ * than sitting beside it, so a row is one sentence. Shown false comes before
+ * everything because a story stamped false takes no more buzzes whether its
+ * date has sealed or not, and the anniversary's verdict comes before the
+ * board because it is the newer fact about the same story.
+ *
+ * Every word here is about the story. None of it is about the reader, which
+ * is the whole rule this page is built inside.
+ */
+export function recordStanding(row: Pick<RecordRow, "sealed" | "status" | "outcome">): string {
+  if (row.outcome === "false" || row.status === "false") return "Shown false";
+  if (row.outcome === "held") return "Held";
+  if (row.outcome === "forgotten") return "Forgotten";
+  if (!row.sealed) return "Open";
+  return row.status === "placed" ? "On the board" : "In the pool";
+}
+
+/**
+ * The way to this browser's own record, under the board.
+ *
+ * One link and one clause, and deliberately not a count: section 25 refuses
+ * every number on this page and a number in front of it would be the same
+ * thing one step earlier.
+ */
+export function yoursLine(yours: boolean | undefined, voice: Voice): string {
+  if (yours !== true) return "";
+  return `<p class="wnote wyours"><a href="/yours/">Everything you have ${voice.past}</a>.`
+    + ` Only you can see it, it is read from this browser, and it is not a score.</p>`;
 }
 
 export function wallSection(day: WallDay | null, name: string, now: number = Date.now(), options: WallOptions = {}): string {
@@ -1390,6 +1454,7 @@ ${board}
 ${legend}
 ${save}
 ${anniversaryBlock(options.anniversary ?? [], day, voice)}
+${yoursLine(options.yours, voice)}
 </section>`;
   }
 
@@ -1460,6 +1525,7 @@ ${board}
 ${under}
 </section>
 ${anniversaryBlock(options.anniversary ?? [], day, voice)}
+${yoursLine(options.yours, voice)}
 <section class="feed2" aria-labelledby="feedhead">
 <h2 class="section" id="feedhead">Today's feed</h2>
 <p class="wnote">Everything with a birthday on ${escapeHtml(name)}, today's and every year's. ${feedNote}</p>
@@ -2024,6 +2090,32 @@ export const WALL_STYLE = `
 }
 .wannivlist a:hover { text-decoration: underline; text-underline-offset: 2px; }
 .wannivlist a:focus-visible { outline: 2px solid #E7A83A; outline-offset: 2px; border-radius: 3px; }
+/* The private record. docs/the-wall.md section 25. The link under the board
+   is one quiet line, drawn only for a browser that has buzzed something, and
+   the page it leads to borrows the anniversary's row so the two read as the
+   same thing, which is what they are. */
+.wyours { margin: 14px 0 0; }
+.wyourshead {
+  margin: 18px 0 6px; color: #E9E1DB;
+  font-family: Georgia, "Times New Roman", serif; font-size: 26px; line-height: 1.2;
+}
+.wyourslist { margin: 14px 0 0; padding: 0; list-style: none; }
+.wyourslist li {
+  display: block; margin: 0 0 8px; padding: 10px 13px; border-radius: 10px;
+  background: #171227; border: 1px solid #2A2434;
+}
+.wyourslist a {
+  display: block; color: #E9E1DB; font-family: Georgia, "Times New Roman", serif;
+  font-weight: 700; font-size: 16px; line-height: 1.35; text-decoration: none;
+}
+.wyourslist a:hover { text-decoration: underline; text-underline-offset: 2px; }
+.wyourslist a:focus-visible { outline: 2px solid #E7A83A; outline-offset: 2px; border-radius: 3px; }
+.wyoursmeta {
+  display: flex; gap: 10px; margin: 5px 0 0;
+  font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+}
+.wyourswhen { color: #9A93A8; }
+.wyoursstate { color: #E7A83A; }
 .wsaid > p { margin: 0; }
 .wundoline { margin: 10px 0 0; }
 .wundo { display: inline; margin: 0; }

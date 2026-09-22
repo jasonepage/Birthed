@@ -2,7 +2,7 @@
 // without a network and without a browser.
 
 import { DayPage, Person, monthName, neighbours, slug, everyDate } from "./model.js";
-import { WALL_STYLE, hivePath, pictureRules, storyBody, wallSection, type Picture, type ReceiptOptions, type WallDay, type WallStory } from "./wall.js";
+import { WALL_STYLE, hivePath, pictureRules, recordStanding, storyBody, wallSection, type Picture, type RecordRow, type ReceiptOptions, type WallDay, type WallStory } from "./wall.js";
 import { CHART_NAME, coverName, SongOfTheYear } from "./songs.js";
 import { calendar } from "./calendar.js";
 import { type CulturalEvent, textOf } from "./culture.js";
@@ -2473,6 +2473,65 @@ ${FOOT}`;
 }
 
 /**
+ * This browser's own record: every story it has buzzed, and what became of
+ * each one. docs/the-wall.md section 25.
+ *
+ * A list and never a total. No count, no rank, no streak, no score, and
+ * nothing at all about anybody else: the anniversary block's rules, widened
+ * from one calendar date to all of them. The headline and the date are
+ * already public on the date page and so is the verdict; the only thing
+ * this page adds is that this browser buzzed these things, and it adds it
+ * only for that browser.
+ *
+ * Rendered per request and answered `no-store`, noindex, and running no
+ * script. It needs no widening of the security policy and must never
+ * acquire one.
+ *
+ * An empty page is not an error. A reader who cleared the cookie has an
+ * empty record and buzzes that still count, and the page says so rather
+ * than leaving them to think the buzzes were lost. A read that failed is
+ * the one case that must not answer "nothing", and `failed` is how it says
+ * so instead.
+ */
+export function renderRecord(rows: RecordRow[], failed = false): string {
+  const canonical = `${SITE}/yours/`;
+  const list = failed
+    ? `<p class="wnote wyoursnone">This page could not be read just now, and that was this end rather than yours. Nothing about your buzzes has changed. Try it again in a minute.</p>`
+    : rows.length === 0
+    ? `<p class="wnote wyoursnone">Nothing here yet. A story you buzz turns up on this page, with what became of it.</p>
+<p class="wnote">If you have buzzed something before, this browser has forgotten which: the page is read from the one random string in the cookie described on the <a href="/privacy/">privacy page</a>, so clearing it empties this list. The buzzes themselves are still on their hives and still count. There is no account here to sign in to and get them back, and there is not going to be one.</p>`
+    : `<ul class="wyourslist">
+${rows.map((row) => {
+      const { month, day } = partsOf(row.wallDate);
+      const name = `${monthName(month)} ${day}, ${row.wallDate.slice(0, 4)}`;
+      return `<li><a href="/${slug(month, day)}/wall/${row.storyId}/">${escapeHtml(row.headline)}</a>`
+        + `<span class="wyoursmeta"><span class="wyourswhen">${escapeHtml(name)}</span>`
+        + `<span class="wyoursstate">${escapeHtml(recordStanding(row))}</span></span></li>`;
+    }).join("\n")}
+</ul>
+<p class="wnote">Open means the date is still taking buzzes. On the board and In the pool are how the story ended when its date sealed. Held, Forgotten and Shown false are what became of it afterwards, and the first two cannot exist before September 9, 2027.</p>`;
+  return `${head("Everything you have buzzed",
+    "The stories this browser has buzzed on Birthed, and what became of each one. Private to this browser.",
+    canonical, undefined, true)}
+<div class="day wstory" style="--day:${dayHue(9).day};--day-soft:${dayHue(9).soft}">
+<div class="daybar">
+<a class="mark" href="/" title="Birthed home">Birthed</a>
+${barEnd()}
+</div>
+<h1 class="wyourshead">Everything you have buzzed</h1>
+<p class="wnote">Only you can see this page. It is read from this browser and it is not a score: there is no number on it, no rank, and nothing about anybody else.</p>
+${list}
+</div>
+${FOOT}`;
+}
+
+/** The month and day of a wall date, for a page that only ever gets good ones from the database. */
+function partsOf(wallDate: string): { month: number; day: number } {
+  const [, m = "1", d = "1"] = wallDate.split("-");
+  return { month: Number(m), day: Number(d) };
+}
+
+/**
  * The hive alone, as big as the window. docs/the-wall.md section 13:
  * the canvas is the product, and a canvas drawn at half a column is not one.
  * Baked with the wall the build saw and swapped live by serve.ts on the
@@ -2581,6 +2640,12 @@ export function renderRobots(): string {
   // out that it already had it, and /today/ would answer differently every
   // night. Neither is worth a crawl budget, and neither is a page anybody
   // should arrive at from a search result.
-  return `User-agent: *\nAllow: /\nDisallow: /random\nDisallow: /today\n\nSitemap: ${SITE}/sitemap.xml\n`;
+  //
+  // /yours is one browser's own record, docs/the-wall.md section 25. A
+  // crawler carries no cookie, so the only page it could file is the empty
+  // one, and that page has no business in anybody's index. The page itself
+  // also carries noindex, because a rule in a file is a request and the tag
+  // is on the page.
+  return `User-agent: *\nAllow: /\nDisallow: /random\nDisallow: /today\nDisallow: /yours\n\nSitemap: ${SITE}/sitemap.xml\n`;
 }
 

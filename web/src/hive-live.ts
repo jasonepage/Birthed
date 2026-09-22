@@ -28,7 +28,7 @@ import { slug } from "./model.js";
 import { HIVE_ALLOCATOR_JS } from "./hive-allocator.js";
 import {
   afterwords, allowanceOn, anniversaryBlock, liveTile, storyPath, subjectOf, takingBoosts, tapsLeftSentence,
-  tileKind, kindMark, voiceFor, type Anniversary, type TileKind, type WallDay, type WallStory,
+  tileKind, kindMark, voiceFor, yoursLine, type Anniversary, type TileKind, type WallDay, type WallStory,
 } from "./wall.js";
 
 function escapeHtml(value: string): string {
@@ -57,6 +57,8 @@ export interface LiveHiveOptions {
   scores?: Map<string, number>;
   /** What this browser backed on this day in earlier years. */
   anniversary?: Anniversary[];
+  /** Whether to draw the link to this browser's own record. docs/the-wall.md section 25. */
+  yours?: boolean;
 }
 
 /**
@@ -209,6 +211,7 @@ ${tiles}${empty}
 </div>
 <p class="wsave"><a href="/${slug(month, d)}/yours.png"><span class="wsaveall">Save this picture</span><span class="wsavemine">Save your version</span></a> &middot; <a href="/${slug(month, d)}/">Back to the day</a></p>
 ${anniversaryBlock(options.anniversary ?? [], day, voice)}
+${yoursLine(options.yours, voice)}
 <script type="application/json" id="hivedata">${jsonIsland(data)}</script>
 <script>${HIVE_ALLOCATOR_JS}
 ${HIVE_SHARE_JS}

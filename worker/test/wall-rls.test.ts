@@ -40,12 +40,15 @@ test("the wall tables exist and the boosts table refuses changes", {
   const policies = query("select cmd from pg_policies where schemaname = 'public' and tablename like 'wall\\_%' and cmd <> 'SELECT'");
   assert.deepEqual(policies, [], "no wall table may carry a client write policy");
   // The ways in are functions. The app's two are granted to authenticated
-  // and to nobody else; the web's boost and its standing are granted to anon
-  // and to nobody else, because the web server holds the anonymous key and
-  // an app caller has the attested path. docs/the-wall.md section 13.
-  const grants = query("select routine_name || ':' || grantee from information_schema.routine_privileges where specific_schema = 'public' and routine_name in ('wall_submit_story', 'wall_cast_boost', 'wall_cast_web_boost', 'wall_web_standing', 'wall_web_booster_id') and privilege_type = 'EXECUTE' order by 1");
+  // and to nobody else; the web's boost, its standing and its record are
+  // granted to anon and to nobody else, because the web server holds the
+  // anonymous key and an app caller has the attested path. docs/the-wall.md
+  // sections 13 and 25. wall_web_booster_id is granted to nobody at all: it
+  // turns a token into a booster and is called only from inside the three.
+  const grants = query("select routine_name || ':' || grantee from information_schema.routine_privileges where specific_schema = 'public' and routine_name in ('wall_submit_story', 'wall_cast_boost', 'wall_cast_web_boost', 'wall_web_standing', 'wall_web_record', 'wall_web_booster_id') and privilege_type = 'EXECUTE' order by 1");
   assert.deepEqual(grants.filter((g) => !g.endsWith(":postgres") && !g.endsWith(":service_role")), [
-    "wall_cast_boost:authenticated", "wall_cast_web_boost:anon", "wall_submit_story:authenticated", "wall_web_standing:anon",
+    "wall_cast_boost:authenticated", "wall_cast_web_boost:anon", "wall_submit_story:authenticated",
+    "wall_web_record:anon", "wall_web_standing:anon",
   ]);
   // How a boost was authenticated is a column the trigger fills and nothing
   // else may write; it is there on every row.

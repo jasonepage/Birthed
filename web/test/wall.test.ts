@@ -6,7 +6,7 @@ import {
   eastern,
   yearsAgo,
   BEE, PLAIN, PLAIN_DATES, VIEW_MIN, allowanceOn, emptyWallDay, fetchWall, hivePath, newestByDate, storyPath, takingBoosts,
-  tapsLeftSentence, tierLabel, units, viewportFor, voiceFor, wallMarks, wallSection, pictureRules, songParts, subjectOf, takeTurns, FEED_SHOWN, tileKind, kindMark, WALL_STYLE, hindsightLine, latestOutcome, outcomeStamp, type WallDay, type WallStory,
+  tapsLeftSentence, tierLabel, units, viewportFor, voiceFor, wallMarks, wallSection, pictureRules, songParts, subjectOf, takeTurns, FEED_SHOWN, tileKind, kindMark, WALL_STYLE, hindsightLine, latestOutcome, outcomeStamp, recordStanding, yoursLine, type WallDay, type WallStory,
 } from "../src/wall.js";
 import { picturesFor } from "../src/render.js";
 
@@ -899,4 +899,50 @@ test("a sealed board with no outcomes is drawn exactly as it was, and a verdict 
   assert.equal(latestOutcome(story())?.outcome, undefined);
   assert.equal(outcomeStamp(story({ outcomes: [{ anniversary: 1, outcome: "false", note: null, recordedAt: "" }] })), "", "a false verdict without the stamp draws nothing rather than a second word for it");
   assert.equal(hindsightLine({ stories: [story({ status: "pool", rect: null, outcomes: [{ anniversary: 1, outcome: "held", note: null, recordedAt: "" }] })] }), null, "a story that never left the pool is not counted");
+});
+
+
+// ---------------------------------------------------------------------------
+// The private record. docs/the-wall.md section 25.
+// ---------------------------------------------------------------------------
+
+test("where a story on the record stands is one word, and a later fact replaces an earlier one", () => {
+  // The ladder, from the bottom up.
+  assert.equal(recordStanding({ sealed: false, status: "pool", outcome: null }), "Open");
+  assert.equal(recordStanding({ sealed: true, status: "pool", outcome: null }), "In the pool");
+  assert.equal(recordStanding({ sealed: true, status: "overflow", outcome: null }), "In the pool");
+  assert.equal(recordStanding({ sealed: true, status: "placed", outcome: null }), "On the board");
+  // The anniversary's verdict is the newer fact about the same story, so it
+  // takes the line rather than sitting beside the board's answer.
+  assert.equal(recordStanding({ sealed: true, status: "placed", outcome: "held" }), "Held");
+  assert.equal(recordStanding({ sealed: true, status: "placed", outcome: "forgotten" }), "Forgotten");
+  // Shown false comes before everything: a story stamped false takes no more
+  // buzzes whether its date has sealed or not.
+  assert.equal(recordStanding({ sealed: false, status: "false", outcome: null }), "Shown false");
+  assert.equal(recordStanding({ sealed: true, status: "placed", outcome: "false" }), "Shown false");
+  // Every word here is about the story. None of them is about the reader.
+  for (const word of ["Open", "In the pool", "On the board", "Held", "Forgotten", "Shown false"]) {
+    assert.ok(!/\byou\b|\byour\b/i.test(word), word);
+  }
+});
+
+test("the way to the record is drawn for a browser that has buzzed something and for no other", () => {
+  assert.equal(yoursLine(false, BEE), "");
+  assert.equal(yoursLine(undefined, BEE), "");
+  const line = yoursLine(true, BEE);
+  assert.ok(line.includes('href="/yours/"'));
+  assert.ok(line.includes("buzzed"), "the hive's own word");
+  assert.ok(line.includes("not a score"));
+  // A number in front of the page would be the thing the page refuses, one
+  // step earlier. docs/the-wall.md section 25.
+  assert.ok(!/\d/.test(line), `no number belongs on this line: ${line}`);
+  // The solemn voice says it its own way, the way every other sentence does.
+  assert.ok(yoursLine(true, PLAIN).includes("backed"));
+});
+
+test("a hive draws the way to the record only when it is asked to", () => {
+  const d = day([story()]);
+  assert.ok(!wallSection(d, "September 9", LIVE_NOW).includes('href="/yours/"'));
+  assert.ok(wallSection(d, "September 9", LIVE_NOW, { yours: true }).includes('href="/yours/"'));
+  assert.ok(wallSection(d, "September 9", LIVE_NOW, { hive: true, yours: true }).includes('href="/yours/"'));
 });

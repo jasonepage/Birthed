@@ -86,6 +86,7 @@ objects each migration creates:
 | `20260911090000_story_pictures` | Yes | `story_pictures` exists |
 | `20260911100000_the_hive_moves_live` | Yes | `wall_boosts` is in the `supabase_realtime` publication |
 | `20260921000000_pin_the_search_path_on_four_functions` | No | Written September 21, tested in a rolled back transaction, not applied |
+| `20260921010000_the_private_record` | No | Written September 21, never run anywhere, not applied. `wall_web_record` does not exist on the live project, so birthed.app/yours answers 503 and its own "could not be read" line until it is |
 
 `CLAUDE.md` section 6 describes `wall_forget_boost` and the thirty second
 window as if they were running. On the live database as of September 21 they

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ASK_SLOTS, FIRST_CHART_YEAR, askCandidates, renderDayPage, renderCalendarPage, renderRobots, renderSitemap, escapeHtml, isReady, renderMePanel, meMarker, withMe} from "../src/render.js";
+import { ASK_SLOTS, FIRST_CHART_YEAR, askCandidates, renderDayPage, renderCalendarPage, renderRecord, renderRobots, renderSitemap, escapeHtml, isReady, renderMePanel, meMarker, withMe} from "../src/render.js";
+import type { RecordRow } from "../src/wall.js";
 import { everyDate, neighbours, slug } from "../src/model.js";
 
 const page = {
@@ -1059,6 +1060,64 @@ test("robots keeps the two redirects out of a crawl", () => {
   const robots = renderRobots();
   assert.ok(robots.includes("Disallow: /random"));
   assert.ok(robots.includes("Disallow: /today"));
+  // And one browser's own record, which a crawler could only ever see empty.
+  // docs/the-wall.md section 25.
+  assert.ok(robots.includes("Disallow: /yours"));
+});
+
+// ---------------------------------------------------------------------------
+// The private record. docs/the-wall.md section 25.
+// ---------------------------------------------------------------------------
+
+const RECORD: RecordRow[] = [
+  { storyId: "11111111-1111-1111-1111-111111111111", headline: "Council approves the river crossing", wallDate: "2026-09-21", sealed: false, status: "pool", outcome: null },
+  { storyId: "22222222-2222-2222-2222-222222222222", headline: "A headline with \"quotes\" & <script>", wallDate: "2026-09-09", sealed: true, status: "placed", outcome: null },
+  { storyId: "33333333-3333-3333-3333-333333333333", headline: "The one that got there first", wallDate: "2017-06-12", sealed: true, status: "placed", outcome: "held" },
+];
+
+test("the record lists the stories this browser buzzed, and nothing that is a number", () => {
+  const html = renderRecord(RECORD);
+  for (const row of RECORD) {
+    assert.ok(html.includes(`/wall/${row.storyId}/`), "every row links to its receipt");
+  }
+  assert.ok(html.includes("Council approves the river crossing"));
+  assert.ok(html.includes("September 21, 2026"));
+  assert.ok(html.includes("Open"));
+  assert.ok(html.includes("On the board"));
+  assert.ok(html.includes("Held"));
+  // Section 25 refuses every number about the reader, and this is the test
+  // that says so: no total, no rank, no streak, no count of anybody else.
+  const body = html.slice(html.indexOf("<h1"));
+  assert.ok(!/\b(\d+)\s+(buzzes|stories|backed)\b/i.test(body), `a count reached the page: ${body.slice(0, 200)}`);
+  assert.ok(!/you have backed|your score|leaderboard/i.test(body));
+  // And the page says out loud what it refuses to be, because this is the
+  // page most likely to grow a number later.
+  assert.ok(html.includes("it is not a score"));
+  // A crawler carries no cookie, so the only page it could file is empty.
+  assert.ok(html.includes('<meta name="robots" content="noindex">'));
+  // And no page on this site outside /add and /admin runs anything.
+  assert.ok(!html.includes("<script"), "the record page runs nothing");
+});
+
+test("a headline on the record is the source's wording and is escaped where it is drawn", () => {
+  const html = renderRecord(RECORD);
+  assert.ok(html.includes("&lt;script&gt;"));
+  assert.ok(!html.includes("<script>"));
+  // Never inside a style rule, which is the rule anniversaryBlock exists for:
+  // escapeHtml does not apply inside a CSS content string, and a headline
+  // carrying the characters that end a style element would spill the page.
+  const styles = [...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi)].map((m) => m[1]).join(" ");
+  assert.ok(!styles.includes("quotes"), "a source's words never go in a style rule");
+});
+
+test("an empty record says why it might be empty, and a failed read never says nothing", () => {
+  const empty = renderRecord([]);
+  assert.ok(empty.includes("Nothing here yet"));
+  assert.ok(empty.includes("clearing it empties this list"), "a cleared cookie is explained rather than left to look like a loss");
+  assert.ok(empty.includes("still count"));
+  const failed = renderRecord([], true);
+  assert.ok(failed.includes("could not be read just now"));
+  assert.ok(!failed.includes("Nothing here yet"), "an outage must never read as an empty record");
 });
 
 const HIGHLIGHT_FACT: Fact = {

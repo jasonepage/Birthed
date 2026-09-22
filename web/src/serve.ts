@@ -30,8 +30,8 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { extname, join, normalize, resolve, sep } from "node:path";
 
 import { everyDate, monthName, slug } from "./model.js";
-import { ASK_SLOTS, FIRST_CHART_YEAR, TODAY, renderMePanel, renderStoryPage, withMe } from "./render.js";
-import { ASK_MAX, easternMidnight, emptyWallDay, fetchWallDay, openWallDates, pictureRules, replaceWall, hivePath, takingBoosts, wallKey, wallMarks, wallSection, withChecks, type Anniversary, type TapBack, type WallDay } from "./wall.js";
+import { ASK_SLOTS, FIRST_CHART_YEAR, TODAY, renderMePanel, renderRecord, renderStoryPage, withMe } from "./render.js";
+import { ASK_MAX, easternMidnight, emptyWallDay, fetchWallDay, openWallDates, pictureRules, replaceWall, hivePath, takingBoosts, wallKey, wallMarks, wallSection, withChecks, type Anniversary, type RecordRow, type TapBack, type WallDay } from "./wall.js";
 import { fetchSnapshotScores, liveHiveSection, type Standing } from "./hive-live.js";
 import { answer as findAnswer } from "./find.js";
 import { fetchPictureFor, fetchPicturesFor, type StoredPicture } from "./stored-pictures.js";
@@ -862,6 +862,52 @@ async function wallStanding(wallDate: string, token: string | null): Promise<{ l
   }
 }
 
+/**
+ * Every story this browser has buzzed, with what became of each.
+ * docs/the-wall.md section 25.
+ *
+ * Null on any failure, which costs the reader the page rather than a wrong
+ * one: an empty record and an outage look the same from here, and telling
+ * somebody they have buzzed nothing when the database is down is the one
+ * answer this page must not give.
+ *
+ * Every row is checked before it is drawn, the way the anniversary's are. A
+ * headline reaches the page as the source's own wording, so it is escaped
+ * where it is drawn and never goes inside a style rule; that is the rule
+ * anniversaryBlock was moved out of wallMarks for.
+ */
+async function wallRecord(token: string | null): Promise<RecordRow[] | null> {
+  const key = process.env.SUPABASE_ANON_KEY;
+  if (!key || token === null) return null;
+  try {
+    const response = await fetch(`${projectBase()}/rest/v1/rpc/wall_web_record`, {
+      method: "POST",
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ voter_token_in: token }),
+    });
+    if (!response.ok) return null;
+    const answer = (await response.json()) as { buzzes?: unknown };
+    if (!Array.isArray(answer?.buzzes)) return null;
+    return answer.buzzes.flatMap((row): RecordRow[] => {
+      if (typeof row !== "object" || row === null) return [];
+      const { story_id: id, headline, wall_date: date, sealed, status, outcome } = row as Record<string, unknown>;
+      if (typeof id !== "string" || !UUID.test(id)) return [];
+      if (typeof headline !== "string" || headline === "") return [];
+      if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return [];
+      if (typeof status !== "string") return [];
+      const verdict = outcome === "held" || outcome === "false" || outcome === "forgotten" ? outcome : null;
+      return [{ storyId: id, headline, wallDate: date, sealed: sealed === true, status, outcome: verdict }];
+    });
+  } catch {
+    return null;
+  }
+}
+
 async function handle(
   root: string,
   request: IncomingMessage,
@@ -1108,6 +1154,30 @@ async function handle(
     return;
   }
 
+  // This browser's own record. docs/the-wall.md section 25.
+  //
+  // Not a file and never one: every word of it belongs to the browser that
+  // asked, so it is rendered per request, answered `no-store`, and carries
+  // noindex as well, because a crawler has no cookie and the page it would
+  // file is the empty one. robots.txt refuses the path too.
+  //
+  // A reader with no token has buzzed nothing and gets the empty page rather
+  // than a redirect or a miss: the address is named on the privacy page and
+  // should answer for anybody who types it. A read that fails is the one
+  // case that must not answer "nothing", so it says so instead.
+  if ((path === "/yours" || path === "/yours/") && (method === "GET" || method === "HEAD")) {
+    const token = tokenFromCookie(request.headers.cookie);
+    const rows = token === null ? [] : await wallRecord(token);
+    response.writeHead(rows === null ? 503 : 200, {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store",
+      ...securityFor(path),
+    });
+    if (method === "HEAD") { response.end(); return; }
+    response.end(renderRecord(rows ?? [], rows === null));
+    return;
+  }
+
   // Answered before the disk is touched, because neither of these is a file.  // Answered before the disk is touched, because neither of these is a file.
   // Never stored: a cached "today" is wrong by tomorrow morning, and a cached
   // "random" is the same date for everybody who asks after the first one.
@@ -1322,6 +1392,9 @@ async function handle(
       const standing = wallDate !== undefined && token !== null ? await wallStanding(wallDate, token) : null;
       const wall = await liveWall(
         marked.month, marked.day, now, fresh, marked.hive, found, undoOn, standing?.anniversary ?? [], standing,
+        // The way to this reader's own record, drawn for a browser carrying
+        // the token and for no other. docs/the-wall.md section 25.
+        token !== null,
       );
       let marks = "";
       // The reader's own taps and count, for a browser that has a token and
@@ -1363,7 +1436,11 @@ async function handle(
       // A year alone is reason enough: without this a reader who has given
       // one and done nothing else is handed the shared page, and their link
       // says "Save this picture" while the address gives them their own.
-      if (marks !== "" || anniversary || tapped !== null || found !== null || born !== null) {
+      // A token alone is reason enough as well, since September 21, 2026: the
+      // link to this browser's own record is on the page for a reader who
+      // carries one, and a page carrying it is one reader's own like the
+      // marks and is never stored.
+      if (marks !== "" || anniversary || tapped !== null || found !== null || born !== null || token !== null) {
         let html: string | null = null;
         try {
           html = await readFile(file, "utf8");
@@ -1558,6 +1635,12 @@ async function liveWall(
   anniversary: Anniversary[] = [],
   /** This browser's own standing, for the live hive alone, on a request answered no-store. */
   standing: Standing | null = null,
+  /**
+   * Whether to draw the link to this browser's own record. docs/the-wall.md
+   * section 25. True for a request carrying the token and for no other, and
+   * every such request is answered no-store by the caller.
+   */
+  yours: boolean = false,
 ): Promise<{ section: string; day: WallDay } | null> {
   const key = process.env.SUPABASE_ANON_KEY;
   if (!key) return null;
@@ -1607,7 +1690,7 @@ async function liveWall(
       scoreCache.set(wallDate, { at: now, scores });
     }
     return {
-      section: pictureRules(pictures) + liveHiveSection(wall, `${monthName(month)} ${day}`, now, { project: projectBase(), key, standing, scores, anniversary }),
+      section: pictureRules(pictures) + liveHiveSection(wall, `${monthName(month)} ${day}`, now, { project: projectBase(), key, standing, scores, anniversary, yours }),
       day: wall,
     };
   }
@@ -1624,7 +1707,7 @@ async function liveWall(
   // never the page.
   const undo = undoOn === null ? null : read.stories.find((s) => s.id === undoOn) ?? null;
   return {
-    section: pictureRules(pictures) + wallSection(wall, `${monthName(month)} ${day}`, now, { interactive: true, hive, date: { month, day }, found: stories, undo, anniversary }),
+    section: pictureRules(pictures) + wallSection(wall, `${monthName(month)} ${day}`, now, { interactive: true, hive, date: { month, day }, found: stories, undo, anniversary, yours }),
     day: wall,
   };
 }

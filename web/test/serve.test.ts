@@ -1394,3 +1394,151 @@ test("an open date's full screen hive is served live with the script, its data a
   assert.equal(plain.status, 303);
   assert.ok((plain.headers.get("location") ?? "").startsWith(`/${liveSlug}/hive/?tapped=kept`));
 });
+
+// ---------------------------------------------------------------------------
+// The private record. docs/the-wall.md section 25.
+// ---------------------------------------------------------------------------
+
+test("the record page is one browser's own, is never stored, runs nothing, and never reads as empty when the read failed", async (t) => {
+  const root = resolve("test-site-yours");
+  await rm(root, { recursive: true, force: true });
+  await mkdir(root, { recursive: true });
+  await writeFile(join(root, "404.html"), "<p>nope</p>", "utf8");
+
+  const realFetch = globalThis.fetch;
+  const previousKey = process.env.SUPABASE_ANON_KEY;
+  process.env.SUPABASE_ANON_KEY = "test-key";
+  const asked: Array<{ url: string; body: string }> = [];
+  let answer: { status: number; body: string } = {
+    status: 200,
+    body: JSON.stringify({
+      buzzes: [
+        { story_id: "11111111-1111-1111-1111-111111111111", headline: "Council approves the river crossing", wall_date: "2026-09-21", sealed: false, status: "pool", outcome: null },
+        { story_id: "22222222-2222-2222-2222-222222222222", headline: "The one that got there first", wall_date: "2017-06-12", sealed: true, status: "placed", outcome: "held" },
+        // Anything misshapen is dropped rather than drawn, the way the
+        // anniversary's rows are.
+        { story_id: "not-a-uuid", headline: "Filed under a bad identifier", wall_date: "2026-09-21", sealed: true, status: "placed", outcome: null },
+      ],
+    }),
+  };
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    if (!url.includes("supabase")) return realFetch(input, init);
+    asked.push({ url, body: String(init?.body ?? "") });
+    return new Response(answer.body, { status: answer.status, headers: { "Content-Type": "application/json" } });
+  }) as typeof fetch;
+
+  const server = start({ root, port: 0 });
+  await new Promise((done) => server.once("listening", done));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const base = `http://127.0.0.1:${address.port}`;
+
+  t.after(async () => {
+    server.close();
+    globalThis.fetch = realFetch;
+    if (previousKey === undefined) delete process.env.SUPABASE_ANON_KEY; else process.env.SUPABASE_ANON_KEY = previousKey;
+    await rm(root, { recursive: true, force: true });
+  });
+
+  // A browser that has never buzzed carries no token, so nothing is asked of
+  // the database at all and the page says what an empty record means.
+  const stranger = await realFetch(`${base}/yours/`);
+  assert.equal(stranger.status, 200);
+  assert.equal(stranger.headers.get("cache-control"), "no-store");
+  assert.equal(asked.length, 0, "a reader with no token is never looked up");
+  const strangerPage = await stranger.text();
+  assert.ok(strangerPage.includes("Nothing here yet"));
+  assert.ok(strangerPage.includes('<meta name="robots" content="noindex">'));
+  assert.ok(!strangerPage.includes("<script"), "the record page runs nothing");
+
+  // A browser with a token gets its own rows, and the token is what is sent.
+  const token = "bt=abcdefghijklmnopqrstuvwx";
+  const mine = await realFetch(`${base}/yours/`, { headers: { Cookie: token } });
+  assert.equal(mine.status, 200);
+  assert.equal(mine.headers.get("cache-control"), "no-store", "one reader's own page is never stored");
+  const page = await mine.text();
+  assert.ok(page.includes("Council approves the river crossing"));
+  assert.ok(page.includes("The one that got there first"));
+  assert.ok(page.includes("Held"));
+  assert.ok(!page.includes("Filed under a bad identifier"), "a misshapen row is dropped rather than drawn");
+  assert.equal(asked.length, 1);
+  assert.ok(asked[0]!.url.endsWith("/rpc/wall_web_record"));
+  assert.equal(JSON.parse(asked[0]!.body).voter_token_in, "abcdefghijklmnopqrstuvwx");
+  // And the address answers the same without the trailing slash.
+  assert.equal((await realFetch(`${base}/yours`, { headers: { Cookie: token } })).status, 200);
+
+  // A read that fails must never say "nothing": an outage and an empty
+  // record look the same from the server, and only one of them is the
+  // reader's own doing.
+  answer = { status: 500, body: "no" };
+  const broken = await realFetch(`${base}/yours/`, { headers: { Cookie: token } });
+  assert.equal(broken.status, 503);
+  const brokenPage = await broken.text();
+  assert.ok(brokenPage.includes("could not be read just now"));
+  assert.ok(!brokenPage.includes("Nothing here yet"));
+
+  // The page is not a place a script may run, and nothing about it widens
+  // the policy the way /add and /admin do.
+  const policy = securityFor("/yours/")["Content-Security-Policy"] ?? "";
+  assert.ok(!policy.includes("script-src"), "the record page must have no script at all");
+  assert.ok(!policy.includes("connect-src"), "and reach nothing");
+});
+
+test("the way to the record is on a date page for a browser that has buzzed, and on nobody else's", async (t) => {
+  const root = resolve("test-site-yourslink");
+  await rm(root, { recursive: true, force: true });
+  const open = openWallDates();
+  const [openKey, openDate] = [...open.entries()][1]!;
+  const [openMonth, openDay] = openKey.split("-").map(Number) as [number, number];
+  const openSlug = `${monthName(openMonth).toLowerCase()}-${openDay}`;
+  await mkdir(join(root, openSlug), { recursive: true });
+  await writeFile(join(root, openSlug, "index.html"), BAKED, "utf8");
+
+  const realFetch = globalThis.fetch;
+  const previousKey = process.env.SUPABASE_ANON_KEY;
+  process.env.SUPABASE_ANON_KEY = "test-key";
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    if (!url.includes("supabase")) return realFetch(input, init);
+    if (url.endsWith("/rpc/wall_web_standing")) {
+      return new Response(JSON.stringify({ allowance: 3, left: 3, backed: [], anniversary: [] }), {
+        status: 200, headers: { "Content-Type": "application/json" },
+      });
+    }
+    const rows = wallRows(openDate);
+    return new Response(JSON.stringify(url.includes("wall_days") ? rows.day : rows.stories), {
+      status: 200, headers: { "Content-Type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  const server = start({ root, port: 0 });
+  await new Promise((done) => server.once("listening", done));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const base = `http://127.0.0.1:${address.port}`;
+
+  t.after(async () => {
+    server.close();
+    globalThis.fetch = realFetch;
+    if (previousKey === undefined) delete process.env.SUPABASE_ANON_KEY; else process.env.SUPABASE_ANON_KEY = previousKey;
+    forgetWalls();
+    await rm(root, { recursive: true, force: true });
+  });
+
+  // A reader who has buzzed something somewhere carries the token, so the
+  // link is on the page and the page is never stored.
+  forgetWalls();
+  const mine = await realFetch(`${base}/${openSlug}/`, { headers: { Cookie: "bt=abcdefghijklmnopqrstuvwx" } });
+  assert.equal(mine.status, 200);
+  assert.equal(mine.headers.get("cache-control"), "no-store", "a page carrying one reader's own thing is never stored");
+  assert.ok((await mine.text()).includes('href="/yours/"'));
+
+  // And a browser that has never buzzed gets neither the link nor a page
+  // that had to be drawn for it alone.
+  forgetWalls();
+  const stranger = await realFetch(`${base}/${openSlug}/`);
+  assert.equal(stranger.status, 200);
+  assert.ok(!(await stranger.text()).includes('href="/yours/"'));
+  assert.match(stranger.headers.get("cache-control") ?? "", /must-revalidate/);
+});

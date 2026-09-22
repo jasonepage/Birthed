@@ -2328,8 +2328,15 @@ ladder. Nathan's call on September 21, 2026 was to do the web alone this
 time rather than add to the Swift that has not been compiled since
 September 10.
 
-**Not seen in a browser.** What a person has to see: buzz something, find
-the link under the board, open it and find that story on it with the date
-and the word Open; a browser that has never buzzed gets no link and, at the
-address itself, the empty page and its one line; and a sealed date's row
-reads On the board or In the pool.
+**Not seen in a browser, and the migration is not applied.**
+`20260921010000_the_private_record` is written and has never been run
+anywhere, not even in a rolled back transaction, so `wall_web_record` does
+not exist on the live project and the page answers 503 with its own "could
+not be read" line until somebody applies it. `docs/going-public.md` section
+6 carries that row with the others.
+
+Once it is applied, what a person has to see: buzz something, find the link
+under the board, open it and find that story on it with the date and the
+word Open; a browser that has never buzzed gets no link and, at the address
+itself, the empty page and its one line; and a sealed date's row reads On
+the board or In the pool.
