@@ -373,6 +373,14 @@ export const HIVE_LIVE_STYLE = `
 .wlive .wripple { position: absolute; z-index: 3; border-radius: 50%; pointer-events: none; background: radial-gradient(circle, rgba(255, 207, 107, .55), rgba(255, 207, 107, 0) 70%); transform: translate(-50%, -50%) scale(0); animation: wripple .8s ease-out forwards; }
 @keyframes wripple { to { transform: translate(-50%, -50%) scale(1); opacity: 0; } }
 .wlive .wsurge { position: absolute; z-index: 4; left: 50%; top: 10px; transform: translateX(-50%); background: var(--ember); color: #1B1206; font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; white-space: nowrap; animation: wsurge 1.6s ease forwards; }
+/* The rally, docs/the-wall.md section 24: the tile a link sent the reader to. */
+.wlive .wtile.wrally .wcell { border-color: var(--ember); box-shadow: 0 0 0 2px var(--ember), 0 0 30px rgba(255, 138, 61, .55); }
+.wlive .wtile:target .wcell { border-color: var(--ember); }
+.wlive .wrallybtn { flex: none; margin: 0; padding: 0 5px; height: clamp(16px, calc(44cqi / 16), 24px); border-radius: 999px; border: 1px solid rgba(255, 255, 255, .22); background: rgba(255, 255, 255, .08); color: var(--dim); cursor: pointer; font-size: 60%; letter-spacing: .04em; text-transform: uppercase; }
+.wlive .wrallybtn:hover { color: var(--cream); border-color: var(--honey); }
+.wlive .wtile.wh3 .wrallybtn { display: none; }
+.wrallyline { margin: 10px 0 0; padding: 10px 14px; border: 1px solid var(--ember); border-radius: 12px; background: rgba(255, 138, 61, .08); color: var(--cream); font-size: 14px; }
+.wrallyline b { color: var(--honey-lite); }
 .wlive .wtile.wpulse .wcell { animation: wpulse .7s cubic-bezier(.22, .61, .36, 1); }
 @keyframes wpulse { 0% { transform: scale(1); box-shadow: inset 0 0 0 rgba(255, 175, 70, 0), 0 0 0 rgba(255, 207, 107, 0); } 35% { transform: scale(1.045); box-shadow: inset 0 0 40px rgba(255, 175, 70, .55), 0 0 34px rgba(255, 207, 107, .6); } 100% { transform: scale(1); } }
 .wlive .wn.wpop { display: inline-block; animation: wpop .5s cubic-bezier(.22, .61, .36, 1); }
@@ -507,6 +515,42 @@ export const HIVE_LIVE_JS = `
       });
     } catch (e) {}
   }
+  // The rally link. docs/the-wall.md section 24. The link is this page's
+  // own address with the tile's id after the hash, which a browser never
+  // sends to a server, so nothing is stored and nobody is named. The button
+  // copies it; arriving by it lights the tile and says why.
+  function rallyLink(s) { return location.origin + location.pathname + "#w-" + s.id; }
+  function addRally(s, t) {
+    if (sealed || s.status === "false" || q(".wrallybtn", t)) return;
+    var foot = q(".wfoot", t); if (!foot) return;
+    var b = el("button", "wrallybtn"); b.type = "button"; b.textContent = "Rally";
+    b.title = "Copy a link that opens the hive with this tile lit, to send to somebody who should " + voice.one + " it";
+    b.setAttribute("aria-label", b.title);
+    b.addEventListener("click", function (e) {
+      e.preventDefault(); e.stopPropagation();
+      var link = rallyLink(s);
+      var done = function () { say("wrallied"); };
+      var fail = function () { var line = document.getElementById("wrallied"); if (line) { line.textContent = "Copy this and send it: " + link; } say("wrallied"); };
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(done, fail); else fail();
+      } catch (err) { fail(); }
+    });
+    foot.appendChild(b);
+  }
+  function arriveByRally() {
+    var m = /^#w-([0-9a-f-]{36})$/i.exec(location.hash || "");
+    if (!m) return;
+    var s = byId[m[1]]; if (!s) return;
+    var t = document.getElementById("w-" + s.id);
+    if (t) { t.classList.add("wrally"); try { t.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" }); } catch (e) {} }
+    var line = el("p", "wrallyline");
+    var lead = document.createTextNode(sealed ? "Somebody sent you here for this one. The hive has sealed, so it stands as it is: " : "Somebody sent you here to " + voice.one + " this: ");
+    var head = el("b"); head.textContent = s.headline;
+    line.appendChild(lead); line.appendChild(head);
+    board.parentNode.insertBefore(line, board);
+    var button = t ? q(".wbuzz button", t) : null;
+    if (button && !button.disabled) { try { button.focus({ preventScroll: true }); } catch (e) {} }
+  }
   function addPlay(s, t) {
     if (s.kind !== "song" || q(".wplay", t)) return;
     var foot = q(".wfoot", t); if (!foot) return;
@@ -546,6 +590,7 @@ export const HIVE_LIVE_JS = `
     if (n) n.textContent = units(s.support);
     if (backed[s.id]) { t.classList.add("wbacked"); var m = q(".wmine", t); if (m) m.style.display = "block"; var b = q(".wbuzz button", t); if (b) b.disabled = true; }
     addPlay(s, t);
+    addRally(s, t);
     t.classList.remove("wleaving");
     t.hidden = false;
   }
@@ -848,10 +893,11 @@ export const HIVE_LIVE_JS = `
   paintBudget();
   layout();
   tick(); setInterval(tick, 1000);
+  arriveByRally();
   connect();
   window.addEventListener("pagehide", function () { closedByUs = true; try { socket && socket.close(); } catch (e) {} });
 })();
 `;
 
 /** Which sentences the page can show after a buzz: the same ids afterwords writes. */
-export const LIVE_SAID_IDS = ["wkept", "wundone", "wtoolate", "walready", "wspent", "wnotyet", "wclosed", "wfalse", "wfailed"] as const;
+export const LIVE_SAID_IDS = ["wkept", "wundone", "wtoolate", "walready", "wspent", "wnotyet", "wclosed", "wfalse", "wfailed", "wrallied"] as const;

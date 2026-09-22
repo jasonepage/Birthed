@@ -1179,6 +1179,10 @@ export function afterwords(voice: Voice, name: string, undo: WallStory | null = 
   const kept = live
     ? `That counts. <span class="wshare" id="wshare"></span> <span class="wleft"></span>`
     : `That counts. <span class="wleft"></span> The hive redraws on the quarter hour, so a bigger tile takes a few minutes to show; your mark is there now.`;
+  const rallied = live
+    ? `
+<p class="wsaid" id="wrallied">Link copied. Send it to whoever should ${v.one} this. It opens the hive with that tile lit, and nothing about you or them travels with it.</p>`
+    : "";
   return `<div class="wsaids">
 <div class="wsaid" id="wkept"><p>${kept}</p>${takeItBack}</div>
 <p class="wsaid" id="wundone">Taken back. That ${v.one} is gone and you have it again. <span class="wleft"></span></p>
@@ -1188,7 +1192,7 @@ export function afterwords(voice: Voice, name: string, undo: WallStory | null = 
 <p class="wsaid" id="wnotyet">Not yet. A date takes ${v.many} from the day itself, and this one has not arrived.</p>
 <p class="wsaid" id="wclosed">This hive has sealed and is permanent now. That ${v.one} arrived after midnight and was not counted.</p>
 <p class="wsaid" id="wfalse">That story was later shown false. It keeps its place on the hive and takes no ${v.many}.</p>
-<p class="wsaid" id="wfailed">That did not save, and it was this end rather than yours. The date is fine. Try it again.</p>
+<p class="wsaid" id="wfailed">That did not save, and it was this end rather than yours. The date is fine. Try it again.</p>${rallied}
 <p class="wsaid" id="wmiss">Nothing filed for ${escapeHtml(name)} says that. Nothing was spent. Adding a story takes a link and happens in the app: <a href="/add/">get Birthed</a> and add it there, and it is filed for the date.</p>
 <p class="wsaid" id="wblank">Those words are too common to search on. Try a name, a place or what happened. Nothing was spent.</p>
 <p class="wsaid" id="wnofind">The hive could not be searched just now: either it has sealed, or this end could not reach it. Nothing was spent. Try it again.</p>

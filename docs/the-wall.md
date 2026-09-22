@@ -2150,3 +2150,38 @@ no re-cut pie.
 sealed hive is September 9, 2026 and its first anniversary is September 9,
 2027. The returning stories can be seen the first time a date's second hive
 opens, which is also a year off. Both are tested on fixtures.
+
+## 24. The rally link, September 21, 2026
+
+**What made r/place work was not teams inside the site.** It was people
+organising outside it, in subreddits and group chats, to defend one pixel.
+The hive's version needs no accounts, no contact and no new table: a link
+that points at one tile and asks for a buzz.
+
+**The link is the hive's own address with the tile's id after the hash.**
+`/september-22/hive/#w-<story id>`. A browser never sends the part after
+the hash to a server, the same fact `/add` is built on, so the link carries
+nobody, nothing is stored when it is made and nothing is logged when it is
+opened beyond that somebody opened the hive. Every tile on the live hive
+has a small Rally button that copies the link to the clipboard and says so
+in the sentence under the board; where the clipboard is refused, the
+sentence shows the link to copy by hand. No button on a sealed hive or on
+a story shown false, because there is nothing to ask for.
+
+**Arriving by it lights the tile and says why.** "Somebody sent you here to
+buzz this: <headline>", above the board, with the tile outlined in ember
+and its Buzz button focused. On a sealed hive the line says the hive has
+sealed and the tile stands as it is. A baked page has no script, so there
+the hash does what a hash does anywhere: the browser scrolls to the tile,
+and `:target` outlines it.
+
+**What this is for.** The post that launches a date needs a verb. "Here is
+the board" is a noun. "Here is the story I think matters, go buzz it" is
+what gets posted in a group chat and a subreddit, and the coordination
+happens where people already are rather than in a feature this product
+refuses to build.
+
+**Not seen in a browser.** Web tests 328 of 328. What a person has to see:
+Rally on a tile copies a link; opening that link in a second browser
+scrolls to the tile, outlines it, shows the line, and a buzz there counts
+as any buzz does.

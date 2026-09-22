@@ -213,3 +213,20 @@ test("the reader's own buzz pulses the tile, pops the count and writes the share
   assert.ok(html.includes(HIVE_SHARE_JS), "the page carries HiveShare");
   assert.ok(html.indexOf(HIVE_SHARE_JS) < html.indexOf(HIVE_LIVE_JS), "before the script that calls it");
 });
+
+// The rally link, docs/the-wall.md section 24. The link is the page's own
+// address with the tile's id after the hash, so it carries nobody and is
+// never sent to a server; arriving by it lights the tile and asks.
+test("the rally link is the page's address plus the tile's id after the hash, copied by a button and read on arrival", () => {
+  assert.ok(/function rallyLink\(s\) \{ return location\.origin \+ location\.pathname \+ "#w-" \+ s\.id; \}/.test(HIVE_LIVE_JS), "the hash and nothing else");
+  assert.ok(!/rallyLink\([^)]*\)[^;]*fetch\(/.test(HIVE_LIVE_JS), "never posted anywhere");
+  assert.ok(/function arriveByRally\(\)[\s\S]*?\/\^#w-\(\[0-9a-f-\]\{36\}\)\$\/i\.exec\(location\.hash/.test(HIVE_LIVE_JS), "read from the hash on load, a story id and nothing else");
+  assert.ok(/t\.classList\.add\("wrally"\)/.test(HIVE_LIVE_JS), "the tile is lit");
+  assert.ok(/Somebody sent you here to " \+ voice\.one \+ " this: /.test(HIVE_LIVE_JS), "and the line says why");
+  assert.ok(/if \(sealed \|\| s\.status === "false" \|\| q\("\.wrallybtn", t\)\) return;/.test(HIVE_LIVE_JS), "no button on a sealed hive or a story shown false");
+  assert.ok(HIVE_LIVE_STYLE.includes(".wlive .wtile.wrally .wcell") && HIVE_LIVE_STYLE.includes(".wlive .wtile.wh3 .wrallybtn { display: none; }"));
+  const html = liveHiveSection(day([story()]), "September 11", NOW, OPTIONS);
+  assert.ok(html.includes('id="wrallied"') && html.includes("nothing about you or them travels with it"), "the copied sentence is on the live page");
+  const baked = wallSection(day([story()]), "September 11", NOW);
+  assert.ok(!baked.includes("wrallied") && !baked.includes("wrallybtn"), "and not on a baked page, which has no script to copy with");
+});
