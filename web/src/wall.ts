@@ -646,6 +646,19 @@ export function storyPath(story: WallStory): string {
   return `/${slug(month, day)}/wall/${story.id}/`;
 }
 
+/**
+ * Whether the board offers "Save this picture". Off, September 22, 2026:
+ * without pictures on the tiles the saved square is a grid of beige text and
+ * undersells the page. The picture, the route and the reader's own version
+ * all still work; this is the one switch that shows the link again.
+ */
+export const SAVE_PICTURE = false;
+
+/** Whether the tiles on a board carry more than one tier, which is when a key to the tiers says anything. */
+export function tiersDiffer(stories: readonly Pick<WallStory, "tier">[]): boolean {
+  return new Set(stories.map((s) => s.tier)).size > 1;
+}
+
 function chip(tier: WallTier): string {
   return `<span class="wchip w-${tier}">${tierLabel(tier)}</span>`;
 }
@@ -1595,14 +1608,16 @@ ${tiles}${empty}
    * dates. The same trick as the count and the marks, and safe for the same
    * reason, which is that every word in it is generated here.
    */
-  const save = onWall.length > 0
+  const save = SAVE_PICTURE && onWall.length > 0
     ? `<p class="wsave"><a href="/${slug(month, d)}/yours.png"><span class="wsaveall">Save this picture</span><span class="wsavemine">Save your version</span></a></p>`
     : "";
 
   // The three chips and one clause. What each tier means is on the About
   // page and on every receipt; the legend's job here is only to say the
-  // colours mean something.
-  const legend = `<p class="wlegend"><span class="wchip w-seen_direct" title="${escapeHtml(tierMeaning("seen_direct"))}">Seen directly</span> <span class="wchip w-reported" title="${escapeHtml(tierMeaning("reported"))}">Reported</span> <span class="wchip w-claimed" title="${escapeHtml(tierMeaning("claimed"))}">Claimed</span> <span class="wlegendsay">Colour is how well a story is sourced, not whether it is true.</span></p>`;
+  // colours mean something. So it is drawn only when they do: a board whose
+  // tiles are all one tier has one colour, and a key to three colours on it
+  // explains a difference nobody can see. September 22, 2026.
+  const legend = !tiersDiffer(onWall) ? "" : `<p class="wlegend"><span class="wchip w-seen_direct" title="${escapeHtml(tierMeaning("seen_direct"))}">Seen directly</span> <span class="wchip w-reported" title="${escapeHtml(tierMeaning("reported"))}">Reported</span> <span class="wchip w-claimed" title="${escapeHtml(tierMeaning("claimed"))}">Claimed</span> <span class="wlegendsay">Colour is how well a story is sourced, not whether it is true.</span></p>`;
 
   if (hive) {
     return `<section class="wall whive" aria-labelledby="wallhead">

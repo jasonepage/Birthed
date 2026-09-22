@@ -27,8 +27,8 @@
 import { slug } from "./model.js";
 import { HIVE_ALLOCATOR_JS } from "./hive-allocator.js";
 import {
-  afterwords, allowanceOn, anniversaryBlock, liveTile, storyPath, subjectOf, takingBoosts, tapsLeftSentence,
-  tileKind, kindMark, voiceFor, yoursLine, type Anniversary, type TileKind, type WallDay, type WallStory,
+  SAVE_PICTURE, afterwords, allowanceOn, anniversaryBlock, liveTile, storyPath, subjectOf, takingBoosts, tapsLeftSentence,
+  tiersDiffer, tileKind, kindMark, voiceFor, yoursLine, type Anniversary, type TileKind, type WallDay, type WallStory,
 } from "./wall.js";
 
 function escapeHtml(value: string): string {
@@ -206,10 +206,10 @@ ${afterwords(voice, name, null, "hive", true)}
 ${tiles}${empty}
 </div>
 <div class="wliveunder">
-<p class="wlegend"><span class="wlg"><span class="wsw w-seen_direct"></span>Seen directly</span> <span class="wlg"><span class="wsw w-reported"></span>Reported</span> <span class="wlg"><span class="wsw w-claimed"></span>Claimed</span> <span class="wlegendsay">Brightness is how ${voice.past} a story is. The stripe is how well it is sourced, not whether it is true.</span></p>
+<p class="wlegend">${tiersDiffer(onWall) ? `<span class="wlg"><span class="wsw w-seen_direct"></span>Seen directly</span> <span class="wlg"><span class="wsw w-reported"></span>Reported</span> <span class="wlg"><span class="wsw w-claimed"></span>Claimed</span> <span class="wlegendsay">Brightness is how ${voice.past} a story is. The stripe is how well it is sourced, not whether it is true.</span>` : `<span class="wlegendsay">Brightness is how ${voice.past} a story is.</span>`}</p>
 <div class="wswarm"><p class="wswarmhead">The swarm, right now</p><div id="wswarm" aria-live="polite"><p class="wswarmrow wswarmquiet">Nobody has ${voice.past} since you arrived.</p></div></div>
 </div>
-<p class="wsave"><a href="/${slug(month, d)}/yours.png"><span class="wsaveall">Save this picture</span><span class="wsavemine">Save your version</span></a> &middot; <a href="/${slug(month, d)}/">Back to the day</a></p>
+<p class="wsave">${SAVE_PICTURE ? `<a href="/${slug(month, d)}/yours.png"><span class="wsaveall">Save this picture</span><span class="wsavemine">Save your version</span></a> &middot; ` : ""}<a href="/${slug(month, d)}/">Back to the day</a></p>
 ${anniversaryBlock(options.anniversary ?? [], day, voice)}
 ${yoursLine(options.yours, voice)}
 <script type="application/json" id="hivedata">${jsonIsland(data)}</script>

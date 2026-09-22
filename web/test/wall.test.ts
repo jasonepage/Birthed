@@ -6,7 +6,7 @@ import {
   eastern,
   yearsAgo,
   BEE, PLAIN, PLAIN_DATES, VIEW_MIN, allowanceOn, emptyWallDay, fetchWall, hivePath, newestByDate, storyPath, takingBoosts,
-  tapsLeftSentence, tierLabel, yearAttr, units, viewportFor, voiceFor, wallMarks, wallSection, pictureRules, songParts, subjectOf, takeTurns, FEED_SHOWN, tileKind, kindMark, WALL_STYLE, hindsightLine, latestOutcome, outcomeStamp, recordStanding, yoursLine, fitType, tileYear, type WallDay, type WallStory,
+  tapsLeftSentence, tierLabel, yearAttr, SAVE_PICTURE, tiersDiffer, units, viewportFor, voiceFor, wallMarks, wallSection, pictureRules, songParts, subjectOf, takeTurns, FEED_SHOWN, tileKind, kindMark, WALL_STYLE, hindsightLine, latestOutcome, outcomeStamp, recordStanding, yoursLine, fitType, tileYear, type WallDay, type WallStory,
 } from "../src/wall.js";
 import { picturesFor } from "../src/render.js";
 
@@ -74,7 +74,8 @@ test("a tile sits at its stored anchor and size, and links to its receipt", () =
   assert.ok(html.includes("Council approves the river crossing"));
   assert.ok(html.includes("example.org"));
   assert.ok(html.includes("40 buzzes"));
-  assert.ok(html.includes(">Reported<"));
+  // One tier on the board, so no key to three: the tile's colour is its tier.
+  assert.ok(!html.includes('class="wlegend"'));
   assert.ok(html.replace(/<[^>]+>/g, "").includes("Open. Seals at midnight Eastern ending September 10, 2026"));
   assert.ok(html.includes('<em class="wkey">Seals</em>'), "the coined words are set apart");
 });
@@ -248,8 +249,9 @@ test("the baked section carries no forms, and the interactive one carries a tap 
   assert.ok(!live.includes('class="wlede"'), "and no empty paragraph where it was");
   assert.ok(live.includes("Three buzzes left today."));
   assert.ok(live.includes("You buzzed this"));
-  // The evidence tiers keep their one line and nothing claims a model decided anything.
-  assert.ok(live.includes("not whether it is true."));
+  // Nothing claims a model decided anything. The tier key is drawn only when
+  // the board carries more than one tier; see "the save link and the tier key".
+  assert.ok(!live.includes('class="wlegend"'));
   assert.ok(!/verified truth|fact checked|model/i.test(live));
 });
 
@@ -864,27 +866,24 @@ test("how long ago is counted in years, because that is the only span an anniver
   assert.equal(yearsAgo("2024-02-29", "2028-02-29"), "four years ago today");
 });
 
-test("the way to get the picture is a link, and nothing more than a link", () => {
-  const section = wallSection(day([story()]), "September 9", Date.parse("2026-09-09T20:00:00Z"), { date: { month: 9, day: 9 } });
-  assert.ok(section.includes('href="/september-9/yours.png"'));
-  assert.ok(section.includes("Save this picture"));
-  // No script anywhere on this site, and no download attribute either: that
-  // saves the file without ever showing it, and somebody about to put this
-  // in a message wants to look at it first.
-  assert.ok(!section.includes("download"));
-  assert.ok(!section.includes("<script"));
-  assert.ok(!section.includes("onclick"));
-  // Both labels are baked in, because the page is shared and cannot know who
-  // is reading it. The reader's own is hidden until a rule reveals it.
-  assert.ok(section.includes("Save your version"));
-  assert.ok(WALL_STYLE.includes(".wsavemine { display: none; }"));
-  // The full screen page carries it too, since that is where somebody is
-  // already looking at the board closely.
-  const whole = renderHivePage(day([story()]), 9, 9);
-  assert.ok(whole.includes('href="/september-9/yours.png"'));
-  // A date with nothing on its board has no picture worth offering.
-  const bare = wallSection(day([]), "September 9", Date.parse("2026-09-09T20:00:00Z"), { date: { month: 9, day: 9 } });
-  assert.ok(!bare.includes("yours.png"));
+test("the save link and the tier key are off while they say nothing", () => {
+  // September 22, 2026: without pictures on the tiles the saved square
+  // undersold the page, and every seeded story is claimed, so a key to three
+  // colours explained one. The picture route still works; SAVE_PICTURE is
+  // the switch that shows the link again.
+  assert.equal(SAVE_PICTURE, false);
+  const section = wallSection(day([story({ tier: "claimed" })]), "September 9", Date.parse("2026-09-09T20:00:00Z"), { date: { month: 9, day: 9 } });
+  assert.ok(!section.includes("yours.png"), "no save link");
+  assert.ok(!section.includes("wlegend"), "no key to one colour");
+  assert.ok(!renderHivePage(day([story({ tier: "claimed" })]), 9, 9).includes("yours.png"));
+  // The key comes back by itself the day a story rises above claimed.
+  const mixed = wallSection(day([
+    story({ tier: "claimed" }),
+    story({ id: "aaaaaaaa-0000-0000-0000-00000000d002", tier: "reported", rect: { mx: 0, my: 0, w: 2, h: 1 } }),
+  ]), "September 9", Date.parse("2026-09-09T20:00:00Z"), { date: { month: 9, day: 9 } });
+  assert.ok(mixed.includes('class="wlegend"'));
+  assert.ok(tiersDiffer([{ tier: "claimed" }, { tier: "reported" }]));
+  assert.ok(!tiersDiffer([{ tier: "claimed" }, { tier: "claimed" }]));
 });
 
 // Hindsight, docs/the-wall.md section 23. The sealed board never changes;
