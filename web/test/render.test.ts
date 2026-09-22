@@ -1251,13 +1251,15 @@ test("a date page can be moved off in both directions without reaching the foot"
   assert.ok(!html.includes('class="everyday"'));
 });
 
-test("Random, Every date and About are three of the same control, each with its own mark and its word", () => {
+test("Random, Every date, About and Get the app are four of the same control, each with its own mark and its word", () => {
   const html = renderDayPage(page);
   const bar = html.slice(html.indexOf('<span class="barend">'), html.indexOf("</span>\n</div>"));
-  const pills = bar.match(/<a class="pill"/g) ?? [];
-  assert.equal(pills.length, 3, "three matching pills, not one pill and two bare words");
-  assert.equal((bar.match(/<svg class="ic"/g) ?? []).length, 3, "a drawn mark on each, not an emoji");
-  for (const word of ["Random", "Every date", "About"]) assert.ok(bar.includes(`<span>${word}</span>`), `the word ${word} stays next to its mark`);
+  const pills = bar.match(/<a class="pill[ "]/g) ?? [];
+  assert.equal(pills.length, 4, "four matching pills, not one pill and bare words");
+  assert.equal((bar.match(/<svg class="ic"/g) ?? []).length, 4, "a drawn mark on each, not an emoji");
+  for (const word of ["Random", "Every date", "About", "Get the app"]) assert.ok(bar.includes(`<span>${word}</span>`), `the word ${word} stays next to its mark`);
+  // The way to the app, from every date page, September 22, 2026.
+  assert.ok(bar.includes('href="https://testflight.apple.com/join/hzm6Mhhm"'));
   assert.ok(!bar.includes('class="get"') && !bar.includes('class="dice"'), "the old shapes are gone");
 });
 
@@ -1675,39 +1677,66 @@ test("no animation on a date page plays when the reader asked for reduced motion
   assert.equal(style.includes("animation: breathe"), false, "the dot only breathes when today.css says the date is open");
 });
 
-test("the reader's panel is built from the birth year alone, and prints no raw year", () => {
+test("the reader's panel says Your only on the reader's own date, and prints no raw year", () => {
   const now = new Date("2026-09-11T12:00:00Z");
-  const older = renderMePanel(9, 4, 1991, now);
-  assert.ok(older.includes("Your September 4"));
-  assert.ok(older.includes("You have been alive for 35 years."));
-  assert.ok(older.includes("Born in the 1990s."));
-  assert.ok(older.includes("You are older than the PlayStation, Amazon and Google."));
+  const own = renderMePanel(9, 4, { year: 1991, month: 9, day: 4 }, now);
+  assert.ok(own.includes("Your September 4"));
+  assert.ok(own.includes("You have been alive for 35 years."));
+  assert.ok(own.includes("Born in the 1990s."));
+  assert.ok(own.includes("You are older than the PlayStation, Amazon and Google."));
   // The exact birth year is never printed: the site keeps it off the page.
-  assert.ok(!older.includes("1991"));
-  assert.ok(older.includes('href="/september-4/yours.png"'));
+  assert.ok(!own.includes("1991"));
+  assert.ok(own.includes('href="/september-4/card/"'));
   // A younger reader gets both sides of the world line.
-  const young = renderMePanel(9, 4, 2005, now);
+  const young = renderMePanel(9, 4, { year: 2005, month: 9, day: 4 }, now);
   assert.ok(young.includes("You are older than the iPhone, Bitcoin and Instagram."));
   assert.ok(/were already here when you arrived\./.test(young));
   // A birthday not yet reached this year is a year younger.
-  assert.ok(renderMePanel(12, 25, 2010, now).includes("alive for 15 years"));
+  assert.ok(renderMePanel(12, 25, { year: 2010, month: 12, day: 25 }, now).includes("alive for 15 years"));
+});
+
+test("on somebody else's date the panel names the reader's own date and their real age", () => {
+  const now = new Date("2026-09-22T12:00:00Z");
+  // Hana's test, September 22, 2026: June 15, 1990, read on September 22.
+  const other = renderMePanel(9, 22, { year: 1990, month: 6, day: 15 }, now);
+  assert.ok(!other.includes("Your September 22"), "the page's date is not the reader's");
+  assert.ok(other.includes("Your birthday is June 15"));
+  assert.ok(other.includes("You have been alive for 36 years."));
+  assert.ok(other.includes('href="/june-15/"'), "and the way to their own date");
+  assert.ok(other.includes("This is September 22, not your date."));
+  assert.ok(!other.includes("the number one song the week you were born"), "no week is promised on a date that is not theirs");
+  assert.ok(!/1990(?!s)/.test(other), "the decade, never the year");
+  // The age comes from the real birthday, not from the page: born December
+  // 25, 1990, the reader is 35 on September 22, 2026 whichever page is open.
+  assert.ok(renderMePanel(3, 1, { year: 1990, month: 12, day: 25 }, now).includes("alive for 35 years"));
+});
+
+test("a cookie from before the whole birthday was kept says only what a year can support", () => {
+  const now = new Date("2026-09-22T12:00:00Z");
+  const legacy = renderMePanel(9, 22, 1990, now);
+  assert.ok(!legacy.includes("Your September 22"));
+  assert.ok(legacy.includes("Your birthday"));
+  assert.ok(legacy.includes("You turn 36 this year."));
+  assert.ok(legacy.includes('href="#birthday"'), "and the way to add the month and day");
+  assert.ok(!/1990(?!s)/.test(legacy), "the decade, never the year");
 });
 
 test("the panel promises a number one song only to a reader the charts cover", () => {
   const now = new Date("2026-09-11T12:00:00Z");
+  const on = (year: number) => renderMePanel(9, 4, { year, month: 9, day: 4 }, now);
   // Born before the strip begins: told so plainly, and still pointed below.
-  const before = renderMePanel(9, 4, 1950, now);
+  const before = on(1950);
   assert.ok(before.includes("The charts this site uses begin in 1959, so there is no number one song for the week you were born."));
   assert.ok(before.includes("Below: everyone who shares September 4 and everything that ever happened on your date."));
   assert.ok(!before.includes("the number one song the week you were born"));
-  assert.ok(before.includes('href="/september-4/yours.png"'));
+  assert.ok(before.includes('href="/september-4/card/"'));
   // 1958 is deliberately not imported, so it is on the wrong side of the line.
-  assert.ok(renderMePanel(9, 4, 1958, now).includes("begin in 1959"));
+  assert.ok(on(1958).includes("begin in 1959"));
   // From the first chart year on, the promise stands.
-  const first = renderMePanel(9, 4, 1959, now);
+  const first = on(1959);
   assert.ok(first.includes("the number one song the week you were born"));
   assert.ok(!first.includes("begin in 1959"));
-  assert.ok(renderMePanel(9, 4, 1994, now).includes("the number one song the week you were born"));
+  assert.ok(on(1994).includes("the number one song the week you were born"));
 });
 
 test("render.ts and build.ts agree on the first chart year", async () => {

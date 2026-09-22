@@ -7,7 +7,7 @@
 // uses, so the tests stayed and the name did not.
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { newToken, projectBase, tokenFromCookie, underLimit, yearFromCookie } from "../src/serve.js";
+import { birthdayCookieValue, birthdayFromCookie, newToken, projectBase, tokenFromCookie, underLimit, yearFromCookie } from "../src/serve.js";
 
 test("a token is long enough for the database to accept it", () => {
   // The function refuses anything under sixteen characters, so a token that
@@ -52,6 +52,20 @@ test("a saved birth year is read back and a hand edited one is not", () => {
   assert.equal(yearFromCookie("by=nineteen"), null);
   assert.equal(yearFromCookie("bt=abcdefghijklmnop"), null);
   assert.equal(yearFromCookie(undefined), null);
+  // The whole birthday, since September 22, 2026, still gives its year.
+  assert.equal(yearFromCookie("by=1990-06-15"), 1990);
+});
+
+test("the birthday cookie holds the whole date, and refuses one that does not exist", () => {
+  assert.deepEqual(birthdayFromCookie("bt=abcdefghijklmnop; by=1990-06-15"), { year: 1990, month: 6, day: 15 });
+  assert.deepEqual(birthdayFromCookie("by=1994"), { year: 1994, month: null, day: null }, "a cookie from before still reads, as a year");
+  assert.equal(birthdayFromCookie("by=1990-02-29"), null, "1990 had no February 29");
+  assert.deepEqual(birthdayFromCookie("by=2000-02-29"), { year: 2000, month: 2, day: 29 });
+  assert.equal(birthdayFromCookie("by=1990-13-01"), null);
+  assert.equal(birthdayFromCookie("by=1899-06-15"), null);
+  assert.equal(birthdayFromCookie("by=1990-6-15"), null, "one shape only");
+  assert.equal(birthdayCookieValue(1990, 6, 15), "1990-06-15");
+  assert.equal(birthdayCookieValue(1990, 2, 30), "1990", "an impossible date keeps the year alone");
 });
 
 test("the project is reachable without SUPABASE_URL being set anywhere", () => {

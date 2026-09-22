@@ -33,6 +33,7 @@
 
 import { agreeOnNews } from "./agree.js";
 import { monthName, slug } from "./model.js";
+import { shareBlock } from "./share-button.js";
 
 // Its own copy rather than render.ts's, because render.ts imports this file
 // for the section and the styles, and a module cycle that reads a constant
@@ -1089,8 +1090,14 @@ function songRow(story: WallStory, live: boolean, voice: Voice): string {
   const year = parts?.year ?? "";
   const title = parts?.title ?? story.headline;
   const count = units(story.support, voice);
-  const control = live && story.status !== "false" ? buzzForm(story, voice) : "";
-  return `<li id="w-${story.id}"${subjectAttr(story)}>`
+  // A song on the board already has its tile, its button and its id there.
+  // Its row here points at the tile rather than carrying a second button
+  // and a second copy of the id.
+  const onHive = story.status === "placed" || story.status === "false";
+  const control = onHive
+    ? `<a class="wonhive" href="#w-${story.id}">On the hive</a>`
+    : live ? buzzForm(story, voice) : "";
+  return `<li${onHive ? ` class="wsongonhive"` : ` id="w-${story.id}"`}${subjectAttr(story)}>`
     + `<a class="wart" href="${storyPath(story)}" title="${escapeHtml(story.headline)}"><span class="wyr"${year === "" ? "" : ` id="${year}"`}>${year}</span></a>`
     + `<span class="wsongt">${escapeHtml(title)}</span>`
     + `<span class="wsongf">${control}${count === "" ? "" : `<span class="wn">${count}</span>`}${mine(voice)}</span></li>`;
@@ -1546,6 +1553,34 @@ ${rows}
 </section>`;
 }
 
+/**
+ * The moment the board sealed, in numbers, under a sealed board. Hana's
+ * walkthrough, September 22, 2026: the hive for September 20 had 8 tiles
+ * sealed where an open hive shows 43, and nothing said why, so it read as
+ * though the seal had thrown the rest away.
+ *
+ * It had not. Nothing leaves a board when it seals. Every hive that sealed
+ * before September 22, 2026 was cut under the old rule, which put at most
+ * eight stories nobody had buzzed on the board (worker/src/wall/allocator.ts,
+ * UNBACKED_PLACED, raised to forty that day), and the sealed board is never
+ * re-cut. So this says how many buzzes the board sealed with, and, on those
+ * older hives, that the smaller board is the rule of the time.
+ */
+export const OLD_BOARD_SEALED_BY = Date.parse("2026-09-22T04:00:00Z");
+
+export function sealedLine(day: Pick<WallDay, "closesAt" | "closedAt">, onWall: Array<Pick<WallStory, "support">>, voice: Voice = BEE): string {
+  const buzzes = onWall.reduce((sum, s) => sum + Math.max(0, s.support), 0);
+  const backed = onWall.filter((s) => s.support > 0).length;
+  const tiles = onWall.length === 1 ? "1 story" : `${onWall.length} stories`;
+  const said = buzzes === 0
+    ? `Nobody ${voice.past} this hive before it sealed, so the board is the ${tiles} it opened with.`
+    : `It sealed with ${units(buzzes, voice)} on ${backed === 1 ? "1 story" : `${backed} stories`}, and those are the biggest tiles.`;
+  const older = Date.parse(day.closedAt ?? day.closesAt) <= OLD_BOARD_SEALED_BY
+    ? ` Hives that sealed before September 22, 2026 put at most eight stories nobody had ${voice.past} on the board, so they are smaller than today's.`
+    : "";
+  return said + older;
+}
+
 function wallBody(day: WallDay | null, name: string, now: number, options: WallOptions): string {
   const history = options.history ?? "";
   if (day === null) {
@@ -1572,7 +1607,11 @@ ${HISTORY_START}${history}${HISTORY_END}
   // and a cover with a year on it says more in less room than the sentence
   // does. Same pool, same button, same one buzz. Newest year first, the
   // most backed ahead of that.
-  const songs = inPool.filter((s) => s.subjectKind === "song")
+  // A number one that made the board stays in the strip too, marked as on
+  // the hive, so the years run unbroken. Hana's walkthrough, September 22,
+  // 2026: with 1980 on the board the strip jumped from 1981 to 1979 and read
+  // as missing data.
+  const songs = [...inPool, ...onWall].filter((s) => s.subjectKind === "song")
     .sort((a, b) => b.support - a.support || (songParts(b.headline)?.year ?? "").localeCompare(songParts(a.headline)?.year ?? ""));
   // One row per story rather than one per desk, most agreed first. The same
   // verdict filed by four newspapers was four rows with four buttons, which
@@ -1612,12 +1651,12 @@ ${tiles}${empty}
   /**
    * The way to get the picture, and it is a link and nothing else.
    *
-   * No script, because this site runs none and the whole argument it makes
-   * about itself depends on that. No download attribute either: it forces a
-   * save without ever showing the thing, and somebody who is going to put
-   * this in a message wants to look at it first. So it opens the picture at
-   * its own address, full size, and every browser and every phone already
-   * knows how to keep a picture from there.
+   * No script on this page, because the date pages run none. No download
+   * attribute either: it forces a save without ever showing the thing, and
+   * somebody who is going to put this in a message wants to look at it
+   * first. Since September 22, 2026 it opens the card page, /<date>/card/,
+   * which shows the picture and carries the share control, the one place
+   * a script is allowed to help send it (share-button.ts).
    *
    * Two labels, one shown. The address never carries a year and the page is
    * shared, so which label is right is not known when this is baked: a
@@ -1627,7 +1666,7 @@ ${tiles}${empty}
    * reason, which is that every word in it is generated here.
    */
   const save = SAVE_PICTURE && onWall.length > 0
-    ? `<p class="wsave"><a href="/${slug(month, d)}/yours.png"><span class="wsaveall">Save this picture</span><span class="wsavemine">Save your version</span></a></p>`
+    ? `<p class="wsave"><a href="/${slug(month, d)}/card/"><span class="wsaveall">Save this picture</span><span class="wsavemine">Save your version</span></a></p>`
     : "";
 
   // The three chips and one clause. What each tier means is on the About
@@ -1641,7 +1680,8 @@ ${tiles}${empty}
     return `<section class="wall whive" aria-labelledby="wallhead">
 <h2 class="section" id="wallhead">${escapeHtml(longDate(day))}</h2>
 ${countLine(day, now, voice, live)}${afterwords(voice, name, options.undo ?? null, "hive")}
-${board}
+${board}${closed ? `
+<p class="wnote wunder whivesealed">${escapeHtml(sealedLine(day, onWall, voice))}</p>` : ""}
 ${legend}
 ${save}
 ${anniversaryBlock(options.anniversary ?? [], day, voice)}
@@ -1693,7 +1733,7 @@ ${folded.map((s) => listRow(s, live, voice, agreed.alsoIn.get(s.id) ?? null)).jo
   const under = live
     ? `<p class="wnote wunder">A ${voice.one} makes its story bigger. Three a day. Typing spends nothing. <a href="/about/">How the hive works</a></p>`
     : closed
-      ? `<p class="wnote wunder">Every story is a link to its source. <a href="/about/">How the hive works</a></p>`
+      ? `<p class="wnote wunder">${escapeHtml(sealedLine(day, onWall, voice))} Every story is a link to its source. <a href="/about/">How the hive works</a></p>`
       : "";
 
   const songStrip = songs.length === 0 ? "" : `<h3 class="wsub small">The number one song, every year</h3>
@@ -1949,10 +1989,35 @@ ${countLine(day, now, voice)}${afterwords(voice, `${monthName(month)} ${d}`, opt
 <p class="wfacts">${status}</p>
 ${control}
 ${falseNote}
+${shareBlock({ url: `https://birthed.app/${slug(month, d)}/wall/${story.id}/`, title: story.headline, lead: "Send this story:" })}
 ${creditBlock(options.credit ?? null)}
 <h2 class="section">Sources</h2>
 <p class="wnote">The wording on the hive is the source's, never a person's. A check confirms a link resolves and that the page contains the quotation, by exact match. Nothing here decides what is true.</p>
-${story.sources.map(sourceBlock).join("\n")}`;
+${story.sources.map(sourceBlock).join("\n")}
+${relatedBlock(story, day, voice)}`;
+}
+
+/**
+ * The rest of the same hive, under a receipt. Hana's walkthrough, September
+ * 22, 2026: a story page was a dead end, and the only way on was back to the
+ * date. Five other stories from the same date and year, most buzzed first,
+ * then the ones on the board, then the date's own history ahead of the
+ * feeds, which is the order the feed itself uses. Headlines only, the
+ * source's words, each a link to its own receipt.
+ */
+export function relatedBlock(story: WallStory, day: WallDay, voice: Voice = BEE, limit: number = 5): string {
+  const { month, day: d } = parts(story.wallDate);
+  const onBoard = (s: WallStory): number => (s.status === "placed" ? 1 : 0);
+  const others = day.stories
+    .filter((s) => s.id !== story.id && s.status !== "false")
+    .sort((a, b) => b.support - a.support || onBoard(b) - onBoard(a) || b.priority - a.priority || a.submittedAt.localeCompare(b.submittedAt) || a.id.localeCompare(b.id))
+    .slice(0, limit);
+  if (others.length === 0) return "";
+  return `<h2 class="section">More from the hive for ${escapeHtml(longDate(day))}</h2>
+<ul class="wlist wrelated">
+${others.map((s) => `<li><a href="/${slug(month, d)}/wall/${s.id}/">${escapeHtml(s.headline)}</a> <span class="wmeta">${escapeHtml(s.outlet)}${s.support > 0 ? ` <span class="wn">${escapeHtml(units(s.support, voice))}</span>` : ""}</span></li>`).join("\n")}
+</ul>
+<p class="wnote"><a href="/${slug(month, d)}/">Everything on ${escapeHtml(monthName(month))} ${d}</a></p>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -2032,6 +2097,9 @@ export const WALL_STYLE = `
 .wfull a { color: #A49BAE; text-decoration: none; border-bottom: 1px solid #3A3348; }
 .wfull a:hover { color: #FFD98A; border-color: #FFD98A; }
 .walso { opacity: .85; }
+.wsongs .wonhive { font-weight: 700; color: #FFD98A; text-decoration: none; border-bottom: 1px solid #5A4420; }
+.wsongs .wonhive:hover { border-color: #FFD98A; }
+.whivesealed { max-width: 60ch; margin: 10px auto 0; text-align: center; }
 .feed2 { margin: 30px 0 0; }
 .feed2 h2.section { margin-bottom: 2px; }
 .feed2 > .wnote { margin: 0 0 12px; max-width: 60ch; }

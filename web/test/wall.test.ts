@@ -6,9 +6,10 @@ import {
   eastern,
   yearsAgo,
   BEE, PLAIN, PLAIN_DATES, VIEW_MIN, allowanceOn, emptyWallDay, fetchWall, hivePath, newestByDate, storyPath, takingBoosts,
-  tapsLeftSentence, tierLabel, yearAttr, SAVE_PICTURE, tiersDiffer, hiveDaysNav, units, viewportFor, voiceFor, wallMarks, wallSection, pictureRules, songParts, subjectOf, takeTurns, FEED_SHOWN, tileKind, kindMark, WALL_STYLE, hindsightLine, latestOutcome, outcomeStamp, recordStanding, yoursLine, fitType, tileYear, type WallDay, type WallStory,
+  tapsLeftSentence, tierLabel, yearAttr, SAVE_PICTURE, tiersDiffer, hiveDaysNav, units, viewportFor, voiceFor, wallMarks, wallSection, pictureRules, songParts, subjectOf, takeTurns, FEED_SHOWN, tileKind, kindMark, WALL_STYLE, sealedLine, hindsightLine, latestOutcome, outcomeStamp, recordStanding, yoursLine, fitType, tileYear, type WallDay, type WallStory,
 } from "../src/wall.js";
 import { picturesFor } from "../src/render.js";
+import { SHARE_SCRIPT } from "../src/share-button.js";
 
 const PAGE = { month: 9, day: 9, people: [] };
 
@@ -597,8 +598,11 @@ test("the receipt draws a run as one line with its count and its period, keeps e
   assert.equal((html.match(/the page contains the quotation, exactly/g) ?? []).length, 49, "the quotation run's detail once on the line and once per row underneath");
   // The failure is its own full line, never folded into the passes.
   assert.ok(html.includes("<td>Failed</td><td>200</td><td>the page does not contain the quotation, exactly</td>"));
-  // No script does the folding.
-  assert.ok(!/<script/i.test(html));
+  // No script does the folding. The one script on a receipt is the share
+  // control's, since September 22, 2026, and it is only that.
+  const scripts = html.match(/<script>[\s\S]*?<\/script>/g) ?? [];
+  assert.equal(scripts.length, 1);
+  assert.equal(scripts[0], `<script>${SHARE_SCRIPT}</script>`);
   assert.ok(html.includes("<details class=\"wevery\">"));
 
   // A single check is the row it always was, with no note about runs.
@@ -1130,4 +1134,47 @@ test("an open hive links the other two open hives, and marks the one being read"
   // Across a month end.
   const oct = hiveDaysNav(10, 1, Date.parse("2026-10-01T16:00:00Z"));
   assert.ok(oct.includes('href="/september-30/hive/"') && oct.includes('href="/october-2/hive/"'));
+});
+
+test("a receipt can be sent on, and leads to the rest of its hive", () => {
+  const a = story({ id: "aaaaaaaa-0000-0000-0000-000000000001", headline: "The one being read", support: 0 });
+  const b = story({ id: "aaaaaaaa-0000-0000-0000-000000000002", headline: "Buzzed <twice>", support: 2 });
+  const c = story({ id: "aaaaaaaa-0000-0000-0000-000000000003", headline: "Nobody yet", support: 0 });
+  const html = renderStoryPage(a, day([a, b, c]));
+  assert.ok(html.includes('class="sharebox"'));
+  assert.ok(html.includes(`data-url="https://birthed.app/september-9/wall/${a.id}/"`), "the address shared is the receipt's own");
+  assert.ok(html.includes("More from the hive for"));
+  assert.ok(html.indexOf("Buzzed &lt;twice&gt;") < html.indexOf("Nobody yet"), "most buzzed first, and escaped");
+  assert.ok(!html.slice(html.indexOf("More from the hive")).includes(">The one being read<"), "never the story itself");
+  // A hive of one has nothing more to show.
+  assert.ok(!renderStoryPage(a, day([a])).includes("More from the hive"));
+});
+
+test("a sealed board says what it sealed with, and why an older one is small", () => {
+  // September 20, 2026 sealed before the board grew, with nobody buzzing.
+  const old = { closesAt: "2026-09-22T04:00:00Z", closedAt: null };
+  const eight = Array.from({ length: 8 }, () => ({ support: 0 }));
+  const line = sealedLine(old, eight, BEE);
+  assert.ok(line.startsWith("Nobody buzzed this hive before it sealed, so the board is the 8 stories it opened with."));
+  assert.ok(line.includes("Hives that sealed before September 22, 2026 put at most eight stories nobody had buzzed on the board"));
+  // A later hive with buzzes on it says how many, and nothing about the old rule.
+  const later = { closesAt: "2026-09-24T04:00:00Z", closedAt: null };
+  const board = [{ support: 2 }, { support: 1 }, ...Array.from({ length: 40 }, () => ({ support: 0 }))];
+  assert.equal(sealedLine(later, board, BEE), "It sealed with 3 buzzes on 2 stories, and those are the biggest tiles.");
+  // And it is drawn under a sealed board, not an open one.
+  const s = story({ support: 0 });
+  const sealed = wallSection(day([s]), "September 9", Date.parse("2026-09-12T00:00:00Z"));
+  assert.ok(sealed.includes("Nobody buzzed this hive before it sealed"));
+  assert.ok(!wallSection(day([s]), "September 9", Date.parse("2026-09-09T20:00:00Z")).includes("before it sealed, so the board"));
+});
+
+test("a number one on the board stays in the song strip, pointing at its tile", () => {
+  const onBoard = story({ id: "aaaaaaaa-0000-0000-0000-00000000a980", headline: "1980: \"Upside Down\" by Diana Ross was the number one song", subjectKind: "song", subjectId: "1980-09-27", status: "placed", support: 1 });
+  const pooled = story({ id: "aaaaaaaa-0000-0000-0000-00000000a981", headline: "1981: \"Endless Love\" by Diana Ross and Lionel Richie was the number one song", subjectKind: "song", subjectId: "1981-09-26", status: "pool", rect: null, support: 0 });
+  const html = wallSection(day([onBoard, pooled]), "September 9", Date.parse("2026-09-09T20:00:00Z"));
+  const strip = html.slice(html.indexOf('<ul class="wsongs">'));
+  assert.ok(strip.includes('id="1980"'), "1980 is still a row in the strip");
+  assert.ok(strip.includes(`href="#w-${onBoard.id}"`), "and it points at its tile");
+  assert.equal((html.match(new RegExp(`id="w-${onBoard.id}"`, "g")) ?? []).length, 1, "the tile keeps the one id");
+  assert.ok(strip.includes('id="1981"'));
 });

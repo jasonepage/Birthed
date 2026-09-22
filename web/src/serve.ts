@@ -30,7 +30,8 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { extname, join, normalize, resolve, sep } from "node:path";
 
 import { everyDate, monthName, slug } from "./model.js";
-import { ASK_SLOTS, FIRST_CHART_YEAR, TODAY, renderMePanel, renderRecord, renderStoryPage, withMe } from "./render.js";
+import { ASK_SLOTS, FIRST_CHART_YEAR, TODAY, renderCardPage, renderMePanel, renderRecord, renderStoryPage, withMe } from "./render.js";
+import { SHARE_SCRIPT_SOURCE } from "./share-button.js";
 import { ASK_MAX, easternMidnight, emptyWallDay, fetchWallDay, hiveDaysNav, openWallDates, pictureRules, replaceWall, hivePath, takingBoosts, wallKey, wallMarks, wallSection, withChecks, type Anniversary, type RecordRow, type TapBack, type WallDay } from "./wall.js";
 import { fetchSnapshotScores, liveHiveSection, type Standing } from "./hive-live.js";
 import { answer as findAnswer } from "./find.js";
@@ -212,6 +213,20 @@ export function securityFor(requestPath: string, now: number = Date.now()): Reco
       "Content-Security-Policy":
         `default-src 'none'; img-src 'self' ${projectBase()}; style-src 'unsafe-inline' 'self'; font-src 'self'; ` +
         `script-src 'unsafe-inline'; connect-src 'self' ${apiOrigin()} ${apiOrigin().replace(/^https:/, "wss:")}; ` +
+        "base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+    };
+  }
+  // A story's receipt and a reader's card: the share script and nothing else,
+  // named by its hash, so a receipt, which prints a source's words, can run
+  // this one script and no other even if an escape were ever missed. The one
+  // request it makes is for the card's picture, from this origin.
+  // share-button.ts. September 22, 2026.
+  if (receiptFor(requestPath) !== null || cardFor(requestPath) !== null) {
+    return {
+      ...SECURITY,
+      "Content-Security-Policy":
+        `default-src 'none'; img-src 'self' ${projectBase()}; style-src 'unsafe-inline' 'self'; ` +
+        `script-src ${SHARE_SCRIPT_SOURCE}; connect-src 'self'; ` +
         "base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
     };
   }
@@ -437,6 +452,10 @@ export function redirectFor(
     return `/${todaySlug(when)}/`;
   }
 
+  // The bar's pill says Every date and the page is /calendar/, so people
+  // type the words they read. Hana did, September 22, 2026, and got a 404.
+  if (path === "/every-date" || path === "/every-day") return "/calendar/";
+
   if (path === "/today") {
     const shifted = new Date(now.getTime() - TODAY_BEHIND_UTC_HOURS * 60 * 60 * 1000);
     return `/${slug(shifted.getUTCMonth() + 1, shifted.getUTCDate())}/`;
@@ -531,21 +550,64 @@ export function newToken(): string {
 }
 
 /**
- * The birth year this browser saved, or null.
+ * The birthday this browser saved: always a year, and a month and day when
+ * the reader gave them.
  *
- * Bounded by the same 1900 to 2100 the database column checks, so a hand
- * edited cookie is treated as no year rather than as an answer the database
- * will refuse for reasons nobody can see.
+ * Until September 22, 2026 the cookie held the year alone, so the site could
+ * not tell the reader's own date from any other and wrote "Your September 22"
+ * over whichever date was open. It now holds the whole birthday as
+ * yyyy-mm-dd. A cookie from before then still reads, as a year with no month
+ * and no day, and every page that uses it says only what a year can support.
+ *
+ * Bounded by the same 1900 to 2100 the database column checks, and the month
+ * and day must be a real date in that year, so a hand edited cookie is no
+ * birthday rather than an answer that draws nonsense.
  */
-export function yearFromCookie(header: string | undefined): number | null {
+export interface Birthday {
+  year: number;
+  month: number | null;
+  day: number | null;
+}
+
+export function birthdayFromValue(raw: string): Birthday | null {
+  const value = raw.trim();
+  const whole = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (whole !== null) {
+    const year = Number(whole[1]);
+    const month = Number(whole[2]);
+    const day = Number(whole[3]);
+    if (year < 1900 || year > 2100 || !realDate(year, month, day)) return null;
+    return { year, month, day };
+  }
+  if (!/^\d{4}$/.test(value)) return null;
+  const year = Number(value);
+  return year >= 1900 && year <= 2100 ? { year, month: null, day: null } : null;
+}
+
+export function birthdayFromCookie(header: string | undefined): Birthday | null {
   for (const part of (header ?? "").split(";")) {
     const [name, ...rest] = part.trim().split("=");
-    if (name === YEAR_COOKIE) {
-      const year = Number(rest.join("=").trim());
-      if (Number.isInteger(year) && year >= 1900 && year <= 2100) return year;
-    }
+    if (name === YEAR_COOKIE) return birthdayFromValue(rest.join("="));
   }
   return null;
+}
+
+/** The birth year alone, for the pictures, which are rendered one per year. */
+export function yearFromCookie(header: string | undefined): number | null {
+  return birthdayFromCookie(header)?.year ?? null;
+}
+
+/** Whether a month and day exist in a year. February 29 only in a leap year. */
+function realDate(year: number, month: number, day: number): boolean {
+  if (!Number.isInteger(month) || !Number.isInteger(day) || month < 1 || month > 12 || day < 1) return false;
+  const at = new Date(Date.UTC(year, month - 1, day));
+  return at.getUTCMonth() === month - 1 && at.getUTCDate() === day;
+}
+
+/** What the cookie holds for a birthday: yyyy-mm-dd, or the year alone when the date is not a real one. */
+export function birthdayCookieValue(year: number, month: number, day: number): string {
+  if (!realDate(year, month, day)) return String(year);
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 export function tokenFromCookie(header: string | undefined): string | null {
@@ -959,8 +1021,11 @@ async function handle(
       ? `/${slug(month, day)}/`
       : "/";
 
+    // The whole birthday, since September 22, 2026, so the page can tell the
+    // reader's own date from every other one. It stays in this browser and
+    // comes back with each request; nothing here writes it anywhere.
     const cookie = good
-      ? `${YEAR_COOKIE}=${year}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax; Secure`
+      ? `${YEAR_COOKIE}=${birthdayCookieValue(year, month, day)}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax; Secure`
       // Choosing the blank option clears it, which is the only way off this
       // site to change your mind, and a reader who has one should have one.
       : `${YEAR_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax; Secure`;
@@ -1192,6 +1257,29 @@ async function handle(
     return;
   }
 
+  // The page around that picture, with a way to send it. Drawn per request
+  // because the heading says whether the picture is the reader's own, and
+  // never stored for the same reason.
+  const carded = method === "GET" || method === "HEAD" ? cardFor(path) : null;
+  if (carded !== null) {
+    // "Your card" only when the picture at that address will be the reader's
+    // own, which is the same stat the save link's label makes: the pictures
+    // are rendered for the open dates and a range of years, not for every one.
+    const cardYear = yearFromCookie(request.headers.cookie);
+    const cardDate = openWallDates(Date.now()).get(wallKey(carded.month, carded.day));
+    const mine = cardYear !== null && cardDate !== undefined
+      && await fileFor(join(personalRoot(), `${personalName(cardDate, cardYear)}.png`)) !== null;
+    const html = renderCardPage(carded.month, carded.day, mine);
+    response.writeHead(200, {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store",
+      Vary: "Cookie",
+      ...securityFor(path),
+    });
+    response.end(method === "HEAD" ? undefined : html);
+    return;
+  }
+
   // A reader's own picture of a hive.
   //
   // Rendered ahead of time, one per birth year on the dates whose hive is
@@ -1359,7 +1447,8 @@ async function handle(
     // The birth year is read again, for one thing only: the label on the save
     // link, because a reader who has given a year gets their own picture at
     // that address and the link should say so.
-    const born = readable ? yearFromCookie(request.headers.cookie) : null;
+    const birthday = readable ? birthdayFromCookie(request.headers.cookie) : null;
+    const born = birthday?.year ?? null;
     // The one request that follows a tap. It is allowed a fresh wall read,
     // past the twenty second cache, so the count and the mark the reader
     // just made are on the page they land on. Rate limited per address like
@@ -1423,8 +1512,8 @@ async function handle(
       // And the reader's own year in the song strip, on any date, for a
       // reader whose year the charts cover. The strip is baked into every
       // page, so this needs no wall.
-      marks += songMark(slug(marked.month, marked.day), born);
-      marks += ageMark(slug(marked.month, marked.day), born);
+      marks += songMark(slug(marked.month, marked.day), birthday);
+      marks += ageMark(slug(marked.month, marked.day), birthday);
       // An anniversary is reason enough to draw this reader their own page,
       // even on a date they have done nothing on today: it is the whole of
       // what they came back for.
@@ -1432,7 +1521,7 @@ async function handle(
       // date: their age, their decade and the world their year landed in. It
       // needs no hive, so it is what makes entering a birthday land on a date
       // that has no board yet.
-      const mePanel = born !== null ? renderMePanel(marked.month, marked.day, born, new Date(now)) : null;
+      const mePanel = birthday !== null ? renderMePanel(marked.month, marked.day, birthday, new Date(now)) : null;
       const anniversary = (standing?.anniversary.length ?? 0) > 0;
       // A year alone is reason enough: without this a reader who has given
       // one and done nothing else is handed the shared page, and their link
@@ -1540,6 +1629,41 @@ export function yoursMark(dateSlug: string, year: number | null): string {
 }
 
 /**
+ * Where a reader stands against one year's row on a date: not born yet, born
+ * that very day, born earlier that year, or an age.
+ *
+ * With the whole birthday this is exact. Born June 15, 1990, the row for
+ * September 22, 1990 is the year they were born, and the row for June 10,
+ * 1991 is before their first birthday. With a year alone, from a cookie set
+ * before September 22, 2026, the site cannot tell the reader's date from any
+ * other: the birth year's row is "the year", later rows are the year's
+ * difference, and it never says "the day" or "the week" at all, because that
+ * would be the claim the whole change exists to stop making.
+ */
+export type LifeMark =
+  | { kind: "before" }
+  | { kind: "day" }
+  | { kind: "year" }
+  | { kind: "age"; age: number };
+
+export function lifeMark(birth: Birthday, year: number, month: number, day: number): LifeMark {
+  if (year < birth.year) return { kind: "before" };
+  if (birth.month === null || birth.day === null) {
+    return year === birth.year ? { kind: "year" } : { kind: "age", age: year - birth.year };
+  }
+  const order = month - birth.month || day - birth.day;
+  if (year === birth.year) return order < 0 ? { kind: "before" } : order === 0 ? { kind: "day" } : { kind: "year" };
+  return { kind: "age", age: year - birth.year - (order < 0 ? 1 : 0) };
+}
+
+/** A year, from before the whole birthday was kept, reads as a birthday with no date. */
+function asBirthday(birth: Birthday | number | null): Birthday | null {
+  if (birth === null) return null;
+  if (typeof birth === "number") return Number.isInteger(birth) ? { year: birth, month: null, day: null } : null;
+  return birth;
+}
+
+/**
  * The one rule that picks out the reader's own year in the song strip.
  *
  * "The most popular songs stopped 10 years before I was born" was a reader
@@ -1547,6 +1671,10 @@ export function yoursMark(dateSlug: string, year: number | null): string {
  * This outlines that row and puts a short label in front of its title. The
  * strip is drawn two ways, baked with the year as the row's id and live with
  * the year as the id on the year span, and the rule matches both.
+ *
+ * "The week you were born" is said only on the reader's own date. On any
+ * other date the birth year's row is "The year you were born", and every
+ * later row carries the age the reader was on this date in that year.
  *
  * Same safety argument as yoursMark: everything inside the style block is
  * generated text. The year is an integer from the cookie, already checked,
@@ -1556,8 +1684,10 @@ export function yoursMark(dateSlug: string, year: number | null): string {
  * Empty for a reader with no year, and for a year before the charts begin,
  * because there is no row to mark.
  */
-export function songMark(dateSlug: string, year: number | null, thisYear: number = new Date().getUTCFullYear()): string {
-  if (year === null || !Number.isInteger(year) || year > thisYear) return "";
+export function songMark(dateSlug: string, birth: Birthday | number | null, thisYear: number = new Date().getUTCFullYear()): string {
+  const b = asBirthday(birth);
+  const page = dateFor(`/${dateSlug}/`);
+  if (b === null || page === null || b.year > thisYear) return "";
   const rowOf = (y: number): string => `.on-${dateSlug} .wsongs li:is([id="${y}"], :has(.wyr[id="${y}"]))`;
   // "Your life in number ones." The strip starts at the reader's own year
   // and walks forward, one card per birthday with the age on it, and the
@@ -1566,16 +1696,20 @@ export function songMark(dateSlug: string, year: number | null, thisYear: number
   // keep the one order everybody else sees and nothing is drawn twice.
   // September 22, 2026.
   let rules = `.on-${dateSlug} .wsongs li{order:1000}`;
-  for (let y = Math.max(year + 1, FIRST_CHART_YEAR); y <= thisYear; y += 1) {
-    const age = y - year;
-    rules += `${rowOf(y)}{order:${age}}${rowOf(y)} .wsongt::before{content:"You were ${age}. "}`;
+  for (let y = Math.max(b.year, FIRST_CHART_YEAR); y <= thisYear; y += 1) {
+    const mark = lifeMark(b, y, page.month, page.day);
+    if (mark.kind === "before") continue;
+    const row = rowOf(y);
+    if (mark.kind === "day") {
+      rules += `${row}{order:0;outline:2px solid #FFD98A;outline-offset:-2px}`
+        + `${row} .wsongt::before{content:"The week you were born. ";color:#FFD98A;font-weight:800}`;
+    } else if (mark.kind === "year") {
+      rules += `${row}{order:0}${row} .wsongt::before{content:"The year you were born. "}`;
+    } else {
+      rules += `${row}{order:${y - b.year}}${row} .wsongt::before{content:"${mark.age === 0 ? "Not yet 1" : `You were ${mark.age}`}. "}`;
+    }
   }
   rules += `.on-${dateSlug} .wsongs .wsongt::before{color:#FFD98A;font-weight:700}`;
-  if (year >= FIRST_CHART_YEAR) {
-    const row = rowOf(year);
-    rules += `${row}{order:0;outline:2px solid #FFD98A;outline-offset:-2px}`
-      + `${row} .wsongt::before{content:"The week you were born. ";color:#FFD98A;font-weight:800}`;
-  }
   return `<style class="wsong">${rules}</style>`;
 }
 
@@ -1586,24 +1720,32 @@ export function songMark(dateSlug: string, year: number | null, thisYear: number
  * carries that year as data-y, baked. This writes one rule per year from the
  * reader's own to this one, so the row says "You were 11" above its
  * headline, the one thing an encyclopedia's date page cannot say. Years
- * before the reader say nothing, and the year they were born says so.
+ * before the reader say nothing, and the year they were born says so, or
+ * says it was the very day on their own date.
  *
  * Same safety argument as songMark: an integer from the cookie and the
  * site's own words, never a source's.
  *
- * Known limit: the cookie holds a year and not a birthday, and the site
- * treats the date being read as the reader's own, the way the panel above
- * it does. Read on somebody else's date, an age can be one year high.
+ * With the whole birthday the age is the one the reader was on this date in
+ * that year. With a year alone, from an older cookie, it can be one high.
  */
-export function ageMark(dateSlug: string, year: number | null, thisYear: number = new Date().getUTCFullYear()): string {
-  if (year === null || !Number.isInteger(year) || year > thisYear) return "";
+export function ageMark(dateSlug: string, birth: Birthday | number | null, thisYear: number = new Date().getUTCFullYear()): string {
+  const b = asBirthday(birth);
+  const page = dateFor(`/${dateSlug}/`);
+  if (b === null || page === null || b.year > thisYear) return "";
   const rowOf = (y: number): string => `.on-${dateSlug} .wlist li[data-y="${y}"]::before`;
   // One shared look. A ::before with no content is never drawn, so the rows
   // before the reader's year, which get no content rule, stay as they were.
   let rules = `.on-${dateSlug} .wlist li[data-y]::before{display:block;font-size:12px;font-weight:700;color:#FFD98A;margin-bottom:2px}`;
-  rules += `${rowOf(year)}{content:"The year you were born"}`;
-  for (let y = year + 1; y <= thisYear; y += 1) {
-    rules += `${rowOf(y)}{content:"You were ${y - year}"}`;
+  for (let y = b.year; y <= thisYear; y += 1) {
+    const mark = lifeMark(b, y, page.month, page.day);
+    if (mark.kind === "before") continue;
+    const words = mark.kind === "day"
+      ? "The day you were born"
+      : mark.kind === "year"
+        ? "The year you were born"
+        : mark.age === 0 ? "Not yet 1" : `You were ${mark.age}`;
+    rules += `${rowOf(y)}{content:"${words}"}`;
   }
   return `<style class="wage">${rules}</style>`;
 }
@@ -1776,6 +1918,16 @@ export function receiptFor(requestPath: string): { month: number; day: number; i
   if (match === null) return null;
   for (const d of everyDate()) {
     if (slug(d.month, d.day) === match[1]) return { month: d.month, day: d.day, id: match[2]! };
+  }
+  return null;
+}
+
+/** The card a request path names, or null: "/september-22/card/". */
+export function cardFor(requestPath: string): { month: number; day: number } | null {
+  const match = /^\/([a-z]+-\d{1,2})\/card\/?(?:index\.html)?$/.exec(requestPath);
+  if (match === null) return null;
+  for (const d of everyDate()) {
+    if (slug(d.month, d.day) === match[1]) return { month: d.month, day: d.day };
   }
   return null;
 }

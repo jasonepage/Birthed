@@ -2,6 +2,7 @@
 // without a network and without a browser.
 
 import { DayPage, Person, monthName, neighbours, slug, everyDate } from "./model.js";
+import { SHARE_STYLE, shareBlock } from "./share-button.js";
 import { WALL_STYLE, hivePath, pictureRules, recordStanding, storyBody, wallSection, type Picture, type RecordRow, type ReceiptOptions, type WallDay, type WallStory } from "./wall.js";
 import { CHART_NAME, coverName, SongOfTheYear } from "./songs.js";
 import { calendar } from "./calendar.js";
@@ -58,6 +59,15 @@ export function isReady(page: DayPage, facts: Fact[] = []): boolean {
 }
 
 export const SITE = "https://birthed.app";
+
+/**
+ * The iPhone app, in beta. TestFlight is Apple's free app for trying an app
+ * before it is on the App Store. Here rather than in pages.ts because the bar
+ * and the footer on every page carry it, and pages.ts imports this file.
+ * Nathan and Jason, September 22, 2026: until then the only way to the app
+ * from the website was one line at the foot of the About page.
+ */
+export const TESTFLIGHT_URL = "https://testflight.apple.com/join/hzm6Mhhm";
 const INK = "#0E0C16";
 const ACCENT = "#EF5680";
 /* Today, in the calendar. A second hue rather than a second shade of the
@@ -373,6 +383,14 @@ const STYLE = `
 }
 .pill:hover { color: #FFF7EE; border-color: var(--day-soft, #C6B0F5); }
 .pill .ic { display: block; flex: none; }
+/* The card page: the picture as wide as the column, never wider. */
+.cardimg { display: block; width: 100%; max-width: 540px; height: auto; margin: 16px 0 0; border-radius: 14px; background: #1A1526; }
+.cardsave { margin-top: 12px; }
+/* The way to the iPhone app, in honey so it reads as the one pill that
+   leaves the site. It gives up its word first when the bar gets narrow. */
+.pill.app { color: #FFD98A; border-color: #4A3A22; }
+.pill.app:hover { color: #FFF7EE; border-color: #E7A83A; }
+@media (max-width: 820px) { .pill.app span { display: none; } .pill.app { padding: 7px 8px; min-width: 32px; justify-content: center; } }
 /* A photograph is not square. A head sits in the top third of almost every one
    of these, so a square crop takes foreheads off. */
 img.face {
@@ -721,6 +739,11 @@ h2.plain { font-family: Georgia, "Times New Roman", serif; font-weight: 800; fon
 .prose li strong { color: #F3EDE4; }
 .prose li code { font-size: 14px; padding: 1px 6px; border-radius: 6px; background: #241E2E; color: #F3EDE4; }
 .prose h3 { margin: 26px 0 4px; font-size: 17px; }
+.prose h2 { margin: 40px 0 4px; font-size: 22px; padding-top: 14px; border-top: 1px solid #2A2434; }
+.prose h2:first-child { margin-top: 8px; padding-top: 0; border-top: 0; }
+.forget { margin: 10px 0 0; }
+.forget button { font: inherit; font-size: 14px; font-weight: 700; padding: 8px 14px; border-radius: 999px; border: 1px solid #3A3348; background: #1E1A27; color: #FFF7EE; cursor: pointer; }
+.forget button:hover { border-color: #FFD98A; }
 .prose .updated { color: ${QUIET}; font-size: 13px; }
 
 /* ---- The form on /add ----------------------------------------------------
@@ -1326,6 +1349,12 @@ p.calkey .sw.today { background: none; box-shadow: inset 0 0 0 2px ${TODAY}; }
   text-decoration: none; padding: 7px 14px; border: 1px solid #3A3348; border-radius: 999px;
 }
 .bopen:hover { border-color: #FFD98A; background: #241E2E; }
+/* On a phone the bar has no room for a fourth pill, so the way to the app
+   stands beside the birthday button instead. On anything wider it is in the
+   bar and this one stays hidden. September 22, 2026. */
+.bapp { display: none; margin-left: 8px; font-size: 14px; font-weight: 600; color: #C9C2D4; text-decoration: none; padding: 7px 14px; border: 1px solid #2A2434; border-radius: 999px; }
+.bapp:hover { color: #FFF7EE; border-color: #E7A83A; }
+@media (max-width: 440px) { .bapp { display: inline-block; } .barend .pill.app { display: none; } }
 
 /* The popup itself. Hidden until its id is the page's target, which a link
    sets and the close links clear, all without a script. */
@@ -1666,7 +1695,7 @@ ${picture ? `<meta property="og:image" content="${picture.url}">
 <meta property="og:image:height" content="${picture.height}">
 <meta name="twitter:image" content="${picture.url}">` : ""}
 <meta name="twitter:card" content="summary_large_image">
-${extraHead}<style>${STYLE}${WALL_STYLE}</style>
+${extraHead}<style>${STYLE}${WALL_STYLE}${SHARE_STYLE}</style>
 </head>
 <body${bodyClass ? ` class="${bodyClass}"` : ""}><div class="wrap${bodyClass ? ` ${bodyClass}` : ""}">`;
 }
@@ -1674,7 +1703,7 @@ ${extraHead}<style>${STYLE}${WALL_STYLE}</style>
 const CREDIT = `<p>Names, years and descriptions come from <a href="https://www.wikidata.org">Wikidata</a>, released under <a href="https://creativecommons.org/publicdomain/zero/1.0/">Creative Commons Zero</a>. Credit to Wikipedia and Wikidata.</p>
 <p>Birthed is not affiliated with Wikipedia, Wikidata or the Wikimedia Foundation.</p>`;
 
-const SITELINKS = `<p class="sitelinks"><a href="/">Today</a> · <a href="/calendar/">Every date</a> · <a href="/support/">Support</a> · <a href="/privacy/">Privacy</a></p>`;
+const SITELINKS = `<p class="sitelinks"><a href="/">Today</a> · <a href="/calendar/">Every date</a> · <a href="${TESTFLIGHT_URL}">Get the iPhone app</a> · <a href="/support/">Support</a> · <a href="/privacy/">Privacy</a></p>`;
 
 /**
  * The footer, and the one sentence on it that is not a credit.
@@ -1714,7 +1743,7 @@ const SITELINKS = `<p class="sitelinks"><a href="/">Today</a> · <a href="/calen
  */
 export const FOOT = `<footer>
 ${SITELINKS}
-<p class="nothing">No account, no sign up, and nothing on this page is loaded from another company. Buzz something and one random string is kept in a cookie, so the same browser gets its few buzzes a day and no more. That is the whole of what is kept about you.</p>
+<p class="nothing">No account, no sign up, and nothing on this page is loaded from another company. Buzz something and one random string is kept in a cookie, so the same browser gets its few buzzes a day and no more. Tell the site your birthday and it is kept in a second cookie, in your browser, to draw your own page. That is the whole of what is kept about you.</p>
 ${CREDIT}
 </footer>`;
 
@@ -2085,6 +2114,7 @@ export function firstAsk(rows: TimelineRow[], _now: number = new Date().getUTCFu
 // sets on three different screens.
 const DICE = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="4.6"/><circle cx="8.4" cy="8.4" r="1.35" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.35" fill="currentColor" stroke="none"/><circle cx="15.6" cy="15.6" r="1.35" fill="currentColor" stroke="none"/></svg>`;
 const CALENDAR = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3.4" y="5" width="17.2" height="15.6" rx="3.6"/><path d="M3.4 10.2h17.2M8.2 3.2v3.6M15.8 3.2v3.6"/></svg>`;
+const PHONE = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="6.4" y="2.8" width="11.2" height="18.4" rx="2.8"/><path d="M10.6 18h2.8"/></svg>`;
 const INFO = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="8.6"/><path d="M12 11v5.2"/><circle cx="12" cy="7.9" r="0.9" fill="currentColor" stroke="none"/></svg>`;
 
 /**
@@ -2101,6 +2131,7 @@ function barEnd(options: { calendar?: boolean } = {}): string {
 <a class="pill" href="/calendar/" title="Every day of the year" aria-label="Every day of the year">${CALENDAR}<span>Every date</span></a>`)
     + `
 <a class="pill" href="/about/" title="About Birthed" aria-label="About Birthed">${INFO}<span>About</span></a>
+<a class="pill app" href="${TESTFLIGHT_URL}" title="Get the iPhone app, in beta on TestFlight" aria-label="Get the iPhone app, in beta on TestFlight">${PHONE}<span>Get the app</span></a>
 </span>`;
 }
 
@@ -2197,33 +2228,65 @@ function landmarkList(names: string[]): string {
  */
 export const FIRST_CHART_YEAR = 1959;
 
-export function renderMePanel(month: number, day: number, birthYear: number, now: Date = new Date()): string {
-  const age = ageOn(month, day, birthYear, now);
+export function renderMePanel(
+  month: number,
+  day: number,
+  birth: number | { year: number; month: number | null; day: number | null },
+  now: Date = new Date(),
+): string {
+  const b = typeof birth === "number" ? { year: birth, month: null, day: null } : birth;
+  const birthYear = b.year;
   const name = `${monthName(month)} ${day}`;
+  const known = b.month !== null && b.day !== null;
+  // Whose date this is. Until September 22, 2026 the kicker said "Your
+  // September 22" on whichever date was open, because the site kept the
+  // year alone and could not tell. Now it can, when the reader gave the whole
+  // birthday, and it says "Your" only when it is true.
+  const own = known && b.month === month && b.day === day;
+  const theirs = known ? `${monthName(b.month!)} ${b.day}` : null;
+  // The age is the reader's real one, from their own birthday. With a year
+  // alone it is the age they reach this year, which is true whichever side
+  // of their birthday today falls.
+  const age = known ? ageOn(b.month!, b.day!, birthYear, now) : now.getUTCFullYear() - birthYear;
   const decade = `${Math.floor(birthYear / 10) * 10}s`;
   // Older than: launched after you. Younger than: already here. Nearest to
   // the reader's year first, three each, so the names mean something.
   const older = LANDMARKS.filter(([y]) => y > birthYear).sort((a, b) => a[0] - b[0]).slice(0, 3).map(([, n]) => n);
   const younger = LANDMARKS.filter(([y]) => y <= birthYear).sort((a, b) => b[0] - a[0]).slice(0, 3).map(([, n]) => n);
-  const ageLine = age < 0
-    ? `You have not been born yet.`
-    : age === 0
-      ? `You turn 1 on your first ${name}.`
-      : `You have been alive for ${age} ${age === 1 ? "year" : "years"}.`;
+  const ageLine = !known
+    ? age <= 0
+      ? `You were born this year.`
+      : `You turn ${age} this year.`
+    : age < 0
+      ? `You have not been born yet.`
+      : age === 0
+        ? `You turn 1 on your first ${theirs}.`
+        : `You have been alive for ${age} ${age === 1 ? "year" : "years"}.`;
   const worlds: string[] = [];
   if (older.length > 0) worlds.push(`You are older than ${landmarkList(older)}.`);
   if (younger.length > 0) worlds.push(`${landmarkList(younger)} ${younger.length === 1 ? "was" : "were"} already here when you arrived.`);
-  // The song strip starts in 1959, so a reader born before that has no
-  // number one to be promised. Say so plainly rather than promise a row the
-  // page does not have.
-  const note = birthYear < FIRST_CHART_YEAR
-    ? `The charts this site uses begin in ${FIRST_CHART_YEAR}, so there is no number one song for the week you were born. Below: everyone who shares ${name} and everything that ever happened on your date.`
-    : `Below: everyone who shares ${name}, the number one song the week you were born, and everything that ever happened on your date.`;
+  const card = `<a href="/${slug(month, day)}/card/">Save your card</a>.`;
+  let note: string;
+  if (own) {
+    // The song strip starts in 1959, so a reader born before that has no
+    // number one to be promised. Say so plainly rather than promise a row the
+    // page does not have.
+    note = birthYear < FIRST_CHART_YEAR
+      ? `The charts this site uses begin in ${FIRST_CHART_YEAR}, so there is no number one song for the week you were born. Below: everyone who shares ${name} and everything that ever happened on your date. ${card}`
+      : `Below: everyone who shares ${name}, the number one song the week you were born, and everything that ever happened on your date. ${card}`;
+  } else if (known) {
+    note = `This is ${name}, not your date. Below, each year says how old you were on ${name} that year. <a href="/${slug(b.month!, b.day!)}/">Go to ${theirs}</a>. ${card}`;
+  } else {
+    note = `Below, each year says roughly how old you were on ${name}. Add your month and day and the site can tell your own date from every other one. <a href="#birthday">Add them</a>. ${card}`;
+  }
+  // The year itself is never printed, here or anywhere on the page. The age
+  // and the decade already say as much as the reader chose to show.
+  const kicker = own ? `Your ${name}` : known ? `Your birthday is ${theirs}` : "Your birthday";
   return `<section class="me" aria-label="Your birthday">
-<p class="mekicker">Your ${name}</p>
+<p class="mekicker">${kicker}</p>
 <p class="meage">${ageLine}</p>
 <p class="meworld">Born in the ${decade}. ${worlds.join(" ")}</p>
-<p class="menote">${note} <a href="/${slug(month, day)}/yours.png">Save your card</a>.</p>
+<p class="menote">${note}</p>
 </section>`;
 }
 
@@ -2241,7 +2304,7 @@ ${birthdayForm(big ? "When is your birthday?" : "See your own birthday", big ? "
  * the overlay's id; closing is an anchor back to no id at all.
  */
 export function renderBirthdayModal(): string {
-  return `<p class="bopenrow"><a class="bopen" href="#birthday">See your own birthday</a></p>
+  return `<p class="bopenrow"><a class="bopen" href="#birthday">See your own birthday</a><a class="bapp" href="${TESTFLIGHT_URL}">Get the iPhone app</a></p>
 <div class="bmodal" id="birthday">
 <a class="bscrim" href="#" aria-label="Close" tabindex="-1"></a>
 <form class="bbar bcard" method="post" action="/year" aria-label="See your birthday">
@@ -2490,6 +2553,40 @@ export function renderStoryPage(story: WallStory, day: WallDay, now: number = Da
 ${barEnd()}
 </div>
 ${storyBody(story, day, now, options)}
+</div>
+${FOOT}`;
+}
+
+/**
+ * A reader's card for a date, with a way to send it. Hana's walkthrough,
+ * September 22, 2026: "Save your card" opened a bare picture, which a phone
+ * can keep but cannot hand to anybody without three more steps.
+ *
+ * The picture is the same one address as before, /<date>/yours.png, chosen by
+ * the reader's cookie and never by the address, so this page names no year
+ * either. What it adds is the share control, which is one of the two pages
+ * on the site allowed to run the share script (share-button.ts), and a plain
+ * save link for everybody else. What is shared is the picture when the phone
+ * can take one, and the date page's address otherwise: never this page's,
+ * which is one reader's own.
+ */
+export function renderCardPage(month: number, day: number, mine: boolean): string {
+  const name = `${monthName(month)} ${day}`;
+  const at = slug(month, day);
+  const hue = dayHue(month);
+  const heading = mine ? `Your card for ${name}` : `The card for ${name}`;
+  return `${head(heading, `A picture of ${name} on Birthed, to keep or send.`, `${SITE}/${at}/card/`, undefined, true)}
+<div class="day wstory wcard" style="--day:${hue.day};--day-soft:${hue.soft}">
+<div class="daybar">
+<a class="mark" href="/" title="Birthed home">Birthed</a>
+${barEnd()}
+</div>
+<p class="wback"><a href="/${at}/">&larr; ${escapeHtml(name)}</a></p>
+<h1 class="wtitle">${escapeHtml(heading)}</h1>
+<p class="wnote">${mine ? "Made for you from the birthday you gave this browser. The picture carries no name and no year." : `The hive for ${escapeHtml(name)}. Give the site your birthday on the date page and this becomes your own version.`}</p>
+<img class="cardimg" src="/${at}/yours.png" alt="${escapeHtml(heading)}" width="1080" height="1080">
+${shareBlock({ url: `${SITE}/${at}/`, title: `${name} on Birthed`, file: `/${at}/yours.png` })}
+<p class="wnote cardsave"><a href="/${at}/yours.png" download="birthed-${at}.png">Save the picture</a>. On a phone you can also press and hold it.</p>
 </div>
 ${FOOT}`;
 }

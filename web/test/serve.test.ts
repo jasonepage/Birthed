@@ -1,10 +1,12 @@
 import { strict as assert } from "node:assert";
+import { createHash } from "node:crypto";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
 
-import { ageMark, openDates, pictureFor, redirectFor, resolvePath, securityFor, songMark, start, todaySlug, todayStylesheet, yearMarks, yoursMark } from "../src/serve.js";
+import { ageMark, cardFor, openDates, pictureFor, redirectFor, resolvePath, securityFor, songMark, start, todaySlug, todayStylesheet, yearMarks, yoursMark } from "../src/serve.js";
 import { personalName } from "../src/share.js";
+import { SHARE_SCRIPT_SOURCE, shareBlock } from "../src/share-button.js";
 import { monthName } from "../src/model.js";
 
 const ROOT = resolve("out");
@@ -1066,8 +1068,9 @@ test("a reader who has given a year is told the picture will be theirs", () => {
   assert.equal(yoursMark("september-4", null), "", "and nothing for a reader who never said");
 });
 
-test("a reader who has given a year has that year marked in the song strip", () => {
-  const mark = songMark("september-4", 1994);
+test("a reader has their own week marked in the song strip, on their own date only", () => {
+  const own = { year: 1994, month: 9, day: 4 };
+  const mark = songMark("september-4", own);
   assert.ok(mark.startsWith("<style"));
   assert.ok(mark.endsWith("</style>"));
   // Both shapes of the strip: the baked row carries the id, the live row's
@@ -1078,16 +1081,25 @@ test("a reader who has given a year has that year marked in the song strip", () 
   // Only generated text goes in: a year and the site's own label.
   assert.equal(mark.split("<").length, 3, "the only tags are the style element's own");
   assert.equal(songMark("september-4", null), "", "and nothing for a reader who never said");
+  // On somebody else's date the birth year's row is the year, never the week.
+  const other = songMark("september-22", { year: 1990, month: 6, day: 15 }, 2026);
+  assert.ok(!other.includes("The week you were born"));
+  assert.ok(other.includes('content:"The year you were born. "'));
+  assert.ok(!other.includes("outline"), "the outline is for the reader's own week alone");
+  // A cookie holding a year alone cannot know the reader's date, so it never
+  // says week either. Hana's walkthrough, September 22, 2026.
+  assert.ok(!songMark("september-4", 1994).includes("The week you were born"));
   // A reader born before the charts has no week to mark, but still has an
   // age on every row the charts do cover.
-  assert.ok(!songMark("september-4", 1943, 2026).includes("The week you were born"));
-  assert.ok(songMark("september-4", 1943, 2026).includes('[id="1959"], :has(.wyr[id="1959"]))'));
-  assert.ok(songMark("september-4", 1943, 2026).includes('content:"You were 16. "'));
-  assert.ok(songMark("september-4", 1959) !== "", "1959 is the first year with a row");
+  const early = { year: 1943, month: 9, day: 4 };
+  assert.ok(!songMark("september-4", early, 2026).includes("The week you were born"));
+  assert.ok(songMark("september-4", early, 2026).includes('[id="1959"], :has(.wyr[id="1959"]))'));
+  assert.ok(songMark("september-4", early, 2026).includes('content:"You were 16. "'));
+  assert.ok(songMark("september-4", { year: 1959, month: 9, day: 4 }) !== "", "1959 is the first year with a row");
 });
 
 test("the song strip starts at the reader's year and walks forward, with the age on each card", () => {
-  const mark = songMark("september-22", 2002, 2026);
+  const mark = songMark("september-22", { year: 2002, month: 9, day: 22 }, 2026);
   const row = (y: number): string => `.on-september-22 .wsongs li:is([id="${y}"], :has(.wyr[id="${y}"]))`;
   // Everything else goes to the back, in the order it was baked.
   assert.ok(mark.includes(".on-september-22 .wsongs li{order:1000}"));
@@ -1101,18 +1113,38 @@ test("the song strip starts at the reader's year and walks forward, with the age
   assert.equal(mark.split("<").length, 3);
 });
 
+test("the age on a card is the age on that date, not the difference of the years", () => {
+  // Born September 30, 2002, read on September 22: the 2002 row is a week
+  // before the reader existed, 2003 is before their first birthday, and
+  // 2018 finds them 15, not 16.
+  const mark = songMark("september-22", { year: 2002, month: 9, day: 30 }, 2026);
+  const row = (y: number): string => `.on-september-22 .wsongs li:is([id="${y}"], :has(.wyr[id="${y}"]))`;
+  assert.ok(!mark.includes(row(2002)), "not born yet on September 22, 2002");
+  assert.ok(mark.includes(`${row(2003)} .wsongt::before{content:"Not yet 1. "}`));
+  assert.ok(mark.includes(`${row(2018)} .wsongt::before{content:"You were 15. "}`));
+  // And a date later in the year than the birthday, in the birth year, is
+  // the year they were born.
+  const later = ageMark("december-1", { year: 2002, month: 9, day: 30 }, 2026);
+  assert.ok(later.includes('li[data-y="2002"]::before{content:"The year you were born"}'));
+  assert.ok(later.includes('li[data-y="2018"]::before{content:"You were 16"}'));
+});
+
 test("a dated feed row carries the reader's age, and only from their own year", () => {
-  const mark = ageMark("september-22", 2002, 2026);
+  const mark = ageMark("september-22", { year: 2002, month: 9, day: 22 }, 2026);
   assert.ok(mark.startsWith('<style class="wage">'));
   assert.ok(mark.endsWith("</style>"));
-  assert.ok(mark.includes('.on-september-22 .wlist li[data-y="2002"]::before{content:"The year you were born"}'));
+  assert.ok(mark.includes('.on-september-22 .wlist li[data-y="2002"]::before{content:"The day you were born"}'));
   assert.ok(mark.includes('.on-september-22 .wlist li[data-y="2013"]::before{content:"You were 11"}'));
   assert.ok(mark.includes('.on-september-22 .wlist li[data-y="2026"]::before{content:"You were 24"}'));
   assert.ok(!mark.includes('data-y="2001"'), "a year before the reader says nothing");
   assert.ok(!mark.includes('data-y="2027"'));
   assert.equal(mark.split("<").length, 3, "the only tags are the style element's own");
   assert.equal(ageMark("september-22", null, 2026), "", "and nothing for a reader who never said");
-  assert.equal(ageMark("september-22", 2030, 2026), "", "or for a year that has not happened");
+  assert.equal(ageMark("september-22", { year: 2030, month: 1, day: 1 }, 2026), "", "or for a year that has not happened");
+  // A year alone keeps the old reading: the year, then the difference.
+  const legacy = ageMark("september-22", 2002, 2026);
+  assert.ok(legacy.includes('li[data-y="2002"]::before{content:"The year you were born"}'));
+  assert.ok(legacy.includes('li[data-y="2013"]::before{content:"You were 11"}'));
 });
 
 /**
@@ -1177,7 +1209,7 @@ test("a birth year alone is enough to change the label, and to stop the page bei
   // in the song strip, and the one that puts their age on the feed's dated
   // rows. Outside those two elements it is nowhere.
   const songStyle = /<style class="wsong">[^<]*<\/style>/.exec(mineBody)?.[0] ?? "";
-  assert.ok(songStyle.includes(`.on-${openSlug} .wsongs li:is([id="1994"], :has(.wyr[id="1994"])){order:0;`), "the reader's own year is marked in the song strip");
+  assert.ok(songStyle.includes(`.on-${openSlug} .wsongs li:is([id="1994"], :has(.wyr[id="1994"])){order:0`), "the reader's own year is marked in the song strip");
   assert.ok(mineBody.includes(`<style class="wage">`), "and the feed's dated rows are told the reader's age");
   assert.ok(!mineBody.replace(/<style class="wsong">[^<]*<\/style>/, "").replace(/<style class="wage">[^<]*<\/style>/, "").includes("1994"), "and the year itself is nowhere else on it");
 
@@ -1291,7 +1323,7 @@ test("only the live hive path runs a script, opens a socket to the project and l
   assert.match(hive, /form-action 'self'/, "the buzz form still posts without the script");
   assert.match(hive, /img-src 'self' https:\/\/[a-z0-9]+\.supabase\.co;/, "pictures from here and the project, as everywhere");
   assert.equal(securityFor("/september-10/hive/", now)["Content-Security-Policy"], hive, "yesterday's hive is live too");
-  for (const path of ["/september-11/", "/september-12/hive/", "/march-3/hive/", "/september-11/wall/11111111-1111-1111-1111-111111111111/", "/", "/calendar/"]) {
+  for (const path of ["/september-11/", "/september-12/hive/", "/march-3/hive/", "/", "/calendar/"]) {
     const policy = securityFor(path, now)["Content-Security-Policy"] ?? "";
     assert.ok(!policy.includes("script-src"), `${path} must run nothing`);
     assert.ok(!policy.includes("connect-src"), `${path} must reach nothing`);
@@ -1576,4 +1608,29 @@ test("the way to the record is on a date page for a browser that has buzzed, and
   assert.equal(stranger.status, 200);
   assert.ok(!(await stranger.text()).includes('href="/yours/"'));
   assert.match(stranger.headers.get("cache-control") ?? "", /must-revalidate/);
+});
+
+test("a receipt and a card run the share script and nothing else, named by its hash", () => {
+  const now = Date.parse("2026-09-11T20:00:00Z");
+  for (const path of ["/september-11/wall/11111111-1111-1111-1111-111111111111/", "/march-3/wall/11111111-1111-1111-1111-111111111111/index.html", "/september-22/card/", "/september-22/card"]) {
+    const policy = securityFor(path, now)["Content-Security-Policy"] ?? "";
+    assert.ok(policy.includes(`script-src ${SHARE_SCRIPT_SOURCE};`), `${path} may run the share script`);
+    assert.ok(!/script-src[^;]*unsafe-inline/.test(policy), `${path} may not run inline script in general`);
+    assert.match(policy, /connect-src 'self';/, "the one request is for the card's picture, from here");
+    assert.ok(!policy.includes("font-src"));
+  }
+  // The header names exactly the script the pages print.
+  const printed = /<script>([\s\S]*?)<\/script>/.exec(shareBlock({ url: "https://birthed.app/september-22/", title: "x" }))?.[1] ?? "";
+  assert.equal(`'sha256-${createHash("sha256").update(printed).digest("base64")}'`, SHARE_SCRIPT_SOURCE);
+  // Nothing near those paths is widened.
+  for (const path of ["/september-22/cards/", "/september-22/card/extra", "/september-22/wall/", "/september-22/"]) {
+    assert.ok(!(securityFor(path, now)["Content-Security-Policy"] ?? "").includes("script-src"), `${path} runs nothing`);
+  }
+  assert.deepEqual(cardFor("/september-22/card/"), { month: 9, day: 22 });
+  assert.equal(cardFor("/february-31/card/"), null);
+});
+
+test("the words on the bar are an address too", () => {
+  assert.equal(redirectFor("/every-date/"), "/calendar/");
+  assert.equal(redirectFor("/every-date"), "/calendar/");
 });
