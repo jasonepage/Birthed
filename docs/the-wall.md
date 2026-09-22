@@ -2584,3 +2584,93 @@ can still draw the same verdict twice and can still lead with the Week 3 bets.
 The same clustering answers that and it is the next commit. It is separate
 because the feed can be read against the live day and the board cannot be until
 a deploy lands.
+
+## 29. Does it look like history, September 22, 2026
+
+Section 28 ranked the feed by how many desks carried a story. Nathan pushed
+back on the sentence under it, which said the ranking needed no model and
+treated that as a virtue. He was right to. The no script rule on this site is
+about the reader's browser, and it was carried somewhere it does not belong.
+
+Counting desks measures what newsrooms covered today. This site asks what will
+still matter in twenty years. Those are different questions, and the second one
+is the whole product. Fourteen desks covering a speech at the United Nations
+says nothing about 2046.
+
+### The corpus nobody else has
+
+The database holds 19,750 rows in `historical_events`, from the year 4 to
+2026, one for every thing Wikipedia still lists under a date. That is not a
+list of news. It is a list of what survived. Every row is an event that was
+still worth writing down a decade or a century after the day it happened.
+
+A news aggregator has today's stories. This one has today's stories sitting
+next to twenty thousand labelled examples of durability, on the same 366
+dates. Nothing else in the design is as valuable and it has never been used.
+
+So: score a story by how much it rhymes with the things that lasted.
+
+### The three signals
+
+None of them alone is enough, and all three are computed in the worker, which
+runs every fifteen minutes with nobody waiting on it. Nothing here happens
+while a reader loads a page. The page reads a number the worker already wrote.
+
+**One, the rhyme.** Every historical event is embedded once. Every story is
+embedded when the importer files it. A story's lasting score is its mean
+similarity to its nearest historical neighbours. The claim underneath is that
+history repeats in kind: a coup, a treaty, a first flight, a verdict after a
+massacre, a bridge opening. A story close to many things that lasted is of a
+kind that lasts. A story with no close neighbour anywhere in twenty thousand
+years of record is "Early bets for Week 3: Three games to target right away".
+
+The nearest single event is kept and shown, because it is the best part. A
+tile that says what it rhymes with is doing something no news site does, and it
+is checkable, which is the only kind of claim this site makes.
+
+**Two, the centre of the day.** Section 28 counts desks, which misses the case
+where one event throws off five differently worded stories that share no words.
+So the day is a graph: every story a node, every pair an edge weighted by how
+similar they are, and PageRank over it. PageRank rewards being connected to
+other central stories rather than merely having many neighbours, which is
+exactly the difference between five desks repeating a press release and a day
+that genuinely revolved around one thing.
+
+**Three, the judgment.** One model call per cluster, and it is given the
+rhymes as evidence rather than asked to guess. It returns two things: one plain
+sentence saying what happened, in this site's voice rather than the outlet's,
+and a verdict on whether it lasts, with a reason. The sentence is the visible
+win. The feed today prints "Hayden Panettiere's Cause of Death Revealed",
+which tells a reader nothing, and it should print what happened.
+
+The model is one component of three, and the two under it are arithmetic over
+real data. It is not asked what it thinks from nothing. It is asked to judge
+against a corpus.
+
+### What is kept, and what is never kept
+
+The worker writes the sentence, the score, the rhyme and the reason onto the
+story row. The outlet's own headline is never overwritten and never thrown
+away: it is what the checker matches the source page against, and the receipt
+page shows it. A written sentence carries the model's name and the date it was
+written, the same way a suppressed historical event already does.
+
+Nothing about a reader is sent anywhere. The only text that leaves this
+project is a public headline and a public description that were already
+published by a newspaper.
+
+### Where embeddings come from
+
+In the worker, on the worker's own machine, with no vendor and no key. Twenty
+thousand events is minutes of processor time once, and four hundred stories a
+day is seconds. A second outside service for embeddings would be a second
+thing to be down, a second bill and a second privacy sentence, for a job that
+runs fine locally.
+
+The one outside call is the judgment, and it needs one key.
+
+### Not built yet
+
+This section is written before the code, which is the house rule. Nothing in it
+exists. The order is the schema, then the embeddings and the rhyme, then
+PageRank, then the model call, and each lands on its own.
