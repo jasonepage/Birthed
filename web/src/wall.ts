@@ -1608,6 +1608,30 @@ function combGroups(stories: WallStory[]): Array<{ id: string; head: string; sho
     .filter((g) => g.stories.length > 0);
 }
 
+/** How many cells of a kind are open on the comb before the rest fold. */
+export const COMB_SHOWN = 12;
+
+/**
+ * The order of a kind on the comb, September 22, 2026: a page with three
+ * hundred cells of news in the order they arrived was a list, not a comb.
+ * What people buzzed comes first, because one buzz beats every score, then
+ * the date's own biggest history by the priority the seeder stamped (3 for
+ * a row Wikipedia's editors picked or somebody wrote a lead line for, 2 for
+ * the three most looked up people, 1 for the rest, 0 for the feeds), then
+ * the news by how many desks carried it, which agreeOnNews already sorted
+ * it by and this keeps, then arrival. Nothing here is a new number; every
+ * rank it reads already existed.
+ */
+export function combRank(stories: readonly WallStory[], alsoIn: ReadonlyMap<string, readonly string[]>): WallStory[] {
+  const desks = (s: WallStory): number => (alsoIn.get(s.id)?.length ?? 0);
+  return [...stories].sort((a, b) =>
+    b.support - a.support
+    || b.priority - a.priority
+    || desks(b) - desks(a)
+    || a.submittedAt.localeCompare(b.submittedAt)
+    || a.id.localeCompare(b.id));
+}
+
 /**
  * The honeycomb drawn behind the comb card and the comb's own heading.
  * Markup rather than a picture, because the page sends img-src 'self' and a
@@ -1652,18 +1676,44 @@ ${combPattern(`hex-${slug(month, d)}`)}
  * one. A backed cell is wide and breathes, the way a hive tile grows. Every
  * seventh is wide too, so the rhythm is not a spreadsheet's.
  */
-function combCell(story: WallStory, live: boolean, voice: Voice, alsoIn: readonly string[] | null, index: number): string {
+function combCell(story: WallStory, live: boolean, voice: Voice, alsoIn: readonly string[] | null, index: number, heat: number = 0): string {
   const kind = tileKind(story);
   const count = units(story.support, voice);
   const also = alsoIn === null || alsoIn.length === 0 ? "" : ` <span class="walso">with ${escapeHtml(andList([...alsoIn]))}</span>`;
-  const wide = story.support > 0 || index % 7 === 0;
   const control = live && story.status !== "false" ? buzzForm(story, voice, "comb") : "";
-  const classes = `wcell wc-${kind}${wide ? " wcwide" : ""}${story.support > 0 ? " wcbacked" : ""}`;
-  return `<li id="w-${story.id}" class="${classes}"${subjectAttr(story)}${yearAttr(story.headline)} style="--i:${Math.min(index, 24)}">`
+  // Every cell is the same hexagon; a comb has one cell. What varies is the
+  // glow, --heat, the cell's share of the most buzzed cell of its kind, the
+  // same number the live board lights its tiles by.
+  const classes = `wcell wc-${kind}${story.support > 0 ? " wcbacked" : ""}`;
+  return `<li id="w-${story.id}" class="${classes}"${subjectAttr(story)}${yearAttr(story.headline)} style="--i:${Math.min(index, COMB_SHOWN)};--heat:${heat.toFixed(2)}">`
     + `<span class="wcellpic" aria-hidden="true"></span>`
     + `<span class="wcelltop">${kindMark(kind)}${count === "" ? "" : `<span class="wn">${count}</span>`}</span>`
     + `<a class="wch" href="${storyPath(story)}">${escapeHtml(story.headline)}</a>`
     + `<span class="wcellfoot"><span class="wmeta">${escapeHtml(story.outlet)}${also}${rowChip(story.tier)}${mine(voice)}</span>${control}</span></li>`;
+}
+
+/**
+ * A kind's cells: the first COMB_SHOWN open, on a honeycomb, and the rest
+ * folded under a line that counts them, on a second honeycomb. Every cell is
+ * on the page and a search engine reads the folded ones; a reader sees the
+ * best of the kind and can open everything.
+ */
+function combCells(ranked: readonly WallStory[], live: boolean, voice: Voice, alsoIn: ReadonlyMap<string, readonly string[]>): string {
+  const most = Math.max(1, ...ranked.map((s) => s.support));
+  const cell = (s: WallStory, i: number): string => combCell(s, live, voice, alsoIn.get(s.id) ?? null, i, s.support / most);
+  const shown = ranked.slice(0, COMB_SHOWN);
+  const folded = ranked.slice(COMB_SHOWN);
+  const open = `<ul class="wlist wcells">
+${shown.map(cell).join("\n")}
+</ul>`;
+  if (folded.length === 0) return open;
+  return `${open}
+<details class="wcombmore">
+<summary>${folded.length === 1 ? "1 more cell" : `${folded.length} more cells`}</summary>
+<ul class="wlist wcells">
+${folded.map((s, i) => cell(s, i + 1)).join("\n")}
+</ul>
+</details>`;
 }
 
 function combBody(
@@ -1692,9 +1742,7 @@ function combBody(
 <ul class="wsongs">
 ${g.stories.map((s) => songRow(s, live, voice, "comb")).join("\n")}
 </ul>`
-      : `<ul class="wlist wcells">
-${g.stories.map((s, i) => combCell(s, live, voice, alsoIn.get(s.id) ?? null, i)).join("\n")}
-</ul>`;
+      : combCells(combRank(g.stories, alsoIn), live, voice, alsoIn);
     return `<section class="wcombgroup" id="comb-${g.id}" aria-labelledby="comb-${g.id}-head">
 <h2 class="section" id="comb-${g.id}-head">${escapeHtml(g.head)} <span class="wcombn">${g.stories.length}</span></h2>
 ${list}
@@ -2314,46 +2362,93 @@ export const WALL_STYLE = `
 .wcombgroup h2.section { margin: 0 0 10px; }
 .wcombn { font-size: .6em; font-weight: 700; color: var(--dim); vertical-align: middle; margin-left: 4px; }
 .wcombback { margin-top: 26px; }
-/* The comb's cells. A grid of small cards rather than a list of rows, with
-   the wide ones filling the gaps, each kind edged in its own colour. */
-.wcells { grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); grid-auto-flow: dense; gap: 8px; }
+/* The comb's cells are hexagons, September 22, 2026, Nathan's call: a comb
+   made of rectangles was a grid of cards with a bee on it. Pointy topped
+   cells in offset rows, the way a comb is built. The rows are a grid of
+   2N columns with every cell across two, and the short rows, N minus one
+   cells starting one column in, fall out of nth-child on the period of
+   2N minus 1. A row overlaps the one above by a quarter of a cell, which is
+   the negative margin, in width because a percentage margin is one; the
+   cell is 1.1547 times as tall as it is wide, so a quarter of its height is
+   .2887 of its width. N is 4 on a wide page, 3 in the middle, 2 on a phone. */
+.wcells { --n: 4; grid-template-columns: repeat(calc(var(--n) * 2), minmax(0, 1fr)); gap: 0 6px; padding: 0 0 4px; }
 .wcells li.wcell {
-  --kc: var(--honey);
-  display: flex; flex-direction: column; gap: 6px; padding: 0 0 11px; overflow: hidden; position: relative;
-  border-radius: 14px; background: var(--cell); box-shadow: inset 0 2px 0 var(--kc), inset 0 0 0 1px rgba(255, 243, 224, .05);
-  font-size: 14px; line-height: 1.35;
+  --kc: var(--honey); --heat: 0;
+  grid-column: span 2; aspect-ratio: 1 / 1.1547; margin-bottom: -28.87%;
+  display: flex; flex-direction: column; justify-content: center; gap: 4px; overflow: hidden; position: relative;
+  padding: 26% 12% 24%; box-sizing: border-box;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background: var(--cell); font-size: 13px; line-height: 1.3; text-align: center;
+  transition: transform 160ms ease;
 }
-.wcells li.wcell::before { margin: 10px 12px 0; }
-.wcells .wcwide { grid-column: span 2; }
+.wcells li.wcell:last-child { margin-bottom: 0; }
+.wcells li.wcell::before { margin: 0; }
+/* The wall of the cell: a hexagon a hair smaller than the cell, in the
+   kind's colour, at a strength that follows the buzzes. Drawn as a second
+   layer because a clipped box has no border. */
+.wcells li.wcell::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%, 50% 0, 50% 2px, 2px 25.5%, 2px 74.5%, 50% calc(100% - 2px), calc(100% - 2px) 74.5%, calc(100% - 2px) 25.5%, 50% 2px);
+  background: var(--kc); opacity: calc(.45 + .55 * var(--heat));
+}
+.wcells li.wcell.wcbacked { box-shadow: inset 0 0 calc(40px * var(--heat)) rgba(255, 175, 70, calc(.5 * var(--heat))); }
+.wcells li.wcell:hover { transform: scale(1.04); z-index: 2; }
+/* The short rows: for N of 4, the fifth, twelfth, nineteenth cell starts a
+   column in. */
+.wcells li.wcell:nth-child(7n+5) { grid-column: 2 / span 2; }
+@container (max-width: 719px) {
+  .wcells { --n: 3; }
+  .wcells li.wcell:nth-child(7n+5) { grid-column: span 2; }
+  .wcells li.wcell:nth-child(5n+4) { grid-column: 2 / span 2; }
+}
+@container (max-width: 459px) {
+  .wcells { --n: 2; }
+  .wcellfoot .wmeta { display: none; }
+  .wcells li.wcell:nth-child(5n+4) { grid-column: span 2; }
+  .wcells li.wcell:nth-child(3n) { grid-column: 2 / span 2; }
+}
+.wcombgroup { container-type: inline-size; }
 .wcells .wc-happened { --kc: var(--honey); }
-.wcells .wc-born { --kc: #EF5680; }
-.wcells .wc-album, .wcells .wc-film { --kc: #9B8CF0; }
-.wcells .wc-news { --kc: #5CB8A8; }
-.wcellpic { display: none; aspect-ratio: 16 / 9; background: var(--line) var(--pic, none) center 22% / cover no-repeat; }
-.wc-born .wcellpic { aspect-ratio: 4 / 3; background-position: center 18%; }
-.wcelltop { display: flex; align-items: center; gap: 6px; margin: 10px 12px 0; color: var(--kc); }
-.wcelltop .wkind svg { width: 16px; }
-.wcelltop .wn { margin-left: auto; font-size: 12px; font-weight: 800; color: var(--honey-lite); }
-.wcells a.wch { margin: 0 12px; font-weight: 650; color: var(--cream-2); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; overflow: hidden; }
-.wcells .wcwide a.wch { font-family: var(--serif); font-size: 17px; font-weight: 800; line-height: 1.25; }
-.wcellfoot { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: auto 12px 0; }
-.wcellfoot .wbuzz { margin-left: auto; }
+.wcells .wc-born { --kc: var(--ember); }
+.wcells .wc-album, .wcells .wc-film { --kc: var(--cream-2); }
+.wcells .wc-news { --kc: var(--dim); }
+/* A picture fills the cell behind a scrim, the way a tile's does. */
+.wcellpic { display: none; position: absolute; inset: 0; z-index: 0; background: var(--line) var(--pic, none) center 22% / cover no-repeat; }
+.wcellpic::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(12, 7, 3, .94) 0%, rgba(12, 7, 3, .6) 50%, rgba(12, 7, 3, .25) 100%); }
+.wcells li.wcell > :not(.wcellpic) { position: relative; z-index: 1; }
+.wcelltop { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 0; color: var(--kc); }
+.wcelltop .wkind svg { width: 14px; }
+.wcelltop .wn { margin-left: 0; font-size: 12px; font-weight: 800; color: var(--honey-lite); }
+.wcells a.wch { margin: 0; font-family: var(--serif); font-optical-sizing: auto; font-weight: 600; font-size: clamp(12px, 1.6cqi + 8px, 16px); line-height: 1.2; color: var(--cream); text-decoration: none; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; text-wrap: pretty; }
+.wcells a.wch:hover { text-decoration: underline; text-decoration-color: rgba(255, 243, 224, .5); }
+.wcellfoot { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 4px 8px; margin: 2px 0 0; font-size: 11px; color: var(--dim); }
+.wcellfoot .wmeta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.wcellfoot .walso, .wcellfoot .wchip { display: none; }
+.wcellfoot .wbuzz { margin-left: 0; }
+.wcellfoot .wbuzz button { font-size: 12px; padding: 2px 10px; }
+/* The fold: the rest of a kind, under a line that counts it. */
+.wcombmore { margin: 14px 0 0; }
+.wcombmore > summary { cursor: pointer; list-style: none; display: inline-flex; align-items: center; min-height: 36px; padding: 6px 16px; border-radius: 999px; border: 1px solid var(--line-strong); background: rgba(244, 183, 64, .08); color: var(--honey-lite); font-size: 14px; font-weight: 700; }
+.wcombmore > summary::-webkit-details-marker { display: none; }
+.wcombmore > summary::after { content: "\\2193"; margin-left: 8px; }
+.wcombmore[open] > summary::after { content: "\\2191"; }
+.wcombmore > summary:hover { color: var(--on-honey); background: var(--honey); border-color: var(--honey); }
+.wcombmore[open] > summary { margin-bottom: 12px; }
 @keyframes wcellin { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
 @keyframes wcbuzz {
-  0%, 100% { box-shadow: inset 0 2px 0 var(--kc), inset 0 0 0 1px rgba(244, 183, 64, .35); }
-  50% { box-shadow: inset 0 2px 0 var(--kc), inset 0 0 0 1px rgba(255, 217, 138, .9), 0 0 22px rgba(244, 183, 64, .22); }
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.12); }
 }
 /* The honeycomb behind the comb's heading drifts one cell at a time, so the
    loop has no seam: the pattern is 25.2 by 45 pixels after its scale. */
 .wcombtop .wcombhex { inset: -45px -26px auto auto; width: calc(100% + 52px); height: calc(100% + 90px); }
 @keyframes wcombdrift { from { transform: translate(0, 0); } to { transform: translate(25.2px, 45px); } }
-@media (max-width: 420px) { .wcells { grid-template-columns: repeat(2, minmax(0, 1fr)); } .wcells a.wch { -webkit-line-clamp: 7; } }
 /* The motion, only for a reader who has not asked for less: cells settle in
    one beat apart, a backed cell breathes the way the board's tiles grow,
    and the comb behind the heading drifts. */
 @media (prefers-reduced-motion: no-preference) {
-  .wcells li.wcell, .wcombpage .wsongs li { animation: wcellin 560ms cubic-bezier(.2, .7, .2, 1) both; animation-delay: calc(var(--i, 0) * 32ms); }
-  .wcells li.wcbacked { animation: wcellin 560ms cubic-bezier(.2, .7, .2, 1) both, wcbuzz 2.8s ease-in-out 800ms infinite; animation-delay: calc(var(--i, 0) * 32ms), 800ms; }
+  .wcells li.wcell, .wcombpage .wsongs li { animation: wcellin 560ms cubic-bezier(.2, .7, .2, 1) both; animation-delay: calc(var(--i, 0) * 45ms); }
+  .wcells li.wcbacked { animation: wcellin 560ms cubic-bezier(.2, .7, .2, 1) both, wcbuzz 2.8s ease-in-out 800ms infinite; animation-delay: calc(var(--i, 0) * 45ms), 800ms; }
   .wcombtop .wcombhex { animation: wcombdrift 30s linear infinite; }
 }
 .wsongs .wonhive { font-weight: 700; color: var(--honey-lite); text-decoration: none; border-bottom: 1px solid var(--line-strong); }

@@ -5,6 +5,7 @@ import { renderDayPage, renderHivePage, renderStoryPage } from "../src/render.js
 import {
   eastern,
   yearsAgo,
+  combRank,
   BEE, PLAIN, PLAIN_DATES, VIEW_MIN, allowanceOn, emptyWallDay, fetchWall, hivePath, newestByDate, storyPath, takingBoosts,
   tapsLeftSentence, tierLabel, yearAttr, SAVE_PICTURE, tiersDiffer, hiveDaysNav, units, viewportFor, voiceFor, wallMarks, wallSection, pictureRules, songParts, subjectOf, takeTurns, FEED_SHOWN, tileKind, kindMark, WALL_STYLE, sealedLine, picturedSubjects, combPictured, hindsightLine, latestOutcome, outcomeStamp, recordStanding, yoursLine, fitType, tileYear, type WallDay, type WallStory,
 } from "../src/wall.js";
@@ -771,10 +772,36 @@ test("the comb carries every row, grouped by kind, and a buzz from it comes back
   assert.ok(html.includes('href="#comb-born"'), "a jump to each kind");
   assert.ok(html.includes('name="v" value="comb"'), "a buzz from the comb comes back to the comb");
   assert.ok(!html.includes('class="wboard'), "the comb draws no board");
+  // Every cell is the same hexagon, no wide ones, since September 22, 2026.
+  assert.ok(!html.includes("wcwide"), "a comb has one cell");
+  // A kind past a dozen folds: the first twelve open, the rest under a line
+  // that counts them, all still on the page.
+  const happened = html.slice(html.indexOf('id="comb-happened"'), html.indexOf('id="comb-born"'));
+  assert.ok(!happened.includes("wcombmore"), "ten of a kind do not fold");
+  const news = html.slice(html.indexOf('id="comb-news"'));
+  assert.equal((news.match(/<li id="w-/g) ?? []).length, 10);
   // Sealed, it says so and carries no button.
   const sealed = wallSection(day(stories), "September 9", Date.parse("2026-09-12T00:00:00Z"), { comb: true, date: { month: 9, day: 9 } });
   assert.ok(sealed.includes("when the hive sealed") && sealed.includes("It takes no more."));
   assert.ok(!sealed.includes('action="/boost"'));
+});
+
+test("the comb ranks a kind by buzzes, then priority, then desks, and folds it past a dozen", () => {
+  const stories: WallStory[] = [];
+  for (let i = 0; i < 15; i++) stories.push(pooled(`aaaaaaaa-0000-0000-0000-0000000000${String(i).padStart(2, "0")}`, "historical_event", 0, i === 3 ? 3 : 1));
+  stories[7] = { ...stories[7]!, support: 2 };
+  const ranked = combRank(stories, new Map());
+  assert.equal(ranked[0]!.id, stories[7]!.id, "one buzz beats every priority");
+  assert.equal(ranked[1]!.id, stories[3]!.id, "then the date's biggest history");
+  const html = wallSection(day(stories), "September 9", LIVE, { comb: true, interactive: true, date: { month: 9, day: 9 } });
+  const cells = html.match(/<li id="w-/g) ?? [];
+  assert.equal(cells.length, 15, "every cell is on the page");
+  assert.ok(html.includes("<summary>3 more cells</summary>"), "the rest fold under a count");
+  assert.ok(html.indexOf(`id="w-${stories[7]!.id}"`) < html.indexOf(`id="w-${stories[3]!.id}"`));
+  assert.ok(html.indexOf("<details class=\"wcombmore\">") < html.indexOf(`id="w-${stories[14]!.id}"`), "the last arrival is in the fold");
+  // A buzzed cell glows by its share of the most buzzed of its kind.
+  assert.ok(html.includes(`id="w-${stories[7]!.id}" class="wcell wc-happened wcbacked"`));
+  assert.match(html, /--heat:1\.00/);
 });
 
 test("a date page draws only the pictures it shows", () => {
