@@ -31,7 +31,7 @@ import { extname, join, normalize, resolve, sep } from "node:path";
 
 import { everyDate, monthName, slug } from "./model.js";
 import { ASK_SLOTS, FIRST_CHART_YEAR, TODAY, renderMePanel, renderRecord, renderStoryPage, withMe } from "./render.js";
-import { ASK_MAX, easternMidnight, emptyWallDay, fetchWallDay, openWallDates, pictureRules, replaceWall, hivePath, takingBoosts, wallKey, wallMarks, wallSection, withChecks, type Anniversary, type RecordRow, type TapBack, type WallDay } from "./wall.js";
+import { ASK_MAX, easternMidnight, emptyWallDay, fetchWallDay, hiveDaysNav, openWallDates, pictureRules, replaceWall, hivePath, takingBoosts, wallKey, wallMarks, wallSection, withChecks, type Anniversary, type RecordRow, type TapBack, type WallDay } from "./wall.js";
 import { fetchSnapshotScores, liveHiveSection, type Standing } from "./hive-live.js";
 import { answer as findAnswer } from "./find.js";
 import { fetchPictureFor, fetchPicturesFor, type StoredPicture } from "./stored-pictures.js";
@@ -1736,7 +1736,7 @@ async function liveWall(
       scoreCache.set(wallDate, { at: now, scores });
     }
     return {
-      section: pictureRules(pictures) + liveHiveSection(wall, `${monthName(month)} ${day}`, now, { project: projectBase(), key, standing, scores, anniversary, yours }),
+      section: pictureRules(pictures) + hiveDaysNav(month, day, now) + liveHiveSection(wall, `${monthName(month)} ${day}`, now, { project: projectBase(), key, standing, scores, anniversary, yours }),
       day: wall,
     };
   }
@@ -1753,7 +1753,7 @@ async function liveWall(
   // never the page.
   const undo = undoOn === null ? null : read.stories.find((s) => s.id === undoOn) ?? null;
   return {
-    section: pictureRules(pictures) + wallSection(wall, `${monthName(month)} ${day}`, now, { interactive: true, hive, date: { month, day }, found: stories, undo, anniversary, yours }),
+    section: pictureRules(pictures) + (hive ? hiveDaysNav(month, day, now) : "") + wallSection(wall, `${monthName(month)} ${day}`, now, { interactive: true, hive, date: { month, day }, found: stories, undo, anniversary, yours }),
     day: wall,
   };
 }

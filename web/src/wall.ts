@@ -1301,6 +1301,24 @@ export function hivePath(month: number, day: number): string {
 }
 
 /**
+ * The three hives open at once, as a row of pills: yesterday's, which still
+ * takes one buzz, today's, and tomorrow's, which takes stories. The one being
+ * read is marked and not a link. Drawn at request time only, because a baked
+ * page cannot know which three dates are open. September 22, 2026.
+ */
+export function hiveDaysNav(month: number, day: number, now: number = Date.now()): string {
+  const words = ["Yesterday", "Today", "Tomorrow"];
+  const pills = [...openWallDates(now).values()].map((wallDate, i) => {
+    const [, m, d] = wallDate.split("-").map(Number) as [number, number, number];
+    const label = `<b>${words[i]}</b> ${monthName(m).slice(0, 3)} ${d}`;
+    return m === month && d === day
+      ? `<span class="wday here" aria-current="page">${label}</span>`
+      : `<a class="wday" href="${hivePath(m, d)}">${label}</a>`;
+  });
+  return `<nav class="wdays" aria-label="The three open hives">${pills.join("")}</nav>`;
+}
+
+/**
  * What a date with no hive yet says. Every date gets its first hive the day
  * before it arrives, and the page says so rather than saying nothing.
  */
@@ -2033,12 +2051,22 @@ export const WALL_STYLE = `
 .whive { margin: 0; }
 .whive h2.section { margin: 10px 0 6px; font-size: 18px; }
 .wrap.hivepage { max-width: none; padding: 16px 16px 40px; }
-.day.wsq { max-width: min(100%, calc(100vh - 40px)); margin: 0 auto; }
+/* HIVE_MAX is a ceiling in CSS pixels. Tied to the window's height alone,
+   the board grew by exactly as much as a zoom out shrank it, so zooming did
+   nothing at all. September 22, 2026. */
+.day.wsq { max-width: min(100%, calc(100vh - 40px), 1040px); margin: 0 auto; }
 /* The footer is held to the same width as the board and centred with it.
    The full screen page widens the wrapper so the board can be as big as the
    window, and the footer was left full width under a centred board, so it
    hung off the left edge under the legend. */
-.hivepage footer { max-width: min(100%, calc(100vh - 40px)); margin-left: auto; margin-right: auto; }
+.hivepage footer { max-width: min(100%, calc(100vh - 40px), 1040px); margin-left: auto; margin-right: auto; }
+/* The three open hives, drawn at request time above an open date's hive. */
+.wdays { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 14px; }
+.wdays .wday { display: inline-flex; align-items: baseline; gap: 6px; padding: 6px 14px; border-radius: 999px; border: 1px solid #4A3A24; background: rgba(30, 23, 16, .7); color: #B7A488; font-size: 13px; text-decoration: none; }
+.wdays .wday b { color: #FFF3E0; font-weight: 700; }
+.wdays a.wday:hover { border-color: #F4B740; color: #FFCF6B; }
+.wdays .wday.here { border-color: #F4B740; background: linear-gradient(180deg, #FFCF6B, #F4B740); color: #3A2A10; }
+.wdays .wday.here b { color: #1B1206; }
 .whive .wboard { width: 100%; }
 .whive .wlegend { max-width: 60ch; margin: 12px auto 0; }
 /* Honey. Decided September 10, 2026: the tile's colour is its tier, and the

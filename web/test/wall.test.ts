@@ -6,7 +6,7 @@ import {
   eastern,
   yearsAgo,
   BEE, PLAIN, PLAIN_DATES, VIEW_MIN, allowanceOn, emptyWallDay, fetchWall, hivePath, newestByDate, storyPath, takingBoosts,
-  tapsLeftSentence, tierLabel, yearAttr, SAVE_PICTURE, tiersDiffer, units, viewportFor, voiceFor, wallMarks, wallSection, pictureRules, songParts, subjectOf, takeTurns, FEED_SHOWN, tileKind, kindMark, WALL_STYLE, hindsightLine, latestOutcome, outcomeStamp, recordStanding, yoursLine, fitType, tileYear, type WallDay, type WallStory,
+  tapsLeftSentence, tierLabel, yearAttr, SAVE_PICTURE, tiersDiffer, hiveDaysNav, units, viewportFor, voiceFor, wallMarks, wallSection, pictureRules, songParts, subjectOf, takeTurns, FEED_SHOWN, tileKind, kindMark, WALL_STYLE, hindsightLine, latestOutcome, outcomeStamp, recordStanding, yoursLine, fitType, tileYear, type WallDay, type WallStory,
 } from "../src/wall.js";
 import { picturesFor } from "../src/render.js";
 
@@ -1114,4 +1114,20 @@ test("only a headline that opens with a year carries one", () => {
   assert.equal(yearAttr("How Trump's media ban sparked a broadcaster boycott"), "");
   assert.equal(yearAttr("Tatiana Maslany, Canadian actress, born 1985"), "");
   assert.equal(yearAttr("10000 people march"), "");
+});
+
+test("an open hive links the other two open hives, and marks the one being read", () => {
+  // Noon Eastern on September 22, 2026: yesterday is the 21st, tomorrow the 23rd.
+  const now = Date.parse("2026-09-22T16:00:00Z");
+  const today = hiveDaysNav(9, 22, now);
+  assert.ok(today.includes('<a class="wday" href="/september-21/hive/"><b>Yesterday</b> Sep 21</a>'));
+  assert.ok(today.includes('<span class="wday here" aria-current="page"><b>Today</b> Sep 22</span>'));
+  assert.ok(today.includes('<a class="wday" href="/september-23/hive/"><b>Tomorrow</b> Sep 23</a>'));
+  // From yesterday's hive the other two are links, and yesterday is marked.
+  const yesterday = hiveDaysNav(9, 21, now);
+  assert.ok(yesterday.includes('<span class="wday here" aria-current="page"><b>Yesterday</b> Sep 21</span>'));
+  assert.ok(yesterday.includes('href="/september-22/hive/"') && yesterday.includes('href="/september-23/hive/"'));
+  // Across a month end.
+  const oct = hiveDaysNav(10, 1, Date.parse("2026-10-01T16:00:00Z"));
+  assert.ok(oct.includes('href="/september-30/hive/"') && oct.includes('href="/october-2/hive/"'));
 });
