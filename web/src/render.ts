@@ -2139,22 +2139,40 @@ const CALENDAR = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" ari
 const PHONE = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="6.4" y="2.8" width="11.2" height="18.4" rx="2.8"/><path d="M10.6 18h2.8"/></svg>`;
 const INFO = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="8.6"/><path d="M12 11v5.2"/><circle cx="12" cy="7.9" r="0.9" fill="currentColor" stroke="none"/></svg>`;
 
+const TODAY_ICON = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3.4" y="5" width="17.2" height="15.6" rx="3.6"/><path d="M3.4 10.2h17.2M8.2 3.2v3.6M15.8 3.2v3.6"/><circle cx="12" cy="15.4" r="1.6" fill="currentColor" stroke="none"/></svg>`;
+
 /**
- * The bar's end: Random, Every date and About as three matching pills. They
- * used to be one pill and two bare words, which is three controls that look
- * like three different kinds of thing. Nathan, September 10, 2026: same
- * size, same border, an icon each, and the word kept next to it so nobody
- * has to guess what a die does.
+ * The bar's end: Today, Every date, Random, About and the app, as five
+ * matching pills. They used to be one pill and two bare words, which is
+ * three controls that look like three different kinds of thing. Nathan,
+ * September 10, 2026: same size, same border, an icon each, and the word
+ * kept next to it so nobody has to guess what a die does.
+ *
+ * The same five, in the same order, on every page since September 22, 2026.
+ * The date page said Random, Every date, About; the About page said Today,
+ * Every date, Random day; the live hive said Back to the day. One set of
+ * words in one order is what makes a site read as one site.
  */
-function barEnd(options: { calendar?: boolean } = {}): string {
+function barEnd(): string {
   return `<span class="barend">
-<a class="pill" href="/random/" title="A random day of the year" aria-label="A random day of the year">${DICE}<span>Random</span></a>`
-    + (options.calendar === false ? "" : `
-<a class="pill" href="/calendar/" title="Every day of the year" aria-label="Every day of the year">${CALENDAR}<span>Every date</span></a>`)
-    + `
+<a class="pill" href="/today/" title="Today's date" aria-label="Today's date">${TODAY_ICON}<span>Today</span></a>
+<a class="pill" href="/calendar/" title="Every day of the year" aria-label="Every day of the year">${CALENDAR}<span>Every date</span></a>
+<a class="pill" href="/random/" title="A random day of the year" aria-label="A random day of the year">${DICE}<span>Random</span></a>
 <a class="pill" href="/about/" title="About Birthed" aria-label="About Birthed">${INFO}<span>About</span></a>
 <a class="pill app" href="${TESTFLIGHT_URL}" title="Get the iPhone app, in beta on TestFlight" aria-label="Get the iPhone app, in beta on TestFlight">${PHONE}<span>Get the app</span></a>
 </span>`;
+}
+
+/**
+ * The one bar, on every page: the wordmark, whatever the page puts in the
+ * middle (a date stepper, or the date a hive or comb belongs to, or
+ * nothing), then the five pills.
+ */
+export function siteBar(middle: string = ""): string {
+  return `<div class="daybar">
+<a class="mark" href="/" title="Birthed home">Birthed</a>
+${middle}${barEnd()}
+</div>`;
 }
 
 /**
@@ -2533,15 +2551,12 @@ export function renderDayPage(
 
   return `${head(`Born on ${name}`, description, canonical, image, !isReady(page, facts), "", sequence)}
 <div class="day on-${slug(page.month, page.day)}" style="--day:${hue.day};--day-soft:${hue.soft}">
-<div class="daybar">
-<a class="mark" href="/" title="Birthed home">Birthed</a>
-<span class="barnav">
+${siteBar(`<span class="barnav">
 <a class="arrow" href="/${slug(previous.month, previous.day)}/" title="${monthName(previous.month)} ${previous.day}" aria-label="${monthName(previous.month)} ${previous.day}">&lsaquo;</a>
 <span class="here">${shortName}</span>
 <a class="arrow" href="/${slug(next.month, next.day)}/" title="${monthName(next.month)} ${next.day}" aria-label="${monthName(next.month)} ${next.day}">&rsaquo;</a>
 </span>
-${barEnd()}
-</div>
+`)}
 <h1>${name}</h1>
 ${renderBirthdayModal()}
 ${meMarker()}
@@ -2573,10 +2588,7 @@ export function renderStoryPage(story: WallStory, day: WallDay, now: number = Da
     `A story on the Birthed hive for ${name}, ${day.year}, with its sources, quotations and every check run on them.`,
     canonical, undefined, true)}
 <div class="day wstory" style="--day:${hue.day};--day-soft:${hue.soft}">
-<div class="daybar">
-<a class="mark" href="/" title="Birthed home">Birthed</a>
-${barEnd()}
-</div>
+${siteBar()}
 ${storyBody(story, day, now, options)}
 </div>
 ${FOOT}`;
@@ -2602,10 +2614,7 @@ export function renderCardPage(month: number, day: number, mine: boolean): strin
   const heading = mine ? `Your card for ${name}` : `The card for ${name}`;
   return `${head(heading, `A picture of ${name} on Birthed, to keep or send.`, `${SITE}/${at}/card/`, undefined, true)}
 <div class="day wstory wcard" style="--day:${hue.day};--day-soft:${hue.soft}">
-<div class="daybar">
-<a class="mark" href="/" title="Birthed home">Birthed</a>
-${barEnd()}
-</div>
+${siteBar()}
 <p class="wback"><a href="/${at}/">&larr; ${escapeHtml(name)}</a></p>
 <h1 class="wtitle">${escapeHtml(heading)}</h1>
 <p class="wnote">${mine ? "Made for you from the birthday you gave this browser. The picture carries no name and no year." : `The hive for ${escapeHtml(name)}. Give the site your birthday on the date page and this becomes your own version.`}</p>
@@ -2658,10 +2667,7 @@ ${rows.map((row) => {
     "The stories this browser has buzzed on Birthed, and what became of each one. Private to this browser.",
     canonical, undefined, true)}
 <div class="day wstory" style="--day:${dayHue(9).day};--day-soft:${dayHue(9).soft}">
-<div class="daybar">
-<a class="mark" href="/" title="Birthed home">Birthed</a>
-${barEnd()}
-</div>
+${siteBar()}
 <h1 class="wyourshead">Everything you have buzzed</h1>
 <p class="wnote">Only you can see this page. It is read from this browser and it is not a score: there is no number on it, no rank, and nothing about anybody else.</p>
 ${list}
@@ -2712,11 +2718,8 @@ export function renderHivePage(day: WallDay, month: number, d: number, pictures:
     `The Birthed hive for ${name}, ${day.year}: what people think will still matter about it, sized by how many buzzed each story.`,
     canonical, `${SITE}/og/${slug(month, d)}.png`, true, "hivepage")}
 <div class="day wsq on-${slug(month, d)}" style="--day:${hue.day};--day-soft:${hue.soft}">
-<div class="daybar">
-<a class="mark" href="/" title="Birthed home">Birthed</a>
-<span class="barnav"><a class="here" href="/${slug(month, d)}/">${escapeHtml(name)}</a></span>
-<span class="barend"><a class="get" href="/${slug(month, d)}/">Back to the day</a></span>
-</div>
+${siteBar(`<span class="barnav"><a class="here" href="/${slug(month, d)}/">${escapeHtml(name)}</a></span>
+`)}
 ${pictureRules(pictures)}
 ${wallSection(day, name, Date.now(), { hive: true, date: { month, day: d } })}
 </div>
@@ -2736,11 +2739,8 @@ export function renderCombPage(day: WallDay, month: number, d: number, pictures:
     `Everything with a birthday on ${name}: what happened, who was born, what was number one and the day's news, each with its source.`,
     `${SITE}${combPath(month, d)}`, `${SITE}/og/${slug(month, d)}.png`)}
 <div class="day wcombday on-${slug(month, d)}" style="--day:${hue.day};--day-soft:${hue.soft}">
-<div class="daybar">
-<a class="mark" href="/" title="Birthed home">Birthed</a>
-<span class="barnav"><a class="here" href="/${slug(month, d)}/">${escapeHtml(name)}</a></span>
-${barEnd()}
-</div>
+${siteBar(`<span class="barnav"><a class="here" href="/${slug(month, d)}/">${escapeHtml(name)}</a></span>
+`)}
 ${pictureRules(pictures.filter((p) => !p.subject.startsWith("story:")))}
 ${wallSection(day, name, Date.now(), { comb: true, date: { month, day: d } })}
 </div>
@@ -2755,10 +2755,7 @@ ${FOOT}`;
 export function renderCalendarPage(year: number): string {
   return `${head("Every day of the year", "Pick a date and see its hive, who shares it and what happened on it.", `${SITE}/calendar/`, undefined, false, "calendarpage")}
 <div class="day">
-<div class="daybar">
-<a class="mark" href="/" title="Birthed home">Birthed</a>
-${barEnd({ calendar: false })}
-</div>
+${siteBar()}
 <section class="everyday">
 <h1>Every day of the year</h1>
 <p class="lede">Pick a date and see its hive, who shares it and what happened on it. The weeks are laid out the way they fall in ${year}.</p>

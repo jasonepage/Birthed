@@ -12,7 +12,7 @@
 
 import { DAYS_IN_MONTH, monthName, slug } from "./model.js";
 import { hostOf, type Highlight } from "./facts.js";
-import { FOOT, FOOT_ADD, SITE, TESTFLIGHT_URL, escapeHtml, head, renderBirthdayBar } from "./render.js";
+import { FOOT, FOOT_ADD, SITE, TESTFLIGHT_URL, escapeHtml, head, renderBirthdayBar, siteBar } from "./render.js";
 
 /** Where a person can reach us. One place, so it changes in one place. */
 export const SUPPORT_EMAIL = "support@birthed.app";
@@ -38,22 +38,8 @@ import { calendar, isLeapYear, monthAnchor } from "./calendar.js";
 // these through this module.
 export { calendar, isLeapYear, monthAnchor };
 
-/**
- * Two small icons, drawn in the page rather than fetched.
- *
- * The security header for every page but one says `img-src 'self'`, so a
- * data: URI is refused and nothing is drawn and no error appears anywhere a
- * person would look. An inline svg element is markup rather than a request,
- * so it is not covered by that rule and cannot fail the same silent way.
- * They take their colour from whatever they sit in.
- */
-const ICON_DICE = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="4.6"/><circle cx="8.4" cy="8.4" r="1.35" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.35" fill="currentColor" stroke="none"/><circle cx="15.6" cy="15.6" r="1.35" fill="currentColor" stroke="none"/></svg>`;
 
-// Every date: a grid of days, because the calendar mark already means Today
-// on this bar and two calendars in a row would read as one control twice.
-const ICON_GRID = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="3.6"/><path d="M3.4 9.2h17.2M3.4 14.8h17.2M9.2 3.4v17.2M14.8 3.4v17.2"/></svg>`;
 
-const ICON_CALENDAR = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3.4" y="5" width="17.2" height="15.6" rx="3.6"/><path d="M3.4 10.2h17.2M8.2 3.2v3.6M15.8 3.2v3.6"/></svg>`;
 
 /**
  * The strip across the top: the name on the left, and on the right the two
@@ -69,16 +55,9 @@ const ICON_CALENDAR = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15
  * not want to think about their own birthday yet has, until now, had no way
  * into any of them except by hunting for a square.
  */
-function topBar(): string {
-  return `<header class="topbar">
-<a class="mark" href="/">Birthed</a>
-<nav class="quick" aria-label="Jump to a date">
-<a href="/today/" aria-label="Today's date">${ICON_CALENDAR}<span>Today</span></a>
-<a href="/calendar/" aria-label="Every day of the year">${ICON_GRID}<span>Every date</span></a>
-<a href="/random/" aria-label="A random day of the year">${ICON_DICE}<span>Random day</span></a>
-</nav>
-</header>`;
-}
+// The bar is siteBar in render.ts, the same one every page draws, since
+// September 22, 2026. This page had its own with different words in a
+// different order.
 
 /**
  * Twelve month buttons, each jumping to that month on the calendar page.
@@ -227,7 +206,7 @@ export function renderHome(
     false,
     "home",
   )}
-${topBar()}
+${siteBar()}
 <div class="col">
 <section class="hero">
   <div class="herotext">
@@ -561,7 +540,7 @@ ${FOOT_ADD}`;
 export function renderSupport(): string {
   const canonical = `${SITE}/support/`;
   return `${head("Birthed support", "Help with Birthed: buzzes, hives and sealing on the website, and your birthday, the number one song and reminders in the iPhone app.", canonical, `${SITE}/og-home.png`)}
-<p class="kicker">Birthed</p>
+${siteBar()}
 <h1>Support</h1>
 <p class="lede">Most questions are answered below, the website first and then the iPhone app. For anything else, write to <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a> and a person will answer.</p>
 
@@ -631,7 +610,7 @@ ${FOOT}`;
 export function renderPrivacy(): string {
   const canonical = `${SITE}/privacy/`;
   return `${head("Birthed privacy policy", "What Birthed collects, where it goes, and how to delete it. Written from what the app actually does.", canonical, `${SITE}/og-home.png`)}
-<p class="kicker">Birthed</p>
+${siteBar()}
 <h1>Privacy</h1>
 <p class="lede">This is written from what the app does, not from a template. It is short because Birthed does not collect much.</p>
 

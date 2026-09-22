@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ASK_SLOTS, FIRST_CHART_YEAR, askCandidates, renderDayPage, renderCalendarPage, renderRecord, renderRobots, renderSitemap, escapeHtml, isReady, renderMePanel, meMarker, withMe, stripCss} from "../src/render.js";
+import { ASK_SLOTS, FIRST_CHART_YEAR, askCandidates, renderDayPage, renderCalendarPage, renderCombPage, renderHivePage, renderRecord, renderRobots, renderSitemap, escapeHtml, isReady, renderMePanel, meMarker, withMe, stripCss} from "../src/render.js";
 import type { RecordRow } from "../src/wall.js";
 import { everyDate, neighbours, slug } from "../src/model.js";
 
@@ -498,8 +498,8 @@ test("an icon only link still has a name when its words are hidden", () => {
   // link whose remaining content is a decorative svg has no accessible name
   // at all unless one is on the link itself.
   const html = renderHome();
-  assert.ok(html.includes('href="/today/" aria-label='));
-  assert.ok(html.includes('href="/random/" aria-label='));
+  assert.ok(html.includes('class="pill" href="/today/" title="Today\'s date" aria-label='));
+  assert.ok(html.includes('class="pill" href="/random/" title="A random day of the year" aria-label='));
 });
 
 test("the about page explains how to play and asks for nothing", () => {
@@ -1254,16 +1254,38 @@ test("a date page can be moved off in both directions without reaching the foot"
   assert.ok(!html.includes('class="everyday"'));
 });
 
-test("Random, Every date, About and Get the app are four of the same control, each with its own mark and its word", () => {
+test("Today, Every date, Random, About and Get the app are five of the same control, each with its own mark and its word", () => {
   const html = renderDayPage(page);
   const bar = html.slice(html.indexOf('<span class="barend">'), html.indexOf("</span>\n</div>"));
   const pills = bar.match(/<a class="pill[ "]/g) ?? [];
-  assert.equal(pills.length, 4, "four matching pills, not one pill and bare words");
-  assert.equal((bar.match(/<svg class="ic"/g) ?? []).length, 4, "a drawn mark on each, not an emoji");
-  for (const word of ["Random", "Every date", "About", "Get the app"]) assert.ok(bar.includes(`<span>${word}</span>`), `the word ${word} stays next to its mark`);
+  assert.equal(pills.length, 5, "five matching pills, not one pill and bare words");
+  assert.equal((bar.match(/<svg class="ic"/g) ?? []).length, 5, "a drawn mark on each, not an emoji");
+  const words = ["Today", "Every date", "Random", "About", "Get the app"];
+  for (const word of words) assert.ok(bar.includes(`<span>${word}</span>`), `the word ${word} stays next to its mark`);
+  // In that order: the same words in the same order on every page is what
+  // makes a site read as one site. September 22, 2026.
+  const at = words.map((word) => bar.indexOf(`<span>${word}</span>`));
+  assert.deepEqual([...at].sort((a, b) => a - b), at, "the pills are in one order");
   // The way to the app, from every date page, September 22, 2026.
   assert.ok(bar.includes('href="https://testflight.apple.com/join/hzm6Mhhm"'));
   assert.ok(!bar.includes('class="get"') && !bar.includes('class="dice"'), "the old shapes are gone");
+});
+
+test("every page draws the same bar", () => {
+  const bar = (html: string) => html.slice(html.indexOf('<span class="barend">'), html.indexOf("</span>\n</div>"));
+  const day = bar(renderDayPage(page));
+  const wallDay = { wallDate: "2026-09-04", year: 2026, month: 9, day: 4, opensAt: "2026-09-03T04:00:00Z", liveAt: "2026-09-04T04:00:00Z", closesAt: "2026-09-06T04:00:00Z", closedAt: null, stories: [] };
+  for (const [name, html] of [
+    ["about", renderHome(2026)],
+    ["calendar", renderCalendarPage(2026)],
+    ["support", renderSupport()],
+    ["privacy", renderPrivacy()],
+    ["hive", renderHivePage(wallDay, 9, 4)],
+    ["comb", renderCombPage(wallDay, 9, 4)],
+  ] as const) {
+    assert.equal(bar(html), day, `${name} carries the date page's bar`);
+    assert.ok(!html.includes("Back to the day") && !html.includes("Random day"), `${name} has no second set of words`);
+  }
 });
 
 test("every date wears the honey, and the brand pink is not it", () => {
