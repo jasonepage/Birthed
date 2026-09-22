@@ -404,6 +404,17 @@ img.face {
 /* On a phone the words come off and the three icons stay, each still
    carrying its label for a screen reader and a long press. */
 @media (max-width: 520px) { .pill span { display: none; } .pill { padding: 7px 8px; min-width: 32px; justify-content: center; } }
+/* Five pills and a stepper on a phone: everything a little tighter, so the
+   bar fits 390 pixels with nothing cut off at the right edge. */
+@media (max-width: 440px) {
+  .daybar { gap: 6px; }
+  .daybar .mark { font-size: 17px; letter-spacing: 0.12em; }
+  .barnav { gap: 2px; }
+  .barnav .here { min-width: 44px; font-size: 12px; padding: 0 2px; }
+  .arrow { width: 28px; height: 28px; }
+  .barend { gap: 4px; }
+  .pill { padding: 6px 6px; min-width: 30px; min-height: 28px; }
+}
 
 /* The opening band.
    Three tiles, each a picture with its caption UNDERNEATH it on solid ground.
@@ -1247,18 +1258,20 @@ p.calkey .sw.today { background: none; box-shadow: inset 0 0 0 2px ${TODAY}; }
    Only ever a second colour: the pink is the brand and it does not move. */
 .day { --day: var(--honey); --day-soft: var(--honey-lite); }
 
+/* The bar runs the whole width of the window, the way the live hive's
+   always has, and lets the page's warm glow through. Nathan, September 22,
+   2026: a near black strip the width of the column, sitting on the lighter
+   top of the page, read as a dark slab with the pills on it. The bleed is
+   the column's own margins negated and padded back, so the wordmark and
+   the pills stay lined up with everything under them. */
 .daybar {
   position: sticky; top: 0; z-index: 40;
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 11px 0 10px; margin: 0 0 4px;
-  /* Nearly solid, not translucent. The blur is an enhancement and not every
-     browser applies it; without it a lighter wash leaves the drawer summary
-     and the feed legible straight through the bar, which reads as broken
-     rather than as layered. */
-  background: rgba(18, 13, 8, 0.94);
+  padding: 11px max(20px, calc(50vw - 50%)) 10px; margin: 0 calc(50% - 50vw) 4px;
+  background: rgba(18, 13, 8, 0.78);
   -webkit-backdrop-filter: saturate(140%) blur(14px);
   backdrop-filter: saturate(140%) blur(14px);
-  box-shadow: 0 1px 0 rgba(255, 243, 224, 0.07);
+  box-shadow: 0 1px 0 rgba(244, 183, 64, 0.18);
 }
 .daybar .mark {
   font-size: 20px; font-weight: 800; letter-spacing: 0.2em; text-transform: uppercase;
@@ -1271,7 +1284,7 @@ p.calkey .sw.today { background: none; box-shadow: inset 0 0 0 2px ${TODAY}; }
 .barnav { display: flex; align-items: center; gap: 4px; }
 .barnav .here {
   font-size: 13px; font-weight: 700; color: var(--dim); padding: 0 4px;
-  min-width: 52px; text-align: center; font-variant-numeric: tabular-nums;
+  min-width: 52px; text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 .arrow {
   width: 32px; height: 32px; flex: none; border-radius: 999px;

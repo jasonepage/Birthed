@@ -331,19 +331,14 @@ export function shareLine(supportBefore: number, supportAfter: number, totalBefo
  */
 export const HIVE_LIVE_STYLE = `
 .hivepage { background: radial-gradient(140% 100% at 50% -20%, #2A1D0C 0%, #120D08 58%) fixed; }
-/* The bar on the live page runs the whole width of the window and is the
-   hive's own dark honey rather than the date page's violet black: a strip
-   the width of the board floating on a wider warm page read as a mistake.
-   Its contents stay lined up with the board by padding the bleed back. */
-.hivepage .daybar {
-  margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw);
-  padding-left: max(16px, calc(50vw - 50%)); padding-right: max(16px, calc(50vw - 50%));
-  background: rgba(18, 13, 8, .92); box-shadow: 0 1px 0 rgba(244, 183, 64, .18);
-}
+/* Every page's bar runs the whole width of the window now, render.ts; the
+   live page keeps only its date in the middle. */
 .hivepage .daybar .barnav .here { color: #FFF3E0; font-family: var(--serif); font-size: 15px; font-weight: 700; }
 .hivepage .daybar .get { color: var(--dim); }
 .hivepage .daybar .get:hover { color: var(--honey-lite); border-bottom-color: var(--honey); }
-.wlivehive { --honey: var(--honey); --honey-lite: var(--honey-lite); --ember: #FF8A3D; --cream: #FFF3E0; --dim: var(--dim); --dimmer: var(--dimmer); --line: var(--line); --cell: var(--cell); }
+/* The hive's tokens used to be set here. They are the site's tokens on
+   :root now, theme.ts, and a custom property set to itself is a cycle the
+   browser throws out, so nothing is set here. */
 /* Clear of the sticky bar: the first version sat on it and the top of the
    line was under the bar on a page scrolled by a few pixels. */
 .wlivetop { display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; margin: 18px 0 0; padding: 4px 0; }
