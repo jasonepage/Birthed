@@ -1,5 +1,6 @@
 # GitHub reads this file to show a Sponsor button on the repository page.
-# The handle below is a placeholder and must be replaced with a real GitHub
-# Sponsors account, or this file removed, before the repository is public.
-# A placeholder that is left in shows a button that leads nowhere.
-github: [REPLACE-WITH-GITHUB-HANDLE]
+# Neither PayPal nor Venmo is one of GitHub's named platforms, so both go
+# under custom, which GitHub shows as plain links. Up to four are allowed.
+custom:
+  - https://www.paypal.com/paypalme/jasonepage
+  - https://venmo.com/u/Jason-page-85
