@@ -482,7 +482,8 @@ Nathan's decision, the measurements behind it and what it withdraws are in
 - **The privacy page was edited in the same commit**: two pages run a
   script now, and it says what the second one sends and receives.
 - **Fraunces is served from this origin** under `web/static/fonts`, Open
-  Font License beside it, named by the live hive alone.
+  Font License beside it. Named by the live hive alone until September 22,
+  2026; by every page since, see the entry below.
 
 ### What the first strangers hit, September 11, 2026
 
@@ -546,6 +547,40 @@ Stripped of the cynicism the thread left four notes, and three are fixed:
 - **Nathan's call, September 22, 2026**, with the argument that organising
   knowledge by date rather than by name is worth doing properly, and that a
   date page which puts Beethoven eighth on his own birthday is not that.
+
+### One look for the website, decided September 22, 2026
+
+Nathan's calls, on `notes/web-redesign-brief.md`. The full screen live hive
+was the only page that looked designed, so every page looks like it now.
+
+- **`web/src/theme.ts` is the one place a colour or a typeface lives.** Its
+  tokens are custom properties on `:root` and every stylesheet reads them.
+  Do not write a hex colour into `render.ts`, `wall.ts`, `pages.ts` or
+  `hive-live.ts`; add a token. The share cards in `share.ts` are pictures
+  and keep their own.
+- **Nothing is pink but the wordmark.** Every other accent is honey, and
+  "live, now, today" is ember. `dayHue` answers honey for every month; the
+  twelve month hues are gone and can come back only as tints of honey.
+- **Fraunces on every heading and headline, on every page**, and
+  `font-src 'self'` on every page's policy, with a test that reads the
+  header on seven paths. The privacy page says so.
+- **The date page's board is the live hive's board.** Dark cells, cream
+  Fraunces, honey buttons, the tier as a stripe. A small tile draws the
+  start of its headline, reversing the year-alone rule in
+  `docs/the-wall.md` section 27 for boards wide enough for words; under 480
+  pixels the year still stands in, and a pictured small tile on a phone is
+  the picture alone.
+- **One bar, `siteBar` in `render.ts`, on every page**: wordmark, the date
+  where there is one, then Today, Every date, Random, About, Get the app.
+  A test holds every page to the date page's bar.
+- **The comb is hexagons.** Offset rows in a grid, one cell shape, the glow
+  by buzzes. A kind is ranked by `combRank` (buzzes, then priority, then
+  desks, then arrival; no new number) and folds past `COMB_SHOWN` under a
+  count. Still no script anywhere but `/add`, `/admin` and the live hive.
+- **Screenshots come from the test fixtures**, rendered by
+  `notes/web-preview` tooling in the cloud, because neither shell can
+  reach birthed.app or the project. A data change still needs a manual
+  deploy; a style change under `web/**` deploys on push.
 
 ### The tick read whatever it was sent, found September 22, 2026
 
