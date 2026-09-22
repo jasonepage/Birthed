@@ -2507,3 +2507,17 @@ artifacts rather than illustrations of one.
 two rounds of looking at rendered boards. The picture that decided it was
 made from this date's real rows and its real covers and faces, and it is the
 reason the rest of this section is specific.
+
+**Two lines on the page, September 22, 2026.** Nathan, looking at the live
+September 22 hive:
+
+- **The sentence above the board is gone.** "Buzz what you think will still
+  matter about September 22 years from now." The line above it already says
+  the hive is open and when it seals, the line under it already says what a
+  buzz does, and the board is between them, so this was the third telling and
+  it pushed the board down a line on a phone. Section 13 cut it from every
+  page but the open one on September 10; this finishes that.
+- **"get Birthed" pointed at `/add/`, which is the wrong page.** `/add/` is
+  where somebody hands you their birthday, not where you get the app. It
+  points at `/about/`, which is the page carrying the download. A test now
+  says it may never point at `/add/` again.

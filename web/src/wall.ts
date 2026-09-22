@@ -1366,7 +1366,7 @@ export function afterwords(voice: Voice, name: string, undo: WallStory | null = 
 <p class="wsaid" id="wclosed">This hive has sealed and is permanent now. That ${v.one} arrived after midnight and was not counted.</p>
 <p class="wsaid" id="wfalse">That story was later shown false. It keeps its place on the hive and takes no ${v.many}.</p>
 <p class="wsaid" id="wfailed">That did not save, and it was this end rather than yours. The date is fine. Try it again.</p>${rallied}
-<p class="wsaid" id="wmiss">Nothing filed for ${escapeHtml(name)} says that. Nothing was spent. Adding a story takes a link and happens in the app: <a href="/add/">get Birthed</a> and add it there, and it is filed for the date.</p>
+<p class="wsaid" id="wmiss">Nothing filed for ${escapeHtml(name)} says that. Nothing was spent. Adding a story takes a link and happens in the app: <a href="/about/">get Birthed</a> and add it there, and it is filed for the date.</p>
 <p class="wsaid" id="wblank">Those words are too common to search on. Try a name, a place or what happened. Nothing was spent.</p>
 <p class="wsaid" id="wnofind">The hive could not be searched just now: either it has sealed, or this end could not reach it. Nothing was spent. Try it again.</p>
 </div>`;
@@ -1597,15 +1597,13 @@ ${folded.map((s) => listRow(s, live, voice)).join("\n")}
       ? "The hive has sealed, so the feed takes no more."
       : `When the hive opens, every one of these takes ${voice.many}.`;
 
-  // One sentence. The hive is the first thing under the name now, and every
-  // line above it is a line the board sits under, so the mechanic is said
-  // once and the rest is said under the board.
-  // Only where a buzz can be spent. On every other page the clock line
-  // says what the hive is, and a second sentence saying it again was
-  // filler: Nathan, September 10, 2026.
-  const lede = live
-    ? `${voice.imperative} what you think will still matter about ${escapeHtml(name)} years from now.`
-    : "";
+  // No sentence at all above the board, Nathan on September 22, 2026. The
+  // line above it already says the hive is open and when it seals, the line
+  // under it says what a buzz does, and the board itself is between them.
+  // This was the third telling and it pushed the board down a line on a
+  // phone. The earlier call on September 10 cut it everywhere but here; this
+  // finishes that.
+  const lede = "";
   // One line under the board, and a link for anybody who wants the rest.
   // Nathan, September 10, 2026: three paragraphs of explanation under the
   // board was a wall of text, and the people who need it are on the About

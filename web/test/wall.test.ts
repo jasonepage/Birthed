@@ -242,7 +242,10 @@ test("the baked section carries no forms, and the interactive one carries a tap 
   // The headline is the link to the receipt, on the tile and in the list.
   assert.ok(live.includes(`<a class="wh" href="${storyPath(onWall)}"`));
   assert.ok(live.includes(`<li id="w-${pooled.id}" data-subject="story:${pooled.id}"><a href="${storyPath(pooled)}">`));
-  assert.ok(live.includes("Buzz what you think will still matter about September 9"));
+  // No sentence above the board since September 22, 2026: the line above it
+  // says the hive is open and the line under it says what a buzz does.
+  assert.ok(!live.includes("will still matter about September 9"), "no third telling above the board");
+  assert.ok(!live.includes('class="wlede"'), "and no empty paragraph where it was");
   assert.ok(live.includes("Three buzzes left today."));
   assert.ok(live.includes("You buzzed this"));
   // The evidence tiers keep their one line and nothing claims a model decided anything.
@@ -471,7 +474,10 @@ test("the typed field is on the live section only, posts a plain form to /find, 
   assert.ok(!/<script|onsubmit|oninput/i.test(live));
   // The miss is the front door to submission rather than a dead end.
   assert.ok(live.includes('id="wmiss">Nothing filed for September 9 says that.'));
-  assert.ok(live.includes('<a href="/add/">'));
+  // /add/ is where somebody hands you their birthday, not where you get the
+  // app. The About page is the one with the download on it.
+  assert.ok(live.includes('<a href="/about/">get Birthed</a>'));
+  assert.ok(!live.includes('<a href="/add/">'), "get Birthed never points at the birthday hand-off page");
 
   // After the date seals the field is gone with the buzz forms.
   const sealed = wallSection(d, "September 9", Date.parse("2026-09-12T00:00:00Z"), { interactive: true });
