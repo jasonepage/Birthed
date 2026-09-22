@@ -574,6 +574,27 @@ Stripped of the cynicism the thread left four notes, and three are fixed:
   scheduled tick after the worker redeploys is the test, and the thing to look
   for in its log is a `too big to read` line where the crash used to be.
 
+### The editorial pass, September 22, 2026
+
+`docs/editorial-pass.md` holds the plan and what is left. The short form:
+
+- **The violence screen reaches the hive.** `planHistory` drops anyone
+  `isViolentNotoriety` catches. The score alone forced them to nought, and
+  the hive reads every person on a date with no floor, so they were still
+  filed with a Buzz button.
+- **A feed row is silent about the claimed tier** and names every tier
+  above it. The receipt still names all three.
+- **A reader with a year gets their own order and their own ages**, all in
+  the per reader style block: the song strip starts at their week and each
+  card says "You were 16.", and a feed row that opens with a year says "You
+  were 11" above it. The baked page and every other reader are unchanged.
+- **Known limit:** the cookie holds a year and not a birthday, so on a date
+  that is not the reader's an age can be one year high. Fixing it changes
+  what the privacy page says is stored.
+- **Short headlines are next, and the rule comes before the code:** shorten,
+  never add, checked by names and numbers, thrown out when the source
+  changes. Never written over `headline`.
+
 ### History before 1600 does not exist, found September 22, 2026
 
 - **`WIKIDATA_YEAR_FROM` defaulted to 1600**, so the earliest person in
