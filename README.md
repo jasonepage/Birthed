@@ -1,17 +1,141 @@
-# Birthed
+<p align="center">
+  <img src="docs/readme/icon.png" width="112" height="112" alt="The Birthed app icon: a lit candle on a calendar page">
+</p>
 
-Every calendar date has a page. It shows who was born on it, what happened on
-it, the number one song, album and film for the week a reader was born, and a
-board called the hive that the people there on the day fill in themselves.
+<h1 align="center">Birthed</h1>
 
-Live at [birthed.app](https://birthed.app). The iPhone app is in beta on
-[TestFlight](https://testflight.apple.com/join/hzm6Mhhm), Apple's free app
-for trying apps before they are on the store.
+<p align="center"><b>Every date has a hive.</b></p>
 
-Birthed is a website and an iPhone app about calendar dates. The central
-object is the date, not the user. There is no revenue, no advertising,
-nothing to buy, no company, and no analytics service or third party code of
-any kind.
+<p align="center">
+  <a href="https://github.com/jasonepage/Birthed/actions/workflows/checks.yml"><img alt="checks" src="https://github.com/jasonepage/Birthed/actions/workflows/checks.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="license: AGPL 3.0" src="https://img.shields.io/badge/license-AGPL%203.0-8A6D3B"></a>
+  <img alt="iOS 17 and later" src="https://img.shields.io/badge/iOS-17%2B-2A2233">
+  <img alt="Swift 6 and SwiftUI" src="https://img.shields.io/badge/Swift%206-SwiftUI-EF5680">
+  <img alt="backend: Supabase" src="https://img.shields.io/badge/backend-Supabase-3A7D5C">
+  <img alt="analytics: none" src="https://img.shields.io/badge/analytics-none-8A6D3B">
+  <img alt="accounts on the website: none" src="https://img.shields.io/badge/website%20accounts-none-8A6D3B">
+  <a href="https://testflight.apple.com/join/hzm6Mhhm"><img alt="iPhone app: TestFlight beta" src="https://img.shields.io/badge/iPhone%20app-TestFlight%20beta-E7A83A"></a>
+</p>
+
+<p align="center">
+  <a href="https://birthed.app">Website</a> ·
+  <a href="docs/the-wall.md">How the hive works</a> ·
+  <a href="#what-it-does-not-do">What it does not do</a> ·
+  <a href="docs/objections.md">The objections, answered</a> ·
+  <a href="https://birthed.app/privacy/">Privacy</a> ·
+  <a href="SECURITY.md">Report a vulnerability</a>
+</p>
+
+---
+
+Every calendar date has a page. It shows what happened on that date, who was
+born on it, what was number one, and the day's news, all in one pool. On the
+date itself, anyone who shows up gets three buzzes to spend on what they think
+will still matter. At midnight the hive seals, and it can never be edited.
+Next year the same date opens a new one, and the old one stays readable.
+
+Birthed is a website at [birthed.app](https://birthed.app) and an iPhone app
+in beta on [TestFlight](https://testflight.apple.com/join/hzm6Mhhm), Apple's
+free app for trying apps before they are on the store. The date is the thing,
+not the user. There is nothing to buy, no advertising, and no analytics
+service or third party code of any kind.
+
+<p align="center">
+  <img src="docs/readme/hive-life.svg" alt="The life of one date's hive: it opens for stories the day before, takes three buzzes each on the date and one more the day after, seals at midnight Eastern and becomes permanent. The same date opens a new hive the next year." width="100%">
+</p>
+
+> **The website does not ask for an account and does not store your birthday.**
+> The month and day you pick only choose which page to show. A birth year, if
+> you give one, lives in one cookie in your own browser and nowhere else. The
+> iPhone app is different and says so: it sends a month, a day and an optional
+> year to a silent anonymous account. The [privacy page](https://birthed.app/privacy/)
+> has the whole account, and it is edited in the same commit as the code.
+
+## Status, plainly
+
+| | |
+|---|---|
+| **Website** | Live at [birthed.app](https://birthed.app). 366 date pages, and a hive on every date from the day before it. |
+| **iPhone app** | In beta on [TestFlight](https://testflight.apple.com/join/hzm6Mhhm), not yet on the App Store. |
+| **Team** | One developer. No company, no funding, no investors. |
+| **Money** | None. Nothing to buy, no subscription, no advertising. |
+| **Dependencies** | The website's server has no runtime packages. The iPhone app has no Swift packages. Neither has analytics, a crash reporter or advertising code. |
+| **Data** | Wikidata, Wikipedia, Wikimedia Commons and public news feeds, each row stamped with its source and license. [Where the content comes from](#where-the-content-comes-from). |
+| **Measuring** | The hive is judged on one number: of the people who buzz, how many come back and buzz on a different day. It means nothing until a month of real traffic, which had not started as of September 2026. `docs/measuring.md` says why. |
+
+`CLAUDE.md` is the working record: every decision, why it was made, and what
+turned out wrong. It is blunt on purpose, and it is the first thing to read
+before changing anything.
+
+## What is not done
+
+- **The feed still reads like an encyclopedia.** Tiles are whole Wikipedia
+  sentences, and some rows are templates ("was the number one album").
+  `docs/editorial-pass.md` is the plan, and short headlines come with a rule
+  written down first: shorten the source, never add to it.
+- **Nobody born before 1600 is in the database yet.** The import reaches back
+  to 1400 now, but it has not been run again, so there is no Leonardo, no
+  Galileo and no Einstein until it is.
+- **The website knows a birth year and not a birthday.** It treats the date
+  being read as the reader's own, so on somebody else's date an age can be one
+  year high.
+- **"Claimed" is still the only tier in practice.** Nothing adds a second
+  source to a story yet, so the three shades of honey on the board are one.
+- **The iPhone app has not been compiled in every session that changed it.**
+  `CLAUDE.md` says which rules have a test that has not been run.
+- **A migration in this repository can be newer than the live database.**
+  `docs/going-public.md` lists the ones that are.
+- **The reward catalog this started as is still here, unused.** It is built in
+  the schema and tested, and `CLAUDE.md` section 5 records why it was cut.
+
+## What it does not do
+
+- It does not ask the website's readers to sign in, and it has no accounts to
+  sign in to.
+- It does not let a buzz be changed once it is cast, or a sealed hive be
+  edited. The database trigger refuses both. The one exception written so
+  far, taking a buzz back in its first thirty seconds, is in this repository
+  and not yet on the live database.
+- It does not send the device's location anywhere, or use it.
+- It does not run a script on any page except `/add`, the private `/admin`
+  pages, and the live hive of a date that is taking buzzes.
+  `web/test/serve.test.ts` fails if any other page is allowed to.
+- It does not send the list of birthdays you keep in the app anywhere. Only
+  how many there are.
+- It does not show a notification for a famous person's birthday. A
+  notification is a promise that there is something to do.
+
+## What it looks like
+
+<table>
+  <tr>
+    <td width="50%" valign="top"><img src="docs/readme/date-page.png" alt="The September 22 page on birthed.app: the date, the question What mattered about September 22, and the hive, with its biggest tiles about Gerald Ford and Joseph Smith"></td>
+    <td width="50%" valign="top"><img src="docs/readme/hive-phone.png" alt="A hive on a phone, with tiles sized by how many buzzes each story got"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>A date page on birthed.app, the hive leading it</sub></td>
+    <td align="center"><sub>The same kind of board on a phone</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top"><img src="docs/readme/hive-share.png" alt="The share picture for the September 10 hive"></td>
+    <td width="50%" valign="top"><img src="docs/readme/app-card.png" alt="The iPhone app's card for September 4: the number one song the week you were born, We Belong Together by Mariah Carey, and a lit candle"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>The picture a hive shares</sub></td>
+    <td align="center"><sub>The card the iPhone app shares</sub></td>
+  </tr>
+</table>
+
+## How it fits together
+
+<p align="center">
+  <img src="docs/readme/how-it-fits.svg" alt="Facts come from Wikidata, Wikipedia, public news feeds and Wikimedia Commons into the worker, which runs every fifteen minutes and is the only holder of the service role key. It writes to Supabase, which has row level security on every table. The website and the iPhone app read from it with the anonymous key." width="100%">
+</p>
+
+The specifications are `PRD.md` (what the product is and refuses to be),
+`SRS.md` (numbered requirements) and `SDS.md` (the design). Large parts of all
+three describe the reward catalog, which is on the shelf. The decisions made
+since are in `CLAUDE.md` section 5, and they win where the two disagree.
 
 ## How the hive works
 
@@ -214,27 +338,8 @@ Which record was number one on a given date is a fact and cannot be owned.
 Birthed is not affiliated with Wikipedia, Wikidata, the Wikimedia Foundation,
 Billboard, Penske Media or Google.
 
-## Known limitations
-
-- The reward catalog that an earlier version of this was built around is in
-  the schema, tested, and unused. `CLAUDE.md` section 5 records the cut.
-- The ordering of people on a date page is by English Wikipedia attention,
-  which makes it American and entertainment heavy. Changing it is an open
-  decision, recorded in `CLAUDE.md`.
-- The iPhone app has not been compiled in every session that changed it.
-  `CLAUDE.md` says which rules have a test that has not been run.
-- Several dated tables in `Birthed/Domain/WorldThen.swift` were written from
-  memory and are to be checked against their pages before release.
-- The hive's one measurement, repeat buzzing, means nothing until a month of
-  real traffic has passed, and that month had not started as of September
-  2026; `docs/measuring.md` says why.
-- A migration in this repository can be newer than the live database.
-  `docs/going-public.md` lists the ones that are.
-
 ## License
 
-This repository is under the GNU Affero General Public License version 3.0.
-The `LICENSE` file is added through GitHub's license template so the text is
-exact; until it is present, that is the intended license. Content imported
-from Wikidata, Wikipedia and Wikimedia Commons keeps the license of its
-source, recorded on every row.
+The code is under the GNU Affero General Public License version 3.0, in
+`LICENSE`. Content imported from Wikidata, Wikipedia and Wikimedia Commons
+keeps the license of its source, recorded on every row.
