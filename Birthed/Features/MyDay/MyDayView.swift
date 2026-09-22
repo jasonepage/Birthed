@@ -634,7 +634,7 @@ struct MyDayView: View {
     private func factPick(_ fact: BirthFact) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
-                Text(FoundFactsSection.label(for: fact.category))
+                Text(FoundFactsSection.label(for: fact.category) + (fact.isLocal ? "  \u{00B7}  NEAR YOU" : ""))
                     .font(.caption.weight(.heavy))
                     .kerning(2.5)
                     .foregroundStyle(stagePalette.accent)
@@ -657,6 +657,16 @@ struct MyDayView: View {
                 .font(.system(size: 22, weight: .bold, design: .serif))
                 .foregroundStyle(stagePalette.type)
                 .fixedSize(horizontal: false, vertical: true)
+
+            // Said on the card, because a fact about the reader's town with no
+            // reason given reads as the app knowing where they are. It does
+            // not: the region is the one they typed, and location is never
+            // read.
+            if fact.isLocal {
+                Text("Local, from the region in your Settings.")
+                    .font(.caption)
+                    .foregroundStyle(stagePalette.type.opacity(0.45))
+            }
 
             if let source = fact.sourceURL {
                 Button {

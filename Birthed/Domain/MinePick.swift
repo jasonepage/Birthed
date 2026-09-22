@@ -17,6 +17,12 @@ import Foundation
 /// than leading every time. Facts with enough likes to count still come
 /// first, by `FactOrder`, so what people who share the birthday liked is
 /// what a reader sees first.
+///
+/// A local fact never leads while there is anything else. Local facts come
+/// from the region typed into Settings, and the first test on a real phone
+/// led with a minor league baseball score from the reader's town, which read
+/// as the app knowing where they live rather than as a fact about their day.
+/// They are still in the deal, one tap in.
 enum MinePick: Equatable, Identifiable {
     case fact(BirthFact)
     case charts
@@ -32,7 +38,12 @@ enum MinePick: Equatable, Identifiable {
     /// the card does not jump while the screen is open; a new salt on the
     /// next launch gives a new one.
     static func deal(facts: [BirthFact], hasCharts: Bool, salt: UInt64) -> [MinePick] {
-        var picks = FactOrder.order(facts, salt: salt).map(MinePick.fact)
+        var ordered = FactOrder.order(facts, salt: salt)
+        if let first = ordered.first, first.isLocal,
+           let wider = ordered.firstIndex(where: { !$0.isLocal }) {
+            ordered.swapAt(0, wider)
+        }
+        var picks = ordered.map(MinePick.fact)
         guard hasCharts else { return picks }
         guard !picks.isEmpty else { return [.charts] }
         var state = salt ^ 0x9E37_79B9_7F4A_7C15

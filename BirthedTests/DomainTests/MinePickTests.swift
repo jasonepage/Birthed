@@ -39,6 +39,16 @@ final class MinePickTests: XCTestCase {
         XCTAssertEqual(MinePick.deal(facts: facts, hasCharts: true, salt: 7).first, .fact(fact(2, likes: 9)))
     }
 
+    func testALocalFactNeverLeadsWhileThereIsAnythingElse() {
+        let local = (1...5).map { BirthFact(id: $0, fact: "Local \($0).", category: "sport", sourceURL: nil,
+                                            regionKey: "salem-or", likes: 0, likedByMe: false) }
+        let facts = local + [fact(99)]
+        for salt in UInt64(0)..<200 {
+            XCTAssertEqual(MinePick.deal(facts: facts, hasCharts: true, salt: salt).first, .fact(fact(99)), "salt \(salt)")
+        }
+        XCTAssertEqual(MinePick.deal(facts: local, hasCharts: false, salt: 3).count, 5, "all local is still shown")
+    }
+
     func testWithNothingFoundTheChartsAreTheCard() {
         XCTAssertEqual(MinePick.deal(facts: [], hasCharts: true, salt: 1), [.charts])
         XCTAssertEqual(MinePick.deal(facts: [], hasCharts: false, salt: 1), [])
