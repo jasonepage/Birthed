@@ -1,16 +1,15 @@
 import SwiftUI
 import UIKit
 
-/// Settings, as a sheet behind a cog.
+/// Settings, in the app's own look.
 ///
-/// No "Change" buttons. A row that shows a value and does nothing when you tap
-/// it, sitting above a button whose only job is to make that row work, is two
-/// controls doing one control's job. The row is the control. Text you can edit
-/// is edited in place and saved as you type.
+/// Redrawn on September 22, 2026. It was a stock grouped list with a paragraph
+/// under every section, the one screen left that looked like a form rather
+/// than like Birthed. Now: your day at the top on the honey panel, the three
+/// things a person actually changes as short rows, and the long explanations
+/// cut to one line each. Nothing was removed; the rehearsal harness is still
+/// here in debug builds.
 struct SettingsView: View {
-    /// Asked for when the person wants the opening reveal again. The root
-    /// presents it, because it replaces the whole screen and this sheet has
-    /// to go first.
     var onReplayReveal: (() -> Void)? = nil
 
     @Environment(ProfileStore.self) private var profileStore
@@ -19,86 +18,77 @@ struct SettingsView: View {
     @Environment(NotificationService.self) private var notifications
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var confirmingDelete = false
     @State private var region = ""
     @FocusState private var regionFocused: Bool
 
     #if DEBUG
-    /// What the last rehearsal said. Shown rather than logged, because the
-    /// phone is face down on a desk during this test and nobody is watching a
-    /// console.
     @State private var rehearsal = ""
     #endif
 
     private var profile: Profile? { profileStore.profile }
+    private var palette: StagePalette { .forScheme(colorScheme) }
+    private let stage = StagePalette.wax
+    private let calendar = BirthdayCalendar()
 
     var body: some View {
         NavigationStack {
-            List {
-                if let profile {
-                    Section {
-                        NavigationLink {
-                            BirthdayEditor(profile: profile) { save($0) }
-                        } label: {
-                            LabeledContent("Birthday", value: birthdayLine(profile))
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    if let profile {
+                        dayPanel(profile)
+                    }
+
+                    group("REMINDERS", note: reminderNote) {
+                        remindersRow
+                    }
+
+                    if profile != nil {
+                        group("REGION", note: "Only for facts about where you were born. Your phone's location is never used.") {
+                            regionRow
                         }
-                        if let onReplayReveal {
-                            Button {
-                                commitRegion()
-                                dismiss()
-                                onReplayReveal()
-                            } label: {
-                                Label("Play the reveal again", systemImage: "play.circle")
+                    }
+
+                    group("ABOUT", note: accountNote) {
+                        NavigationLink {
+                            AttributionsView()
+                        } label: {
+                            row(icon: "text.book.closed", title: "Sources and licences") {
+                                chevron
                             }
                         }
-                    } header: {
-                        Text("Your day")
-                    } footer: {
-                        Text("The reveal is the opening: the wheels, the day of the week, and what was number one the week you were born. Finishing it saves whatever the wheels say, so it is also a way to change your day.")
-                    }
-
-                    Section {
-                        LabeledContent("Region") {
-                            TextField("Add one", text: $region)
-                                .multilineTextAlignment(.trailing)
-                                .textInputAutocapitalization(.words)
-                                .autocorrectionDisabled()
-                                .focused($regionFocused)
-                                .submitLabel(.done)
-                                .onSubmit { commitRegion() }
-                                .onChange(of: regionFocused) { _, focused in
-                                    if !focused { commitRegion() }
-                                }
+                        .buttonStyle(.plain)
+                        divider
+                        row(icon: "info.circle", title: "Version") {
+                            Text(Bundle.main.shortVersion)
+                                .foregroundStyle(palette.type.opacity(0.5))
                         }
-                    } header: {
-                        Text("Location")
-                    } footer: {
-                        Text("A postal code or a city, and it is the only location Birthed has. Your device's location is never used or sent.")
                     }
-                }
 
-                remindersSection
+                    #if DEBUG
+                    rehearsalGroup
+                    #endif
 
-                Section {
-                    NavigationLink("Sources and licences") { AttributionsView() }
-                    LabeledContent("Version", value: Bundle.main.shortVersion)
-                } header: {
-                    Text("About")
-                } footer: {
-                    Text(accountFooter)
-                }
-
-                #if DEBUG
-                rehearsalSection
-                #endif
-
-                Section {
-                    Button("Delete my account and data", role: .destructive) {
+                    Button {
                         confirmingDelete = true
+                    } label: {
+                        Text("Delete my account and data")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.red.opacity(0.85))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
                     }
+                    .buttonStyle(.plain)
+                    .padding(.top, 4)
                 }
+                .padding(.horizontal, 18)
+                .padding(.top, 6)
+                .padding(.bottom, 30)
             }
+            .scrollDismissesKeyboard(.interactively)
+            .background(palette.ground.ignoresSafeArea())
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -127,108 +117,266 @@ struct SettingsView: View {
         .tint(Theme.accent)
     }
 
-    /// One switch, and the row is the control. `FR-070` keeps the system
-    /// prompt out of onboarding, so this is where it is asked for, from a
-    /// thing the user deliberately touched.
-    ///
-    /// When permission has been refused there is no switch, because a switch
-    /// that cannot do anything is a lie. There is a row that opens the place
-    /// where it can be undone.
-    @ViewBuilder
-    private var remindersSection: some View {
-        Section {
+    // MARK: Your day
+
+    /// The one thing in Settings that is about you, set the way Mine sets it.
+    /// A tap on the date edits it; the reveal is one button under it.
+    private func dayPanel(_ profile: Profile) -> some View {
+        let weekday = calendar.birthWeekday(profile.birthday).flatMap { PersonDay.weekdayName($0) }
+        let alive = calendar.daysAlive(profile.birthday, on: Date())
+        return VStack(alignment: .leading, spacing: 0) {
+            Text("YOUR DAY")
+                .font(.caption.weight(.heavy))
+                .kerning(2.8)
+                .foregroundStyle(stage.accent)
+
+            NavigationLink {
+                BirthdayEditor(profile: profile) { save($0) }
+            } label: {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(birthdayLine(profile))
+                        .font(.system(size: 30, weight: .heavy, design: .serif))
+                        .foregroundStyle(stage.type)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                    Spacer(minLength: 8)
+                    Text("Edit")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(stage.accent)
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 8)
+
+            Text(dayDetail(weekday: weekday, alive: alive))
+                .font(.subheadline)
+                .foregroundStyle(stage.type.opacity(0.6))
+                .padding(.top, 4)
+
+            if let onReplayReveal {
+                Button {
+                    commitRegion()
+                    dismiss()
+                    onReplayReveal()
+                } label: {
+                    Label("Play the reveal again", systemImage: "play.fill")
+                        .font(.subheadline.weight(.heavy))
+                        .foregroundStyle(HivePalette.buzzInk)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(
+                            LinearGradient(colors: [HivePalette.buzzTop, HivePalette.buzzBottom],
+                                           startPoint: .top, endPoint: .bottom),
+                            in: Capsule()
+                        )
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 16)
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            ZStack {
+                stage.ground
+                RadialGradient(colors: [Theme.honey.opacity(0.22), .clear],
+                               center: UnitPoint(x: 0.9, y: 0.05), startRadius: 0, endRadius: 300)
+            }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            CandleMark(height: 64, on: stage)
+                .padding(.trailing, 24)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(HivePalette.cellEdge, lineWidth: 1))
+    }
+
+    private func dayDetail(weekday: String?, alive: Int?) -> String {
+        switch (weekday, alive) {
+        case let (day?, days?): return "Born on a \(day) \u{00B7} \(days.formatted()) days old"
+        case let (day?, nil): return "Born on a \(day)"
+        default: return "Add your year for the song and your age"
+        }
+    }
+
+    // MARK: Rows
+
+    private var remindersRow: some View {
+        Group {
             if notifications.permission == .denied {
                 Button {
                     if let url = URL(string: UIApplication.openSettingsURLString) {
                         openURL(url)
                     }
                 } label: {
-                    LabeledContent("Reminders", value: "Off in iOS Settings")
+                    row(icon: "bell.slash", title: "Reminders") {
+                        Text("Off in iOS Settings")
+                            .foregroundStyle(palette.type.opacity(0.5))
+                        chevron
+                    }
                 }
-                .tint(.primary)
+                .buttonStyle(.plain)
             } else {
-                Toggle("Reminders", isOn: Binding(
-                    get: { notifications.isEnabled },
-                    set: { wanted in Task { await setReminders(wanted) } }
-                ))
+                row(icon: "bell", title: "Reminders") {
+                    Toggle("Reminders", isOn: Binding(
+                        get: { notifications.isEnabled },
+                        set: { wanted in Task { await setReminders(wanted) } }
+                    ))
+                    .labelsHidden()
+                    .tint(Theme.accent)
+                }
             }
-        } header: {
-            Text("Reminders")
-        } footer: {
-            Text(reminderFooter)
         }
     }
 
+    private var regionRow: some View {
+        row(icon: "mappin.and.ellipse", title: "Where you were born") {
+            TextField("Add a city", text: $region)
+                .multilineTextAlignment(.trailing)
+                .textInputAutocapitalization(.words)
+                .autocorrectionDisabled()
+                .focused($regionFocused)
+                .submitLabel(.done)
+                .foregroundStyle(palette.type.opacity(0.7))
+                .onSubmit { commitRegion() }
+                .onChange(of: regionFocused) { _, focused in
+                    if !focused { commitRegion() }
+                }
+        }
+    }
+
+    /// A heading, a card of rows, and one line under it.
+    private func group<Content: View>(_ heading: String, note: String?, @ViewBuilder _ content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(heading)
+                .font(.caption.weight(.heavy))
+                .kerning(2.6)
+                .foregroundStyle(palette.type.opacity(0.5))
+                .padding(.leading, 6)
+            VStack(spacing: 0, content: content)
+                .background(palette.type.opacity(0.06), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(palette.type.opacity(0.08), lineWidth: 1))
+            if let note {
+                Text(note)
+                    .font(.footnote)
+                    .foregroundStyle(palette.type.opacity(0.5))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 6)
+            }
+        }
+    }
+
+    private func row<Trailing: View>(icon: String, title: String, @ViewBuilder trailing: () -> Trailing) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(palette.accent)
+                .frame(width: 30, height: 30)
+                .background(palette.accent.opacity(0.14), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            Text(title)
+                .font(.body)
+                .foregroundStyle(palette.type)
+                .lineLimit(1)
+            Spacer(minLength: 8)
+            trailing()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .contentShape(Rectangle())
+    }
+
+    private var chevron: some View {
+        Image(systemName: "chevron.right")
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(palette.type.opacity(0.3))
+    }
+
+    private var divider: some View {
+        Rectangle()
+            .fill(palette.type.opacity(0.08))
+            .frame(height: 1)
+            .padding(.leading, 56)
+    }
+
+    // MARK: The words under the rows, one line each
+
+    private var reminderNote: String {
+        switch notifications.permission {
+        case .denied:
+            return "iOS is holding these back. Turn them on again in the iOS Settings app."
+        case .granted where notifications.isEnabled:
+            return "Your birthday morning, and everyone you added, on the day and three days before."
+        case .granted:
+            return "Nothing is scheduled."
+        case .notAsked, .unknown:
+            return "Your birthday morning, and everyone you added, on the day and three days before. iOS asks once."
+        }
+    }
+
+    private var accountNote: String {
+        switch account.state {
+        case .signedIn:
+            return "Birthed made you an account on first launch. No password, nothing to sign in to."
+        case .unknown:
+            return "Setting up your account."
+        case .unavailable:
+            return "No account yet. Everything stays on this phone and Birthed tries again."
+        }
+    }
+
+    // MARK: Rehearsal, debug builds only
+
     #if DEBUG
-    /// Test pass item 30, made runnable.
-    ///
-    /// The loop this app is for has never been walked end to end: a reminder
-    /// arrives, it is tapped, the composer opens with the right person in it,
-    /// and a message goes. This fires a real reminder out of the real plan a
-    /// few seconds from now so that loop can be walked in under a minute
-    /// instead of at eight tomorrow morning.
-    ///
-    /// Only friends are offered, and that is a change from September 6.
-    ///
-    /// Public figures get no reminder of any kind now, so a button offering to
-    /// fire one would answer "nothing in the plan matches that" when it was
-    /// pressed. This screen has already made that mistake once, when it
-    /// offered a three day warning for a followed person who by decision never
-    /// gets one. The harness was wrong and the app was right, which is the
-    /// wrong way round for a test to fail, and it is not worth making twice.
-    ///
-    /// Debug builds only. It is not a feature, it is a way of running a test.
-    private var rehearsalSection: some View {
+    private var rehearsalGroup: some View {
         let soonest = BirthdayAgenda().soonestFirst(peopleStore.people, on: Date()).filter(\.isUsable)
         let friend = soonest.first { !$0.isPublicFigure }
 
-        return Section {
+        return group("REHEARSE A REMINDER", note: rehearsal.isEmpty ? Self.rehearsalHelp : rehearsal) {
             if let profile {
                 if let friend {
-                    Button("It is \(friend.trimmedName)'s birthday, a friend") {
+                    debugButton("It is \(friend.trimmedName)'s birthday") {
                         fire(.personBirthday(personID: friend.id), profile)
                     }
-                    Button("\(friend.trimmedName)'s birthday is in \(notifications.personDaysBefore) days") {
+                    divider
+                    debugButton("\(friend.trimmedName)'s birthday is in \(notifications.personDaysBefore) days") {
                         fire(.personSoon(personID: friend.id, daysBefore: notifications.personDaysBefore), profile)
                     }
+                    divider
                 }
-                Button("Your own birthday morning") {
+                debugButton("Your own birthday morning") {
                     fire(.ownBirthday, profile)
                 }
-                if friend == nil {
-                    Text("No friends on the list, so the message composer cannot be reached from here. Add somebody without a Wikidata identifier.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-            } else {
-                Text("Finish onboarding first.")
-                    .foregroundStyle(.secondary)
+                divider
             }
-            // Rehearsing does not count as a delivery, because the rehearsal
-            // builds its own request and never enters the schedule the count
-            // is swept from. Actually sending a test message does count, which
-            // is what this is for.
-            Button("Reset the four numbers", role: .destructive) {
+            debugButton("Reset the four numbers", destructive: true) {
                 Tally.reset()
                 rehearsal = "Reminders delivered and messages sent are back to zero on this phone. The next foreground sends the zeros."
             }
-        } header: {
-            Text("Rehearse a reminder")
-        } footer: {
-            Text(rehearsal.isEmpty ? Self.rehearsalHelp : rehearsal)
         }
     }
 
+    private func debugButton(_ title: String, destructive: Bool = false, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline)
+                .foregroundStyle(destructive ? Color.red.opacity(0.85) : palette.accent)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
     private static let rehearsalHelp = """
-        Debug builds only. Fires one reminder out of the real plan twelve \
-        seconds from now, with the real identifier and the real words, so \
-        tapping it walks the shipping path. Lock the phone after you tap. \
-        Public figures get no reminder of any kind, by design, so only \
-        friends are offered here.
+        Debug builds only. Fires one reminder from the real plan twelve \
+        seconds from now, with the real words, so tapping it walks the \
+        shipping path. Lock the phone after you tap. Public figures get no \
+        reminders, so only friends are offered.
         """
 
-    /// The plan is rebuilt from the store rather than from anything cached, so
-    /// a person added a moment ago is in it.
     private func fire(_ kind: PlannedNotification.Kind, _ profile: Profile) {
         rehearsal = "Asking iOS..."
         Task {
@@ -241,18 +389,7 @@ struct SettingsView: View {
     }
     #endif
 
-    private var reminderFooter: String {
-        switch notifications.permission {
-        case .denied:
-            return "iOS is holding these back. Turning them on again is done in the iOS Settings app."
-        case .granted where notifications.isEnabled:
-            return "Your birthday morning, a run up 45 days before, and every person you have added, on the day and three days before."
-        case .granted:
-            return "Nothing is scheduled."
-        case .notAsked, .unknown:
-            return "Your birthday morning, and the people you have added, on the day and three days before. iOS will ask you once."
-        }
-    }
+    // MARK: Saving
 
     private func setReminders(_ wanted: Bool) async {
         guard wanted else {
@@ -273,19 +410,6 @@ struct SettingsView: View {
         var line = profile.birthday.date.displayName()
         if let year = profile.birthday.year { line += ", \(year)" }
         return line
-    }
-
-    /// The account is silent by design, so its state is a footnote rather than
-    /// a row demanding attention.
-    private var accountFooter: String {
-        switch account.state {
-        case .signedIn:
-            return "Birthed made an account for you silently on first launch. No password, nothing to sign in to."
-        case .unknown:
-            return "Setting up your account."
-        case .unavailable:
-            return "Your account has not been created yet. Birthed keeps everything on this device and will try again."
-        }
     }
 
     private func commitRegion() {
@@ -310,9 +434,6 @@ struct SettingsView: View {
     }
 }
 
-/// Changing your own birthday. Pushed rather than presented, and it commits as
-/// you turn the wheels: there is nothing to confirm and nothing to cancel,
-/// because every state of this screen is a valid birthday.
 private struct BirthdayEditor: View {
     let profile: Profile
     let onChange: (Profile) -> Void
@@ -351,7 +472,7 @@ private struct BirthdayEditor: View {
             } header: {
                 Text("Year")
             } footer: {
-                Text("Optional. It is what turns on the number one song the week you were born, and the age you are turning.")
+                Text("Optional. It turns on the number one song the week you were born, and the age you are turning.")
             }
         }
         .navigationTitle("Your birthday")
