@@ -10,9 +10,10 @@ import SwiftUI
 /// tiers are now pale wax, amber and deep honey. The colour still does the
 /// tier's job and the legend still says so.
 ///
-/// Separate from `Theme` and from `StagePalette` on purpose. `Theme` is the
-/// app's pink and `StagePalette.forScheme` is read by seven files including
-/// both share cards, so neither is touched to give the hive its colours.
+/// Separate from `Theme` on purpose. These are the tier colours and they do
+/// the tier's job; `Theme` is the app's accent. Since September 22, 2026 the
+/// app is honey too, so the two sit together, but a tier tone is never used
+/// as the accent or the other way round.
 enum HivePalette {
 
     /// Pale wax, the candle's own colour on the website. Claimed.
@@ -31,7 +32,8 @@ enum HivePalette {
     /// The reader's own mark on a light tile. Dark enough to read on wax.
     static let mark = Color(red: 0.541, green: 0.247, blue: 0.020)       // 8A3F05
 
-    /// The board behind the tiles.
+    /// The board behind the tiles: the app's darkest ground, 120D08, the
+    /// same as the website's page behind the hive.
     static let board = Theme.ink
 
     static func fill(_ tier: WallTier) -> Color {
