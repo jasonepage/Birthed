@@ -147,7 +147,9 @@ test("the small helpers", () => {
   assert.equal(rectVars({ mx: 1, my: 2, w: 3, h: 4 }), "--x:1;--y:2;--w:3;--h:4");
   assert.equal(jsonIsland({ a: "</script>\u2028" }), '{"a":"\\u003c/script>\\u2028"}');
   const tile = liveTile(story({ rect: { mx: 4, my: 3, w: 8, h: 5 } }), true, BEE, 2, 0.5);
-  assert.ok(tile.includes('--x:4;--y:3;--w:8;--h:5;--lines:7;--tw:8;--i:2'));
+  // The live tile carries the same fitted size and line budget the baked one
+  // does, from fitType. docs/the-wall.md is silent on this and wall.ts says why.
+  assert.ok(tile.includes('--x:4;--y:3;--w:8;--h:5;--lines:4;--fit:2.22;--tw:8;--i:2'));
   assert.ok(tile.includes('<div class="wcell" style="--heat:0.5"><span class="wstripe"></span>'));
   assert.ok(tile.includes('<form class="wbuzz" method="post" action="/boost">'), "the button is a form, so it posts without the script too");
   assert.ok(tile.includes('name="v" value="hive"'));

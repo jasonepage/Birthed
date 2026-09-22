@@ -6,7 +6,7 @@ import {
   eastern,
   yearsAgo,
   BEE, PLAIN, PLAIN_DATES, VIEW_MIN, allowanceOn, emptyWallDay, fetchWall, hivePath, newestByDate, storyPath, takingBoosts,
-  tapsLeftSentence, tierLabel, units, viewportFor, voiceFor, wallMarks, wallSection, pictureRules, songParts, subjectOf, takeTurns, FEED_SHOWN, tileKind, kindMark, WALL_STYLE, hindsightLine, latestOutcome, outcomeStamp, recordStanding, yoursLine, type WallDay, type WallStory,
+  tapsLeftSentence, tierLabel, units, viewportFor, voiceFor, wallMarks, wallSection, pictureRules, songParts, subjectOf, takeTurns, FEED_SHOWN, tileKind, kindMark, WALL_STYLE, hindsightLine, latestOutcome, outcomeStamp, recordStanding, yoursLine, fitType, type WallDay, type WallStory,
 } from "../src/wall.js";
 import { picturesFor } from "../src/render.js";
 
@@ -317,10 +317,14 @@ test("a reader's own marks reveal their taps and their count, and nothing about 
 });
 
 test("a tile is drawn at the height it has, and the headline gets the lines it can hold", () => {
+  // The same 58 character headline in two tiles. Since September 21, 2026
+  // the size and the line budget are worked out together by fitType from the
+  // box and the sentence, so a bigger tile holds the same words in larger
+  // type rather than in more lines of small type.
   const short = wallSection(day([story({ rect: { mx: 0, my: 0, w: 4, h: 3 } })]), "September 9", LIVE_NOW);
-  assert.ok(short.includes("grid-row:1 / span 3;--lines:3"));
+  assert.ok(short.includes("grid-row:1 / span 3;--lines:4;--fit:1.11;"));
   const tall = wallSection(day([story({ rect: { mx: 0, my: 0, w: 6, h: 5 } })]), "September 9", LIVE_NOW);
-  assert.ok(tall.includes("--lines:7"));
+  assert.ok(tall.includes("--lines:5;--fit:1.77;"), "taller and wider, so larger type");
 });
 
 // ---------------------------------------------------------------------------
@@ -945,4 +949,68 @@ test("a hive draws the way to the record only when it is asked to", () => {
   assert.ok(!wallSection(d, "September 9", LIVE_NOW).includes('href="/yours/"'));
   assert.ok(wallSection(d, "September 9", LIVE_NOW, { yours: true }).includes('href="/yours/"'));
   assert.ok(wallSection(d, "September 9", LIVE_NOW, { hive: true, yours: true }).includes('href="/yours/"'));
+});
+
+// ---------------------------------------------------------------------------
+// The type on a tile, fitted to its box and its sentence.
+//
+// The numbers below come from the real board for September 21, 2026,
+// rendered and measured rather than imagined: eleven tiles, a 645 pixel
+// board, a module of 40.3 pixels. Before this the type scaled with width
+// alone and the line budget came from height alone, and the board showed
+// both halves of that: a sixteen by three tile with its third line sliced
+// through the middle under the footer, and a ten by seven tile with a short
+// sentence at the top and the bottom half empty.
+// ---------------------------------------------------------------------------
+
+test("a wide short tile is not given more lines than its height holds", () => {
+  // The 1993 tile: sixteen wide, three tall, a 106 character sentence. It is
+  // the one that was sliced in half.
+  const wide = fitType(16, 3, 106);
+  assert.equal(wide.lines, 3);
+  assert.ok(wide.lines * 1.2 * wide.fit * 0.38 <= 3, "three lines of this size fit in three modules");
+});
+
+test("a big tile holding a short sentence sets it large rather than leaving the tile empty", () => {
+  // The 1784 tile: ten by seven, 122 characters, and it used to fill a third
+  // of its own box.
+  const big = fitType(10, 7, 122);
+  const small = fitType(4, 3, 122);
+  assert.ok(big.fit > 1.8, `a ten by seven tile sets its type large, got ${big.fit}`);
+  assert.ok(big.fit > small.fit * 2, "and much larger than the same sentence in a four by three");
+  // The same tile with three words in it is larger still, up to the ceiling.
+  assert.ok(fitType(10, 7, 20).fit >= big.fit);
+  assert.ok(fitType(16, 16, 12).fit <= 3, "and never past the ceiling");
+});
+
+test("nothing is ever set below the floor, and a sentence too long for its tile keeps whole lines", () => {
+  // The 2001 tile: four by three, 155 characters. No size fits the whole
+  // sentence, so it takes the floor and as many whole lines as the box has.
+  const over = fitType(4, 3, 155);
+  assert.equal(over.fit, 0.85);
+  assert.ok(over.lines >= 4 && over.lines <= 6, `whole lines only, got ${over.lines}`);
+  assert.ok(over.lines * 1.2 * over.fit * 0.38 <= 3);
+  // A tile of any shape answers, and always with at least one line.
+  for (let w = 3; w <= 16; w++) {
+    for (let h = 2; h <= 16; h++) {
+      for (const length of [12, 60, 122, 300]) {
+        const got = fitType(w, h, length);
+        assert.ok(got.lines >= 1, `${w}x${h} ${length}`);
+        assert.ok(got.fit >= 0.85 && got.fit <= 3, `${w}x${h} ${length} fit ${got.fit}`);
+        // The whole point: the lines it asks for fit in the room it has.
+        assert.ok(got.lines * 1.2 * got.fit * 0.38 <= h, `${w}x${h} ${length} overflows`);
+      }
+    }
+  }
+});
+
+test("a tile carries its size and its line budget, and the headline can never push the footer out", () => {
+  const s = story({ rect: { mx: 0, my: 0, w: 16, h: 3 }, headline: "1993: A Transair Georgian Airlines Tu-134 is shot down by a missile in the Black Sea near Sokhumi, Georgia." });
+  const html = wallSection(day([s]), "September 21", LIVE_NOW, { hive: true });
+  assert.match(html, /--lines:3;--fit:[0-9.]+;/);
+  // The two rules that hold whatever the arithmetic gets wrong.
+  assert.ok(WALL_STYLE.includes("max-height: calc(var(--lines, 3) * 1.2em)"));
+  assert.ok(WALL_STYLE.includes("flex: 1 1 auto; min-height: 0;"));
+  // And the guess these replaced is gone.
+  assert.ok(!WALL_STYLE.includes("--more"), "the container query that added a line is retired");
 });

@@ -664,6 +664,85 @@ function tileClass(rect: { w: number; h: number }): string {
   return "tiny";
 }
 
+/**
+ * How big the type on a tile should be, and how many lines of it fit.
+ *
+ * **The bug this exists for.** Until September 21, 2026 the type scaled with
+ * the tile's width alone and the line budget came from its height alone, and
+ * neither knew the other or knew how long the headline was. Two things went
+ * wrong on the live board for September 21, both visible in one screenshot:
+ * a tile sixteen modules wide and three tall took type sized for sixteen
+ * modules, asked for three lines of it, and the third line was sliced
+ * through the middle with the footer sitting on top of it; and a tile ten by
+ * seven holding a short sentence set that sentence at the top and left the
+ * bottom half of the biggest tile on the board empty.
+ *
+ * So the size is fitted to the box and to the sentence instead. Walk the
+ * sizes upward and keep the largest one whose whole headline still fits in
+ * the room left under the footer. Pure arithmetic, no measuring in a
+ * browser, and the answer is the same everywhere because it is in modules
+ * rather than pixels.
+ *
+ * The four constants were read off a rendered board rather than guessed, and
+ * they are the reason this is allowed to be arithmetic. If the typeface or
+ * the footer changes, they are what changes with it.
+ */
+/**
+ * Average glyph advance as a share of the font size, for this serif at this
+ * weight, with the waste at the end of a wrapped line counted in. Measured
+ * across the eleven tiles of the September 21 board, where the real figure
+ * ran from 0.55 on a long sentence to 0.71 on a tile whose long words broke
+ * early. The high end is the one to take: a line that turns out narrower
+ * than the guess costs a little white space, and one that turns out wider
+ * costs a line, which is what gets sliced in half.
+ */
+const CHAR_WIDTH = 0.62;
+/** The stylesheet's line height on a tile headline. Measured: exactly this. */
+const TILE_LINE_HEIGHT = 1.2;
+/**
+ * The footer, the padding and the gap, in modules: the height a headline
+ * never gets. Measured at 0.80 on a 645 pixel board and 1.03 on a 390 pixel
+ * one, because the footer has a pixel floor and a phone's module is small.
+ * Set between them, nearer the phone, because every other part of this
+ * arithmetic rounds toward drawing one line too many.
+ *
+ * **The limit, named.** On a phone the size clamp's own floor of ten pixels
+ * beats this arithmetic on the smallest tiles, so a four by three tile there
+ * holds about four lines where the arithmetic asked for five. The extra line
+ * is cut by the box rather than by the clamp, so it loses its ellipsis. It
+ * does not spill, it does not cross the footer, and the sentence it belongs
+ * to was never going to fit in a tile that size. Worth fixing the day the
+ * tiles get a short written form; not worth a second arithmetic in pixels.
+ */
+const TILE_CHROME = 0.92;
+/** The stylesheet's baseline size, in modules: 38cqi against a sixteen module side. */
+const TILE_BASE = 0.38;
+/** The smallest and largest the type is ever set, as a multiple of the baseline. */
+const FIT_MIN = 0.85;
+const FIT_MAX = 3;
+
+export function fitType(w: number, h: number, length: number): { fit: number; lines: number } {
+  const room = Math.max(0.4, h - TILE_CHROME);
+  const smallest = FIT_MIN * TILE_BASE;
+  // Smallest first, keeping the last that fits. The answer is not monotonic:
+  // a larger size takes fewer characters per line, so it can need a whole
+  // extra line and stop fitting, and a size above that can fit again.
+  let best: { size: number; lines: number } | null = null;
+  for (let size = smallest; size <= FIT_MAX * TILE_BASE + 1e-9; size += 0.01) {
+    const perLine = Math.max(1, Math.floor(w / (CHAR_WIDTH * size)));
+    const lines = Math.max(1, Math.ceil(length / perLine));
+    if (lines * TILE_LINE_HEIGHT * size <= room) best = { size, lines };
+  }
+  if (best === null) {
+    // Longer than its tile holds at any size this will set. The smallest
+    // type, and as many lines as the box has room for, so what is cut is cut
+    // by the ellipsis at the end of a full line rather than by the tile's
+    // edge through the middle of one.
+    return { fit: FIT_MIN, lines: Math.max(1, Math.floor(room / (TILE_LINE_HEIGHT * smallest))) };
+  }
+  return { fit: Number((best.size / TILE_BASE).toFixed(2)), lines: best.lines };
+}
+
 /** The fields a buzz posts: the story, and the date page to come back to. */
 /** Where a buzz lands the reader afterwards: the date page, the full screen hive, or the story's own receipt. */
 export type TapBack = "day" | "hive" | "receipt";
@@ -847,17 +926,16 @@ function tile(story: WallStory, live: boolean, voice: Voice, view: Viewport, hiv
   const count = units(story.support, voice);
   const label = `${story.headline}. ${story.outlet}. ${tierLabel(story.tier)}${count === "" ? "" : `, ${count}`}.`
     + (story.status === "false" ? " Later shown false." : "");
-  // How many lines of headline the height allows, a hint the stylesheet
-  // reads. Three modules hold three lines on a phone and four on a desktop;
-  // taller tiles hold more.
-  const lines = rect.h <= 3 ? 3 : rect.h === 4 ? 5 : rect.h === 5 ? 7 : rect.h === 6 ? 9 : 11;
+  // The size and the line budget, fitted to the box and the sentence
+  // together. fitType says why the two used to be worked out apart.
+  const { fit, lines } = fitType(rect.w, rect.h, story.headline.length);
   // --i is the tile's place in the deal, for the stagger when the board
   // rises in. The same variable the covers and the feed rise on.
   // --tw is the tile's width in modules. Since the pie, docs/the-wall.md
   // section 18, a tile can be a quarter of the board or the whole of it,
   // and a headline set for a four module tile leaves a sixteen module one
   // three quarters empty. The stylesheet grows the type with the width.
-  const style = `grid-column:${rect.mx - view.ox + 1} / span ${rect.w};grid-row:${rect.my - view.oy + 1} / span ${rect.h};--lines:${lines};--tw:${rect.w};--i:${index}`;
+  const style = `grid-column:${rect.mx - view.ox + 1} / span ${rect.w};grid-row:${rect.my - view.oy + 1} / span ${rect.h};--lines:${lines};--fit:${fit};--tw:${rect.w};--i:${index}`;
   const stamp = outcomeStamp(story);
   const classes = `wtile ${size} w-${story.tier}${rect.h <= 3 ? " wh3" : ""}${story.status === "false" ? " wfalse" : ""}`;
   const receipt = storyPath(story);
@@ -893,8 +971,8 @@ export function liveTile(story: WallStory, live: boolean, voice: Voice, index: n
   const count = units(story.support, voice);
   const label = `${story.headline}. ${story.outlet}. ${tierLabel(story.tier)}${count === "" ? "" : `, ${count}`}.`
     + (story.status === "false" ? " Later shown false." : "");
-  const lines = rect.h <= 3 ? 3 : rect.h === 4 ? 5 : rect.h === 5 ? 7 : rect.h === 6 ? 9 : 11;
-  const style = `--x:${rect.mx};--y:${rect.my};--w:${rect.w};--h:${rect.h};--lines:${lines};--tw:${rect.w};--i:${index}`;
+  const { fit, lines } = fitType(rect.w, rect.h, story.headline.length);
+  const style = `--x:${rect.mx};--y:${rect.my};--w:${rect.w};--h:${rect.h};--lines:${lines};--fit:${fit};--tw:${rect.w};--i:${index}`;
   const stamp = outcomeStamp(story);
   const classes = `wtile big w-${story.tier}${rect.h <= 3 ? " wh3" : ""}${story.status === "false" ? " wfalse" : ""}`;
   const takes = live && story.status !== "false";
@@ -1564,7 +1642,7 @@ export function wallMarks(standing: { left: number; allowance: number; backed: s
     if (!/^[0-9a-f-]{36}$/.test(id)) continue;
     // The mark takes a line, so the headline gives one up rather than
     // showing the top of a line it cannot finish.
-    rules.push(`#w-${id} .wmine{display:block}#w-${id} .wmeta .wmine{display:inline}#w-${id} .wh{-webkit-line-clamp:calc(var(--lines, 3) + var(--more, 0) - 1)}#w-${id}{outline:3px solid var(--wink, #2A1A08);outline-offset:-3px}`);
+    rules.push(`#w-${id} .wmine{display:block}#w-${id} .wmeta .wmine{display:inline}#w-${id} .wh{-webkit-line-clamp:calc(var(--lines, 3) - 1)}#w-${id}{outline:3px solid var(--wink, #2A1A08);outline-offset:-3px}`);
   }
   if (rules.length === 0) return "";
   return `<style>${rules.join("")}</style>`;
@@ -2038,8 +2116,21 @@ export const WALL_STYLE = `
    than as the emptiest tile. --tw is the tile's width in modules, set on the
    tile; the minimum is four. */
 .wtile.mid .wh, .wtile.big .wh {
-  font-size: clamp(10px, calc(38cqi / var(--side, 16) * (0.7 + 0.075 * var(--tw, 4))), 40px);
-  -webkit-line-clamp: calc(var(--lines, 3) + var(--more, 0));
+  font-size: clamp(10px, calc(38cqi / var(--side, 16) * var(--fit, 1)), 44px);
+  -webkit-line-clamp: var(--lines, 3);
+  /* The headline takes the room the footer leaves and no more. The clamp
+     above is an arithmetic answer and the clamp's own floor of ten pixels
+     can beat it on a small board, so this is the rule that holds whatever
+     the arithmetic gets wrong: a headline may be cut, and it may never push
+     the footer out of the tile or be sliced in half under it, which is what
+     a sixteen module wide tile did on the live board for September 21. */
+  flex: 1 1 auto; min-height: 0;
+  /* And a hard ceiling in the same number of lines. The line clamp alone
+     draws its ellipsis in the right place and still paints the line after
+     it, which on the September 21 board put half a sentence across the
+     footer of three tiles. A max-height in em is the same arithmetic said
+     in a way the box cannot argue with. */
+  max-height: calc(var(--lines, 3) * 1.2em);
 }
 .wtile.mid, .wtile.big { padding: clamp(5px, calc(14cqi / var(--side, 16)), 14px) clamp(6px, calc(16cqi / var(--side, 16)), 16px); }
 .wfoot {
@@ -2052,11 +2143,9 @@ export const WALL_STYLE = `
 .wkind svg { display: block; width: clamp(12px, calc(38cqi / var(--side, 16)), 17px); height: auto; }
 .wfoot .wn { flex: none; font-weight: 700; }
 .wfoot .wbuzz button { font-size: clamp(8px, calc(30cqi / var(--side, 16)), 13px); }
-/* --more rather than --lines, because --lines is set inline on the tile and
-   an inline value beats any rule here, which is why a wide board drew three
-   lines in a tile that had room for five. */
-@container (min-width: 480px) { .wtile.wh3 { --more: 1; } }
-@container (min-width: 720px) { .wtile.wh3 { --more: 2; } }
+/* The two container rules that used to add a line on a wider board are gone
+   with the guess they corrected: fitType works in modules, so a board twice
+   the size draws the same tile twice as large with the same words in it. */
 .wcount { margin: 0 0 10px; font-size: 15px; font-weight: 600; color: #E9E1DB; }
 .wsaid {
   display: none; margin: 0 0 14px; padding: 13px 15px; border-radius: 12px;

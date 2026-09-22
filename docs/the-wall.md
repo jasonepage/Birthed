@@ -2340,3 +2340,66 @@ under the board, open it and find that story on it with the date and the
 word Open; a browser that has never buzzed gets no link and, at the address
 itself, the empty page and its one line; and a sealed date's row reads On
 the board or In the pool.
+
+## 26. The type on a tile, September 21, 2026
+
+**Written after the code, which is the wrong way round.** The rule in
+`CLAUDE.md` section 10 is that this document is edited first. It was not,
+because until the board was rendered and looked at nobody knew there was a
+decision here rather than a bug. The render is the reason the rest of this
+section can give numbers.
+
+**What the board actually looked like.** Nathan's judgment of the live hive
+for September 21 was that it was underwhelming. Rendering that exact board
+at 645 pixels and looking at it showed two faults, and they are the same
+fault twice:
+
+- The 1993 tile, sixteen modules wide and three tall, took type sized for
+  sixteen modules, asked for three lines of it, and the third line was cut
+  through the middle of the letters with the footer sitting on top of it.
+- The 1784 tile, ten by seven, held a short sentence at the top and left the
+  bottom half of the biggest tile on the board empty.
+
+**The cause.** The size scaled with the tile's width alone, the line budget
+came from its height alone, and neither knew the other or knew how long the
+headline was. A wide short tile got big type and more lines than its height
+held. A tall tile got type sized for its width and no more, whatever room
+was under it.
+
+**The rule now: the type is fitted to the box and to the sentence.**
+`fitType` in `web/src/wall.ts` walks the sizes upward and keeps the largest
+whose whole headline still fits in the room the footer leaves. It answers in
+modules rather than pixels, so a board twice the size draws the same tile
+twice as large with the same words in it, which is what retired the two
+container queries that used to add a line on a wider screen.
+
+**Four constants, measured rather than guessed, and that is what makes this
+arithmetic instead of a guess.** Read off the rendered board: a line height
+of exactly 1.2, a baseline of 0.38 modules, chrome of 0.80 modules on a 645
+pixel board and 1.03 on a 390 pixel one, and an average glyph advance
+between 0.55 and 0.71 of the size depending on how early the long words
+break. The glyph figure is set at the high end on purpose: a line narrower
+than the guess costs a little white space, and one wider costs a whole line,
+which is the thing that gets sliced in half. If the typeface or the footer
+changes, these are what change with it, and they are measured again rather
+than adjusted by eye.
+
+**Two rules in the stylesheet hold whatever the arithmetic gets wrong.** The
+headline takes the room the footer leaves and no more, and its height is
+capped at its own line count in ems. The second is not redundant: the line
+clamp draws its ellipsis in the right place and still paints the line after
+it, which is exactly what put half a sentence across the footer of three
+tiles. A headline may be cut. It may never cross the footer.
+
+**The limit, named.** On a phone the size clamp's floor of ten pixels beats
+this arithmetic on the smallest tiles, so a four by three tile there holds
+about four lines where the arithmetic asked for five. The extra line is cut
+by the box rather than by the clamp, so it loses its ellipsis. It does not
+spill and it does not cross the footer, and the sentence it belongs to was
+never going to fit in a tile that size. The real answer is a short written
+form for small tiles, which does not exist and is not built. A second
+arithmetic in pixels is not the answer.
+
+**Seen, for once.** The board for September 21 was rendered from its real
+rows and screenshotted at 645 and 390 pixels, before and after. Not seen on
+the live site, which needs a deploy.
