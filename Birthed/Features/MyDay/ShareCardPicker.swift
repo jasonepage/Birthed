@@ -86,7 +86,7 @@ private struct ShareCardCell: View {
                         .padding(.horizontal, 16)
                         .padding(.vertical, 9)
                         .background(Theme.accent, in: Capsule())
-                        .foregroundStyle(Theme.cream)
+                        .foregroundStyle(Theme.onAccent)
                 }
             } else {
                 ProgressView()

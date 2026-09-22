@@ -316,7 +316,7 @@ struct FollowCard: View {
                 Label(already ? "Following" : "Follow",
                       systemImage: already ? "checkmark" : "plus")
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(already ? Color.secondary : Theme.cream)
+                    .foregroundStyle(already ? Color.secondary : Theme.onAccent)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 7)
                     .background(already ? Color.clear : Theme.accent, in: Capsule())
@@ -377,7 +377,7 @@ struct FollowRow: View {
             } label: {
                 Image(systemName: already ? "checkmark" : "plus")
                     .font(.body.weight(.semibold))
-                    .foregroundStyle(already ? Color.secondary : Theme.cream)
+                    .foregroundStyle(already ? Color.secondary : Theme.onAccent)
                     .frame(width: 34, height: 34)
                     .background(already ? Color.clear : Theme.accent, in: Circle())
             }

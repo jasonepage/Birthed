@@ -100,7 +100,7 @@ struct AddFriendsView: View {
                         .padding(.horizontal, 18)
                         .padding(.vertical, 12)
                         .background(Theme.accent, in: Capsule())
-                        .foregroundStyle(Theme.cream)
+                        .foregroundStyle(Theme.onAccent)
                 }
             } else {
                 Button {
@@ -111,14 +111,14 @@ struct AddFriendsView: View {
                     }
                 } label: {
                     HStack(spacing: 8) {
-                        if makingLink { ProgressView().tint(Theme.cream) }
+                        if makingLink { ProgressView().tint(Theme.onAccent) }
                         Text(makingLink ? "Making it" : "Make a request link")
                             .font(.subheadline.weight(.semibold))
                     }
                     .padding(.horizontal, 18)
                     .padding(.vertical, 12)
                     .background(Theme.accent, in: Capsule())
-                    .foregroundStyle(Theme.cream)
+                    .foregroundStyle(Theme.onAccent)
                 }
                 .disabled(makingLink)
             }
@@ -153,7 +153,7 @@ struct AddFriendsView: View {
                         .padding(.horizontal, 18)
                         .padding(.vertical, 12)
                         .background(Theme.accent, in: Capsule())
-                        .foregroundStyle(Theme.cream)
+                        .foregroundStyle(Theme.onAccent)
                 }
             }
         }

@@ -164,7 +164,7 @@ struct PasteImport: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
                     .background(Theme.accent, in: Capsule())
-                    .foregroundStyle(Theme.cream)
+                    .foregroundStyle(Theme.onAccent)
             }
             .buttonStyle(.plain)
         }

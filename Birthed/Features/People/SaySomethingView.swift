@@ -200,6 +200,7 @@ struct SaySomethingView: View {
                         .padding(.vertical, 14)
                 }
                 .buttonStyle(.borderedProminent)
+                .foregroundStyle(Theme.onAccent)
                 .disabled(trimmed.isEmpty)
 
                 ShareLink(item: trimmed) {
@@ -234,6 +235,7 @@ struct SaySomethingView: View {
                         .padding(.vertical, 14)
                 }
                 .buttonStyle(.borderedProminent)
+                .foregroundStyle(Theme.onAccent)
                 .disabled(trimmed.isEmpty)
             } else {
                 // A friend on a device with no Messages. The sentence is the
@@ -246,6 +248,7 @@ struct SaySomethingView: View {
                         .padding(.vertical, 14)
                 }
                 .buttonStyle(.borderedProminent)
+                .foregroundStyle(Theme.onAccent)
                 .disabled(trimmed.isEmpty)
             }
         }

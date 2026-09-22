@@ -74,6 +74,8 @@ struct WallSubmitView: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(Theme.accent)
+            // White on bright honey is 1.8 to 1.
+            .foregroundStyle(Theme.onAccent)
             .disabled(working || address == nil || wallDate == nil)
             if wallDate == nil {
                 Text("That date is not open. A hive takes stories the day before, the day itself and the day after.")

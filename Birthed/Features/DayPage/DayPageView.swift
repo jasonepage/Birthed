@@ -340,6 +340,8 @@ struct DayPageView: View {
                 Button("Try again") { Task { await reload() } }
                     .buttonStyle(.borderedProminent)
                     .tint(Theme.accent)
+                    // White on bright honey is 1.8 to 1.
+                    .foregroundStyle(Theme.onAccent)
             }
 
         case .empty where items.isEmpty && rows.isEmpty:
