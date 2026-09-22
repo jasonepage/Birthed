@@ -713,7 +713,13 @@ html { scroll-behavior: smooth; }
 .soon { display: inline-block; margin: 6px 0 0; padding: 12px 20px; border-radius: 999px; border: 1px solid #3A3342; color: #B9B2AD; font-size: 15px; }
 h2.plain { font-family: Georgia, "Times New Roman", serif; font-weight: 800; font-size: clamp(22px, 5vw, 28px); margin: 40px 0 8px; }
 .prose p, .prose li { color: #D9D2CC; }
-.prose ul { padding-left: 20px; }
+/* The global li is a flex row built for the lists of people, and inside a
+   paragraph of prose it split every bold lead, sentence and cookie name into
+   its own column. Prose list items are plain blocks of text. */
+.prose ul { list-style: none; padding: 0; margin: 12px 0 16px; display: grid; gap: 8px; }
+.prose li { display: block; line-height: 1.6; padding: 12px 16px; }
+.prose li strong { color: #F3EDE4; }
+.prose li code { font-size: 14px; padding: 1px 6px; border-radius: 6px; background: #241E2E; color: #F3EDE4; }
 .prose h3 { margin: 26px 0 4px; font-size: 17px; }
 .prose .updated { color: ${QUIET}; font-size: 13px; }
 
