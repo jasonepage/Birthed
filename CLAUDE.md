@@ -551,9 +551,25 @@ Stripped of the cynicism the thread left four notes, and three are fixed:
   born after 1900. Four centuries, 1600 to 1800, hold 946 people between them.
   No Shakespeare, no Leonardo, no Galileo, nobody at all before 1600.
 - **The floor is 1400 now.** Day-precision birth records thin out fast before
-  then, so 1400 buys Leonardo, Shakespeare, Galileo, Michelangelo and
-  Copernicus without making the `VALUES` list so long the query service times
-  out. `WIKIDATA_YEAR_FROM` still overrides it.
+  then, so 1400 is about as far back as the query can usefully reach.
+  `WIKIDATA_YEAR_FROM` still overrides it.
+- **Checked against the query service on September 22, 2026**, because the
+  floor is worth nothing if the people behind it fail another filter. Leonardo
+  da Vinci (1452-04-24), Galileo (1564-02-25), Copernicus (1473-02-28) and
+  Michelangelo (1475-03-15) all carry day precision and pass every filter the
+  importer has. They arrive on the next run.
+- **Shakespeare never will, and that is correct.** Wikidata records his birth
+  at precision 10, which is the month and not the day, because his birth date
+  is genuinely unknown: what survives is a baptism record. `FILTER(?precision
+  >= 11)` refuses him and should. An earlier note in this session said the
+  floor would bring him; it does not, and no floor ever will. If he is ever
+  wanted on April 23 it has to be as a written fact rather than as a row in
+  `notable_people`, because the row would be asserting a date nobody knows.
+- **Untested: whether the longer query still answers.** The `VALUES` list goes
+  from 416 literals to 616, and `SDS.md` section 17 has always named the query
+  service's sixty second limit as the one unknown that could change the
+  approach. The first run of `import:all` is the test, and it is 366 queries
+  against a volunteer-funded service.
 - **Not run.** Changing the floor changes nothing until the importer runs
   again for a date, and the query has not been executed against Wikidata from
   here because neither shell in this session can reach it. The first run is
