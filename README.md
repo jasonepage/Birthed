@@ -4,7 +4,9 @@ Every calendar date has a page. It shows who was born on it, what happened on
 it, the number one song, album and film for the week a reader was born, and a
 board called the hive that the people there on the day fill in themselves.
 
-Live at [birthed.app](https://birthed.app). The iPhone app is in TestFlight.
+Live at [birthed.app](https://birthed.app). The iPhone app is in beta on
+[TestFlight](https://testflight.apple.com/join/hzm6Mhhm), Apple's free app
+for trying apps before they are on the store.
 
 Birthed is a website and an iPhone app about calendar dates. The central
 object is the date, not the user. There is no revenue, no advertising,
@@ -135,7 +137,9 @@ app target or in `web/`.
 
 ### The iPhone app
 
-Open `Birthed.xcodeproj` in Xcode. The app reads its two values from
+To try the built app without building it, join the beta on
+[TestFlight](https://testflight.apple.com/join/hzm6Mhhm). To build it, open
+`Birthed.xcodeproj` in Xcode. The app reads its two values from
 `Birthed/Config/Secrets.swift`, which is not checked in:
 
 ```swift
