@@ -19,7 +19,7 @@ each line off by editing this file.
       /every-date/.
 - [ ] Measure the September 22 page again in the browser's network tab.
       It was 857 kilobytes of HTML before; write the new number here: ____
-- [ ] Run the song import for 2026, then deploy again (a data change alone
+- [x] Run the song import for 2026 (done September 22: 39 weeks, through September 26), then deploy again (a data change alone
       deploys nothing, see CLAUDE.md "A data change needs a manual deploy"):
 
       cd worker
