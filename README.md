@@ -7,7 +7,9 @@
 <p align="center"><b>Every date has a hive.</b></p>
 
 <p align="center">
+  <!-- Once .github/workflows/checks.yml is on main, put the checks badge back here:
   <a href="https://github.com/jasonepage/Birthed/actions/workflows/checks.yml"><img alt="checks" src="https://github.com/jasonepage/Birthed/actions/workflows/checks.yml/badge.svg"></a>
+  -->
   <a href="LICENSE"><img alt="license: AGPL 3.0" src="https://img.shields.io/badge/license-AGPL%203.0-8A6D3B"></a>
   <img alt="iOS 17 and later" src="https://img.shields.io/badge/iOS-17%2B-2A2233">
   <img alt="Swift 6 and SwiftUI" src="https://img.shields.io/badge/Swift%206-SwiftUI-EF5680">
