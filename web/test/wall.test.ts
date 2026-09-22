@@ -1065,3 +1065,34 @@ test("a pictured small tile is the picture and nothing else", () => {
   assert.ok(rules.includes("{display:none}"));
   assert.ok(rules.includes('--pic:url("/faces/Q39829.jpg")'));
 });
+
+// docs/the-wall.md section 28.
+test("four desks filing one story are one feed row, naming the other three", () => {
+  const base = { status: "pool" as const, rect: null, placedAt: null, support: 0, priority: 0 };
+  const desks = [
+    story({ ...base, id: "cccccccc-0000-0000-0000-000000000001", outlet: "aljazeera.com", headline: "Sri Lanka court convicts 14 over deadly Easter bombings" }),
+    story({ ...base, id: "cccccccc-0000-0000-0000-000000000002", outlet: "bbc.com", headline: "Sri Lanka court convicts 15 men over deadly Easter Sunday bombings" }),
+    story({ ...base, id: "cccccccc-0000-0000-0000-000000000003", outlet: "npr.org", headline: "Sri Lanka court convicts 15 over deadly 2019 Easter bombings" }),
+  ];
+  const html = wallSection(day(desks), "September 9");
+  assert.equal((html.match(/Sri Lanka court convicts/g) ?? []).length, 1, "one row, not three");
+  assert.ok(html.includes("Sri Lanka court convicts 14 over deadly Easter bombings"), "the shortest telling is the row");
+  assert.ok(html.includes("with bbc.com and npr.org"), "the other desks are named");
+  assert.equal((html.match(/class="walso"/g) ?? []).length, 1);
+});
+
+test("a story one desk carried says nothing about other desks", () => {
+  const alone = story({ status: "pool", rect: null, placedAt: null, support: 0, priority: 0, outlet: "espn.com", headline: "Early bets for Week 3: Three games to target right away" });
+  const html = wallSection(day([alone]), "September 9");
+  assert.ok(html.includes("Early bets for Week 3"));
+  assert.ok(!html.includes("walso"));
+});
+
+test("a buzz already spent is never folded into somebody else's row", () => {
+  const base = { status: "pool" as const, rect: null, placedAt: null, priority: 0 };
+  const backed = story({ ...base, id: "dddddddd-0000-0000-0000-000000000001", support: 2, outlet: "bbc.com", headline: "Sri Lanka court convicts 15 men over deadly Easter Sunday bombings" });
+  const other = story({ ...base, id: "dddddddd-0000-0000-0000-000000000002", support: 0, outlet: "npr.org", headline: "Sri Lanka court convicts 15 over deadly 2019 Easter bombings" });
+  const html = wallSection(day([backed, other]), "September 9");
+  assert.ok(html.includes("Sri Lanka court convicts 15 men over deadly Easter Sunday bombings"), "the backed row keeps its own button");
+  assert.equal((html.match(/Sri Lanka court convicts/g) ?? []).length, 2, "both rows are drawn");
+});

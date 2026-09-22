@@ -2521,3 +2521,66 @@ September 22 hive:
   where somebody hands you their birthday, not where you get the app. It
   points at `/about/`, which is the page carrying the download. A test now
   says it may never point at `/add/` again.
+
+## 28. What the day agreed on, September 22, 2026
+
+Muse, Meta's model, read the site and said the feed is not a feed, it is a
+firehose. That is correct, and the measurement says how correct.
+
+September 22 filed 736 stories, 394 of them the day's news read off fourteen
+public feeds. The feed under the hive rotates the kinds so the first dozen rows
+are a sample of the day rather than seventy headlines in a row, and that
+rotation was the whole of the curation. Inside a kind the order is priority,
+then arrival, which for news means the order the feeds happened to be read in.
+A reader with three buzzes to spend was being handed three headlines chosen by
+nothing at all.
+
+The measurement. Take each news headline, lowercase it, keep the words of five
+letters or more, drop a list of common ones, and count how many other outlets
+on the same wall carry a headline sharing two or more of those words:
+
+    carried by one outlet only    233
+    and one other                  97
+    and two others                 45
+    and three others               19
+
+A tenth of the day is carried by three outlets or more, and that tenth is the
+day: the Sri Lanka Easter bombing verdict, Apple's music venue under its London
+headquarters, Ella Langley breaking the Hot 100 record, the school shooting in
+Turkiye, the Asian Games final. The 233 are the firehose. One of them is "Early
+bets for Week 3: Three games to target right away".
+
+Agreement across outlets is the ranking the feed never had, and it is the one
+ranking this site is already about. Every story carries a tier saying how well
+it is sourced, and the About page argues that the colour is how well a story is
+sourced rather than whether it is true. A story four desks carried is better
+sourced than a story one desk carried. The feed can say so with no model, no
+score anybody has to trust and no request to anybody's API. It is counting.
+
+The second half of the firehose is that those four desks are four rows. The
+verdict arrives as NPR's headline, the BBC's, Al Jazeera's and the Guardian's,
+each with its own button, so a reader who wants to back the verdict picks a
+newspaper first and the buzzes split four ways. That is worse than noise. It is
+the wall disagreeing with itself about what one story is.
+
+So the feed collapses a cluster into one row. The row is the member with the
+best tier, then the shortest headline, because the shortest statement of a
+story is usually the plainest one. Under it, the other outlets by name. One
+story, one button, four sources.
+
+What the collapse never touches is a story somebody has already backed. Support
+is counted per story, and folding a backed story into somebody else's row would
+hide a buzz that was spent. A backed story is its own row, above the clusters,
+as it always was.
+
+Why the dropped words are a list and not a frequency count: 394 headlines is
+not enough text to learn the common words from, and a list that is wrong in
+public is easier to see and fix than a threshold that is wrong quietly.
+
+### Not built here
+
+The board still takes its unbacked news by priority and arrival, so the mural
+can still draw the same verdict twice and can still lead with the Week 3 bets.
+The same clustering answers that and it is the next commit. It is separate
+because the feed can be read against the live day and the board cannot be until
+a deploy lands.

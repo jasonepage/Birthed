@@ -31,6 +31,7 @@
 // render.ts which imports this, and a module that builds a formatter or
 // reads a clock at load runs before the server has listened.
 
+import { agreeOnNews } from "./agree.js";
 import { monthName, slug } from "./model.js";
 
 // Its own copy rather than render.ts's, because render.ts imports this file
@@ -1014,9 +1015,26 @@ export function liveTile(story: WallStory, live: boolean, voice: Voice, index: n
 }
 
 /** One row in the list under the board. The headline opens the receipt; the button spends a unit while the date takes them. */
-function listRow(story: WallStory, live: boolean, voice: Voice): string {
+/** "bbc.com and npr.org", "bbc.com, npr.org and theguardian.com". */
+export function andList(names: readonly string[]): string {
+  if (names.length === 0) return "";
+  if (names.length === 1) return names[0]!;
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]!}`;
+}
+
+/**
+ * One row of the feed.
+ *
+ * `alsoIn` is the other desks that carried the same story, which the feed
+ * works out by counting rather than by asking anybody. Naming them is the
+ * point: this site already argues that the colour on a tile is how well a
+ * story is sourced, and four desks on one line is that argument in the feed.
+ * docs/the-wall.md section 28.
+ */
+function listRow(story: WallStory, live: boolean, voice: Voice, alsoIn: readonly string[] | null = null): string {
   const count = units(story.support, voice);
-  const meta = `<span class="wmeta">${escapeHtml(story.outlet)} ${chip(story.tier)}${count === "" ? "" : ` ${count}`}${mine(voice)}</span>`;
+  const also = alsoIn === null || alsoIn.length === 0 ? "" : ` <span class="walso">with ${escapeHtml(andList([...alsoIn]))}</span>`;
+  const meta = `<span class="wmeta">${escapeHtml(story.outlet)}${also} ${chip(story.tier)}${count === "" ? "" : ` ${count}`}${mine(voice)}</span>`;
   const control = live && story.status !== "false" ? ` ${buzzForm(story, voice)}` : "";
   return `<li id="w-${story.id}"${subjectAttr(story)}><a href="${storyPath(story)}">${escapeHtml(story.headline)}</a> ${meta}${control}</li>`;
 }
@@ -1499,7 +1517,12 @@ ${HISTORY_START}${history}${HISTORY_END}
   // most backed ahead of that.
   const songs = inPool.filter((s) => s.subjectKind === "song")
     .sort((a, b) => b.support - a.support || (songParts(b.headline)?.year ?? "").localeCompare(songParts(a.headline)?.year ?? ""));
-  const waiting = takeTurns(inPool.filter((s) => s.subjectKind !== "song"));
+  // One row per story rather than one per desk, most agreed first. The same
+  // verdict filed by four newspapers was four rows with four buttons, which
+  // split the buzzes four ways and made the wall disagree with itself about
+  // what one story was. docs/the-wall.md section 28.
+  const agreed = agreeOnNews(inPool.filter((s) => s.subjectKind !== "song"));
+  const waiting = takeTurns(agreed.stories);
   const view = viewportFor(onWall.map((s) => s.rect!));
   const tiles = onWall.map((s, index) => tile(s, live, voice, view, hive, index)).join("\n");
   const notYet = now < Date.parse(day.liveAt);
@@ -1579,12 +1602,12 @@ ${yoursLine(options.yours, voice)}
   const folded = waiting.slice(FEED_SHOWN);
   const feedList = waiting.length > 0
     ? `<ul class="wlist">
-${shown.map((s) => listRow(s, live, voice)).join("\n")}
+${shown.map((s) => listRow(s, live, voice, agreed.alsoIn.get(s.id) ?? null)).join("\n")}
 </ul>` + (folded.length === 0 ? "" : `
 <details class="wmore">
 <summary>Show all ${waiting.length}</summary>
 <ul class="wlist">
-${folded.map((s) => listRow(s, live, voice)).join("\n")}
+${folded.map((s) => listRow(s, live, voice, agreed.alsoIn.get(s.id) ?? null)).join("\n")}
 </ul>
 </details>`)
     : unfiled && history !== ""
@@ -1949,6 +1972,7 @@ export const WALL_STYLE = `
 .wfull { margin: 8px 0 0; text-align: right; font-size: 13px; }
 .wfull a { color: #A49BAE; text-decoration: none; border-bottom: 1px solid #3A3348; }
 .wfull a:hover { color: #FFD98A; border-color: #FFD98A; }
+.walso { opacity: .85; }
 .feed2 { margin: 30px 0 0; }
 .feed2 h2.section { margin-bottom: 2px; }
 .feed2 > .wnote { margin: 0 0 12px; max-width: 60ch; }
