@@ -1076,7 +1076,7 @@ function countLine(day: WallDay, now: number, voice: Voice, live: boolean = true
  * included, because a tap can be refused on a date that closed after the
  * page was served, and that reader lands on the baked page.
  */
-export function afterwords(voice: Voice, name: string, undo: WallStory | null = null, back: TapBack = "day"): string {
+export function afterwords(voice: Voice, name: string, undo: WallStory | null = null, back: TapBack = "day", live: boolean = false): string {
   const v = voice;
   // The Undo button, only on the page that follows a buzz that counted, and
   // only when the redirect said which story it counted for. The sentence is
@@ -1088,8 +1088,14 @@ export function afterwords(voice: Voice, name: string, undo: WallStory | null = 
     // closes it before the form, which puts the button outside whatever the
     // paragraph was doing. That is exactly the bug this line had first.
     : `<div class="wundoline">${undoForm(undo, v, back)}<span class="wundonote">Thirty seconds, for a tap you did not mean.</span></div>`;
+  // On the live hive the tile has already grown by the time this shows, so
+  // the quarter hour sentence would be false there; the page writes what the
+  // buzz moved into the span instead (HiveShare in hive-live.ts).
+  const kept = live
+    ? `That counts. <span class="wshare" id="wshare"></span> <span class="wleft"></span>`
+    : `That counts. <span class="wleft"></span> The hive redraws on the quarter hour, so a bigger tile takes a few minutes to show; your mark is there now.`;
   return `<div class="wsaids">
-<div class="wsaid" id="wkept"><p>That counts. <span class="wleft"></span> The hive redraws on the quarter hour, so a bigger tile takes a few minutes to show; your mark is there now.</p>${takeItBack}</div>
+<div class="wsaid" id="wkept"><p>${kept}</p>${takeItBack}</div>
 <p class="wsaid" id="wundone">Taken back. That ${v.one} is gone and you have it again. <span class="wleft"></span></p>
 <p class="wsaid" id="wtoolate">That one stands. A ${v.one} can be taken back for thirty seconds after it is cast, and only by the browser that cast it. Nothing was changed.</p>
 <p class="wsaid" id="walready">You already ${v.past} that one, on this browser. It did not spend a ${v.one}.</p>

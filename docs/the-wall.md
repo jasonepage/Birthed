@@ -2026,3 +2026,45 @@ building, a buzz grows and lights its tile with a ripple and, when it
 climbs, a flag, a buzz from a second browser appears within a second or
 two, and after the next tick the layout is the one the page already
 showed. The song tile's chord is a tap and nothing else.
+
+## 22. What your buzz did, September 21, 2026
+
+**The problem.** Jason's judgment of the live hive after two weeks: the tap
+feels like nothing. Three buzzes on a board is a small number, the tile
+grows a little, and nothing says what the tap changed. Sections 6 and 8
+refuse a score, karma or leaderboard, and that stands. What was missing was
+not a reward but feedback: the tap has to be visible as a tap and legible as
+a change.
+
+**The tile answers the reader's own tap.** Over the ripple every buzz gets,
+the reader's own buzz swells the tile and flashes its glow for under a
+second, and the count on it pops. Somebody else's buzz still only ripples
+and reflows; the eye is asked for nothing it did not do. Both animations
+stop under `prefers-reduced-motion`.
+
+**The line says what it moved, in the one number a tile is.** A tile's size
+is its share of the date's buzzes, so the sentence under the board is the
+share the tap moved: "Your buzz took this tile from 8% to 12% of the hive."
+A tile that had none: "Your buzz put this tile at 9% of the hive." The first
+buzz on the date: "The first buzz on this hive. This tile is all of it until
+somebody else buzzes." Whole points, because three buzzes on a small board
+move a tile by whole points and that is the thing this sentence exists to
+make felt; one decimal only when the whole numbers would not move, so a
+buzz on a board of a thousand still reads as a change. `HiveShare` in
+`web/src/hive-live.ts` is the one copy, run by the page and by the test.
+The baked page's sentence, that the hive redraws on the quarter hour, was
+false on the live page, where the tile has already grown by the time it
+shows, and the live page no longer says it.
+
+**What this is not.** No number about the reader is kept or shown. The share
+is a fact about the tile, computed on the page from counts the page already
+had, and sent nowhere. A private record of a reader's buzzes, and after the
+seal whether the one they backed held, is the next thing and is a separate
+decision: the-wall.md section 8 already allows a private mark on the sealed
+page and nothing more, and that is the boundary it would be built inside.
+
+**Not run against the live site.** The web's 326 tests pass on the Mac. What
+a person has to see: on an open date, a buzz swells and flashes its tile,
+the count pops, and the sentence under the board names two percentages that
+match the tile's share before and after. A buzz arriving from a second
+browser ripples and does neither.

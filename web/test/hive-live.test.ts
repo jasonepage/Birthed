@@ -2,7 +2,7 @@ import { strict as assert } from "node:assert";
 import { test } from "node:test";
 
 import { hiveAllocator } from "../src/hive-allocator.js";
-import { HIVE_LIVE_JS, HIVE_LIVE_STYLE, clockFor, heatFor, jsonIsland, liveHiveSection, liveStories, rectVars } from "../src/hive-live.js";
+import { HIVE_LIVE_JS, HIVE_LIVE_STYLE, HIVE_SHARE_JS, clockFor, heatFor, jsonIsland, liveHiveSection, liveStories, rectVars, shareLine } from "../src/hive-live.js";
 import { renderDayPage, renderHivePage } from "../src/render.js";
 import { liveTile, wallSection, BEE, type WallDay, type WallStory } from "../src/wall.js";
 
@@ -185,4 +185,31 @@ test("every other page is exactly as scriptless as it was", () => {
   const scripts = page.match(/<script[^>]*>/g) ?? [];
   assert.ok(scripts.every((tag) => tag.includes('type="application/ld+json"')), `a date page runs nothing: ${scripts.join(" ")}`);
   assert.ok(!page.includes("HiveAllocator"));
+});
+
+// What your buzz did. The tile already grew by the time the sentence shows,
+// so the sentence says what it grew by, in the one number a tile's size is:
+// its share of the date's buzzes.
+test("the share line says what the buzz moved, in whole points, and never says nothing happened", () => {
+  assert.equal(shareLine(0, 1, 0, 1), "The first buzz on this hive. This tile is all of it until somebody else buzzes.");
+  assert.equal(shareLine(0, 1, 10, 11), "Your buzz put this tile at 9% of the hive.");
+  assert.equal(shareLine(2, 3, 24, 25), "Your buzz took this tile from 8% to 12% of the hive.");
+  // A thousand buzzes on the board: the whole numbers do not move, so one decimal does.
+  assert.equal(shareLine(100, 101, 1000, 1001), "Your buzz took this tile from 10.0% to 10.1% of the hive.");
+  // The solemn voice, still available by the list in wall.ts.
+  assert.equal(shareLine(0, 1, 0, 1, { one: "tap", many: "taps" }), "The first tap on this hive. This tile is all of it until somebody else taps.");
+});
+
+test("the reader's own buzz pulses the tile, pops the count and writes the share line; somebody else's does not", () => {
+  assert.ok(/function pulse\(t\)/.test(HIVE_LIVE_JS));
+  assert.ok(/if \(own\) \{ pulse\(t\); sayShare\(/.test(HIVE_LIVE_JS), "pulse and the line only on the reader's own buzz");
+  assert.ok(/bump\(s, 1, ev, true\)/.test(HIVE_LIVE_JS), "youBuzz says it is the reader's own");
+  assert.ok(/bump\(s, typeof record\.units === "number" \? record\.units : 1, null\)/.test(HIVE_LIVE_JS), "a Realtime buzz is not");
+  assert.ok(HIVE_LIVE_STYLE.includes("@keyframes wpulse") && HIVE_LIVE_STYLE.includes("@keyframes wpop"));
+  assert.ok(/prefers-reduced-motion: reduce\)[^}]*\{[\s\S]*?\.wlive \.wtile\.wpulse \.wcell, \.wlive \.wn\.wpop \{ animation: none; \}/.test(HIVE_LIVE_STYLE), "and both stop under reduced motion");
+  const html = liveHiveSection(day([story()]), "September 11", NOW, OPTIONS);
+  assert.ok(html.includes('<span class="wshare" id="wshare"></span>'), "the live kept sentence has the span");
+  assert.ok(!html.includes("redraws on the quarter hour"), "and not the baked page's quarter hour sentence, which would be false here");
+  assert.ok(html.includes(HIVE_SHARE_JS), "the page carries HiveShare");
+  assert.ok(html.indexOf(HIVE_SHARE_JS) < html.indexOf(HIVE_LIVE_JS), "before the script that calls it");
 });

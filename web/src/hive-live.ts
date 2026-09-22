@@ -199,7 +199,7 @@ export function liveHiveSection(day: WallDay, name: string, now: number, options
 <h2 class="section wlivehead" id="wallhead">${escapeHtml(name)}. <em>What will still matter?</em></h2>
 <p class="wlivesub">Everything with a birthday on ${escapeHtml(name)} is here. What people ${voice.past} grows and lights up. At midnight Eastern it seals, for good.</p>
 <div class="wbudget"><span class="wdots" id="wdots" aria-hidden="true">${dots}</span><p class="wcount"><span class="wleft wset" id="wleft">${sentence}</span></p></div>
-${afterwords(voice, name, null, "hive")}
+${afterwords(voice, name, null, "hive", true)}
 <div class="wboard wlive${onWall.length === 0 ? " wblank" : ""}" id="wboard" role="list" aria-label="The hive, ${onWall.length} stories" style="--side:16">
 ${tiles}${empty}
 </div>
@@ -211,6 +211,7 @@ ${tiles}${empty}
 ${anniversaryBlock(options.anniversary ?? [], day, voice)}
 <script type="application/json" id="hivedata">${jsonIsland(data)}</script>
 <script>${HIVE_ALLOCATOR_JS}
+${HIVE_SHARE_JS}
 ${HIVE_LIVE_JS}</script>
 </section>`;
 }
@@ -224,6 +225,60 @@ ${HIVE_LIVE_JS}</script>
 export function heatFor(support: number, max: number): number {
   if (support <= 0) return 0;
   return Math.round((0.15 + 0.85 * Math.pow(support / Math.max(1, max), 0.8)) * 1000) / 1000;
+}
+
+// ---------------------------------------------------------------------------
+// What your buzz did
+// ---------------------------------------------------------------------------
+
+/**
+ * The sentence under the board after a buzz that counted, saying what the
+ * buzz moved. A tile's size is its share of the date's buzzes, so the one
+ * number a reader can feel is the share their tap moved: with three buzzes
+ * on a small board one tap moves a tile by whole points, and the sentence
+ * says so instead of leaving the reader to notice a tile grew a little.
+ *
+ * Written once, in plain JavaScript, because the page runs it and the test
+ * runs it through shareLine below. The three shapes: the first buzz on the
+ * hive, a buzz that put a tile that had none on the board, and a buzz that
+ * moved a tile that already had some. Whole percentages, and one decimal
+ * only when the whole numbers would not move, so a buzz on a board of a
+ * thousand still reads as a change rather than as nothing.
+ */
+export const HIVE_SHARE_JS = `
+var HiveShare = (function () {
+  "use strict";
+  function pct(part, whole) {
+    if (whole <= 0) return 0;
+    return 100 * part / whole;
+  }
+  function show(a, b) {
+    var ra = Math.round(a), rb = Math.round(b);
+    if (ra !== rb) return [String(ra), String(rb)];
+    return [a.toFixed(1), b.toFixed(1)];
+  }
+  function line(supportBefore, supportAfter, totalBefore, totalAfter, voice) {
+    var v = voice || { one: "buzz", many: "buzzes" };
+    if (totalAfter <= 1) return "The first " + v.one + " on this hive. This tile is all of it until somebody else " + v.many + ".";
+    var after = pct(supportAfter, totalAfter);
+    if (supportBefore <= 0) return "Your " + v.one + " put this tile at " + show(0, after)[1] + "% of the hive.";
+    var before = pct(supportBefore, totalBefore);
+    var pair = show(before, after);
+    return "Your " + v.one + " took this tile from " + pair[0] + "% to " + pair[1] + "% of the hive.";
+  }
+  return { line: line, pct: pct };
+})();
+`;
+
+type ShareApi = { line: (b: number, a: number, tb: number, ta: number, voice?: { one: string; many: string }) => string; pct: (part: number, whole: number) => number };
+let shareEvaluated: ShareApi | null = null;
+/** The page's own HiveShare, evaluated once, so the test reads the same code the page runs. */
+export function hiveShare(): ShareApi {
+  if (shareEvaluated === null) shareEvaluated = new Function(`${HIVE_SHARE_JS}; return HiveShare;`)() as ShareApi;
+  return shareEvaluated;
+}
+export function shareLine(supportBefore: number, supportAfter: number, totalBefore: number, totalAfter: number, voice?: { one: string; many: string }): string {
+  return hiveShare().line(supportBefore, supportAfter, totalBefore, totalAfter, voice);
 }
 
 // ---------------------------------------------------------------------------
@@ -318,6 +373,11 @@ export const HIVE_LIVE_STYLE = `
 .wlive .wripple { position: absolute; z-index: 3; border-radius: 50%; pointer-events: none; background: radial-gradient(circle, rgba(255, 207, 107, .55), rgba(255, 207, 107, 0) 70%); transform: translate(-50%, -50%) scale(0); animation: wripple .8s ease-out forwards; }
 @keyframes wripple { to { transform: translate(-50%, -50%) scale(1); opacity: 0; } }
 .wlive .wsurge { position: absolute; z-index: 4; left: 50%; top: 10px; transform: translateX(-50%); background: var(--ember); color: #1B1206; font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; white-space: nowrap; animation: wsurge 1.6s ease forwards; }
+.wlive .wtile.wpulse .wcell { animation: wpulse .7s cubic-bezier(.22, .61, .36, 1); }
+@keyframes wpulse { 0% { transform: scale(1); box-shadow: inset 0 0 0 rgba(255, 175, 70, 0), 0 0 0 rgba(255, 207, 107, 0); } 35% { transform: scale(1.045); box-shadow: inset 0 0 40px rgba(255, 175, 70, .55), 0 0 34px rgba(255, 207, 107, .6); } 100% { transform: scale(1); } }
+.wlive .wn.wpop { display: inline-block; animation: wpop .5s cubic-bezier(.22, .61, .36, 1); }
+@keyframes wpop { 0% { transform: scale(1); } 40% { transform: scale(1.45); color: var(--cream); } 100% { transform: scale(1); } }
+.wshare { color: var(--honey-lite); font-weight: 700; }
 @keyframes wsurge { 0% { opacity: 0; transform: translate(-50%, 6px); } 15%, 70% { opacity: 1; transform: translateX(-50%); } 100% { opacity: 0; transform: translate(-50%, -6px); } }
 .wliveunder { display: grid; grid-template-columns: 1fr; gap: 14px; margin: 14px auto 0; max-width: none; }
 @media (min-width: 800px) { .wliveunder { grid-template-columns: 1.1fr 1fr; align-items: start; } }
@@ -338,7 +398,7 @@ export const HIVE_LIVE_STYLE = `
 .wlivehive .wsaid { margin: 0 0 10px; }
 @media (prefers-reduced-motion: reduce) {
   .wlive .wtile, .wlive .wcell, .wdot { transition: none; }
-  .wlive .wripple, .wlive .wsurge, .wlive .wtile.warriving { animation: none; }
+  .wlive .wripple, .wlive .wsurge, .wlive .wtile.warriving, .wlive .wtile.wpulse .wcell, .wlive .wn.wpop { animation: none; }
   .wlive .wripple, .wlive .wsurge { display: none; }
   .wswarmrow { animation: none; }
 }
@@ -541,13 +601,32 @@ export const HIVE_LIVE_JS = `
     var flag = el("span", "wsurge"); flag.textContent = "Overtook";
     (q(".wcell", t) || t).appendChild(flag); setTimeout(function () { flag.remove(); }, 1700);
   }
-  function bump(s, delta, ev) {
+  function totalSupport() { var total = 0; stories.forEach(function (s) { total += s.support; }); return total; }
+  // What the reader's own tap looks like, over the ripple every buzz gets:
+  // the tile swells and flashes, its count pops, and the line under the
+  // board says what share the tap moved. Only for the reader's own buzz;
+  // somebody else's buzz ripples and reflows and asks nothing of the eye.
+  function pulse(t) {
+    if (reduce || !t) return;
+    t.classList.remove("wpulse"); void t.offsetWidth; t.classList.add("wpulse");
+    setTimeout(function () { t.classList.remove("wpulse"); }, 750);
+    var n = q(".wn", t);
+    if (n) { n.classList.remove("wpop"); void n.offsetWidth; n.classList.add("wpop"); setTimeout(function () { n.classList.remove("wpop"); }, 550); }
+  }
+  function sayShare(supportBefore, supportAfter, totalBefore, totalAfter) {
+    var e = document.getElementById("wshare");
+    if (!e || typeof HiveShare === "undefined") return;
+    e.textContent = HiveShare.line(supportBefore, supportAfter, totalBefore, totalAfter, voice);
+  }
+  function bump(s, delta, ev, own) {
     var before = rankOf(s.id);
+    var supportBefore = s.support, totalBefore = totalSupport();
     s.support = Math.max(0, s.support + delta);
     layout();
     var t = document.getElementById("w-" + s.id);
     if (delta > 0) {
       ripple(t, ev);
+      if (own) { pulse(t); sayShare(supportBefore, s.support, totalBefore, totalBefore + delta); }
       var after = rankOf(s.id);
       if (before >= 0 && after >= 0 && after < before) overtook(t);
     }
@@ -620,14 +699,18 @@ export const HIVE_LIVE_JS = `
     left -= 1; paintBudget();
     backed[s.id] = true;
     pendingOwn[s.id] = true;
-    bump(s, 1, ev);
+    bump(s, 1, ev, true);
     swarmLine("You", s);
     post("/boost", s.id).then(function (a) {
       delete pendingOwn[s.id];
       var word = a && typeof a.result === "string" ? a.result : "failed";
       if (a && typeof a.left === "number") left = a.left;
       if (word === "kept") {
-        if (typeof a.support === "number") { s.support = a.support; layout(); }
+        if (typeof a.support === "number" && a.support !== s.support) {
+          var was = s.support - 1, totalWas = totalSupport() - 1;
+          s.support = a.support; layout();
+          sayShare(Math.max(0, was), s.support, Math.max(0, totalWas), totalSupport());
+        }
         if (typeof a.boost_id === "number" || typeof a.boost_id === "string") { seenBoosts[String(a.boost_id)] = true; boostStory[String(a.boost_id)] = s.id; }
         say("wkept"); offerUndo(s);
       } else {
