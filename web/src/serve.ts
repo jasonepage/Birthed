@@ -1424,6 +1424,7 @@ async function handle(
       // reader whose year the charts cover. The strip is baked into every
       // page, so this needs no wall.
       marks += songMark(slug(marked.month, marked.day), born);
+      marks += ageMark(slug(marked.month, marked.day), born);
       // An anniversary is reason enough to draw this reader their own page,
       // even on a date they have done nothing on today: it is the whole of
       // what they came back for.
@@ -1555,11 +1556,56 @@ export function yoursMark(dateSlug: string, year: number | null): string {
  * Empty for a reader with no year, and for a year before the charts begin,
  * because there is no row to mark.
  */
-export function songMark(dateSlug: string, year: number | null): string {
-  if (year === null || !Number.isInteger(year) || year < FIRST_CHART_YEAR) return "";
-  const row = `.on-${dateSlug} .wsongs li:is([id="${year}"], :has(.wyr[id="${year}"]))`;
-  return `<style class="wsong">${row}{outline:2px solid #FFD98A;outline-offset:-2px}`
-    + `${row} .wsongt::before{content:"The week you were born. ";color:#FFD98A;font-weight:800}</style>`;
+export function songMark(dateSlug: string, year: number | null, thisYear: number = new Date().getUTCFullYear()): string {
+  if (year === null || !Number.isInteger(year) || year > thisYear) return "";
+  const rowOf = (y: number): string => `.on-${dateSlug} .wsongs li:is([id="${y}"], :has(.wyr[id="${y}"]))`;
+  // "Your life in number ones." The strip starts at the reader's own year
+  // and walks forward, one card per birthday with the age on it, and the
+  // years before they were born follow after, newest first as baked. It is
+  // done with the grid's order property, so the baked page and the live one
+  // keep the one order everybody else sees and nothing is drawn twice.
+  // September 22, 2026.
+  let rules = `.on-${dateSlug} .wsongs li{order:1000}`;
+  for (let y = Math.max(year + 1, FIRST_CHART_YEAR); y <= thisYear; y += 1) {
+    const age = y - year;
+    rules += `${rowOf(y)}{order:${age}}${rowOf(y)} .wsongt::before{content:"You were ${age}. "}`;
+  }
+  rules += `.on-${dateSlug} .wsongs .wsongt::before{color:#FFD98A;font-weight:700}`;
+  if (year >= FIRST_CHART_YEAR) {
+    const row = rowOf(year);
+    rules += `${row}{order:0;outline:2px solid #FFD98A;outline-offset:-2px}`
+      + `${row} .wsongt::before{content:"The week you were born. ";color:#FFD98A;font-weight:800}`;
+  }
+  return `<style class="wsong">${rules}</style>`;
+}
+
+/**
+ * The reader's age on every dated row of the feed.
+ *
+ * A row the hive filed from history starts "1975: " and the list item
+ * carries that year as data-y, baked. This writes one rule per year from the
+ * reader's own to this one, so the row says "You were 11" above its
+ * headline, the one thing an encyclopedia's date page cannot say. Years
+ * before the reader say nothing, and the year they were born says so.
+ *
+ * Same safety argument as songMark: an integer from the cookie and the
+ * site's own words, never a source's.
+ *
+ * Known limit: the cookie holds a year and not a birthday, and the site
+ * treats the date being read as the reader's own, the way the panel above
+ * it does. Read on somebody else's date, an age can be one year high.
+ */
+export function ageMark(dateSlug: string, year: number | null, thisYear: number = new Date().getUTCFullYear()): string {
+  if (year === null || !Number.isInteger(year) || year > thisYear) return "";
+  const rowOf = (y: number): string => `.on-${dateSlug} .wlist li[data-y="${y}"]::before`;
+  // One shared look. A ::before with no content is never drawn, so the rows
+  // before the reader's year, which get no content rule, stay as they were.
+  let rules = `.on-${dateSlug} .wlist li[data-y]::before{display:block;font-size:12px;font-weight:700;color:#FFD98A;margin-bottom:2px}`;
+  rules += `${rowOf(year)}{content:"The year you were born"}`;
+  for (let y = year + 1; y <= thisYear; y += 1) {
+    rules += `${rowOf(y)}{content:"You were ${y - year}"}`;
+  }
+  return `<style class="wage">${rules}</style>`;
 }
 
 export function yearMarks(slug: string, year: number | null): string {

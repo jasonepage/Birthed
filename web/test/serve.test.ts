@@ -3,7 +3,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
 
-import { openDates, pictureFor, redirectFor, resolvePath, securityFor, songMark, start, todaySlug, todayStylesheet, yearMarks, yoursMark } from "../src/serve.js";
+import { ageMark, openDates, pictureFor, redirectFor, resolvePath, securityFor, songMark, start, todaySlug, todayStylesheet, yearMarks, yoursMark } from "../src/serve.js";
 import { personalName } from "../src/share.js";
 import { monthName } from "../src/model.js";
 
@@ -1078,9 +1078,41 @@ test("a reader who has given a year has that year marked in the song strip", () 
   // Only generated text goes in: a year and the site's own label.
   assert.equal(mark.split("<").length, 3, "the only tags are the style element's own");
   assert.equal(songMark("september-4", null), "", "and nothing for a reader who never said");
-  assert.equal(songMark("september-4", 1958), "", "and nothing for a year before the charts begin");
-  assert.equal(songMark("september-4", 1943), "");
+  // A reader born before the charts has no week to mark, but still has an
+  // age on every row the charts do cover.
+  assert.ok(!songMark("september-4", 1943, 2026).includes("The week you were born"));
+  assert.ok(songMark("september-4", 1943, 2026).includes('[id="1959"], :has(.wyr[id="1959"]))'));
+  assert.ok(songMark("september-4", 1943, 2026).includes('content:"You were 16. "'));
   assert.ok(songMark("september-4", 1959) !== "", "1959 is the first year with a row");
+});
+
+test("the song strip starts at the reader's year and walks forward, with the age on each card", () => {
+  const mark = songMark("september-22", 2002, 2026);
+  const row = (y: number): string => `.on-september-22 .wsongs li:is([id="${y}"], :has(.wyr[id="${y}"]))`;
+  // Everything else goes to the back, in the order it was baked.
+  assert.ok(mark.includes(".on-september-22 .wsongs li{order:1000}"));
+  assert.ok(mark.includes(`${row(2002)}{order:0;`));
+  assert.ok(mark.includes(`${row(2018)}{order:16}`));
+  assert.ok(mark.includes(`${row(2018)} .wsongt::before{content:"You were 16. "}`));
+  assert.ok(mark.includes(`${row(2026)}{order:24}`));
+  // Nothing for a year after this one, and no age before the reader.
+  assert.ok(!mark.includes('[id="2027"]'));
+  assert.ok(!mark.includes('[id="2001"]'));
+  assert.equal(mark.split("<").length, 3);
+});
+
+test("a dated feed row carries the reader's age, and only from their own year", () => {
+  const mark = ageMark("september-22", 2002, 2026);
+  assert.ok(mark.startsWith('<style class="wage">'));
+  assert.ok(mark.endsWith("</style>"));
+  assert.ok(mark.includes('.on-september-22 .wlist li[data-y="2002"]::before{content:"The year you were born"}'));
+  assert.ok(mark.includes('.on-september-22 .wlist li[data-y="2013"]::before{content:"You were 11"}'));
+  assert.ok(mark.includes('.on-september-22 .wlist li[data-y="2026"]::before{content:"You were 24"}'));
+  assert.ok(!mark.includes('data-y="2001"'), "a year before the reader says nothing");
+  assert.ok(!mark.includes('data-y="2027"'));
+  assert.equal(mark.split("<").length, 3, "the only tags are the style element's own");
+  assert.equal(ageMark("september-22", null, 2026), "", "and nothing for a reader who never said");
+  assert.equal(ageMark("september-22", 2030, 2026), "", "or for a year that has not happened");
 });
 
 /**
@@ -1140,11 +1172,14 @@ test("a birth year alone is enough to change the label, and to stop the page bei
   const mineBody = await mine.text();
   assert.ok(mineBody.includes(`.on-${openSlug} .wsavemine{display:inline}`), "the reader's own label is revealed");
   assert.equal(mine.headers.get("cache-control"), "no-store", "a page carrying one reader's own words is never cached");
-  // The year reaches this page in exactly one place: the style rule that
-  // marks the reader's own row in the song strip, on a response that is
-  // never stored. Outside that element it is nowhere.
-  assert.ok(mineBody.includes(`<style class="wsong">.on-${openSlug} .wsongs li:is([id="1994"]`), "the reader's own year is marked in the song strip");
-  assert.ok(!mineBody.replace(/<style class="wsong">[^<]*<\/style>/, "").includes("1994"), "and the year itself is nowhere else on it");
+  // The year reaches this page in exactly two places, both style rules on a
+  // response that is never stored: the one that marks the reader's own row
+  // in the song strip, and the one that puts their age on the feed's dated
+  // rows. Outside those two elements it is nowhere.
+  const songStyle = /<style class="wsong">[^<]*<\/style>/.exec(mineBody)?.[0] ?? "";
+  assert.ok(songStyle.includes(`.on-${openSlug} .wsongs li:is([id="1994"], :has(.wyr[id="1994"])){order:0;`), "the reader's own year is marked in the song strip");
+  assert.ok(mineBody.includes(`<style class="wage">`), "and the feed's dated rows are told the reader's age");
+  assert.ok(!mineBody.replace(/<style class="wsong">[^<]*<\/style>/, "").replace(/<style class="wage">[^<]*<\/style>/, "").includes("1994"), "and the year itself is nowhere else on it");
 
   forgetWalls();
   const shared = await realFetch(`${base}/${openSlug}/`);
