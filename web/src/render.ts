@@ -877,13 +877,8 @@ h2.plain { font-family: var(--serif); font-weight: 800; font-size: clamp(22px, 5
 .wrap.home { max-width: 1120px; padding-top: 24px; }
 .home .col { max-width: 720px; margin-inline: auto; }
 
-/* The strip across the top. The two things here are redirects the server
-   answers, not pages, which is the only way a static site with no script can
-   offer a random date at all. */
-.topbar {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 14px; margin: 0 0 26px;
-}
+/* The old .topbar and .quick strip is gone, September 22, 2026: every page
+   draws siteBar. */
 /* The name is the way home. A touch bigger than the rest of the bar, one
    line on a phone, and it answers a hover the way every other link here does,
    so nobody has to guess that it goes somewhere. */
@@ -895,23 +890,6 @@ h2.plain { font-family: var(--serif); font-weight: 800; font-size: clamp(22px, 5
 .mark:hover, .mark:focus-visible {
   color: var(--cream); text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px;
 }
-.quick { display: flex; gap: 8px; }
-.quick a {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 9px 15px; border-radius: 999px;
-  font-size: 13px; font-weight: 600; color: var(--cream-2); text-decoration: none;
-  background: rgba(255, 243, 224, 0.045);
-  box-shadow: inset 0 0 0 1px rgba(255, 243, 224, 0.13);
-  transition: color 140ms ease, background 140ms ease, box-shadow 140ms ease, transform 140ms ease;
-}
-.quick a:hover, .quick a:focus-visible {
-  color: var(--cream); background: rgba(244, 183, 64, 0.16);
-  box-shadow: inset 0 0 0 1px rgba(244, 183, 64, 0.55);
-  transform: translateY(-1px);
-}
-.quick .ic { flex: none; opacity: 0.85; }
-.quick a:hover .ic { opacity: 1; }
-@media (max-width: 430px) { .quick a span { display: none; } .quick a { padding: 10px; } }
 
 /* One column. The app icon that used to float here is gone: it bobbed up and
    down beside a headline that now has a job to do, and an icon is what a page
@@ -924,8 +902,8 @@ h2.plain { font-family: var(--serif); font-weight: 800; font-size: clamp(22px, 5
    was a pink to violet gradient clipped to the type, the one thing every
    generated landing page has, September 22, 2026. */
 .glow { color: var(--honey); font-style: italic; font-weight: 600; }
-/* The name, underlined rather than emboldened. The headline is Georgia at 800
-   and Georgia ships one bold, so there is no weight left to reach for and
+/* The name, underlined rather than emboldened. The headline was Georgia at 800
+   and Georgia ships one bold, so there was no weight left to reach for and
    asking for more only gets a browser's synthetic smear.
 
    text-decoration-color is set explicitly and that is not tidiness. The rule
@@ -1244,7 +1222,7 @@ p.calkey .sw.today { background: none; box-shadow: inset 0 0 0 2px ${TODAY}; }
   }
   .rail::-webkit-scrollbar { display: none; }
   .railtrack li.hlcard { scroll-snap-align: start; }
-  .quick a, .btn.brand, .btn.ghost, .bornin a, .railtrack li.hlcard, .cal, .cal .days a {
+  .btn.brand, .btn.ghost, .bornin a, .railtrack li.hlcard, .cal, .cal .days a {
     transition: none;
   }
   .btn.brand:hover, .btn.ghost:hover, .bornin a:hover, .cal .days a:hover { transform: none; }

@@ -2560,7 +2560,7 @@ export const WALL_STYLE = `
 /* The strip of number ones under the feed. */
 .wsongs { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 .wsongs li { display: flex; flex-direction: column; gap: 6px; background: var(--cell); border-radius: 12px; padding: 8px; font-size: 13px; line-height: 1.35; scroll-margin-top: 72px; --wbtn: var(--honey); --wbtn-ink: var(--on-honey); --wmark: var(--honey); --wink: var(--honey); }
-.wsongs li:target { box-shadow: 0 0 0 2px #EF5680; }
+.wsongs li:target { box-shadow: 0 0 0 2px var(--honey-lite); }
 .wsongs .wart {
   /* width: 100% is not decoration. In a column flex box an aspect-ratio
      box with no width takes its width from its height, which is nothing,
