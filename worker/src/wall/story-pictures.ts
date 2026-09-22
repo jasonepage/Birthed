@@ -91,6 +91,38 @@ async function store(db: Db, path: string, body: ArrayBuffer, contentType: strin
 export interface Report { stored: number; none: number; failed: number }
 
 /**
+ * The picture's bytes, or null once it passes the cap.
+ *
+ * Read in chunks and abandoned as soon as it is too big, so an oversized
+ * picture costs the cap rather than its whole size. A server that declares no
+ * content-length is the reason this exists as well as the header check.
+ */
+async function readCappedBytes(response: Response, maxBytes: number): Promise<ArrayBuffer | null> {
+  if (response.body === null) return new ArrayBuffer(0);
+  const reader = response.body.getReader();
+  const parts: Uint8Array[] = [];
+  let bytes = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > maxBytes) {
+        await reader.cancel().catch(() => {});
+        return null;
+      }
+      parts.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const out = new Uint8Array(bytes);
+  let at = 0;
+  for (const part of parts) { out.set(part, at); at += part.byteLength; }
+  return out.buffer;
+}
+
+/**
  * One story: read its page, find the preview picture, copy it, record it.
  * A page with no picture is recorded with no path so it is not read again.
  * A failure to copy records nothing, so a later run tries again.
@@ -115,8 +147,17 @@ export async function pictureStory(
     if (!response.ok) throw new Error(`picture answered ${response.status}`);
     const contentType = (response.headers.get("content-type") ?? "").split(";")[0]!.trim() || "image/jpeg";
     if (!/^image\//.test(contentType)) throw new Error(`not an image: ${contentType}`);
-    const body = await response.arrayBuffer();
-    if (body.byteLength > MAX_BYTES) throw new Error(`too big: ${body.byteLength} bytes`);
+    // The declared size first. Reading the whole picture and then measuring
+    // it is how a 64,440,402 byte page got allocated in a 256 megabyte heap
+    // and killed the tick; the message said "too big" only after the bytes
+    // were already in memory. CLAUDE.md section 5, September 22, 2026.
+    const declared = Number(response.headers.get("content-length") ?? "");
+    if (Number.isFinite(declared) && declared > MAX_BYTES) {
+      await response.body?.cancel().catch(() => {});
+      throw new Error(`too big: ${declared} bytes`);
+    }
+    const body = await readCappedBytes(response, MAX_BYTES);
+    if (body === null) throw new Error(`too big: over ${MAX_BYTES} bytes`);
     if (body.byteLength < 1000) throw new Error(`only ${body.byteLength} bytes`);
     const path = storagePath(story.id, contentType);
     await store(db, path, body, contentType);

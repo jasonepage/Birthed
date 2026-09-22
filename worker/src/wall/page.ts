@@ -194,6 +194,56 @@ function hostOf(url: string): string {
  * feeds carry canonical addresses and the sites answer them with a hop to
  * www or to a section host; the address landed on is in the detail.
  */
+/**
+ * How much of a page is read before it is given up on.
+ *
+ * Eight megabytes holds every news article anybody has ever pointed this at,
+ * including the heaviest of them, which measured about four and a half. The
+ * cap exists because `response.text()` reads whatever it is sent, and on
+ * September 22, 2026 that was a nasa.gov page of 64,440,402 bytes. A page
+ * that size becomes a JavaScript string of up to twice that, inside a worker
+ * whose heap stops at 256 megabytes, and the tick died with
+ * "Reached heap limit Allocation failed" on every run for an hour.
+ *
+ * A page over the cap is not truncated and half read. It is reported as
+ * unreadable, with its size in the detail, because a quotation matched
+ * against the first eight megabytes of a page is a check that says something
+ * it cannot know.
+ */
+export const PAGE_MAX_BYTES = 8_000_000;
+
+/**
+ * The body, or null when the page is bigger than the cap.
+ *
+ * Read in chunks and given up on as soon as the cap is passed, so the bytes
+ * past it are never allocated and the rest of the download is cancelled. The
+ * size returned for an oversized page is what had arrived when it was given
+ * up on, not the whole length, which is never learned.
+ */
+async function readCapped(response: Response, maxBytes: number): Promise<{ body: string | null; bytes: number }> {
+  if (response.body === null) return { body: "", bytes: 0 };
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  const parts: string[] = [];
+  let bytes = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > maxBytes) {
+        await reader.cancel().catch(() => {});
+        return { body: null, bytes };
+      }
+      parts.push(decoder.decode(value, { stream: true }));
+    }
+    parts.push(decoder.decode());
+    return { body: parts.join(""), bytes };
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 export async function fetchPage(url: string, headers: Record<string, string> = PAGE_HEADERS, timeoutMs: number = 15000): Promise<Fetched> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -203,8 +253,18 @@ export async function fetchPage(url: string, headers: Record<string, string> = P
       redirect: "follow",
       signal: controller.signal,
     });
-    const body = await response.text();
     const type = response.headers.get("content-type") ?? "";
+    // The declared length first, when there is one, so an oversized page is
+    // not downloaded at all rather than downloaded and thrown away.
+    const declared = Number(response.headers.get("content-length") ?? "");
+    if (Number.isFinite(declared) && declared > PAGE_MAX_BYTES) {
+      await response.body?.cancel().catch(() => {});
+      return { status: response.status, body: null, finalUrl: response.url || url, detail: `${response.status}, ${type.split(";")[0] || "unknown type"}, too big to read: ${declared} bytes` };
+    }
+    const { body, bytes } = await readCapped(response, PAGE_MAX_BYTES);
+    if (body === null) {
+      return { status: response.status, body: null, finalUrl: response.url || url, detail: `${response.status}, ${type.split(";")[0] || "unknown type"}, too big to read: over ${PAGE_MAX_BYTES} bytes` };
+    }
     return {
       status: response.status,
       body,

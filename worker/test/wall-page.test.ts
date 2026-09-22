@@ -2,7 +2,7 @@ import { strict as assert } from "node:assert";
 import { execFileSync } from "node:child_process";
 import { test } from "node:test";
 
-import { HostSilence, PAGE_HEADERS, SILENT_STRIKES, decodeEntities, fold, meta, ownerOf, pageContains, pageText, type Fetched } from "../src/wall/page.js";
+import { HostSilence, PAGE_HEADERS, PAGE_MAX_BYTES, SILENT_STRIKES, decodeEntities, fetchPage, fold, meta, ownerOf, pageContains, pageText, type Fetched } from "../src/wall/page.js";
 import { normalizeUrl } from "../src/wall/url.js";
 
 // The quotation rule and the address key each exist twice: once here, for
@@ -143,4 +143,53 @@ test("the page request says it is a browser and still says it is Birthed", () =>
   assert.ok(PAGE_HEADERS["User-Agent"]!.includes("Birthed"), "an operator reading a log can still find us");
   assert.ok(!PAGE_HEADERS["User-Agent"]!.includes("node-fetch"), "the worker's own name for itself is for Wikidata");
   assert.ok(PAGE_HEADERS["Accept-Language"]);
+});
+
+// The cap. CLAUDE.md section 5, September 22, 2026: the tick died for an hour
+// with "Reached heap limit Allocation failed" because fetchPage read whatever
+// it was sent, and what it was sent was a 64,440,402 byte page.
+function answer(body: string, headers: Record<string, string> = {}): Response {
+  const bytes = new TextEncoder().encode(body);
+  return new Response(new ReadableStream({
+    start(controller) { controller.enqueue(bytes); controller.close(); },
+  }), { status: 200, headers: { "content-type": "text/html", ...headers } });
+}
+
+test("a page inside the cap is read whole", async () => {
+  const real = globalThis.fetch;
+  globalThis.fetch = (async () => answer("<html>a short page</html>")) as typeof fetch;
+  try {
+    const got = await fetchPage("https://example.com/a");
+    assert.equal(got.body, "<html>a short page</html>");
+    assert.equal(got.status, 200);
+  } finally { globalThis.fetch = real; }
+});
+
+test("a page over the cap is unreadable rather than half read", async () => {
+  const real = globalThis.fetch;
+  const huge = "x".repeat(PAGE_MAX_BYTES + 1000);
+  globalThis.fetch = (async () => answer(huge)) as typeof fetch;
+  try {
+    const got = await fetchPage("https://example.com/huge");
+    assert.equal(got.body, null, "never a truncated body, which would make a quotation check lie");
+    assert.match(got.detail, /too big to read/);
+  } finally { globalThis.fetch = real; }
+});
+
+test("a declared length over the cap is refused without draining the body", async () => {
+  const real = globalThis.fetch;
+  let cancelled = false;
+  // A stream fills its own queue as soon as it exists, so whether a chunk was
+  // produced says nothing. What is observable, and what matters, is that
+  // fetchPage lets go of the response instead of reading it to the end.
+  globalThis.fetch = (async () => new Response(new ReadableStream({
+    pull(controller) { controller.enqueue(new Uint8Array(10)); },
+    cancel() { cancelled = true; },
+  }), { status: 200, headers: { "content-type": "text/html", "content-length": String(64_440_402) } })) as typeof fetch;
+  try {
+    const got = await fetchPage("https://example.com/declared");
+    assert.equal(got.body, null);
+    assert.match(got.detail, /too big to read: 64440402 bytes/);
+    assert.equal(cancelled, true, "the body is cancelled, not drained");
+  } finally { globalThis.fetch = real; }
 });

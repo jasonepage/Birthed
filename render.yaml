@@ -99,3 +99,15 @@ services:
         sync: false
       - key: WIKIDATA_CONTACT
         value: contact@birthed.app
+      # Node sizes its own heap from the memory it can see, and on this plan it
+      # settles on about 256 megabytes inside a container that has 512. On
+      # September 22, 2026 the tick died with "Reached heap limit Allocation
+      # failed" on every run for an hour, and the log showed it giving up at
+      # 252 of 258 megabytes with half the container unused. The oversized
+      # reads that pushed it over are capped now, in page.ts and
+      # story-pictures.ts, but the tick loads sixteen open days and eleven
+      # thousand stories and that number only grows, so it is also given room
+      # it already had. Well under 512, because the heap is not the whole of
+      # what the process uses.
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=400

@@ -544,6 +544,36 @@ Stripped of the cynicism the thread left four notes, and three are fixed:
   knowledge by date rather than by name is worth doing properly, and that a
   date page which puts Beethoven eighth on his own birthday is not that.
 
+### The tick read whatever it was sent, found September 22, 2026
+
+- **The worker cron died on every run for an hour** with `FATAL ERROR: Reached
+  heap limit Allocation failed`, exit 139, after `wall scores 2026-09-22`. The
+  log shows it giving up at 252 of 258 megabytes.
+- **`fetchPage` called `response.text()` with no cap.** On the same day the
+  picture job was printing `too big: 64440402 bytes` for a nasa.gov page. That
+  is a 64 megabyte download becoming a JavaScript string of up to twice that,
+  inside a heap that stops at 256.
+- **`story-pictures.ts` measured after it allocated.** It read the whole body
+  into an `ArrayBuffer` and then checked `byteLength > MAX_BYTES` and threw.
+  The message said "too big" only once the bytes were already in memory, which
+  is why that line is evidence rather than reassurance.
+- **Both read in chunks now and stop at the cap**, and both check a declared
+  `content-length` first so an oversized page is never fetched at all. A page
+  past the cap comes back unreadable with its size in the detail, never
+  truncated, because a quotation matched against the first eight megabytes of
+  a page is a check asserting something it cannot know.
+- **The heap was also smaller than the container.** Node sizes its own heap
+  from the memory it can see and settled on 256 megabytes inside 512, so half
+  the container sat unused while the process died. `NODE_OPTIONS` sets
+  `--max-old-space-size=400` on the cron in `render.yaml`.
+- **Which of the three was decisive is not known.** The caps are right on
+  their own and the heap flag is right on its own. The tick loads sixteen open
+  days and eleven thousand stories, and that number grows daily, so the
+  ceiling was going to be met with or without the 64 megabyte page.
+- **Not run.** Nothing here has executed against the live feeds. The next
+  scheduled tick after the worker redeploys is the test, and the thing to look
+  for in its log is a `too big to read` line where the crash used to be.
+
 ### History before 1600 does not exist, found September 22, 2026
 
 - **`WIKIDATA_YEAR_FROM` defaulted to 1600**, so the earliest person in
