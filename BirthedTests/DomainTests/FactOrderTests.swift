@@ -57,4 +57,19 @@ final class FactOrderTests: XCTestCase {
         XCTAssertEqual(FactOrder.order([fact(1)], salt: 1).map(\.id), [1])
         XCTAssertTrue(FactOrder.order([], salt: 1).isEmpty)
     }
+
+    func testTheEditorsBestComeBeforeItsGoodBelowTheLiked() {
+        func scored(_ id: Int, _ interest: Int?, likes: Int = 0) -> BirthFact {
+            BirthFact(id: id, fact: "Fact \(id).", category: "event", sourceURL: nil,
+                      regionKey: "", likes: likes, likedByMe: false, interest: interest)
+        }
+        let facts = [scored(1, 7), scored(2, 10), scored(3, nil), scored(4, 8), scored(5, 9), scored(6, 7, likes: 12)]
+        for salt in UInt64(0)..<50 {
+            let ids = FactOrder.order(facts, salt: salt).map(\.id)
+            XCTAssertEqual(ids.first, 6, "liked still leads")
+            XCTAssertEqual(Set(ids[1...2]), [2, 5], "then the nines and tens")
+            XCTAssertEqual(Set(ids[3...4]), [1, 4], "then the sevens and eights")
+            XCTAssertEqual(ids.last, 3, "unscored last")
+        }
+    }
 }

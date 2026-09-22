@@ -81,6 +81,8 @@ final class FactsService {
         let source_url: String
         let region_key: String
         let birth_fact_likes: [LikeCount]
+        /// The editor's score, one to ten. Nil on a row it has not scored.
+        let interest: Int?
     }
 
     private struct LikeRow: Decodable { let fact_id: Int }
@@ -181,7 +183,7 @@ final class FactsService {
         let regionList = key.isEmpty ? "(\"\")" : "(\"\",\"\(key)\")"
         var components = URLComponents(url: baseURL.appending(path: "rest/v1/birth_facts"), resolvingAgainstBaseURL: false)
         components?.queryItems = [
-            URLQueryItem(name: "select", value: "id,fact,category,source_url,region_key,birth_fact_likes(count)"),
+            URLQueryItem(name: "select", value: "id,fact,category,source_url,region_key,interest,birth_fact_likes(count)"),
             URLQueryItem(name: "birth_month", value: "eq.\(month)"),
             URLQueryItem(name: "birth_day", value: "eq.\(day)"),
             URLQueryItem(name: "birth_year", value: "eq.\(year)"),
@@ -210,7 +212,8 @@ final class FactsService {
                 sourceURL: URL(string: row.source_url),
                 regionKey: row.region_key,
                 likes: row.birth_fact_likes.first?.count ?? 0,
-                likedByMe: mine.contains(row.id)
+                likedByMe: mine.contains(row.id),
+                interest: row.interest
             )
         }
         // Unordered. The callers deal the order with `FactOrder` and a salt

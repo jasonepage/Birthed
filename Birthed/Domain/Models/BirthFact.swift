@@ -17,6 +17,11 @@ struct BirthFact: Identifiable, Equatable, Hashable {
     let regionKey: String
     var likes: Int
     var likedByMe: Bool
+    /// The editor's score, one to ten: would somebody born on this day tell
+    /// a friend. Only facts at 7 and above are published, so on the phone this
+    /// separates the good from the best. Nil before the editor has read it.
+    /// supabase/functions/_shared/editor.ts.
+    var interest: Int? = nil
 
     var isLocal: Bool { !regionKey.isEmpty }
 }

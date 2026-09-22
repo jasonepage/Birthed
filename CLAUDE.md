@@ -652,6 +652,32 @@ Stripped of the cynicism the thread left four notes, and three are fixed:
   The change is to what a run keeps, so every date has to be re-imported for
   Einstein to appear.
 
+### The editor, decided September 22, 2026
+
+- **A model decides which found facts are shown, by how interesting they
+  are, and a person's decision in the panel still beats it.** Nathan's call,
+  after the first test of the Mine deal led with a minor league baseball
+  score and then "six days older than Battlefield 1942": true, cited, and
+  nothing anybody would say out loud. "Automatically, we need a process."
+- **One question, one to ten:** would somebody born on this day stop
+  scrolling and tell a friend. Published at 7 and above (`PUBLISH_AT` in
+  `supabase/functions/_shared/editor.ts`), only when the cited page answered.
+  Scores and the reason live on the row (`interest`, `interest_note`), so the
+  bar can move without asking the model again.
+- **Search off, one call a run, about half a cent.** find-facts scores its
+  own run inline; `rate-facts` sweeps anything unscored, twenty runs a
+  quarter hour from the wall tick, and costs nothing once the backlog is gone.
+- **It learns from people, not from edits here.** Every call carries recent
+  panel rejections and the most liked facts as examples.
+- **"Every fact lands off the page and waits" was never live.** The
+  repository's find-facts held new facts for a person, but the deployed
+  version (22) still published on the citation check alone, so all 2,471
+  published facts reached readers without a person or a taste check. The
+  repository version went live on September 22 together with the editor,
+  which is now the gate. The panel still overrides it.
+- **On the phone, `FactOrder` deals likes first, then the nines and tens, then
+  the sevens and eights.**
+
 ### What a public figure is for, decided September 6, 2026
 
 - **Somebody you follow gets no notification of any kind.** A notification is a

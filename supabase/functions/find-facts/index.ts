@@ -36,6 +36,7 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { rateRun } from "../_shared/editor.ts";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 // Gemini 2.5 is closed to keys made after it shipped, and grounding is a
@@ -462,7 +463,8 @@ async function search(
       // Every fact now lands off the page and waits. A citation that holds up
       // says the row is true. Whether a true thing is worth putting at the top
       // of somebody's birthday is a different question and no fetch answers
-      // it.
+      // it. Since September 22, 2026 the editor answers it, below, straight
+      // after this write: supabase/functions/_shared/editor.ts.
       verified: false,
       model: MODEL,
     }));
@@ -478,6 +480,15 @@ async function search(
     const found = rows.filter((row) => row.source_checked).length;
     if (found === 0) {
       throw new Error(`no cited page answered, out of ${rows.length}`);
+    }
+    // The editor, straight away, so a good fact is on the phone in this
+    // run rather than after the next sweep. A failure here costs nothing but
+    // time: the rows stay unscored and unshown, and rate-facts picks them up
+    // within the quarter hour.
+    try {
+      await rateRun(admin, key, where);
+    } catch (error) {
+      console.error(`editor failed: ${error instanceof Error ? error.message : error}`);
     }
     await admin.from("birth_fact_runs").upsert({
       ...where,

@@ -17,6 +17,7 @@ import { run as hindsight } from "./hindsight.js";
 import { run as history } from "./history.js";
 import { run as news } from "./news.js";
 import { run as pictures } from "./story-pictures.js";
+import { run as factsEditor } from "../facts-editor.js";
 
 async function main(): Promise<void> {
   await loadDotEnv();
@@ -62,6 +63,14 @@ async function main(): Promise<void> {
   } catch (error: unknown) {
     failed = true;
     console.error(`wall check failed: ${error instanceof Error ? error.message : error}`);
+  }
+  // The editor's sweep over the found facts. Not the wall's, but this is the
+  // one schedule there is. Last, so a slow model never delays the checker.
+  try {
+    await factsEditor(db);
+  } catch (error: unknown) {
+    failed = true;
+    console.error(`facts editor failed: ${error instanceof Error ? error.message : error}`);
   }
   if (failed) process.exit(1);
 }

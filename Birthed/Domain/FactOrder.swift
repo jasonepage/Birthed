@@ -26,7 +26,14 @@ enum FactOrder {
         let chosen = facts.filter { $0.likes >= likesThatCount }
             .sorted { ($0.likes, -$0.id) > ($1.likes, -$1.id) }
         let rest = facts.filter { $0.likes < likesThatCount }
-        return chosen + shuffle(rest, salt: salt)
+        // Below the liked ones, the editor's best first: nines and tens, then
+        // sevens and eights, then anything it has not scored. Shuffled inside
+        // each band, so a launch still deals something new. With no scores at
+        // all this is one band and exactly the old shuffle.
+        let best = rest.filter { ($0.interest ?? 0) >= 9 }
+        let good = rest.filter { ($0.interest ?? 0) >= 7 && ($0.interest ?? 0) < 9 }
+        let unscored = rest.filter { ($0.interest ?? 0) < 7 }
+        return chosen + shuffle(best, salt: salt) + shuffle(good, salt: salt) + shuffle(unscored, salt: salt)
     }
 
     /// A Fisher and Yates shuffle driven by a SplitMix64 generator, so the
