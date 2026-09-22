@@ -502,17 +502,16 @@ test("an icon only link still has a name when its words are hidden", () => {
   assert.ok(html.includes('href="/random/" aria-label='));
 });
 
-test("the home page leads with a birthday picker that posts to the one year route", () => {
+test("the about page explains how to play and asks for nothing", () => {
+  // September 22, 2026: the front door is today's date now, and every date
+  // page has its own See your own birthday button. The About page is the
+  // rules, so it no longer asks for a birthday or offers a second Random.
   const html = renderHome(2026);
-  // The front door: one form, twelve months, a day, a year, posting to /year,
-  // which sets the birth-year cookie and redirects to that date.
-  assert.ok(html.includes('action="/year"'));
-  const months = html.match(/<option value="\d+">(January|February|March|April|May|June|July|August|September|October|November|December)<\/option>/g) ?? [];
-  assert.equal(months.length, 12);
-  assert.ok(html.includes('name="m"') && html.includes('name="d"') && html.includes('name="y"'));
-  // A number field, not a hundred options: no stray year text on the page.
-  assert.ok(!/<option value="1951">1951<\/option>/.test(html));
-  // The picker must not have added a script to a page that promises none.
+  assert.ok(!html.includes('action="/year"'), "no birthday form");
+  assert.ok(!html.includes("Surprise me"), "the bar already has Random day");
+  assert.ok(html.includes("How to play"));
+  assert.ok(html.includes("Spend your three buzzes") && html.includes("Midnight seals it"));
+  assert.ok(html.includes('<a class="btn play" href="/today/">'));
   assert.ok(!html.includes("<script"));
 });
 
@@ -1195,7 +1194,7 @@ test("no facts is a missing section rather than a heading over nothing", () => {
   const html = renderHome(2026, []);
   assert.ok(!html.includes("Every date has a day like this in it"));
   // And the page still works.
-  assert.ok(html.includes('href="/calendar/"') && html.includes('class="bbar'));
+  assert.ok(html.includes('href="/calendar/"') && html.includes("How to play"));
 });
 
 test("the front door still runs nothing", () => {
@@ -1572,22 +1571,19 @@ test("the first ask stays away from years with no record beside them", () => {
 
 test("the about page explains what the site does before what is on a page", () => {
   const html = renderHome(2026, []);
-  // Birthday first: the headline asks the reader about their own day.
-  assert.ok(html.includes("the day you were born?"));
-  assert.ok(html.includes('action="/year"'), "and the picker to answer it is right there");
+  // The game first, since September 22, 2026: the front door is a date now.
+  assert.ok(html.includes("Every date has a hive."));
   // The underline needs its own colour named. The headline is painted with a
   // gradient and its text colour is transparent, so an underline left on
   // currentColor is drawn in transparent and nothing appears under the word.
   assert.match(html, /\.brandword \{[^}]*text-decoration-color: #EF5680/);
-  // The four beats, in order, because the thing this site does is a sequence
-  // and a reader who does not know it needs the order more than the detail.
-  for (const beat of [
-    "A date's hive opens at midnight",
-    "Everybody buzzes at once",
-    "Then it seals",
-    "Next year it opens on top",
-  ]) {
-    assert.ok(html.includes(beat), `the page lost the beat: ${beat}`);
+  // The steps, in order, because the thing this site does is a sequence and a
+  // reader who does not know it needs the order more than the detail.
+  let at = 0;
+  for (const step of ["Open a date", "Spend your three buzzes", "Yesterday gets one more", "Midnight seals it", "Come back next year"]) {
+    const found = html.indexOf(step, at);
+    assert.ok(found > at, `the page lost the step, or moved it: ${step}`);
+    at = found;
   }
   // The rule that everything else rests on, said to a stranger in one clause.
   assert.ok(html.includes("no way to say a thing did not matter"));

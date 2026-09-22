@@ -231,50 +231,49 @@ ${topBar()}
 <div class="col">
 <section class="hero">
   <div class="herotext">
-    <h1>What was the world like <span class="glow">the day you were born?</span></h1>
-    <p class="lede">Pick your birthday. See who shares it, the number one song the week you arrived, and everything that ever happened on your date, on one page you can keep. Then buzz what you think will still matter, and watch the day take shape.</p>
-    ${renderBirthdayBar(true)}
-    <p class="actions">
-      ${storeButton()}
-      <a class="btn ghost" href="/random/">${ICON_DICE}<span>Surprise me</span></a>
-    </p>
-    <p class="fine">iPhone only for now. TestFlight is Apple's free app for trying apps before they are on the store. The website works without it.</p>
+    <h1>Every date has a hive. <span class="glow">Here is how to play.</span></h1>
+    <p class="lede">Birthed is a small game about the calendar. Every day, whoever shows up decides what mattered about that date. At midnight it locks for good, and next year the same date gets another go.</p>
+    <p class="actions"><a class="btn play" href="/today/">Play today's hive</a></p>
   </div>
 </section>
 </div>
 
 <section class="col how">
-<h2 class="plain">How a date gets decided</h2>
+<h2 class="plain">How to play</h2>
 <ol class="beats">
   <li>
-    <h3>A date's hive opens at midnight</h3>
-    <p>It takes buzzes on the day itself and the day after, then it seals. Everything with a birthday on the date is on the feed under it: what is in the news today, and what happened, who was born and what came out on this date before.</p>
+    <h3>Open a date</h3>
+    <p>Today is the one that is live. Everything with a birthday on it is in one pile: what happened on this date in history, who was born on it, what was number one, and today's news.</p>
   </li>
   <li>
-    <h3>Everybody buzzes at once</h3>
-    <p>The people who care most about a date are the ones born on it, and they all arrive on the same day. You get three buzzes on the day. Each one makes its story bigger on the hive. No score, no downvote, and no way to say a thing did not matter.</p>
+    <h3>Spend your three buzzes</h3>
+    <p><span class="bzz" aria-hidden="true"><i></i><i></i><i></i></span>You get three a day. Tap Buzz on the stories you think people will still care about. Each buzz makes that story's tile bigger. No score, no downvote, and no way to say a thing did not matter.</p>
   </li>
   <li>
-    <h3>Then it seals</h3>
-    <p>The hive is what the people there that day thought would still matter, sized by how many of them buzzed it. Every story on it is a link to a source, in the source's own words. It stays that way for good.</p>
+    <h3>Yesterday gets one more</h3>
+    <p>The day after a date, you get one more buzz to spend on its hive.</p>
   </li>
   <li>
-    <h3>Next year it opens on top</h3>
-    <p>The same date comes round and gets a new hive, and the old ones stay. The difference between them is the part nobody else has: what a year did to what people thought would last.</p>
+    <h3>Midnight seals it</h3>
+    <p>At midnight Eastern the hive locks. No edits and no do overs. That board is what people thought mattered, for good.</p>
+  </li>
+  <li>
+    <h3>Come back next year</h3>
+    <p>The same date opens a new hive and the old one stays. Put them side by side and you can see what actually lasted.</p>
   </li>
 </ol>
-<p class="fine">Nothing to sign up for and nothing to install. A buzz is one tap and it is anonymous.</p>
 </section>
 
 <section class="col how">
-<h2 class="plain">What the colours mean</h2>
-<p class="lede">A tile's colour says how well its story is sourced. It never says whether the story is true.</p>
-<ul class="features">
-  <li><h3>Seen directly</h3><p>Video, a filing, a record or an official statement.</p></li>
-  <li><h3>Reported</h3><p>Two or more independently owned outlets.</p></li>
-  <li><h3>Claimed</h3><p>Somebody said it and nobody has confirmed it. A claimed story can be loud on the hive and never big.</p></li>
-  <li><h3>The receipt</h3><p>Tap any headline to open its receipt: every source, every quotation, and every check ever run on it. What you type in the search field is matched and not kept.</p></li>
+<h2 class="plain">The rules, short</h2>
+<ul class="rules">
+  <li><b>3</b> buzzes a day</li>
+  <li><b>1</b> buzz per story</li>
+  <li><b>Bigger tile</b> means more buzzes</li>
+  <li><b>Every tile</b> links to its source</li>
+  <li><b>No</b> sign up, no ads, nothing to buy</li>
 </ul>
+<p class="fine">Tap any headline to see where it came from. Looking for your own birthday? Every date page has a See your own birthday button at the top.</p>
 </section>
 
 <section class="col how">
@@ -283,18 +282,8 @@ ${topBar()}
 <p class="lede">It costs me money to run and it does not make any. There are no ads on it, there is nothing on it to buy, and there is no company behind it. I am not collecting birthdays to sell, and the <a href="/privacy/">privacy page</a> lists every single thing that is kept, down to the two cookies and what each one is for. If you find something on this site that does not match what that page says, write to me and I will fix it the same day.</p>
 </section>
 
-${highlightStrip(highlights)}
-
-<section class="col">
-<h2 class="plain">What is on a day</h2>
-<ul class="features">
-  <li><h3>The week you were born</h3><p>The number one song, album and film the week you arrived, with the chart date next to each so you can check it.</p></li>
-  <li><h3>Your day, counted</h3><p>The day of the week you were born, how many days that has been, and the day you turn ten thousand.</p></li>
-  <li><h3>Who shares it</h3><p>The people most looked up who were born on your date, from Wikidata.</p></li>
-  <li><h3>What happened on it</h3><p>Specific things that happened on your date across history, each one showing the page it came from so you can check it yourself.</p></li>
-  <li><h3>Other people's days</h3><p>Add the people you care about. Birthed tells you three days before and on the day, so you are never the one who forgot.</p></li>
-  <li><h3>Nothing about you leaves</h3><p>No sign up and no name. Nothing Birthed makes carries your name, and nothing shared out of it carries your birth year. <a href="/privacy/">How your data is handled</a>.</p></li>
-</ul>
+<section class="col how">
+<p class="fine">There is an iPhone app too, in beta on <a href="${TESTFLIGHT_URL}">TestFlight</a>, Apple's free app for trying apps before they are on the store. The website works without it.</p>
 </section>
 ${FOOT}`;
 }

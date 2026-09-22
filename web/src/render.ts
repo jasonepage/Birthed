@@ -987,6 +987,22 @@ body.home {
   transform: translateY(-2px);
 }
 .fine { color: ${QUIET}; font-size: 13px; margin: 14px 0 0; max-width: 46ch; }
+/* The About page as a how to play, September 22, 2026. Honey, the hive's
+   own colour, for the three pieces that are the game: the button into it,
+   the three buzzes and the rules. */
+.btn.play {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 14px 26px; font-size: 16px; font-weight: 800; border-radius: 999px;
+  background: linear-gradient(180deg, #FFCF6B, #F4B740); color: #1B1206; text-decoration: none;
+  box-shadow: 0 12px 30px rgba(244, 183, 64, 0.28);
+  transition: transform 140ms ease, filter 140ms ease;
+}
+.btn.play:hover { filter: brightness(1.06); transform: translateY(-2px); }
+.bzz { display: inline-flex; gap: 5px; margin: 0 8px 0 0; vertical-align: -1px; }
+.bzz i { display: inline-block; width: 11px; height: 11px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #FFCF6B, #F4B740); box-shadow: 0 0 8px rgba(244, 183, 64, 0.5); }
+.rules { list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.rules li { display: inline-flex; align-items: baseline; gap: 6px; padding: 10px 16px; border-radius: 999px; background: #1E1710; border: 1px solid #4A3A24; color: #E9DCC6; font-size: 14.5px; }
+.rules li b { color: #FFCF6B; }
 
 /* Pick your month. A band rather than a line of small links, because this is
    the one thing on the page a visitor who knows what they want is looking for,
