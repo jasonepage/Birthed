@@ -1,8 +1,9 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 
-import { PRIORITY_HISTORY, PRIORITY_PERSON, PRIORITY_PICK, PRIORITY_SONG, mayLead, monthDay, monthDayOf, planHistory, planSongs, songsOn, type DateHistory, type Dropped, type SongRow } from "../src/wall/history.js";
+import { PRIORITY_HISTORY, PRIORITY_PERSON, PRIORITY_PICK, PRIORITY_SONG, mayLead, monthDay, monthDayOf, personHeadline, planHistory, planSongs, songsOn, withoutStatedYears, type DateHistory, type Dropped, type PersonRow, type SongRow } from "../src/wall/history.js";
 import { allocate, type StoryInput } from "../src/wall/allocator.js";
+import { changesFor } from "../src/wall/repair-person-headlines.js";
 
 function history(overrides: Partial<DateHistory> = {}): DateHistory {
   return {
@@ -61,7 +62,7 @@ test("people, facts and written releases file too, and a bare title does not", (
   const stories = planHistory("2026-09-04", history());
   const byKey = new Map(stories.map((s) => [s.urlKey, s]));
   const bruckner = byKey.get("subject:person:Q1")!;
-  assert.equal(bruckner.headline, "Anton Bruckner, Austrian composer, born 1824");
+  assert.equal(bruckner.headline, "Anton Bruckner, Austrian composer, 1824 to 1896", "somebody who has died gets both years, once each");
   assert.equal(bruckner.url, "https://www.wikidata.org/wiki/Q1");
   assert.equal(bruckner.priority, PRIORITY_PERSON);
   assert.ok(bruckner.quotation.length >= 20);
@@ -240,4 +241,100 @@ test("a song story is keyed by its issue, quotes the table's own song and artist
   assert.ok(PRIORITY_SONG < PRIORITY_HISTORY, "a song waits behind the date's history");
   // The same issue never files twice, and the other kinds of history keep their own keys.
   assert.equal(new Set(stories.map((s) => s.urlKey)).size, stories.length);
+});
+
+
+// ---------------------------------------------------------------------------
+// The years on a person's tile, said once.
+//
+// Every description below was read out of notable_people on the live project
+// on September 21, 2026, and every headline is what the tile said or would
+// have said. They are copied rather than invented for the same reason the
+// hundred birthday messages and the news screen's headlines are: a rule
+// tuned against descriptions somebody made up is tuned against the wrong
+// thing, and this one turns entirely on shapes real editors write.
+// ---------------------------------------------------------------------------
+
+function person(overrides: Partial<PersonRow> = {}): PersonRow {
+  return { wikidata_qid: "Q1", name: "Somebody", birth_year: 1970, death_year: null, short_description: null, ...overrides };
+}
+
+test("the years Wikidata already states come off, so a tile does not say them twice", () => {
+  // The tile on September 21, 2026 read: "Luke Wilson, American actor (born
+  // 1971), born 1971". This is that bug.
+  assert.equal(
+    personHeadline(person({ name: "Luke Wilson", birth_year: 1971, short_description: "American actor (born 1971)" })),
+    "Luke Wilson, American actor, born 1971",
+  );
+  assert.equal(
+    personHeadline(person({ name: "Stephen King", birth_year: 1947, short_description: "American novelist and writer (born 1947)" })),
+    "Stephen King, American novelist and writer, born 1947",
+  );
+  // The abbreviated form, and the one that spells out a whole life.
+  assert.equal(
+    personHeadline(person({ name: "Jeffrey Combs", birth_year: 1954, short_description: "American actor (b. 1954)" })),
+    "Jeffrey Combs, American actor, born 1954",
+  );
+  assert.equal(
+    personHeadline(person({ name: "Catherine II of Russia", birth_year: 1729, death_year: 1796, short_description: "eighth Emperor of Russia, called the Great, r. 1762-1796 (lived 1729-1796)" })),
+    "Catherine II of Russia, eighth Emperor of Russia, called the Great, r. 1762-1796, 1729 to 1796",
+  );
+  // A lifespan in brackets is the years too, and taking it off is why the
+  // death year has to come back in the words we write ourselves.
+  assert.equal(
+    personHeadline(person({ name: "Michael Jackson", birth_year: 1958, death_year: 2009, short_description: "American singer, songwriter, record producer, and dancer (1958\u20132009)" })),
+    "Michael Jackson, American singer, songwriter, record producer, and dancer, 1958 to 2009",
+  );
+  // Recorded as one of two possible birth years, and the death year is the
+  // other number in the bracket, so matching on a year we hold takes it off.
+  assert.equal(
+    personHeadline(person({ name: "Alexander Hamilton", birth_year: 1757, death_year: 1804, short_description: "American Founding Father and statesman (1755/1757\u20131804)" })),
+    "Alexander Hamilton, American Founding Father and statesman, 1757 to 1804",
+  );
+});
+
+test("and a bracket that is not this person's years stays exactly where it is", () => {
+  // The three that would be destroyed by a rule written on shape alone.
+  const jimin = person({ name: "Jimin", birth_year: 1995, short_description: "South Korean singer and dancer (BTS)" });
+  assert.equal(personHeadline(jimin), "Jimin, South Korean singer and dancer (BTS), born 1995");
+  const rohit = person({ name: "Rohit Sharma", birth_year: 1987, short_description: "Indian cricketer (Captain)" });
+  assert.equal(personHeadline(rohit), "Rohit Sharma, Indian cricketer (Captain), born 1987");
+  // A term of office, on somebody alive, whose years are nothing like it.
+  const rivlin = person({ name: "Reuven Rivlin", birth_year: 1939, short_description: "10th President of Israel (2014\u20132021)" });
+  assert.equal(personHeadline(rivlin), "Reuven Rivlin, 10th President of Israel (2014\u20132021), born 1939");
+  // A single year that is not a life either.
+  const queen = person({ name: "Queen Mette-Marit of Norway", birth_year: 1973, short_description: "Queen Consort of Norway (2026)" });
+  assert.equal(personHeadline(queen), "Queen Mette-Marit of Norway, Queen Consort of Norway (2026), born 1973");
+});
+
+test("the description survives having nothing left, and a person with no year says none", () => {
+  assert.equal(personHeadline(person({ name: "Nobody Else", birth_year: 1971, short_description: "(born 1971)" })), "Nobody Else, born 1971");
+  assert.equal(personHeadline(person({ name: "Undated Person", birth_year: null, short_description: "American actor" })), "Undated Person, American actor");
+  assert.equal(personHeadline(person({ name: "Bare Name", birth_year: null, short_description: null })), "Bare Name");
+  // Nothing in brackets at all, which is most of them.
+  assert.equal(withoutStatedYears("American actor", person()), "American actor");
+  assert.equal(withoutStatedYears("", person()), "");
+});
+
+// ---------------------------------------------------------------------------
+// The repair for the rows already filed. worker/src/wall/repair-person-headlines.ts
+// ---------------------------------------------------------------------------
+
+test("the repair picks only the rows whose headline this project would write differently today", () => {
+  const people: PersonRow[] = [
+    { wikidata_qid: "Q1", name: "Luke Wilson", birth_year: 1971, death_year: null, short_description: "American actor (born 1971)" },
+    { wikidata_qid: "Q2", name: "Jimin", birth_year: 1995, death_year: null, short_description: "South Korean singer and dancer (BTS)" },
+  ];
+  const stories = [
+    { id: "a", wall_date: "2026-09-21", subject_id: "Q1", headline: "Luke Wilson, American actor (born 1971), born 1971" },
+    // Already right, so it is left alone rather than written again.
+    { id: "b", wall_date: "2026-09-21", subject_id: "Q2", headline: "Jimin, South Korean singer and dancer (BTS), born 1995" },
+    // Somebody no longer in the table: the stored headline is the only
+    // record of who it was, so it is never guessed at.
+    { id: "c", wall_date: "2026-09-21", subject_id: "Q9", headline: "Gone From The Table, a person (born 1900), born 1900" },
+    { id: "d", wall_date: "2026-09-21", subject_id: null, headline: "No subject at all" },
+  ];
+  assert.deepEqual(changesFor(stories, people), [
+    { id: "a", wallDate: "2026-09-21", was: "Luke Wilson, American actor (born 1971), born 1971", now: "Luke Wilson, American actor, born 1971" },
+  ]);
 });

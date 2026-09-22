@@ -28,6 +28,7 @@
     "wall:history": "npm run build && node dist/src/wall/history.js",
     "wall:tick": "npm run build && node dist/src/wall/tick.js",
     "wall:hindsight": "npm run build && node dist/src/wall/hindsight.js",
+    "wall:repair-people": "node dist/src/wall/repair-person-headlines.js",
     "pictures": "npm run build && node dist/src/event-pictures.js",
     "wall:pictures": "npm run build && node dist/src/wall/story-pictures.js"
   },

@@ -157,6 +157,70 @@ export interface Dropped {
  * other history, and never as a pick, because mayLead already keeps a
  * killing out of the first eight and the screen agrees with it.
  */
+/**
+ * The years a person's tile says, from this project's own columns.
+ *
+ * One form for everybody: a living person is "born 1970" and somebody who
+ * has died is "1958 to 2009". The second is not decoration. Wikidata writes
+ * a lifespan into the description and the rule below takes it off, so this
+ * is where the death year has to come back or it is lost.
+ */
+function personYears(p: PersonRow): string {
+  if (p.birth_year === null) return "";
+  if (p.death_year === null) return `, born ${p.birth_year}`;
+  return `, ${p.birth_year} to ${p.death_year}`;
+}
+
+/**
+ * A person's description with the years taken off the end, when those years
+ * are ones we already hold and are about to say ourselves.
+ *
+ * **The bug this exists for.** Wikidata's description usually ends with the
+ * birth year in brackets, so a tile read "Luke Wilson, American actor (born
+ * 1971), born 1971". On September 21, 2026 that was 214 of the 1,142 person
+ * stories already filed, and it is the first thing a careful reader sees.
+ *
+ * Deliberately narrow, and the narrowness is the whole design, because a
+ * trailing bracket is often not years at all. Two shapes come off:
+ *
+ * - One that says so: "(born 1971)", "(b. 1954)", "(lived 1729-1796)".
+ * - One that is only years, and names a year we already hold: the death
+ *   year when there is one, otherwise the birth year.
+ *
+ * Everything else stays, and these are the real descriptions it has to
+ * leave alone: "South Korean singer and dancer (BTS)", "Indian cricketer
+ * (Captain)", "Queen Consort of Norway (2026)" for somebody born in 1973,
+ * and "10th President of Israel (2014-2021)" for somebody born in 1939 and
+ * still alive, where the bracket is a term of office and not a life.
+ *
+ * Matching on a year we hold rather than on the shape is what makes the
+ * last two safe, and it is also what lets "(1755/1757-1804)" come off
+ * Alexander Hamilton, whose birth year is recorded as one of the two and
+ * whose death year is the other.
+ */
+export function withoutStatedYears(description: string, p: PersonRow): string {
+  const found = /\s*\(([^()]*)\)\s*$/.exec(description);
+  if (found === null) return description;
+  const inside = found[1]!.trim();
+  const shorter = description.slice(0, found.index).trim();
+  // The word boundary goes inside each alternative, not after the group: a
+  // full stop and the space after it are both non-word characters, so there
+  // is no boundary between them and "b. 1954" was never matched.
+  if (/^(born\b|b\.|lived\b)/i.test(inside)) return shorter;
+  // Only years, no words at all: digits, separators and spaces.
+  if (!/^[0-9\s/\-\u2010-\u2015]+$/.test(inside)) return description;
+  const years = (inside.match(/[0-9]{3,4}/g) ?? []).map(Number);
+  if (years.length === 0) return description;
+  const ours = p.death_year ?? p.birth_year;
+  return ours !== null && years.includes(ours) ? shorter : description;
+}
+
+/** A person's tile headline: their name, what they are, and the years, each said once. */
+export function personHeadline(p: PersonRow): string {
+  const description = withoutStatedYears(fold(p.short_description ?? ""), p);
+  return fitHeadline(`${p.name}${description ? `, ${description}` : ""}${personYears(p)}`);
+}
+
 export function planHistory(wallDate: string, history: DateHistory, dropped?: Dropped): HistoryStory[] {
   const lines = new Map(history.leadLines.map((l) => [`${l.subject_kind}:${l.subject_id}`, l.line]));
   const out: HistoryStory[] = [];
@@ -219,11 +283,12 @@ export function planHistory(wallDate: string, history: DateHistory, dropped?: Dr
 
   history.people.forEach((p, index) => {
     const description = fold(p.short_description ?? "");
-    const born = p.birth_year === null ? "" : `, born ${p.birth_year}`;
-    const headline = fitHeadline(`${p.name}${description ? `, ${description}` : ""}${born}`);
+    const headline = personHeadline(p);
     // The quotation has to be twenty characters the page carries. A name
     // alone often is not, and a Wikidata page shows the name and the
-    // description as its heading, so the pair is what is quoted.
+    // description as its heading, so the pair is what is quoted. It keeps
+    // the description exactly as the page has it, parenthetical and all,
+    // because it is matched against that page character for character.
     const quotation = fold(`${p.name}${description ? ` ${description}` : ""}`);
     push({
       subjectKind: "person", subjectId: p.wikidata_qid,
