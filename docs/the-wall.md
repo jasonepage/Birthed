@@ -2068,3 +2068,85 @@ a person has to see: on an open date, a buzz swells and flashes its tile,
 the count pops, and the sentence under the board names two percentages that
 match the tile's share before and after. A buzz arriving from a second
 browser ripples and does neither.
+
+## 23. Hindsight, September 21, 2026
+
+**The scenario, Jason's.** A paper goes up on June 12, 2017 and gets two
+buzzes, because on the day it is one of forty machine learning papers. Eight
+years later every large language model descends from it. The sealed board
+for June 12, 2017 says the paper barely registered, and that is true and
+stays. What the product owes the reader is the second half: what turned out
+to matter, drawn over what people thought would.
+
+**The sealed board never changes.** Section 3 and section 6.3 say so and
+this section does not touch them. Hindsight is a second layer on the sealed
+page, not a re-cut of the pie. A story keeps the tile it earned that day,
+however small, and gets a mark for how it aged.
+
+**Three outcomes, as section 6 already said: held, false, forgotten.**
+Section 9 left what "held" means undecided, because the first anniversary
+was a year away and the signal was going to reach into the reputation
+question. This is the answer, and it stays out of reputation:
+
+- **False** is the checker's stamp, already on the row. Nothing new.
+- **Held** means the same page came back in the pool on a later year's hive
+  for the same calendar date, and somebody buzzed it there, on or before the
+  anniversary. Hindsight in the product's own currency. The paper that got
+  two buzzes in 2017 and gets thirty on June 12, 2023 held; the board of
+  2017 still shows the two.
+- **Forgotten** is neither: on the board that day, never buzzed again since.
+  True but forgotten, and the doc's own reason for a third outcome stands:
+  folding it into wrong would make every number dishonest.
+
+Recorded at one, five and ten years, in `wall_outcomes`, once per story and
+anniversary, by the worker's tick. Only stories that were on the sealed
+board, `placed` or `false`, get an outcome; a story that never left the pool
+was never a claim.
+
+**The mechanism that makes "held" possible: stories return.** Everything
+imported already comes back every year, because the history seeder files
+the same subject with the same `url_key` on each year's hive. The day's news
+and the submitted stories did not: a page filed on September 9, 2026 was
+gone on September 9, 2027 unless somebody submitted it again. Now, when a
+date's hive opens, `worker/src/wall/hindsight.ts` refiles every news or
+submitted story that ended on an earlier year's sealed board for that date,
+same page, same headline, same `url_key`, the outlet carrying the year it
+was first filed ("npr.org, 2026"), at history priority so it sits with the
+date's own past and behind that day's picks, with its sources copied and
+marked imported so the checker leaves them alone. A story that was stamped
+false does not return. Nothing is refiled twice: the unique on
+`(wall_date, url_key)` is the whole guard.
+
+So a reader on September 9, 2027 sees last year's board sealed, and in this
+year's pool the stories that were on it, each one buzzable again. Buzzing
+one is the reader saying it still matters. That buzz is what "held" counts.
+
+**What is not the signal, and why.** Wikipedia reach (`article_reach`,
+section 18) was the other candidate: a subject read far more on its fifth
+anniversary than its first has aged up. Two reasons it is not used here.
+The table keeps one measurement per page, overwritten, so there is nothing
+to compare an anniversary against without a second table and a job that
+has not been written. And most of what lands on a board as news has no
+Wikipedia article at all, the paper in the scenario included, so reach
+would score the encyclopedia's half of the board and leave the other half
+unjudged. Buzzes on a later year's hive cover every story the same way.
+Reach can come in later as a second signal with its own note; the row has
+the column.
+
+**What the sealed page shows.** A tile with an outcome carries a small mark
+in its corner, "Held", "Forgotten" or the existing "Shown false", and under
+the board one line: "One year on: two held, one forgotten." Nothing is
+drawn until an outcome exists, so every sealed board today is unchanged and
+the first line appears on September 9, 2027. The receipt says which later
+hive the buzz that held it was on.
+
+**What this is not.** No number about a reader. `wall_outcomes` carries a
+story and a verdict and no person. Section 8's allowance, a private mark on
+the sealed page, "you backed this and it held," is the natural next step and
+is a separate decision (section 22 says the same). No score, no leaderboard,
+no re-cut pie.
+
+**Not run against a live anniversary, because there is none.** The first
+sealed hive is September 9, 2026 and its first anniversary is September 9,
+2027. The returning stories can be seen the first time a date's second hive
+opens, which is also a year off. Both are tested on fixtures.
