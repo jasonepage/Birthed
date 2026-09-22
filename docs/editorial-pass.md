@@ -67,6 +67,19 @@ so it is a decision with the privacy page open beside it, not a patch.
 5. **`import:all` with the 1400 floor**, at a quiet hour, then Render,
    birthed-web, Manual Deploy. Until then there is nobody born before 1600.
 
+## Found on the way, and not fixed
+
+- **`worker/test/wall-seed.test.ts` never finishes.** On the seeded busy day
+  (September 5), `playback` calls `allocate`, and `cutBands` in
+  `worker/src/wall/allocator.ts` tries every partition of the placed tiles
+  into bands. `partitions()` says "twelve tiles give a few dozen"; the mural
+  places far more than twelve, and the count grows exponentially. Every
+  other day of the seed runs in a couple of milliseconds; September 5 was
+  still running after a minute. Check whether a real busy date can reach
+  the same path in the tick before assuming this is only the seed. Until it
+  is fixed, `npm test` in `worker/` hangs, which is also why the
+  continuous integration workflow runs only the website's tests.
+
 ## Parked
 
 - **Head to head.** Read `docs/the-wall.md` section 15 first. A pairwise
