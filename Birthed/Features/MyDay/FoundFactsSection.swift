@@ -45,7 +45,7 @@ struct FoundFactsSection: View {
                 Text(title)
                     .font(.caption.weight(.heavy))
                     .kerning(3)
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(palette.accent)
                     .padding(.bottom, isSearchingFirstTime ? 16 : 20)
 
                 if isSearchingFirstTime {
@@ -161,7 +161,7 @@ private struct FoundFactRow: View {
                 Text(FoundFactsSection.label(for: fact.category))
                     .font(.system(size: 10, weight: .heavy))
                     .kerning(1.6)
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(palette.accent)
 
                 if fact.isLocal {
                     Text("NEAR YOU")
@@ -232,11 +232,11 @@ private struct FoundFactRow: View {
                         .contentTransition(.numericText())
                 }
             }
-            .foregroundStyle(fact.likedByMe ? Theme.accent : palette.type.opacity(0.45))
+            .foregroundStyle(fact.likedByMe ? palette.accent : palette.type.opacity(0.45))
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(
-                fact.likedByMe ? Theme.accent.opacity(0.15) : palette.type.opacity(0.07),
+                fact.likedByMe ? palette.accent.opacity(0.15) : palette.type.opacity(0.07),
                 in: Capsule()
             )
         }

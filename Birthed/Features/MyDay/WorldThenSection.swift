@@ -36,7 +36,7 @@ struct WorldThenSection: View {
                 Text("THE WORLD WHEN YOU ARRIVED")
                     .font(.caption.weight(.heavy))
                     .kerning(3)
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(palette.accent)
                     .padding(.bottom, 20)
 
                 ForEach(Array(lines.enumerated()), id: \.element.id) { index, line in
@@ -65,7 +65,7 @@ struct WorldThenSection: View {
                 Text(line.kicker)
                     .font(.system(size: 10, weight: .heavy))
                     .kerning(1.6)
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(palette.accent)
 
                 Spacer(minLength: 8)
 
@@ -85,7 +85,7 @@ struct WorldThenSection: View {
                                 .monospacedDigit()
                         }
                     }
-                    .foregroundStyle(likes.isLiked(subject) ? Theme.accent : palette.type.opacity(0.45))
+                    .foregroundStyle(likes.isLiked(subject) ? palette.accent : palette.type.opacity(0.45))
                     .padding(.horizontal, 9)
                     .padding(.vertical, 6)
                     .background(palette.type.opacity(0.07), in: Capsule())

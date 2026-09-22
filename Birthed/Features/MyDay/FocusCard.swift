@@ -42,14 +42,14 @@ struct FocusCard: View {
                 Text("BIRTHED")
                     .font(.system(size: 30, weight: .heavy))
                     .kerning(9)
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(Theme.spark)
 
                 Spacer(minLength: 60)
 
                 Text(kicker)
                     .font(.system(size: 26, weight: .heavy))
                     .kerning(5)
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(palette.accent)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Spacer().frame(height: 28)

@@ -53,7 +53,7 @@ struct MyDayShareCard: View {
                 Text("BIRTHED")
                     .font(.system(size: 30, weight: .heavy))
                     .kerning(9)
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(Theme.spark)
 
                 Spacer().frame(height: 84)
 
@@ -74,7 +74,7 @@ struct MyDayShareCard: View {
                     Spacer().frame(height: 62)
 
                     Rectangle()
-                        .fill(Theme.accent.opacity(0.7))
+                        .fill(palette.accent.opacity(0.7))
                         .frame(width: 120, height: 3)
 
                     Spacer().frame(height: 52)
@@ -82,7 +82,7 @@ struct MyDayShareCard: View {
                     Text("THE WEEK I WAS BORN")
                         .font(.system(size: 26, weight: .heavy))
                         .kerning(5)
-                        .foregroundStyle(Theme.accent)
+                        .foregroundStyle(palette.accent)
 
                     Spacer().frame(height: 26)
 
@@ -118,7 +118,7 @@ struct MyDayShareCard: View {
                     Text("NUMBER ONE \(week.kind?.noun.uppercased() ?? "")")
                         .font(.system(size: 22, weight: .heavy))
                         .kerning(4)
-                        .foregroundStyle(Theme.accent)
+                        .foregroundStyle(palette.accent)
 
                     Spacer().frame(height: 10)
 

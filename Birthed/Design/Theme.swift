@@ -90,9 +90,14 @@ struct StagePalette: Equatable {
     let type: Color
     /// What the bloom behind the candle is made of.
     let glow: Color
+    /// The accent on this ground. Bright honey on the dark grounds and deep
+    /// honey on cream, whatever the phone's appearance. `Theme.accent`
+    /// follows the appearance instead, which is wrong on the wax panel: it is
+    /// dark in light mode too, and deep honey on it is 2.9 to 1.
+    let accent: Color
 
-    static let ink = StagePalette(ground: Theme.ink, type: Theme.cream, glow: Theme.honey)
-    static let cream = StagePalette(ground: Theme.cream, type: Theme.ink, glow: Theme.honey)
+    static let ink = StagePalette(ground: Theme.ink, type: Theme.cream, glow: Theme.honey, accent: Theme.honey)
+    static let cream = StagePalette(ground: Theme.cream, type: Theme.ink, glow: Theme.honey, accent: Theme.accentDeep)
 
     static func forScheme(_ scheme: ColorScheme) -> StagePalette {
         scheme == .dark ? .ink : .cream
@@ -135,7 +140,7 @@ extension StagePalette {
     ///
     /// Only the page around the panel follows the system appearance. Inside
     /// it there is one set of colours to keep right instead of two.
-    static let wax = StagePalette(ground: Theme.wax, type: Theme.cream, glow: Theme.ember)
+    static let wax = StagePalette(ground: Theme.wax, type: Theme.cream, glow: Theme.ember, accent: Theme.honey)
 }
 
 

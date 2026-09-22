@@ -37,7 +37,7 @@ struct ShareCardView: View {
                 Text("BIRTHED")
                     .font(.system(size: 30, weight: .heavy))
                     .kerning(9)
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(Theme.spark)
 
                 Spacer().frame(height: 54)
 
@@ -60,7 +60,7 @@ struct ShareCardView: View {
                         HStack(alignment: .firstTextBaseline, spacing: 24) {
                             Text(person.birthYear.map { String($0) } ?? "")
                                 .font(.system(size: 30, weight: .bold, design: .monospaced))
-                                .foregroundStyle(Theme.accent)
+                                .foregroundStyle(palette.accent)
                                 .frame(width: 108, alignment: .leading)
 
                             Text(person.name)

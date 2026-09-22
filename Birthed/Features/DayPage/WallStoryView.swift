@@ -72,7 +72,7 @@ struct WallStoryView: View {
             } label: {
                 Text(story.url.absoluteString)
                     .font(.footnote)
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(palette.accent)
                     .multilineTextAlignment(.leading)
             }
             .buttonStyle(.plain)
@@ -210,7 +210,7 @@ struct WallStoryView: View {
             } label: {
                 Text(source.headline)
                     .font(.subheadline)
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(palette.accent)
                     .multilineTextAlignment(.leading)
             }
             .buttonStyle(.plain)
@@ -224,7 +224,7 @@ struct WallStoryView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Theme.card, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .overlay(alignment: .leading) {
-                    Rectangle().fill(Theme.accent).frame(width: 3)
+                    Rectangle().fill(palette.accent).frame(width: 3)
                 }
             Text(source.verificationLine)
                 .font(.caption)
@@ -245,7 +245,7 @@ struct WallStoryView: View {
                         Spacer()
                         Text(check.passed ? "Passed" : "Failed")
                             .font(.caption.weight(.bold))
-                            .foregroundStyle(check.passed ? Theme.accent : Color.secondary)
+                            .foregroundStyle(check.passed ? palette.accent : Color.secondary)
                         if let status = check.httpStatus {
                             Text(String(status))
                                 .font(.caption.monospacedDigit())

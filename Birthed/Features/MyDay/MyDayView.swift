@@ -833,7 +833,7 @@ struct MyDayView: View {
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
                     Text(String(happened.year))
                         .font(.footnote.weight(.bold).monospacedDigit())
-                        .foregroundStyle(Theme.accent)
+                        .foregroundStyle(palette.accent)
                         .frame(width: 46, alignment: .leading)
                     Text(happened.text)
                         .font(.subheadline.weight(.semibold))
@@ -858,7 +858,7 @@ struct MyDayView: View {
         if profile.birthday.isLeapDay, observed != profile.birthday.date {
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: "calendar.badge.exclamationmark")
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(palette.accent)
                 Text("There is no February 29 this year, so Birthed is using \(observed.displayName()). You can change that in Settings.")
                     .font(.footnote)
                     .foregroundStyle(palette.type.opacity(0.65))
