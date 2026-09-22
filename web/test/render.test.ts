@@ -954,7 +954,10 @@ test("the form on the add page loads nothing", () => {
   const html = renderAdd(API);
   const style = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
   assert.ok(style.length > 0, "the stylesheet is inlined into the page");
-  assert.ok(!style.includes("url("), "nothing in the stylesheet fetches anything");
+  // The fetches the stylesheet makes are the typeface and the honeycomb
+  // behind the board, both from this origin, since September 22, 2026.
+  // Nothing else, and nothing from anywhere else.
+  assert.ok(!style.replace(/url\("\/(fonts\/[^"]+|honeycomb\.svg)"\)/g, "").includes("url("), "nothing in the stylesheet fetches anything but the font and the honeycomb from here");
   assert.match(style, /\.select::after\s*{[^}]*border-right/, "the chevron is drawn with borders");
 });
 
@@ -1263,16 +1266,20 @@ test("Random, Every date, About and Get the app are four of the same control, ea
   assert.ok(!bar.includes('class="get"') && !bar.includes('class="dice"'), "the old shapes are gone");
 });
 
-test("a month has its own colour and the brand pink is not it", () => {
+test("every date wears the honey, and the brand pink is not it", () => {
+  // Until September 22, 2026 each month had its own hue. One look now, the
+  // live hive's, so the second colour on every date page is the honey and
+  // March and September are the same page with different names on them.
   const september = renderDayPage(page);
   // Not pinned to the whole opening tag. That wrapper also carries the class
   // naming its own date, which is how the per-request stylesheet knows whether
   // this page is one of the three taking answers today.
-  assert.match(september, /<div class="day [^"]*" style="--day:hsl\(/);
+  assert.match(september, /<div class="day [^"]*" style="--day:var\(--honey\);--day-soft:var\(--honey-lite\)"/);
   assert.match(september, /class="day on-september-4"/);
   const march = renderDayPage({ month: 3, day: 12, people: [] });
-  const hueOf = (html: string) => /--day:hsl\((\d+)/.exec(html)?.[1];
-  assert.notEqual(hueOf(september), hueOf(march), "every page would wear the same second colour");
+  const hueOf = (html: string) => /--day:([^;"]+)/.exec(html)?.[1];
+  assert.equal(hueOf(september), hueOf(march), "one second colour on every page");
+  assert.ok(!september.includes("--day:#EF5680"), "the pink is the wordmark and nothing else");
 });
 
 

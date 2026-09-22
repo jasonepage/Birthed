@@ -106,7 +106,7 @@ test("the server answers a page, a directory and a miss", async (t) => {
 test("today.css names the date it is asked for, and turns over", () => {
   const seventh = todayStylesheet(new Date("2026-09-07T18:00:00Z"));
   assert.match(seventh, /a\[href="\/september-7\/"\]/);
-  assert.match(seventh, /outline: ?2px solid #/);
+  assert.match(seventh, /outline: ?2px solid (#|var\()/);
 
   const eighth = todayStylesheet(new Date("2026-09-08T18:00:00Z"));
   assert.match(eighth, /a\[href="\/september-8\/"\]/);
@@ -202,7 +202,7 @@ test("today.css switches the first screen on for the three open dates and nothin
   assert.match(css, /\.on-september-8 \.asks[0-4]\{display:block\}/);
   // Equal specificity would lose to the baked grey, because this sheet loads
   // first. Two classes, not one.
-  assert.match(css, /\.on-september-8 \.state \.dot\{background:#6FA5DE/);
+  assert.match(css, /\.on-september-8 \.state \.dot\{background:var\(--ember\)/);
   assert.match(css, /\.on-september-8 \.asked\{display:none\}/);
   // Nothing sets a rule for an element the page no longer has.
   assert.equal(css.includes("openflag"), false);
@@ -222,6 +222,19 @@ test("a stylesheet from this origin is allowed and a script still is not", () =>
   assert.match(day, /style-src 'unsafe-inline' 'self'/, "today.css has to load");
   assert.ok(!day.includes("script-src"), "widening style-src must not widen script-src");
   assert.match(day, /default-src 'none'/);
+});
+
+test("every page may load the typeface from this origin, and nothing else moves", () => {
+  // Fraunces is on every page since September 22, 2026. The @font-face rule
+  // is in the stylesheet, and the stylesheet is in the file on disk, so a
+  // page that names the font and a header that refuses it look identical
+  // until a browser draws the page in Georgia. The header is what is checked.
+  for (const path of ["/september-4/", "/about/", "/calendar/", "/september-22/comb/", "/add/", "/yours/", "/september-22/wall/11111111-2222-3333-4444-555555555555/"]) {
+    const policy = securityFor(path)["Content-Security-Policy"] ?? "";
+    assert.match(policy, /font-src 'self'/, `${path} must be allowed the font`);
+    assert.ok(!policy.includes("font-src *"), `${path} must not take a font from anywhere else`);
+    assert.match(policy, /^default-src 'none'; /, `${path} still refuses everything unnamed`);
+  }
 });
 
 test("only the add page may run its script and reach the project", () => {
@@ -1304,7 +1317,7 @@ test("the numbers page is never stored by anybody", async (t) => {
 
 import { jsonAnswer, liveHiveDates, liveHivePathFor } from "../src/serve.js";
 
-test("only the live hive path runs a script, opens a socket to the project and loads a font; a sealed hive, tomorrow's and every date page do not", () => {
+test("only the live hive path runs a script and opens a socket to the project; a sealed hive, tomorrow's and every date page do not", () => {
   // Four in the afternoon Eastern on September 11: the 10th and the 11th
   // take buzzes, the 12th is open for submissions only and runs nothing.
   const now = Date.parse("2026-09-11T20:00:00Z");
@@ -1331,7 +1344,7 @@ test("only the live hive path runs a script, opens a socket to the project and l
     const policy = securityFor(path, now)["Content-Security-Policy"] ?? "";
     assert.ok(!policy.includes("script-src"), `${path} must run nothing`);
     assert.ok(!policy.includes("connect-src"), `${path} must reach nothing`);
-    assert.ok(!policy.includes("font-src"), `${path} loads no font`);
+    assert.match(policy, /font-src 'self'/, `${path} loads the font from here, like every page since September 22, 2026`);
   }
   // The word a buzz is answered with, as the page's script is told it.
   assert.deepEqual(jsonAnswer("kept", { result: "kept", support: 4, left: 2, allowance: 3, backed: ["11111111-1111-1111-1111-111111111111", "nope"], boost_id: 77, booster: "secret" }),
@@ -1621,7 +1634,7 @@ test("a receipt and a card run the share script and nothing else, named by its h
     assert.ok(policy.includes(`script-src ${SHARE_SCRIPT_SOURCE};`), `${path} may run the share script`);
     assert.ok(!/script-src[^;]*unsafe-inline/.test(policy), `${path} may not run inline script in general`);
     assert.match(policy, /connect-src 'self';/, "the one request is for the card's picture, from here");
-    assert.ok(!policy.includes("font-src"));
+    assert.match(policy, /font-src 'self'/, "the typeface, from here, like every page");
   }
   // The header names exactly the script the pages print.
   const printed = /<script>([\s\S]*?)<\/script>/.exec(shareBlock({ url: "https://birthed.app/september-22/", title: "x" }))?.[1] ?? "";

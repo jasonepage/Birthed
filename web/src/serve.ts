@@ -98,7 +98,13 @@ const SECURITY: Record<string, string> = {
     // news site is loaded by a page.
     // media-src 'self' since September 22, 2026, for the one sound on the
     // site: the buzz, /buzz.wav, played by the page that follows a buzz.
-    `default-src 'none'; img-src 'self' ${projectBase()}; style-src 'unsafe-inline' 'self'; media-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`,
+    // font-src 'self' since the same day, for Fraunces on every page rather
+    // than on the live hive alone. Without it the browser refuses the font
+    // file silently and every page falls back to Georgia, which looks almost
+    // right, which is the worst kind of wrong. serve.test.ts reads the header
+    // for the same reason the /add lesson in CLAUDE.md gives: a header that
+    // contradicts the page is invisible from the file on disk.
+    `default-src 'none'; img-src 'self' ${projectBase()}; style-src 'unsafe-inline' 'self'; font-src 'self'; media-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`,
   "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
 };
 
@@ -228,7 +234,7 @@ export function securityFor(requestPath: string, now: number = Date.now()): Reco
     return {
       ...SECURITY,
       "Content-Security-Policy":
-        `default-src 'none'; img-src 'self' ${projectBase()}; style-src 'unsafe-inline' 'self'; media-src 'self'; ` +
+        `default-src 'none'; img-src 'self' ${projectBase()}; style-src 'unsafe-inline' 'self'; font-src 'self'; media-src 'self'; ` +
         `script-src ${SHARE_SCRIPT_SOURCE}; connect-src 'self'; ` +
         "base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
     };
@@ -240,7 +246,7 @@ export function securityFor(requestPath: string, now: number = Date.now()): Reco
   return {
     ...SECURITY,
     "Content-Security-Policy":
-      `default-src 'none'; img-src 'self' ${projectBase()}; style-src 'unsafe-inline' 'self'; ` +
+      `default-src 'none'; img-src 'self' ${projectBase()}; style-src 'unsafe-inline' 'self'; font-src 'self'; ` +
       `script-src 'unsafe-inline'; connect-src ${apiOrigin()}; ` +
       "base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   };

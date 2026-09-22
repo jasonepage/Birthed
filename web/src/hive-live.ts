@@ -322,15 +322,14 @@ export function shareLine(supportBefore: number, supportAfter: number, totalBefo
 // ---------------------------------------------------------------------------
 
 /**
- * The live hive's own rules, on top of WALL_STYLE. Fraunces is served from
- * this origin, under /fonts, and only this page names it; the policy for
- * this path allows font-src 'self' and no other page's does. The honeycomb
- * ground is an SVG file from this origin for the same reason a data address
- * would not do: img-src names this origin and the project and nothing else.
+ * The live hive's own rules, on top of WALL_STYLE. Fraunces comes from
+ * theme.ts now, on every page, and every page's policy allows font-src
+ * 'self'; until September 22, 2026 this page was the only one that named
+ * it. The honeycomb ground is an SVG file from this origin for the same
+ * reason a data address would not do: img-src names this origin and the
+ * project and nothing else.
  */
 export const HIVE_LIVE_STYLE = `
-@font-face { font-family: "Fraunces"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("/fonts/fraunces-latin-wght-normal.woff2") format("woff2-variations"); }
-@font-face { font-family: "Fraunces"; font-style: italic; font-weight: 100 900; font-display: swap; src: url("/fonts/fraunces-latin-wght-italic.woff2") format("woff2-variations"); }
 .hivepage { background: radial-gradient(140% 100% at 50% -20%, #2A1D0C 0%, #120D08 58%) fixed; }
 /* The bar on the live page runs the whole width of the window and is the
    hive's own dark honey rather than the date page's violet black: a strip
@@ -341,10 +340,10 @@ export const HIVE_LIVE_STYLE = `
   padding-left: max(16px, calc(50vw - 50%)); padding-right: max(16px, calc(50vw - 50%));
   background: rgba(18, 13, 8, .92); box-shadow: 0 1px 0 rgba(244, 183, 64, .18);
 }
-.hivepage .daybar .barnav .here { color: #FFF3E0; font-family: "Fraunces", Georgia, "Times New Roman", serif; font-size: 15px; font-weight: 700; }
-.hivepage .daybar .get { color: #B7A488; }
-.hivepage .daybar .get:hover { color: #FFCF6B; border-bottom-color: #F4B740; }
-.wlivehive { --honey: #F4B740; --honey-lite: #FFCF6B; --ember: #FF8A3D; --cream: #FFF3E0; --dim: #B7A488; --dimmer: #8A7A63; --line: #3A2E1C; --cell: #1E1710; }
+.hivepage .daybar .barnav .here { color: #FFF3E0; font-family: var(--serif); font-size: 15px; font-weight: 700; }
+.hivepage .daybar .get { color: var(--dim); }
+.hivepage .daybar .get:hover { color: var(--honey-lite); border-bottom-color: var(--honey); }
+.wlivehive { --honey: var(--honey); --honey-lite: var(--honey-lite); --ember: #FF8A3D; --cream: #FFF3E0; --dim: var(--dim); --dimmer: var(--dimmer); --line: var(--line); --cell: var(--cell); }
 /* Clear of the sticky bar: the first version sat on it and the top of the
    line was under the bar on a page scrolled by a few pixels. */
 .wlivetop { display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; margin: 18px 0 0; padding: 4px 0; }
@@ -354,7 +353,7 @@ export const HIVE_LIVE_STYLE = `
 .wlivedot.won { background: var(--ember); box-shadow: 0 0 10px var(--ember); }
 .wseal { font-variant-numeric: tabular-nums; font-size: 13px; color: var(--dim); }
 .wseal b { color: var(--cream); font-weight: 700; }
-.whive h2.wlivehead { font-family: "Fraunces", Georgia, "Times New Roman", serif; font-optical-sizing: auto; font-weight: 800; font-size: clamp(28px, 5.4vw, 48px); line-height: 1.04; letter-spacing: -.01em; margin: 14px 0 0; text-wrap: balance; color: var(--cream); }
+.whive h2.wlivehead { font-family: var(--serif); font-optical-sizing: auto; font-weight: 800; font-size: clamp(28px, 5.4vw, 48px); line-height: 1.04; letter-spacing: -.01em; margin: 14px 0 0; text-wrap: balance; color: var(--cream); }
 .wlivehead em { color: var(--honey); font-style: italic; font-weight: 600; }
 .wlivesub { margin: 8px 0 0; color: var(--dim); font-size: 15px; max-width: 60ch; line-height: 1.5; }
 .wbudget { display: flex; align-items: center; gap: 12px; margin: 14px 0 8px; flex-wrap: wrap; }
@@ -373,7 +372,7 @@ export const HIVE_LIVE_STYLE = `
 .wlive .wtile {
   display: block; position: absolute; left: calc(var(--x, 0) / 16 * 100%); top: calc(var(--y, 0) / 16 * 100%);
   width: calc(var(--w, 4) / 16 * 100%); height: calc(var(--h, 3) / 16 * 100%);
-  padding: 4px; background: transparent; --wink: #FFF3E0; --wbtn: #F4B740; --wbtn-ink: #1B1206; --wmark: #FFCF6B;
+  padding: 4px; background: transparent; --wink: #FFF3E0; --wbtn: var(--honey); --wbtn-ink: var(--on-honey); --wmark: var(--honey-lite);
   color: var(--cream); border-radius: 0; overflow: visible; --heat: 0;
   transition: left .55s cubic-bezier(.22, .61, .36, 1), top .55s cubic-bezier(.22, .61, .36, 1), width .55s cubic-bezier(.22, .61, .36, 1), height .55s cubic-bezier(.22, .61, .36, 1);
 }
@@ -381,7 +380,7 @@ export const HIVE_LIVE_STYLE = `
 .wlive .wtile.wleaving { opacity: 0; transform: scale(.96); pointer-events: none; }
 .wlive .wtile.warriving { animation: rise 460ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards; }
 .wlive .wcell {
-  position: absolute; inset: 4px; overflow: hidden; border-radius: 10px; border: 1px solid #4A3A24; background: var(--cell);
+  position: absolute; inset: 4px; overflow: hidden; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--cell);
   display: flex; flex-direction: column; justify-content: flex-end; gap: 2px;
   padding: clamp(5px, calc(14cqi / 16), 14px) clamp(6px, calc(16cqi / 16), 16px) clamp(5px, calc(14cqi / 16), 14px) calc(clamp(6px, calc(16cqi / 16), 16px) + 4px);
   box-shadow: inset 0 0 calc(30px * var(--heat)) rgba(255, 175, 70, calc(.42 * var(--heat))), 0 0 calc(26px * var(--heat)) rgba(244, 150, 50, calc(.30 * var(--heat)));
@@ -397,18 +396,18 @@ export const HIVE_LIVE_STYLE = `
 .wlive .wstripe { position: absolute; left: 0; top: 0; bottom: 0; width: 4px; z-index: 2; background: #9C8862; }
 .wlive .w-reported .wstripe { background: #F0B84E; }
 .wlive .w-seen_direct .wstripe { background: #FF9A3C; }
-.wlive .wtile .wh { font-family: "Fraunces", Georgia, "Times New Roman", serif; font-optical-sizing: auto; font-weight: 600; color: var(--cream); line-height: 1.14; }
+.wlive .wtile .wh { font-family: var(--serif); font-optical-sizing: auto; font-weight: 600; color: var(--cream); line-height: 1.14; }
 .wlive .wtile .wh:hover { text-decoration-color: rgba(255, 243, 224, .5); }
 .wlive .wfoot { color: var(--dim); }
 .wlive .wfoot .wn { color: var(--honey-lite); }
-.wlive .wbuzz button { background: linear-gradient(180deg, var(--honey-lite), var(--honey)); color: #1B1206; }
+.wlive .wbuzz button { background: linear-gradient(180deg, var(--honey-lite), var(--honey)); color: var(--on-honey); }
 .wlive .wbuzz button:disabled { background: #35291A; color: var(--dimmer); cursor: default; filter: none; }
 .wlive .wmine { color: var(--honey-lite); }
 .wlive .wplay { flex: none; margin: 0; padding: 0; width: clamp(16px, calc(44cqi / 16), 24px); height: clamp(16px, calc(44cqi / 16), 24px); border-radius: 999px; border: 1px solid rgba(255, 255, 255, .28); background: rgba(255, 255, 255, .12); color: var(--cream); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 60%; }
 .wlive .wplay:hover { background: rgba(255, 207, 107, .28); }
 .wlive .wripple { position: absolute; z-index: 3; border-radius: 50%; pointer-events: none; background: radial-gradient(circle, rgba(255, 207, 107, .55), rgba(255, 207, 107, 0) 70%); transform: translate(-50%, -50%) scale(0); animation: wripple .8s ease-out forwards; }
 @keyframes wripple { to { transform: translate(-50%, -50%) scale(1); opacity: 0; } }
-.wlive .wsurge { position: absolute; z-index: 4; left: 50%; top: 10px; transform: translateX(-50%); background: var(--ember); color: #1B1206; font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; white-space: nowrap; animation: wsurge 1.6s ease forwards; }
+.wlive .wsurge { position: absolute; z-index: 4; left: 50%; top: 10px; transform: translateX(-50%); background: var(--ember); color: var(--on-honey); font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; white-space: nowrap; animation: wsurge 1.6s ease forwards; }
 /* The rally, docs/the-wall.md section 24: the tile a link sent the reader to. */
 .wlive .wtile.wrally .wcell { border-color: var(--ember); box-shadow: 0 0 0 2px var(--ember), 0 0 30px rgba(255, 138, 61, .55); }
 .wlive .wtile:target .wcell { border-color: var(--ember); }
@@ -430,7 +429,7 @@ export const HIVE_LIVE_STYLE = `
 .wsw { width: 12px; height: 12px; border-radius: 3px; background: #9C8862; }
 .wsw.w-reported { background: #F0B84E; }
 .wsw.w-seen_direct { background: #FF9A3C; }
-.wswarm { border: 1px solid var(--line); border-radius: 14px; background: linear-gradient(180deg, #241B11, #1E1710); padding: 12px 14px; min-height: 96px; }
+.wswarm { border: 1px solid var(--line); border-radius: 14px; background: linear-gradient(180deg, #241B11, var(--cell)); padding: 12px 14px; min-height: 96px; }
 .wswarmhead { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--dimmer); margin: 0 0 8px; }
 .wswarmrow { margin: 0; font-size: 13px; padding: 3px 0; color: var(--dim); animation: wslidein .5s ease; }
 .wswarmrow .wwho { color: var(--honey-lite); }
@@ -444,27 +443,27 @@ export const HIVE_LIVE_STYLE = `
    card over it, on this screen only: the whole headline, a line from the
    source when it says more, and the button, so a buzz can follow reading
    rather than a squint at four words. The board itself never changes. */
-.wpeek { position: fixed; z-index: 60; width: 360px; max-width: calc(100vw - 16px); border-radius: 14px; border: 1px solid var(--honey); background: #1E1710; color: #FFF3E0; overflow: hidden; box-shadow: 0 18px 50px rgba(0, 0, 0, .6), 0 0 0 1px rgba(0, 0, 0, .4), 0 0 34px rgba(244, 150, 50, .18); animation: wpeekin .16s ease-out; }
+.wpeek { position: fixed; z-index: 60; width: 360px; max-width: calc(100vw - 16px); border-radius: 14px; border: 1px solid var(--honey); background: var(--cell); color: #FFF3E0; overflow: hidden; box-shadow: 0 18px 50px rgba(0, 0, 0, .6), 0 0 0 1px rgba(0, 0, 0, .4), 0 0 34px rgba(244, 150, 50, .18); animation: wpeekin .16s ease-out; }
 .wpeek[hidden] { display: none; }
 @keyframes wpeekin { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: none; } }
 .wpeek .wpeekpic { height: 140px; background: var(--pic, none) center / cover no-repeat, #17110A; position: relative; }
-.wpeek .wpeekpic::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, #1E1710 0%, rgba(30, 23, 16, 0) 60%); }
+.wpeek .wpeekpic::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, var(--cell) 0%, rgba(30, 23, 16, 0) 60%); }
 .wpeek .wpeekbody { padding: 12px 16px 14px; display: flex; flex-direction: column; gap: 8px; }
-.wpeek .wpeekkind { display: flex; align-items: center; gap: 6px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #B7A488; }
+.wpeek .wpeekkind { display: flex; align-items: center; gap: 6px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
 .wpeek .wpeekkind .wkind svg { width: 14px; height: 14px; }
 .wpeek .wpeekkind .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-.wpeek .wpeekh { font-family: "Fraunces", Georgia, "Times New Roman", serif; font-optical-sizing: auto; font-weight: 700; font-size: 20px; line-height: 1.2; color: #FFF3E0; text-decoration: none; }
+.wpeek .wpeekh { font-family: var(--serif); font-optical-sizing: auto; font-weight: 700; font-size: 20px; line-height: 1.2; color: #FFF3E0; text-decoration: none; }
 .wpeek .wpeekh:hover { text-decoration: underline; text-decoration-color: rgba(255, 243, 224, .45); }
-.wpeek .wpeekq { margin: 0; padding: 0 0 0 10px; border-left: 3px solid #F4B740; font-size: 14px; line-height: 1.45; color: #D9CBB4; }
-.wpeek .wpeekmeta { font-size: 12px; color: #B7A488; }
-.wpeek .wpeekmeta b { color: #FFCF6B; font-weight: 700; }
+.wpeek .wpeekq { margin: 0; padding: 0 0 0 10px; border-left: 3px solid var(--honey); font-size: 14px; line-height: 1.45; color: #D9CBB4; }
+.wpeek .wpeekmeta { font-size: 12px; color: var(--dim); }
+.wpeek .wpeekmeta b { color: var(--honey-lite); font-weight: 700; }
 .wpeek .wpeekbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.wpeek .wpeekbuzz { border: 0; border-radius: 999px; padding: 7px 18px; font: inherit; font-size: 14px; font-weight: 800; background: linear-gradient(180deg, #FFCF6B, #F4B740); color: #1B1206; cursor: pointer; box-shadow: 0 0 14px rgba(244, 183, 64, .35); }
+.wpeek .wpeekbuzz { border: 0; border-radius: 999px; padding: 7px 18px; font: inherit; font-size: 14px; font-weight: 800; background: linear-gradient(180deg, var(--honey-lite), var(--honey)); color: var(--on-honey); cursor: pointer; box-shadow: 0 0 14px rgba(244, 183, 64, .35); }
 .wpeek .wpeekbuzz:hover { filter: brightness(1.06); }
-.wpeek .wpeekbuzz:disabled { background: #35291A; color: #8A7A63; box-shadow: none; cursor: default; filter: none; }
-.wpeek .wpeeknote { font-size: 13px; color: #FFCF6B; font-weight: 700; }
-.wpeek .wpeekread { font-size: 13px; color: #B7A488; text-decoration: none; border-bottom: 1px solid #3A2E1C; margin-left: auto; }
-.wpeek .wpeekread:hover { color: #FFF3E0; border-color: #F4B740; }
+.wpeek .wpeekbuzz:disabled { background: #35291A; color: var(--dimmer); box-shadow: none; cursor: default; filter: none; }
+.wpeek .wpeeknote { font-size: 13px; color: var(--honey-lite); font-weight: 700; }
+.wpeek .wpeekread { font-size: 13px; color: var(--dim); text-decoration: none; border-bottom: 1px solid var(--line); margin-left: auto; }
+.wpeek .wpeekread:hover { color: #FFF3E0; border-color: var(--honey); }
 @media (prefers-reduced-motion: reduce) {
   .wlive .wtile, .wlive .wcell, .wdot { transition: none; }
   .wlive .wripple, .wlive .wsurge, .wlive .wtile.warriving, .wlive .wtile.wpulse .wcell, .wlive .wn.wpop { animation: none; }

@@ -10,16 +10,16 @@
 export function beeSvg(className: string = ""): string {
   return `<svg class="bee${className ? ` ${className}` : ""}" viewBox="0 0 48 40" width="48" height="40" aria-hidden="true" focusable="false">`
     + `<g class="beewings">`
-    + `<ellipse cx="20" cy="11" rx="7.5" ry="10" fill="#EAF6FF" fill-opacity=".8" stroke="#2A1A08" stroke-width="1.6" transform="rotate(-22 20 11)"/>`
-    + `<ellipse cx="29" cy="10.5" rx="6.5" ry="9" fill="#EAF6FF" fill-opacity=".65" stroke="#2A1A08" stroke-width="1.6" transform="rotate(16 29 10.5)"/>`
+    + `<ellipse cx="20" cy="11" rx="7.5" ry="10" fill="#EAF6FF" fill-opacity=".8" stroke="var(--on-honey)" stroke-width="1.6" transform="rotate(-22 20 11)"/>`
+    + `<ellipse cx="29" cy="10.5" rx="6.5" ry="9" fill="#EAF6FF" fill-opacity=".65" stroke="var(--on-honey)" stroke-width="1.6" transform="rotate(16 29 10.5)"/>`
     + `</g>`
-    + `<path d="M8.6 25.2 3.4 26.8 8.8 28.6Z" fill="#2A1A08"/>`
-    + `<ellipse cx="24" cy="26" rx="15.5" ry="11" fill="#FFC93C" stroke="#2A1A08" stroke-width="2"/>`
-    + `<path d="M17.5 15.6c-1.7 6.6-1.7 14.2 0 20.8M25 15c-1.8 7-1.8 15 0 22" fill="none" stroke="#2A1A08" stroke-width="3.4" stroke-linecap="round"/>`
-    + `<path d="M34 16.5c1-4.4 3.2-7 6.2-7.6M31 16c-.2-4.6 1.2-7.8 3.6-9.4" fill="none" stroke="#2A1A08" stroke-width="1.6" stroke-linecap="round"/>`
-    + `<circle cx="40.6" cy="8.8" r="1.5" fill="#2A1A08"/><circle cx="34.8" cy="6.4" r="1.5" fill="#2A1A08"/>`
-    + `<circle cx="34.4" cy="23.4" r="2" fill="#2A1A08"/><circle cx="35" cy="22.8" r=".6" fill="#FFF"/>`
-    + `<path d="M33.6 28.6c1.4 1.3 3.2 1.4 4.6.2" fill="none" stroke="#2A1A08" stroke-width="1.5" stroke-linecap="round"/>`
+    + `<path d="M8.6 25.2 3.4 26.8 8.8 28.6Z" fill="var(--on-honey)"/>`
+    + `<ellipse cx="24" cy="26" rx="15.5" ry="11" fill="#FFC93C" stroke="var(--on-honey)" stroke-width="2"/>`
+    + `<path d="M17.5 15.6c-1.7 6.6-1.7 14.2 0 20.8M25 15c-1.8 7-1.8 15 0 22" fill="none" stroke="var(--on-honey)" stroke-width="3.4" stroke-linecap="round"/>`
+    + `<path d="M34 16.5c1-4.4 3.2-7 6.2-7.6M31 16c-.2-4.6 1.2-7.8 3.6-9.4" fill="none" stroke="var(--on-honey)" stroke-width="1.6" stroke-linecap="round"/>`
+    + `<circle cx="40.6" cy="8.8" r="1.5" fill="var(--on-honey)"/><circle cx="34.8" cy="6.4" r="1.5" fill="var(--on-honey)"/>`
+    + `<circle cx="34.4" cy="23.4" r="2" fill="var(--on-honey)"/><circle cx="35" cy="22.8" r=".6" fill="#FFF"/>`
+    + `<path d="M33.6 28.6c1.4 1.3 3.2 1.4 4.6.2" fill="none" stroke="var(--on-honey)" stroke-width="1.5" stroke-linecap="round"/>`
     + `</svg>`;
 }
 

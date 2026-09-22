@@ -4,6 +4,7 @@
 import { DayPage, Person, monthName, neighbours, slug, everyDate } from "./model.js";
 import { SHARE_STYLE, shareBlock } from "./share-button.js";
 import { MASCOT_STYLE } from "./mascot.js";
+import { THEME } from "./theme.js";
 import { WALL_STYLE, combPath, hivePath, pictureRules, recordStanding, storyBody, wallSection, type Picture, type RecordRow, type ReceiptOptions, type WallDay, type WallStory } from "./wall.js";
 import { CHART_NAME, coverName, SongOfTheYear } from "./songs.js";
 import { calendar } from "./calendar.js";
@@ -69,15 +70,17 @@ export const SITE = "https://birthed.app";
  * from the website was one line at the foot of the About page.
  */
 export const TESTFLIGHT_URL = "https://testflight.apple.com/join/hzm6Mhhm";
-const INK = "#0E0C16";
-const ACCENT = "#EF5680";
+const INK = "var(--bg)";
+const ACCENT = "var(--honey)";
+/* The wordmark alone. theme.ts says why nothing else is pink. */
+const PINK = "var(--pink)";
 /* Today, in the calendar. A second hue rather than a second shade of the
    accent, because the accent already means "here" everywhere else on the page
    and two pinks a square apart is not a distinction anybody makes at a
    glance. Blue is far enough from it to read instantly on the plum ground and
    is used for nothing else. Exported because serve.ts writes the rule that
    uses it and the two must not drift. */
-export const TODAY = "#6FA5DE";
+export const TODAY = "var(--ember)";
 /**
  * The quietest text on the site is allowed to be.
  *
@@ -91,7 +94,7 @@ export const TODAY = "#6FA5DE";
  * secondary grey and the 9.27 of a lede, so the four steps of the hierarchy
  * are still four steps. Quiet was always the intent; unreadable was not.
  */
-const QUIET = "#827B75";
+const QUIET = "var(--dimmer)";
 
 export function escapeHtml(value: string): string {
   return value
@@ -119,21 +122,21 @@ const STYLE = `
    three for the three dates that are open. The Yesterday, Today and Tomorrow
    chips this replaces were coloured by href rather than by date, so a sealed
    page lit "Today" in blue and said answering was open under it. */
-.state { margin: 20px 0 0; font-size: 14px; font-weight: 600; color: #C9C2D4; line-height: 1.4; }
+.state { margin: 20px 0 0; font-size: 14px; font-weight: 600; color: var(--cream-2); line-height: 1.4; }
 .state .dot {
   display: inline-block; width: 9px; height: 9px; border-radius: 999px;
-  background: #3A3348; margin: 0 8px 1px 0; vertical-align: middle;
+  background: var(--line); margin: 0 8px 1px 0; vertical-align: middle;
 }
 .sen { display: none; }
 .senshut { display: inline; }
-.sen b { color: #FFF7EE; font-weight: 700; }
+.sen b { color: var(--cream); font-weight: 700; }
 /* The fuse. A two pixel line exactly as long as the part of the three days
    that has gone. Its length is one custom property, --gone, which today.css
    sets from the real clock on every request, so it is true to the second the
    page loaded without a script. Where motion is allowed the same line creeps:
    the animation is 72 hours long and today.css starts it however far in we
    already are. It counts nothing and nobody. It is only the clock. */
-.fuse { display: none; height: 2px; margin: 10px 0 0; background: #241E2E; border-radius: 2px; overflow: hidden; }
+.fuse { display: none; height: 2px; margin: 10px 0 0; background: var(--line); border-radius: 2px; overflow: hidden; }
 .fuse span {
   display: block; height: 100%; width: calc(var(--gone, 0) * 100%);
   background: ${TODAY}; border-radius: 2px;
@@ -145,11 +148,11 @@ const STYLE = `
 /* The mechanic, in two sentences under the date. Two versions, because "say
    which ones you remember" is a lie on a page that refuses answers, and 363
    of the 366 do. */
-.mechanic { margin: 0 0 4px; color: #B9B2AD; font-size: 15px; line-height: 1.4; max-width: 58ch; text-wrap: pretty; }
-.mechanic b { color: #FFF7EE; font-weight: 600; }
+.mechanic { margin: 0 0 4px; color: var(--dim); font-size: 15px; line-height: 1.4; max-width: 58ch; text-wrap: pretty; }
+.mechanic b { color: var(--cream); font-weight: 600; }
 /* The other open dates, as one quiet line. today.css hides the link to the
    page you are on, so the sentence names the other two. */
-.also { margin: 0; font-size: 13px; color: #827B75; }
+.also { margin: 0; font-size: 13px; color: var(--dimmer); }
 /* The name. A polished site with no owner, no price and no advertising is read
    by a suspicious stranger as a business that has not shown its hand yet, and
    silence is taken as the answer rather than as the absence of one. The top
@@ -169,11 +172,11 @@ const STYLE = `
    size of a credit, which is where a reader who wants to know who made
    something goes looking anyway. The About page still carries it in full and
    is one tap from every page in the bar. */
-.signed { display: none; margin: 30px 0 0; font-size: 11.5px; color: #6B6560; }
-.signed a { color: #8D857E; text-decoration: none; border-bottom: 1px solid #3A3348; }
-.signed a:hover { color: #C6BDB4; }
-.also a { color: #A49BAE; text-decoration: none; border-bottom: 1px solid #3A3348; }
-.also a:hover { color: #FFF7EE; }
+.signed { display: none; margin: 30px 0 0; font-size: 11.5px; color: var(--dimmer); }
+.signed a { color: var(--dim); text-decoration: none; border-bottom: 1px solid var(--line); }
+.signed a:hover { color: var(--cream-2); }
+.also a { color: var(--dim); text-decoration: none; border-bottom: 1px solid var(--line); }
+.also a:hover { color: var(--cream); }
 
 /* The first ask. One row from this date with the three answers at full size,
    above the fold on a phone. Drawn only on the three open dates, by today.css.
@@ -185,43 +188,43 @@ const STYLE = `
    fixed. */
 .ask {
   display: none; margin: 16px 0 0; border-radius: 18px; overflow: hidden;
-  background: linear-gradient(168deg, #221A2E 0%, #17121F 62%);
-  box-shadow: inset 0 0 0 1px rgba(255, 247, 238, .10);
+  background: linear-gradient(168deg, var(--cell) 0%, var(--cell) 62%);
+  box-shadow: inset 0 0 0 1px rgba(255, 243, 224, .10);
 }
 .askhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px 0; }
-.asklab { font-size: 10.5px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--day-soft, #C6B0F5); }
-.askyr { font-family: Georgia, serif; font-size: 26px; font-weight: 700; color: var(--day-soft, #C6B0F5); line-height: 1; }
+.asklab { font-size: 10.5px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--day-soft, var(--honey-lite)); }
+.askyr { font-family: var(--serif); font-size: 26px; font-weight: 700; color: var(--day-soft, var(--honey-lite)); line-height: 1; }
 .askbody { display: grid; grid-template-columns: 64px 1fr; gap: 14px; padding: 10px 16px 0; align-items: start; }
 .askbody.noart { grid-template-columns: 1fr; }
-.askart { width: 64px; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: #17141F; box-shadow: 0 6px 18px rgba(0, 0, 0, .45); }
+.askart { width: 64px; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: var(--cell); box-shadow: 0 6px 18px rgba(0, 0, 0, .45); }
 .askart img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .asksaid {
-  margin: 0; font-family: Georgia, "Times New Roman", serif;
+  margin: 0; font-family: var(--serif);
   font-size: clamp(17px, 4.4vw, 22px); line-height: 1.3; text-wrap: pretty;
 }
-.askcap { grid-column: 1 / -1; font-size: 11.5px; color: #827B75; line-height: 1.35; margin: 4px 0 0; }
-.askcap b { color: #A49BAE; font-weight: 600; }
+.askcap { grid-column: 1 / -1; font-size: 11.5px; color: var(--dimmer); line-height: 1.35; margin: 4px 0 0; }
+.askcap b { color: var(--dim); font-weight: 600; }
 /* The row's own sentence, under a line somebody wrote for it. Its own block
    rather than a run of the caption, because it is a different kind of thing
    from the record sleeve note beside it: that is context, this is the source
    text the question was written from. */
-.askrec { display: block; margin: 0 0 3px; color: #948C86; }
-.askcap a { color: #827B75; text-decoration: none; }
+.askrec { display: block; margin: 0 0 3px; color: var(--dim); }
+.askcap a { color: var(--dimmer); text-decoration: none; }
 .askcap a:hover { color: ${ACCENT}; text-decoration: underline; }
 /* Same three words every row further down uses, bigger here, once, because
    this is where the mechanic is taught. */
 .ask .rem { gap: 8px; margin: 0; padding: 12px 16px 4px; }
 .ask .rem button {
   font-size: 14.5px; font-weight: 600; min-height: 42px; padding: 11px 15px;
-  background: rgba(255, 247, 238, .06); color: #FFF7EE; border-color: rgba(255, 247, 238, .18);
+  background: rgba(255, 243, 224, .06); color: var(--cream); border-color: rgba(255, 243, 224, .18);
 }
-.ask .rem button:hover { border-color: var(--day-soft, #C6B0F5); background: rgba(198, 176, 245, .14); }
+.ask .rem button:hover { border-color: var(--day-soft, var(--honey-lite)); background: rgba(255, 207, 107, .14); }
 .ask .mine { padding: 6px 16px 0; margin: 0; }
-.askrule { margin: 0; padding: 6px 16px 14px; font-size: 12.5px; color: #827B75; line-height: 1.45; }
+.askrule { margin: 0; padding: 6px 16px 14px; font-size: 12.5px; color: var(--dimmer); line-height: 1.45; }
 /* The row the ask was taken from, where it sits in the feed. Hidden by
    today.css on the three open dates, so a row is on the page once: at the top
    while the date is open, in its place once it has sealed. */
-.alsolab { margin: 30px 0 10px; font-size: 10.5px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: #7A7385; }
+.alsolab { margin: 30px 0 10px; font-size: 10.5px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--dimmer); }
 /* Drawn only on a date that is open, by today.css, which is generated per
    request and is the only thing on this site that knows what day it is. The
    buttons are therefore never shown on a page that would refuse them. */
@@ -236,10 +239,10 @@ const STYLE = `
    and the words arrive with it rather than being baked 150 times over. Nothing
    about anybody else is ever in that block: no counts, no totals, no score.
    See myMarks in serve.ts. */
-.mine { display: none; margin: 6px 0 0; font-size: 12.5px; color: #6FA5DE; }
+.mine { display: none; margin: 6px 0 0; font-size: 12.5px; color: var(--ember); }
 /* A count of a room, on a sealed date, once there are enough people in it to
    be worth counting. Not a rating: see rememberedLine. */
-.tally { margin: 8px 0 0; font-size: 12.5px; color: var(--day-soft, #C6B0F5); }
+.tally { margin: 8px 0 0; font-size: 12.5px; color: var(--day-soft, var(--honey-lite)); }
 
 /* Remembering. Three buttons, no script, no downvote.
 
@@ -255,10 +258,10 @@ const STYLE = `
 .rem { flex-wrap: wrap; gap: 6px; margin: 10px 0 0; }
 .rem button {
   font: inherit; font-size: 12.5px; line-height: 1; cursor: pointer;
-  background: none; color: #A49BAE; border: 1px solid #2A2434;
+  background: none; color: var(--dim); border: 1px solid var(--line);
   border-radius: 999px; padding: 7px 11px;
 }
-.rem button:hover { color: #FFF7EE; border-color: var(--day-soft, #C6B0F5); }
+.rem button:hover { color: var(--cream); border-color: var(--day-soft, var(--honey-lite)); }
 
 /* The result, written in by the server on the request after an answer. Baked
    in empty on every row, so a page that nobody has answered draws none of
@@ -271,28 +274,28 @@ const STYLE = `
    script: it opens on a tap in every browser, a crawler reads what is inside
    it, and the server marks it open on the one request that lands a reader on
    a row inside it. */
-.rest { margin: 34px 0 0; border-top: 1px solid #241E2E; padding-top: 6px; }
+.rest { margin: 34px 0 0; border-top: 1px solid var(--line); padding-top: 6px; }
 .rest > summary {
-  cursor: pointer; list-style: none; padding: 12px 0; font-family: Georgia, "Times New Roman", serif;
-  font-weight: 800; font-size: 19px; line-height: 1.3; color: #FFF7EE;
+  cursor: pointer; list-style: none; padding: 12px 0; font-family: var(--serif);
+  font-weight: 800; font-size: 19px; line-height: 1.3; color: var(--cream);
 }
 .rest > summary::-webkit-details-marker { display: none; }
-.rest > summary::before { content: "+"; display: inline-block; width: 22px; color: #A49BAE; font-weight: 700; }
+.rest > summary::before { content: "+"; display: inline-block; width: 22px; color: var(--dim); font-weight: 700; }
 .rest[open] > summary::before { content: "\\2212"; }
-.rest > summary:hover { color: #FFD98A; }
+.rest > summary:hover { color: var(--honey-lite); }
 .wlist li.hist { display: flex; gap: 12px; align-items: baseline; }
-.wlist .fyr { flex: none; width: 46px; font-family: Georgia, serif; font-size: 17px; color: #E7A83A; font-variant-numeric: tabular-nums; }
+.wlist .fyr { flex: none; width: 46px; font-family: var(--serif); font-size: 17px; color: var(--honey); font-variant-numeric: tabular-nums; }
 .wlist .fbody { min-width: 0; flex: 1; }
 .wlist .fbody a, .wlist .ftext { font-weight: 600; text-decoration: none; }
 .wlist .fbody a:hover { text-decoration: underline; }
 .wlist .fbody .wmeta { margin-left: 4px; }
 .wlist .rem { display: none; margin: 0 0 0 6px; vertical-align: middle; }
-.wlist .mine { display: none; margin: 4px 0 0; font-size: 12px; font-weight: 700; color: #E7A83A; }
+.wlist .mine { display: none; margin: 4px 0 0; font-size: 12px; font-weight: 700; color: var(--honey); }
 .wlist .mine::after { content: ""; }
 .state { margin: 26px 0 0; }
 .memorynote {
   margin: 26px 0 -8px; font-size: 13px; color: ${QUIET};
-  border-left: 2px solid var(--day-soft, #C6B0F5); padding-left: 12px;
+  border-left: 2px solid var(--day-soft, var(--honey-lite)); padding-left: 12px;
 }
 /* The one thing this site asks a reader about themselves.
 
@@ -319,22 +322,22 @@ const STYLE = `
    Not simply hidden, because hiding it is the only way back to it. The link
    targets the picker and :target brings it out again, which is a way to change
    your mind that needs no script and no second page. */
-.yearset { display: none; margin: 26px 0 30px; font-size: 13px; color: #827B75; }
-.yearset a { color: #A49BAE; text-decoration: none; border-bottom: 1px solid #3A3348; }
-.yearset a:hover { color: #FFF7EE; }
-.yearsetv { color: #E8DCCB; }
-.yearlede { margin: 0 0 12px; font-size: 14px; color: #C9C2D4; }
-.yearlede b { color: #FFF7EE; font-weight: 700; }
+.yearset { display: none; margin: 26px 0 30px; font-size: 13px; color: var(--dimmer); }
+.yearset a { color: var(--dim); text-decoration: none; border-bottom: 1px solid var(--line); }
+.yearset a:hover { color: var(--cream); }
+.yearsetv { color: var(--cream-2); }
+.yearlede { margin: 0 0 12px; font-size: 14px; color: var(--cream-2); }
+.yearlede b { color: var(--cream); font-weight: 700; }
 .yearask form { margin: 0; }
 .decpick { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 
 .yeardecs, .yg { display: flex; flex-wrap: wrap; gap: 8px; }
 .yeardecs label, .yg button {
   font: inherit; font-size: 15px; font-weight: 700; line-height: 1; cursor: pointer;
-  padding: 13px 15px; border-radius: 12px; border: 1px solid #2A2434;
-  background: #1C1626; color: #C9C2D4; font-variant-numeric: tabular-nums;
+  padding: 13px 15px; border-radius: 12px; border: 1px solid var(--line);
+  background: var(--cell); color: var(--cream-2); font-variant-numeric: tabular-nums;
 }
-.yeardecs label:hover, .yg button:hover { color: #FFF7EE; border-color: var(--day-soft, #C6B0F5); }
+.yeardecs label:hover, .yg button:hover { color: var(--cream); border-color: var(--day-soft, var(--honey-lite)); }
 .decpick:focus-visible ~ .yeardecs label[for] { outline: 2px solid ${ACCENT}; outline-offset: 2px; }
 
 /* Nothing is shown until a decade is picked, which is why the years are
@@ -343,31 +346,31 @@ const STYLE = `
 .yg { display: none; margin: 10px 0 0; }
 .yearyears { min-height: 0; }
 #dec2020:checked ~ .yearyears .yg2020 { display: flex; }
-#dec2020:checked ~ .yeardecs label[for="dec2020"] { background: ${ACCENT}; border-color: ${ACCENT}; color: #1A0F16; }
+#dec2020:checked ~ .yeardecs label[for="dec2020"] { background: ${ACCENT}; border-color: ${ACCENT}; color: var(--on-honey); }
 #dec2010:checked ~ .yearyears .yg2010 { display: flex; }
-#dec2010:checked ~ .yeardecs label[for="dec2010"] { background: ${ACCENT}; border-color: ${ACCENT}; color: #1A0F16; }
+#dec2010:checked ~ .yeardecs label[for="dec2010"] { background: ${ACCENT}; border-color: ${ACCENT}; color: var(--on-honey); }
 #dec2000:checked ~ .yearyears .yg2000 { display: flex; }
-#dec2000:checked ~ .yeardecs label[for="dec2000"] { background: ${ACCENT}; border-color: ${ACCENT}; color: #1A0F16; }
+#dec2000:checked ~ .yeardecs label[for="dec2000"] { background: ${ACCENT}; border-color: ${ACCENT}; color: var(--on-honey); }
 #dec1990:checked ~ .yearyears .yg1990 { display: flex; }
-#dec1990:checked ~ .yeardecs label[for="dec1990"] { background: ${ACCENT}; border-color: ${ACCENT}; color: #1A0F16; }
+#dec1990:checked ~ .yeardecs label[for="dec1990"] { background: ${ACCENT}; border-color: ${ACCENT}; color: var(--on-honey); }
 #dec1980:checked ~ .yearyears .yg1980 { display: flex; }
-#dec1980:checked ~ .yeardecs label[for="dec1980"] { background: ${ACCENT}; border-color: ${ACCENT}; color: #1A0F16; }
+#dec1980:checked ~ .yeardecs label[for="dec1980"] { background: ${ACCENT}; border-color: ${ACCENT}; color: var(--on-honey); }
 #dec1970:checked ~ .yearyears .yg1970 { display: flex; }
-#dec1970:checked ~ .yeardecs label[for="dec1970"] { background: ${ACCENT}; border-color: ${ACCENT}; color: #1A0F16; }
+#dec1970:checked ~ .yeardecs label[for="dec1970"] { background: ${ACCENT}; border-color: ${ACCENT}; color: var(--on-honey); }
 #dec1960:checked ~ .yearyears .yg1960 { display: flex; }
-#dec1960:checked ~ .yeardecs label[for="dec1960"] { background: ${ACCENT}; border-color: ${ACCENT}; color: #1A0F16; }
+#dec1960:checked ~ .yeardecs label[for="dec1960"] { background: ${ACCENT}; border-color: ${ACCENT}; color: var(--on-honey); }
 #dec1950:checked ~ .yearyears .yg1950 { display: flex; }
-#dec1950:checked ~ .yeardecs label[for="dec1950"] { background: ${ACCENT}; border-color: ${ACCENT}; color: #1A0F16; }
+#dec1950:checked ~ .yeardecs label[for="dec1950"] { background: ${ACCENT}; border-color: ${ACCENT}; color: var(--on-honey); }
 #dec1940:checked ~ .yearyears .yg1940 { display: flex; }
-#dec1940:checked ~ .yeardecs label[for="dec1940"] { background: ${ACCENT}; border-color: ${ACCENT}; color: #1A0F16; }
+#dec1940:checked ~ .yeardecs label[for="dec1940"] { background: ${ACCENT}; border-color: ${ACCENT}; color: var(--on-honey); }
 #dec1930:checked ~ .yearyears .yg1930 { display: flex; }
-#dec1930:checked ~ .yeardecs label[for="dec1930"] { background: ${ACCENT}; border-color: ${ACCENT}; color: #1A0F16; }
+#dec1930:checked ~ .yeardecs label[for="dec1930"] { background: ${ACCENT}; border-color: ${ACCENT}; color: var(--on-honey); }
 .yearnote { font-size: 11.5px; color: ${QUIET}; margin: 10px 0 0; }
 /* Said only after the server has redirected here, revealed by :target, which
    is how this page says anything back without running a script. */
 .afterword {
   display: none; margin: 14px 0 0; padding: 13px 15px; border-radius: 12px;
-  background: #171227; border: 1px solid #2A2434; color: #E9E1DB;
+  background: var(--cell); border: 1px solid var(--line); color: var(--cream-2);
   font-size: 14px; line-height: 1.5;
 }
 .afterword:target { display: block; }
@@ -379,24 +382,24 @@ const STYLE = `
 .pill {
   display: inline-flex; align-items: center; gap: 6px; text-decoration: none;
   font-size: 13px; line-height: 1; white-space: nowrap;
-  color: #A49BAE; border: 1px solid #2A2434; border-radius: 999px;
+  color: var(--dim); border: 1px solid var(--line); border-radius: 999px;
   padding: 7px 12px 7px 10px; min-height: 30px; box-sizing: border-box;
 }
-.pill:hover { color: #FFF7EE; border-color: var(--day-soft, #C6B0F5); }
+.pill:hover { color: var(--cream); border-color: var(--day-soft, var(--honey-lite)); }
 .pill .ic { display: block; flex: none; }
 /* The card page: the picture as wide as the column, never wider. */
-.cardimg { display: block; width: 100%; max-width: 540px; height: auto; margin: 16px 0 0; border-radius: 14px; background: #1A1526; }
+.cardimg { display: block; width: 100%; max-width: 540px; height: auto; margin: 16px 0 0; border-radius: 14px; background: var(--cell); }
 .cardsave { margin-top: 12px; }
 /* The way to the iPhone app, in honey so it reads as the one pill that
    leaves the site. It gives up its word first when the bar gets narrow. */
-.pill.app { color: #FFD98A; border-color: #4A3A22; }
-.pill.app:hover { color: #FFF7EE; border-color: #E7A83A; }
+.pill.app { color: var(--honey-lite); border-color: var(--line-strong); }
+.pill.app:hover { color: var(--cream); border-color: var(--honey); }
 @media (max-width: 820px) { .pill.app span { display: none; } .pill.app { padding: 7px 8px; min-width: 32px; justify-content: center; } }
 /* A photograph is not square. A head sits in the top third of almost every one
    of these, so a square crop takes foreheads off. */
 img.face {
   width: 100%; aspect-ratio: 4 / 5; object-fit: cover; object-position: 50% 16%;
-  border-radius: 10px; margin-bottom: 11px; display: block; background: #1A1526;
+  border-radius: 10px; margin-bottom: 11px; display: block; background: var(--cell);
 }
 /* On a phone the words come off and the three icons stay, each still
    carrying its label for a screen reader and a long press. */
@@ -416,9 +419,9 @@ img.face {
 .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 0; }
 .tile {
   display: flex; flex-direction: column; text-decoration: none;
-  background: #141020; border: 1px solid #221C30; border-radius: 14px; overflow: hidden;
+  background: var(--cell); border: 1px solid var(--cell); border-radius: 14px; overflow: hidden;
 }
-a.tile:hover { border-color: var(--day-soft, #C6B0F5); }
+a.tile:hover { border-color: var(--day-soft, var(--honey-lite)); }
 .tpic { display: block; position: relative; aspect-ratio: 1 / 1; overflow: hidden; }
 .tpic img, .tpic .tbg { width: 100%; height: 100%; object-fit: cover; display: block; }
 .tpic .tbg { object-position: 50% 18%; }
@@ -427,31 +430,31 @@ a.tile:hover { border-color: var(--day-soft, #C6B0F5); }
    interesting thing on it the loudest. */
 .tbg.noface {
   display: grid; place-items: center;
-  font-family: Georgia, "Times New Roman", serif; font-size: 34px; font-weight: 700;
-  letter-spacing: .04em; color: rgba(255, 247, 238, .5);
-  background: linear-gradient(160deg, #241E36, #16121F);
+  font-family: var(--serif); font-size: 34px; font-weight: 700;
+  letter-spacing: .04em; color: rgba(255, 243, 224, .5);
+  background: linear-gradient(160deg, var(--line), var(--cell));
 }
-.t-person { border-bottom: 2px solid #EF5680; }
-.t-music { border-bottom: 2px solid var(--day, #8A6BE0); }
+.t-person { border-bottom: 2px solid var(--honey); }
+.t-music { border-bottom: 2px solid var(--day, var(--honey)); }
 .t-moment {
-  border-bottom: 2px solid #9FB6C9; background: #07060C;
+  border-bottom: 2px solid var(--dim); background: var(--bg);
   display: grid; place-items: center;
 }
 .tyr {
-  font-family: Georgia, serif; font-size: 54px; line-height: 1;
+  font-family: var(--serif); font-size: 54px; line-height: 1;
   color: rgba(159, 182, 201, .5); letter-spacing: -.02em;
 }
 .tin { display: block; padding: 12px 13px 14px; }
 .tlab {
   display: block; font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase;
-  font-weight: 700; margin-bottom: 6px; color: #7A7385;
+  font-weight: 700; margin-bottom: 6px; color: var(--dimmer);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .tbig {
-  display: block; font-family: Georgia, "Times New Roman", serif;
-  font-size: 17px; line-height: 1.22; color: #FFF7EE;
+  display: block; font-family: var(--serif);
+  font-size: 17px; line-height: 1.22; color: var(--cream);
 }
-.tsub { display: block; color: #A49BAE; font-size: 13px; margin-top: 5px; }
+.tsub { display: block; color: var(--dim); font-size: 13px; margin-top: 5px; }
 @media (max-width: 700px) {
   .tbg.noface { font-size: 26px; }
   .tyr { font-size: 34px; }
@@ -465,22 +468,22 @@ a.tile:hover { border-color: var(--day-soft, #C6B0F5); }
 .culture { list-style: none; margin: 0; padding: 0; }
 .cul {
   display: flex; gap: 14px; align-items: baseline; padding: 11px 0 11px 14px;
-  border-bottom: 1px solid #221C30; border-left: 2px solid var(--day, #8A6BE0);
+  border-bottom: 1px solid var(--cell); border-left: 2px solid var(--day, var(--honey));
 }
 .cul .cyr {
-  font-family: Georgia, serif; font-size: 21px; color: var(--day-soft, #C6B0F5);
+  font-family: var(--serif); font-size: 21px; color: var(--day-soft, var(--honey-lite));
   width: 58px; flex: none; font-variant-numeric: tabular-nums; line-height: 1.3;
 }
 .cul .ctx {
-  margin: 0; font-family: Georgia, "Times New Roman", serif;
-  font-size: 17px; line-height: 1.4; color: #FFF7EE;
+  margin: 0; font-family: var(--serif);
+  font-size: 17px; line-height: 1.4; color: var(--cream);
 }
 /* The tag and the source belong on one quiet line under the sentence, not
    stacked as two more paragraphs with a link underlined like a footnote. */
 .cul .meta { display: flex; gap: 10px; align-items: center; margin-top: 5px; }
 .cul .meta .src { margin: 0; }
-.cul .meta .src a { color: #7A7385; text-decoration: none; font-size: 11px; }
-.cul .meta .src a:hover { color: #A49BAE; }
+.cul .meta .src a { color: var(--dimmer); text-decoration: none; font-size: 11px; }
+.cul .meta .src a:hover { color: var(--dim); }
 @media (min-width: 760px) {
   .tiles { gap: 14px; }
   .tin { padding: 14px 16px 16px; }
@@ -494,8 +497,9 @@ a.tile:hover { border-color: var(--day-soft, #C6B0F5); }
 :root { color-scheme: dark; }
 * { box-sizing: border-box; }
 body {
-  margin: 0; background: ${INK}; color: #FFF7EE;
-  font: 17px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  margin: 0; color: var(--cream);
+  background: var(--bg) radial-gradient(140% 900px at 50% -20%, var(--bg-glow) 0%, var(--bg) 100%) no-repeat;
+  font: 17px/1.5 var(--sans);
   -webkit-font-smoothing: antialiased;
 }
 a { color: inherit; }
@@ -508,11 +512,11 @@ a { color: inherit; }
    date they asked for, and sixty points of it was the loudest thing on the
    page saying the least. */
 h1 {
-  font-family: Georgia, "Times New Roman", serif; font-weight: 800;
+  font-family: var(--serif); font-weight: 800;
   font-size: clamp(38px, 9vw, 64px); line-height: 1.05; margin: 0 0 10px;
 }
 .day h1 { font-size: clamp(30px, 7.5vw, 48px); line-height: 1.02; margin: 10px 0 6px; letter-spacing: -.01em; }
-.lede { color: #B9B2AD; margin: 0 0 30px; }
+.lede { color: var(--dim); margin: 0 0 30px; }
 /* The hidden attribute has to beat every display rule below it. A browser
    hides [hidden] with its own stylesheet, and any author rule that sets
    display wins over that, so .btn made the two buttons on /add ignore being
@@ -521,7 +525,7 @@ h1 {
 [hidden] { display: none !important; }
 ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 li {
-  background: #17141F; border-radius: 14px; padding: 13px 15px;
+  background: var(--cell); border-radius: 14px; padding: 13px 15px;
   display: flex; gap: 13px; align-items: flex-start;
 }
 .year {
@@ -532,10 +536,10 @@ li {
 .name { font-weight: 600; margin: 0; }
 .name a { text-decoration: none; }
 .name a:hover { text-decoration: underline; }
-.what { color: #9C9490; font-size: 15px; margin: 2px 0 0; }
+.what { color: var(--dim); font-size: 15px; margin: 2px 0 0; }
 .died { color: ${QUIET}; font-size: 13px; margin: 3px 0 0; }
 h2.section {
-  font-family: Georgia, "Times New Roman", serif; font-weight: 800;
+  font-family: var(--serif); font-weight: 800;
   font-size: clamp(24px, 5vw, 32px); line-height: 1.15; margin: 46px 0 6px;
 }
 /* The songs are a wall of covers. Sixty-odd of them on a page, so they are
@@ -580,7 +584,7 @@ p.decades a {
 p.decades a:hover, p.decades a:focus-visible { text-decoration: underline; }
 ol.covers .art {
   display: block; position: relative; aspect-ratio: 1; border-radius: 12px;
-  overflow: hidden; background: #17141F;
+  overflow: hidden; background: var(--cell);
   box-shadow: 0 6px 18px rgba(0,0,0,0.45);
   transition: transform 160ms ease, box-shadow 160ms ease;
 }
@@ -590,7 +594,7 @@ ol.covers .art img { width: 100%; height: 100%; object-fit: cover; display: bloc
 ol.covers .none {
   display: flex; align-items: center; justify-content: center; height: 100%;
   padding: 10px; text-align: center;
-  background: linear-gradient(140deg, #3A1B45, #1B0B24);
+  background: linear-gradient(140deg, var(--cell-2), var(--cell));
 }
 /* Held to five lines inside the square.
    Billboard's title for the 1981 number one is the medley's whole track
@@ -602,10 +606,10 @@ ol.covers .none {
 ol.covers .none span {
   display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical;
   overflow: hidden; text-wrap: balance;
-  font-family: Georgia, "Times New Roman", serif; font-weight: 800;
-  font-size: 15px; line-height: 1.2; color: #FFF7EE;
+  font-family: var(--serif); font-weight: 800;
+  font-size: 15px; line-height: 1.2; color: var(--cream);
 }
-ol.covers .y { margin: 9px 0 0; font-size: 13px; color: #9C9490; }
+ol.covers .y { margin: 9px 0 0; font-size: 13px; color: var(--dim); }
 ol.covers .y a { color: inherit; text-decoration: none; }
 ol.covers .y a:hover { color: ${ACCENT}; }
 /* Three lines, then an ellipsis, for the same reason and a worse symptom: a
@@ -619,7 +623,7 @@ ol.covers .t {
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
   overflow: hidden;
 }
-ol.covers .a { margin: 1px 0 0; color: #9C9490; font-size: 13px; overflow-wrap: anywhere; }
+ol.covers .a { margin: 1px 0 0; color: var(--dim); font-size: 13px; overflow-wrap: anywhere; }
 ol.covers li:target .art { box-shadow: 0 0 0 2px ${ACCENT}, 0 6px 18px rgba(0,0,0,0.45); }
 ol.covers li:target .y a { color: ${ACCENT}; }
 /* Motion, in CSS and nowhere else. The site sends default-src 'none', so no
@@ -650,14 +654,14 @@ details.more > summary {
 details.more > summary::-webkit-details-marker { display: none; }
 details.more > summary::after { content: "+"; font-size: 16px; }
 details.more[open] > summary::after { content: "\\2212"; }
-details.more > summary:hover { color: #FFF7EE; }
+details.more > summary:hover { color: var(--cream); }
 details.more ol.covers { margin-top: 16px; }
 details.more > summary .n, .shelfhead .n {
   color: ${QUIET}; font-size: 12px; font-weight: 400; letter-spacing: 0.04em;
 }
 .shelf { scroll-margin-top: 68px; }
 .shelfhead {
-  margin: 22px 0 14px; font-size: 14px; font-weight: 700; color: #FFF7EE;
+  margin: 22px 0 14px; font-size: 14px; font-weight: 700; color: var(--cream);
   display: flex; align-items: baseline; gap: 9px;
 }
 /* Read aloud but never drawn. The hive's kind marks carry one of these behind
@@ -675,14 +679,14 @@ details.more > summary .n, .shelfhead .n {
    printed the page's own date once per row. */
 ul.facts { list-style: none; margin: 0; padding: 0; }
 ul.facts li {
-  background: none; border-radius: 0; padding: 16px 0; border-top: 1px solid #2A2434;
+  background: none; border-radius: 0; padding: 16px 0; border-top: 1px solid var(--line);
   display: flex; gap: 13px; align-items: baseline;
 }
 ul.facts li:first-child { border-top: none; padding-top: 6px; }
 ul.facts .said { min-width: 0; }
 ul.facts .what {
-  font-family: Georgia, "Times New Roman", serif; font-size: 19px; line-height: 1.42;
-  color: #FFF7EE; margin: 0;
+  font-family: var(--serif); font-size: 19px; line-height: 1.42;
+  color: var(--cream); margin: 0;
 }
 ul.facts .src { margin: 7px 0 0; font-size: 13px; }
 ul.facts .src a { color: ${QUIET}; text-decoration: none; }
@@ -691,22 +695,22 @@ nav.pager { display: flex; justify-content: space-between; gap: 12px; margin: 34
 nav.pager a { color: ${ACCENT}; text-decoration: none; }
 .cta {
   margin: 34px 0 0; padding: 20px; border-radius: 16px;
-  background: linear-gradient(135deg, #FF88A8, ${ACCENT} 48%, #A8265A);
-  color: #FFF7EE;
+  background: linear-gradient(135deg, var(--honey-lite), var(--honey));
+  color: var(--cream);
 }
-.cta h2 { font-family: Georgia, serif; margin: 0 0 6px; font-size: 22px; }
+.cta h2 { font-family: var(--serif); margin: 0 0 6px; font-size: 22px; }
 .cta p { margin: 0; opacity: 0.92; font-size: 15px; }
 footer { margin: 40px 0 0; color: ${QUIET}; font-size: 13px; }
-footer .nothing { color: #A79E98; }
-footer a { color: #9C9490; }
+footer .nothing { color: var(--dim); }
+footer a { color: var(--dim); }
 /* The year as twelve calendars. Seven columns, so a row is a week and the page
    reads the way a wall calendar does instead of as a column of 366 lines. */
 .cal h3 {
-  font-family: Georgia, "Times New Roman", serif; font-weight: 800;
+  font-family: var(--serif); font-weight: 800;
   font-size: 19px; margin: 0 0 8px;
 }
 .cal .dow, .cal .days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
-.cal .dow { margin: 0 0 5px; padding: 0 0 6px; border-bottom: 1px solid #2A2434; }
+.cal .dow { margin: 0 0 5px; padding: 0 0 6px; border-bottom: 1px solid var(--line); }
 .cal .dow span {
   font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-align: center;
   color: ${QUIET}; text-transform: uppercase;
@@ -721,30 +725,30 @@ footer a { color: #9C9490; }
    seven on a narrow tablet lands under the size a thumb can hit. */
 @media (pointer: coarse) { .cal .days a, .cal .days .pad { min-height: 40px; } }
 p.calnote { color: ${QUIET}; font-size: 13px; margin: 22px 0 0; }
-footer .sitelinks { color: #B9B2AD; font-size: 14px; }
+footer .sitelinks { color: var(--dim); font-size: 14px; }
 footer .sitelinks a { color: ${ACCENT}; text-decoration: none; }
 .btn {
   display: inline-block; margin: 6px 0 0; padding: 12px 20px; border-radius: 999px;
-  background: #FFF7EE; color: #A8265A; font-weight: 700; text-decoration: none; font-size: 15px;
+  background: var(--honey); color: var(--on-honey); font-weight: 700; text-decoration: none; font-size: 15px;
 }
 .cal { scroll-margin-top: 24px; }
 html { scroll-behavior: smooth; }
-.soon { display: inline-block; margin: 6px 0 0; padding: 12px 20px; border-radius: 999px; border: 1px solid #3A3342; color: #B9B2AD; font-size: 15px; }
-h2.plain { font-family: Georgia, "Times New Roman", serif; font-weight: 800; font-size: clamp(22px, 5vw, 28px); margin: 40px 0 8px; }
-.prose p, .prose li { color: #D9D2CC; }
+.soon { display: inline-block; margin: 6px 0 0; padding: 12px 20px; border-radius: 999px; border: 1px solid var(--line); color: var(--dim); font-size: 15px; }
+h2.plain { font-family: var(--serif); font-weight: 800; font-size: clamp(22px, 5vw, 28px); margin: 40px 0 8px; }
+.prose p, .prose li { color: var(--cream-2); }
 /* The global li is a flex row built for the lists of people, and inside a
    paragraph of prose it split every bold lead, sentence and cookie name into
    its own column. Prose list items are plain blocks of text. */
 .prose ul { list-style: none; padding: 0; margin: 12px 0 16px; display: grid; gap: 8px; }
 .prose li { display: block; line-height: 1.6; padding: 12px 16px; }
-.prose li strong { color: #F3EDE4; }
-.prose li code { font-size: 14px; padding: 1px 6px; border-radius: 6px; background: #241E2E; color: #F3EDE4; }
+.prose li strong { color: var(--cream-2); }
+.prose li code { font-size: 14px; padding: 1px 6px; border-radius: 6px; background: var(--line); color: var(--cream-2); }
 .prose h3 { margin: 26px 0 4px; font-size: 17px; }
-.prose h2 { margin: 40px 0 4px; font-size: 22px; padding-top: 14px; border-top: 1px solid #2A2434; }
+.prose h2 { margin: 40px 0 4px; font-size: 22px; padding-top: 14px; border-top: 1px solid var(--line); }
 .prose h2:first-child { margin-top: 8px; padding-top: 0; border-top: 0; }
 .forget { margin: 10px 0 0; }
-.forget button { font: inherit; font-size: 14px; font-weight: 700; padding: 8px 14px; border-radius: 999px; border: 1px solid #3A3348; background: #1E1A27; color: #FFF7EE; cursor: pointer; }
-.forget button:hover { border-color: #FFD98A; }
+.forget button { font: inherit; font-size: 14px; font-weight: 700; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--cell); color: var(--cream); cursor: pointer; }
+.forget button:hover { border-color: var(--honey-lite); }
 .prose .updated { color: ${QUIET}; font-size: 13px; }
 
 /* ---- The form on /add ----------------------------------------------------
@@ -771,25 +775,25 @@ h2.plain { font-family: Georgia, "Times New Roman", serif; font-weight: 800; fon
 .label {
   display: block; margin: 0 0 9px;
   font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
-  color: #B9B2AD;
+  color: var(--dim);
 }
 .hint { display: block; margin: 9px 0 0; font-size: 13px; color: ${QUIET}; }
 .input, .select > select {
   appearance: none; -webkit-appearance: none; -moz-appearance: none;
   display: block; width: 100%; margin: 0;
-  font-family: inherit; font-size: 16px; line-height: 1.4; color: #FFF7EE;
-  background: rgba(255, 247, 238, 0.055);
-  border: 1px solid #3A3342; border-radius: 14px; padding: 15px 16px;
+  font-family: inherit; font-size: 16px; line-height: 1.4; color: var(--cream);
+  background: rgba(255, 243, 224, 0.055);
+  border: 1px solid var(--line); border-radius: 14px; padding: 15px 16px;
   transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
 }
 .input::placeholder { color: ${QUIET}; }
-.input:hover, .select > select:hover { border-color: #4C4458; }
+.input:hover, .select > select:hover { border-color: var(--line); }
 .input:focus, .select > select:focus {
   outline: none; border-color: ${ACCENT};
-  background: rgba(255, 247, 238, 0.085);
+  background: rgba(255, 243, 224, 0.085);
   /* ACCENT at 22 percent. Written out, because a hex colour cannot be given
      an alpha by another rule. */
-  box-shadow: 0 0 0 3px rgba(239, 86, 128, 0.22);
+  box-shadow: 0 0 0 3px rgba(244, 183, 64, 0.22);
 }
 .dates { display: grid; grid-template-columns: 1.7fr 1fr 1.2fr; gap: 10px; }
 /* Measured rather than guessed. At 375 points, which is the narrowest phone
@@ -808,15 +812,15 @@ h2.plain { font-family: Georgia, "Times New Roman", serif; font-weight: 800; fon
 .select::after {
   content: ""; position: absolute; right: 17px; top: 50%;
   width: 8px; height: 8px;
-  border-right: 2px solid #9C9490; border-bottom: 2px solid #9C9490;
+  border-right: 2px solid var(--dim); border-bottom: 2px solid var(--dim);
   transform: translateY(-72%) rotate(45deg);
   pointer-events: none;
 }
-.select:hover::after { border-color: #FFF7EE; }
+.select:hover::after { border-color: var(--cream); }
 /* The open menu is drawn by the operating system and inherits almost nothing
    from here, so its rows are told their colours. Without this, some browsers
    open a white list out of a dark control. */
-.select option { background: #17141F; color: #FFF7EE; }
+.select option { background: var(--cell); color: var(--cream); }
 /* The spinner arrows are for a quantity, and a year is not one. */
 .input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 .input[type="number"]::-webkit-outer-spin-button,
@@ -829,18 +833,18 @@ h2.plain { font-family: Georgia, "Times New Roman", serif; font-weight: 800; fon
 .btn.primary {
   display: block; width: 100%; text-align: center;
   margin: 30px 0 0; padding: 17px 24px; font-size: 17px;
-  background: linear-gradient(135deg, #FF88A8, ${ACCENT} 55%, #C9315F);
-  color: #FFF7EE;
-  box-shadow: 0 12px 30px rgba(239, 86, 128, 0.26);
+  background: linear-gradient(135deg, var(--honey-lite), var(--honey));
+  color: var(--cream);
+  box-shadow: 0 12px 30px rgba(244, 183, 64, 0.26);
 }
 .btn.primary:hover { filter: brightness(1.06); }
-.btn.primary:active { transform: translateY(1px); box-shadow: 0 6px 16px rgba(239, 86, 128, 0.24); }
+.btn.primary:active { transform: translateY(1px); box-shadow: 0 6px 16px rgba(244, 183, 64, 0.24); }
 /* Only the buttons. A field already answers focus with an accent border and a
    glow, and adding an outline on top of that drew two rings around one box. */
 .btn:focus-visible { outline: 2px solid ${ACCENT}; outline-offset: 3px; }
 /* What went wrong, and what came out. The muted .lede grey is for prose a
    reader may skip, and neither of these is skippable. */
-.problem { margin: 16px 0 0; font-size: 15px; color: #FFB3C6; }
+.problem { margin: 16px 0 0; font-size: 15px; color: var(--ember); }
 .result { margin: 18px 0 0; font-size: 15px; overflow-wrap: anywhere; }
 .result a { color: ${ACCENT}; }
 
@@ -868,8 +872,8 @@ h2.plain { font-family: Georgia, "Times New Roman", serif; font-weight: 800; fon
    is repainted on every frame of a scroll on iOS and it shows. */
 body.home {
   background-image:
-    radial-gradient(1100px 620px at 6% -12%, rgba(239, 86, 128, 0.20), transparent 60%),
-    radial-gradient(900px 560px at 98% -6%, rgba(139, 92, 246, 0.16), transparent 62%),
+    radial-gradient(1100px 620px at 6% -12%, rgba(244, 183, 64, 0.20), transparent 60%),
+    radial-gradient(900px 560px at 98% -6%, rgba(244, 183, 64, 0.16), transparent 62%),
     radial-gradient(760px 520px at 48% 4%, rgba(255, 136, 168, 0.06), transparent 66%);
   background-repeat: no-repeat;
 }
@@ -890,24 +894,24 @@ body.home {
    so nobody has to guess that it goes somewhere. */
 .mark {
   font-size: 20px; font-weight: 800; letter-spacing: 0.2em; white-space: nowrap;
-  color: ${ACCENT}; text-transform: uppercase; text-decoration: none;
+  color: ${PINK}; text-transform: uppercase; text-decoration: none;
   transition: color 140ms ease;
 }
 .mark:hover, .mark:focus-visible {
-  color: #FFF7EE; text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px;
+  color: var(--cream); text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px;
 }
 .quick { display: flex; gap: 8px; }
 .quick a {
   display: inline-flex; align-items: center; gap: 7px;
   padding: 9px 15px; border-radius: 999px;
-  font-size: 13px; font-weight: 600; color: #D9D2CC; text-decoration: none;
-  background: rgba(255, 247, 238, 0.045);
-  box-shadow: inset 0 0 0 1px rgba(255, 247, 238, 0.13);
+  font-size: 13px; font-weight: 600; color: var(--cream-2); text-decoration: none;
+  background: rgba(255, 243, 224, 0.045);
+  box-shadow: inset 0 0 0 1px rgba(255, 243, 224, 0.13);
   transition: color 140ms ease, background 140ms ease, box-shadow 140ms ease, transform 140ms ease;
 }
 .quick a:hover, .quick a:focus-visible {
-  color: #FFF7EE; background: rgba(239, 86, 128, 0.16);
-  box-shadow: inset 0 0 0 1px rgba(239, 86, 128, 0.55);
+  color: var(--cream); background: rgba(244, 183, 64, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(244, 183, 64, 0.55);
   transform: translateY(-1px);
 }
 .quick .ic { flex: none; opacity: 0.85; }
@@ -923,10 +927,10 @@ body.home {
 /* The second half of the sentence, lit. Guarded, because the fallback for an
    unsupported background-clip is transparent text, which is a headline nobody
    can read rather than a headline that is not pink. */
-.glow { color: #FFB9CC; }
+.glow { color: var(--honey); }
 @supports ((-webkit-background-clip: text) or (background-clip: text)) {
   .glow {
-    background-image: linear-gradient(118deg, #FFCBD9 0%, ${ACCENT} 44%, #B98CFF 100%);
+    background-image: linear-gradient(118deg, var(--cream) 0%, var(--honey-lite) 50%, var(--honey) 100%);
     -webkit-background-clip: text; background-clip: text;
     color: transparent;
   }
@@ -942,7 +946,7 @@ body.home {
    have looked like the underline had not been applied at all. */
 .brandword {
   text-decoration: underline;
-  text-decoration-color: ${ACCENT};
+  text-decoration-color: #EF5680;
   text-decoration-thickness: 0.055em;
   text-underline-offset: 0.085em;
 }
@@ -969,45 +973,45 @@ body.home {
 @media (min-width: 720px) { .beats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; } }
 .beats li {
   display: block; counter-increment: beat;
-  background: #17121F; border: 1px solid #2A2434; border-radius: 18px;
+  background: var(--cell); border: 1px solid var(--line); border-radius: 18px;
   padding: 20px 22px 22px;
 }
 .beats li::before {
   content: counter(beat);
   display: inline-flex; align-items: center; justify-content: center;
   width: 26px; height: 26px; margin: 0 0 13px;
-  border-radius: 999px; background: rgba(239, 86, 128, 0.14);
+  border-radius: 999px; background: rgba(244, 183, 64, 0.14);
   color: ${ACCENT}; font-size: 12.5px; font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
 .beats h3 { margin: 0 0 8px; font-size: 17px; line-height: 1.3; letter-spacing: -0.005em; }
-.beats p { margin: 0; color: #A49BAE; font-size: 14.5px; line-height: 1.62; }
+.beats p { margin: 0; color: var(--dim); font-size: 14.5px; line-height: 1.62; }
 
 .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 22px 0 0; }
 .actions .btn { margin: 0; }
 .btn.brand {
   display: inline-flex; align-items: center; gap: 8px;
   padding: 14px 24px; font-size: 16px;
-  background-image: linear-gradient(135deg, #FF9BB6, ${ACCENT} 52%, #C0335F);
-  color: #FFF7EE;
-  box-shadow: 0 14px 34px rgba(239, 86, 128, 0.30);
+  background-image: linear-gradient(135deg, var(--honey-lite), var(--honey));
+  color: var(--cream);
+  box-shadow: 0 14px 34px rgba(244, 183, 64, 0.30);
   transition: transform 140ms ease, box-shadow 140ms ease, filter 140ms ease;
 }
 .btn.brand:hover {
   filter: brightness(1.07); transform: translateY(-2px);
-  box-shadow: 0 20px 44px rgba(239, 86, 128, 0.40);
+  box-shadow: 0 20px 44px rgba(244, 183, 64, 0.40);
 }
 .btn.brand:active { transform: translateY(0); }
 .btn.ghost {
   display: inline-flex; align-items: center; gap: 8px;
   padding: 14px 20px; font-size: 15px;
-  background: transparent; color: #E7E0DA;
-  box-shadow: inset 0 0 0 1px rgba(255, 247, 238, 0.20);
+  background: transparent; color: var(--cream-2);
+  box-shadow: inset 0 0 0 1px rgba(255, 243, 224, 0.20);
   transition: color 140ms ease, background 140ms ease, box-shadow 140ms ease, transform 140ms ease;
 }
 .btn.ghost:hover {
-  color: #FFF7EE; background: rgba(239, 86, 128, 0.10);
-  box-shadow: inset 0 0 0 1px rgba(239, 86, 128, 0.60);
+  color: var(--cream); background: rgba(244, 183, 64, 0.10);
+  box-shadow: inset 0 0 0 1px rgba(244, 183, 64, 0.60);
   transform: translateY(-2px);
 }
 .fine { color: ${QUIET}; font-size: 13px; margin: 14px 0 0; max-width: 46ch; }
@@ -1017,42 +1021,42 @@ body.home {
 .btn.play {
   display: inline-flex; align-items: center; gap: 8px;
   padding: 14px 26px; font-size: 16px; font-weight: 800; border-radius: 999px;
-  background: linear-gradient(180deg, #FFCF6B, #F4B740); color: #1B1206; text-decoration: none;
+  background: linear-gradient(180deg, var(--honey-lite), var(--honey)); color: var(--on-honey); text-decoration: none;
   box-shadow: 0 12px 30px rgba(244, 183, 64, 0.28);
   transition: transform 140ms ease, filter 140ms ease;
 }
 .btn.play:hover { filter: brightness(1.06); transform: translateY(-2px); }
 .bzz { display: inline-flex; gap: 5px; margin: 0 8px 0 0; vertical-align: -1px; }
-.bzz i { display: inline-block; width: 11px; height: 11px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #FFCF6B, #F4B740); box-shadow: 0 0 8px rgba(244, 183, 64, 0.5); }
+.bzz i { display: inline-block; width: 11px; height: 11px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, var(--honey-lite), var(--honey)); box-shadow: 0 0 8px rgba(244, 183, 64, 0.5); }
 .rules { list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
-.rules li { display: inline-flex; align-items: baseline; gap: 6px; padding: 10px 16px; border-radius: 999px; background: #1E1710; border: 1px solid #4A3A24; color: #E9DCC6; font-size: 14.5px; }
-.rules li b { color: #FFCF6B; }
+.rules li { display: inline-flex; align-items: baseline; gap: 6px; padding: 10px 16px; border-radius: 999px; background: var(--cell); border: 1px solid var(--line-strong); color: var(--cream-2); font-size: 14.5px; }
+.rules li b { color: var(--honey-lite); }
 
 /* Pick your month. A band rather than a line of small links, because this is
    the one thing on the page a visitor who knows what they want is looking for,
    and it used to be six words of grey text. */
 .picker {
   margin: 34px 0 0; padding: 18px 20px 20px; border-radius: 22px;
-  background: linear-gradient(180deg, rgba(255, 247, 238, 0.06), rgba(255, 247, 238, 0.02));
-  box-shadow: inset 0 0 0 1px rgba(255, 247, 238, 0.09);
+  background: linear-gradient(180deg, rgba(255, 243, 224, 0.06), rgba(255, 243, 224, 0.02));
+  box-shadow: inset 0 0 0 1px rgba(255, 243, 224, 0.09);
 }
 .pickerlabel {
   margin: 0 0 13px; font-family: inherit;
   font-size: 12px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase;
-  color: #8A8280;
+  color: var(--dim);
 }
 .bornin { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
 .bornin a {
   display: flex; align-items: center; justify-content: center;
   padding: 12px 4px; border-radius: 13px;
-  font-size: 14px; font-weight: 700; color: #D9D2CC; text-decoration: none;
-  background: rgba(255, 247, 238, 0.05);
-  box-shadow: inset 0 0 0 1px rgba(255, 247, 238, 0.10);
+  font-size: 14px; font-weight: 700; color: var(--cream-2); text-decoration: none;
+  background: rgba(255, 243, 224, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(255, 243, 224, 0.10);
   transition: color 140ms ease, background 140ms ease, box-shadow 140ms ease, transform 140ms ease;
 }
 .bornin a:hover, .bornin a:focus-visible {
-  color: #23090F; background-image: linear-gradient(135deg, #FFB0C6, ${ACCENT});
-  box-shadow: 0 10px 22px rgba(239, 86, 128, 0.34);
+  color: var(--on-honey); background-image: linear-gradient(135deg, var(--honey-lite), var(--honey));
+  box-shadow: 0 10px 22px rgba(244, 183, 64, 0.34);
   transform: translateY(-2px);
 }
 @media (max-width: 560px) { .bornin { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
@@ -1097,14 +1101,14 @@ body.home {
 .railtrack li.hlcard {
   flex: none; width: 320px;
   display: flex; flex-direction: column;
-  background: linear-gradient(180deg, rgba(255, 247, 238, 0.055), rgba(255, 247, 238, 0.022));
-  box-shadow: inset 0 0 0 1px rgba(255, 247, 238, 0.09);
+  background: linear-gradient(180deg, rgba(255, 243, 224, 0.055), rgba(255, 243, 224, 0.022));
+  box-shadow: inset 0 0 0 1px rgba(255, 243, 224, 0.09);
   border-radius: 18px; padding: 16px 18px 14px;
   transition: box-shadow 160ms ease, background 160ms ease;
 }
 .railtrack li.hlcard:hover {
-  background: linear-gradient(180deg, rgba(239, 86, 128, 0.13), rgba(255, 247, 238, 0.03));
-  box-shadow: inset 0 0 0 1px rgba(239, 86, 128, 0.50), 0 20px 40px rgba(0, 0, 0, 0.34);
+  background: linear-gradient(180deg, rgba(244, 183, 64, 0.13), rgba(255, 243, 224, 0.03));
+  box-shadow: inset 0 0 0 1px rgba(244, 183, 64, 0.50), 0 20px 40px rgba(0, 0, 0, 0.34);
 }
 .hl { display: block; text-decoration: none; color: inherit; flex: 1; }
 .hlhead { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
@@ -1117,8 +1121,8 @@ body.home {
 }
 .hltext {
   display: block; margin: 9px 0 0;
-  font-family: Georgia, "Times New Roman", serif; font-size: 17px; line-height: 1.42;
-  color: #FFF7EE;
+  font-family: var(--serif); font-size: 17px; line-height: 1.42;
+  color: var(--cream);
 }
 .hlsrc { margin: 11px 0 0; font-size: 12px; }
 .hlsrc a { color: ${QUIET}; text-decoration: none; }
@@ -1134,15 +1138,15 @@ body.home {
 }
 .features li {
   display: block; background: none; border-radius: 0;
-  padding: 15px 0 4px; border-top: 1px solid rgba(255, 247, 238, 0.11);
+  padding: 15px 0 4px; border-top: 1px solid rgba(255, 243, 224, 0.11);
 }
 .features h3 { margin: 0 0 5px; font-size: 16px; }
 .features h3::before {
   content: ""; display: inline-block; vertical-align: 0.12em;
   width: 7px; height: 7px; border-radius: 2px; margin-right: 9px;
-  background-image: linear-gradient(135deg, #FFB0C6, ${ACCENT});
+  background-image: linear-gradient(135deg, var(--honey-lite), var(--honey));
 }
-.features p { margin: 0; color: #B9B2AD; font-size: 15px; }
+.features p { margin: 0; color: var(--dim); font-size: 15px; }
 .features a { color: ${ACCENT}; }
 @media (max-width: 560px) { .features { grid-template-columns: 1fr; } }
 
@@ -1166,31 +1170,31 @@ body.home {
    fragment is the only state a page with no script has, and ":target" is how
    it is read. */
 .cal:target {
-  background: rgba(239, 86, 128, 0.07);
-  box-shadow: inset 0 0 0 1px rgba(239, 86, 128, 0.42), 0 22px 50px rgba(239, 86, 128, 0.12);
+  background: rgba(244, 183, 64, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(244, 183, 64, 0.42), 0 22px 50px rgba(244, 183, 64, 0.12);
 }
-.cal:target h3 { color: #FFD3E0; }
-.cal:target .dow { border-bottom-color: rgba(239, 86, 128, 0.30); }
+.cal:target h3 { color: var(--honey-lite); }
+.cal:target .dow { border-bottom-color: rgba(244, 183, 64, 0.30); }
 .cal .days a {
-  background: rgba(255, 247, 238, 0.055); color: #CFC7C1; text-decoration: none; font-weight: 600;
-  box-shadow: inset 0 0 0 1px rgba(255, 247, 238, 0.05);
+  background: rgba(255, 243, 224, 0.055); color: var(--cream-2); text-decoration: none; font-weight: 600;
+  box-shadow: inset 0 0 0 1px rgba(255, 243, 224, 0.05);
   transition: transform 120ms ease, background 120ms ease, box-shadow 120ms ease, color 120ms ease;
 }
 .cal .days a:hover, .cal .days a:focus-visible {
-  background-image: linear-gradient(140deg, #FFB0C6, ${ACCENT});
+  background-image: linear-gradient(140deg, var(--honey-lite), var(--honey));
   background-color: ${ACCENT};
-  color: #23090F; transform: translateY(-2px) scale(1.07);
-  box-shadow: 0 10px 20px rgba(239, 86, 128, 0.38);
+  color: var(--on-honey); transform: translateY(-2px) scale(1.07);
+  box-shadow: 0 10px 20px rgba(244, 183, 64, 0.38);
 }
-.cal .days a:focus-visible { outline: 2px solid #FFF7EE; outline-offset: 2px; }
+.cal .days a:focus-visible { outline: 2px solid var(--cream); outline-offset: 2px; }
 /* February 29 in a year that does not have one. It still has a page, so it
    still has a square, marked rather than quietly dropped. */
 .cal .days a.leap {
   background: none; color: ${QUIET};
-  box-shadow: inset 0 0 0 1px rgba(239, 86, 128, 0.30);
+  box-shadow: inset 0 0 0 1px rgba(244, 183, 64, 0.30);
 }
 .cal .days a.leap:hover, .cal .days a.leap:focus-visible {
-  color: #23090F; box-shadow: 0 10px 20px rgba(239, 86, 128, 0.38);
+  color: var(--on-honey); box-shadow: 0 10px 20px rgba(244, 183, 64, 0.38);
 }
 /* The square you are standing on, and the square today is.
    Named thispage rather than here, because .here is already the date label in
@@ -1204,13 +1208,13 @@ body.home {
    because these pages are baked into a deploy and a today written at build
    time is wrong by the next morning. */
 .cal .days a.thispage {
-  background-image: linear-gradient(140deg, #FFB0C6, ${ACCENT});
-  background-color: ${ACCENT}; color: #23090F; font-weight: 700;
-  box-shadow: 0 8px 18px rgba(239, 86, 128, 0.34);
+  background-image: linear-gradient(140deg, var(--honey-lite), var(--honey));
+  background-color: ${ACCENT}; color: var(--on-honey); font-weight: 700;
+  box-shadow: 0 8px 18px rgba(244, 183, 64, 0.34);
 }
 p.calkey {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  margin: 20px 0 0; font-size: 12px; color: #A79E98;
+  margin: 20px 0 0; font-size: 12px; color: var(--dim);
 }
 p.calkey .sw {
   width: 12px; height: 12px; border-radius: 4px; display: inline-block;
@@ -1265,7 +1269,7 @@ p.calkey .sw.today { background: none; box-shadow: inset 0 0 0 2px ${TODAY}; }
 /* The month's own colour, set per page on the wrapper. September is violet
    and March is not, so 366 pages that share a layout do not share a face.
    Only ever a second colour: the pink is the brand and it does not move. */
-.day { --day: #8B5CF6; --day-soft: #C4AEFF; }
+.day { --day: var(--honey); --day-soft: var(--honey-lite); }
 
 .daybar {
   position: sticky; top: 0; z-index: 40;
@@ -1275,86 +1279,86 @@ p.calkey .sw.today { background: none; box-shadow: inset 0 0 0 2px ${TODAY}; }
      browser applies it; without it a lighter wash leaves the drawer summary
      and the feed legible straight through the bar, which reads as broken
      rather than as layered. */
-  background: rgba(14, 12, 22, 0.94);
+  background: rgba(18, 13, 8, 0.94);
   -webkit-backdrop-filter: saturate(140%) blur(14px);
   backdrop-filter: saturate(140%) blur(14px);
-  box-shadow: 0 1px 0 rgba(255, 247, 238, 0.07);
+  box-shadow: 0 1px 0 rgba(255, 243, 224, 0.07);
 }
 .daybar .mark {
   font-size: 20px; font-weight: 800; letter-spacing: 0.2em; text-transform: uppercase;
-  white-space: nowrap; color: ${ACCENT}; text-decoration: none;
+  white-space: nowrap; color: ${PINK}; text-decoration: none;
   transition: color 140ms ease;
 }
 .daybar .mark:hover, .daybar .mark:focus-visible {
-  color: #FFF7EE; text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px;
+  color: var(--cream); text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px;
 }
 .barnav { display: flex; align-items: center; gap: 4px; }
 .barnav .here {
-  font-size: 13px; font-weight: 700; color: #B9B2AD; padding: 0 4px;
+  font-size: 13px; font-weight: 700; color: var(--dim); padding: 0 4px;
   min-width: 52px; text-align: center; font-variant-numeric: tabular-nums;
 }
 .arrow {
   width: 32px; height: 32px; flex: none; border-radius: 999px;
   display: flex; align-items: center; justify-content: center;
-  color: #B9B2AD; text-decoration: none; font-size: 15px;
-  box-shadow: inset 0 0 0 1px rgba(255, 247, 238, 0.12);
+  color: var(--dim); text-decoration: none; font-size: 15px;
+  box-shadow: inset 0 0 0 1px rgba(255, 243, 224, 0.12);
   transition: color 140ms ease, background 140ms ease, box-shadow 140ms ease;
 }
 .arrow:hover {
-  color: #FFF7EE; background: rgba(239, 86, 128, 0.16);
-  box-shadow: inset 0 0 0 1px rgba(239, 86, 128, 0.55);
+  color: var(--cream); background: rgba(244, 183, 64, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(244, 183, 64, 0.55);
 }
 /* Was a filled pink pill with a glow under it, which is the single loudest
    thing a page can put in its top right corner and the one every generated
    landing page has. This page is a reference now, so the app is a word. */
 .daybar .get {
-  font-size: 13px; text-decoration: none; color: #9C9490;
+  font-size: 13px; text-decoration: none; color: var(--dim);
   border-bottom: 1px solid transparent; padding-bottom: 1px;
 }
-.daybar .get:hover { color: #FFF7EE; border-bottom-color: #6E6680; }
+.daybar .get:hover { color: var(--cream); border-bottom-color: var(--dimmer); }
 
 /* The birthday picker. The slim one lives under a date title; .bbig is the
    home hero. Native selects, styled to sit in the dark rather than to hide
    that they are selects: a reader knows how to open one and no script is
    needed to. */
 .bbar { margin: 2px 0 22px; }
-.bbar .bbarq { margin: 0 0 8px; font-size: 15px; font-weight: 600; color: #C9C2D4; }
+.bbar .bbarq { margin: 0 0 8px; font-size: 15px; font-weight: 600; color: var(--cream-2); }
 .bbarrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; }
 .bbar select {
   appearance: none; -webkit-appearance: none; font: inherit; font-size: 15px;
-  color: #FFF7EE; background: #201B2A; border: 1px solid #3A3348; border-radius: 10px;
+  color: var(--cream); background: var(--cell); border: 1px solid var(--line); border-radius: 10px;
   padding: 10px 30px 10px 12px; cursor: pointer; min-width: 0;
-  background-image: linear-gradient(45deg, transparent 50%, #A49BAE 50%), linear-gradient(135deg, #A49BAE 50%, transparent 50%);
+  background-image: linear-gradient(45deg, transparent 50%, var(--dim) 50%), linear-gradient(135deg, var(--dim) 50%, transparent 50%);
   background-position: right 14px center, right 9px center; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
 }
-.bbar select:hover, .bbar input:hover { border-color: var(--day-soft, #C6B0F5); }
-.bbar select:focus-visible, .bbar input:focus-visible { outline: 2px solid #FFD98A; outline-offset: 1px; }
+.bbar select:hover, .bbar input:hover { border-color: var(--day-soft, var(--honey-lite)); }
+.bbar select:focus-visible, .bbar input:focus-visible { outline: 2px solid var(--honey-lite); outline-offset: 1px; }
 .bbar input {
-  appearance: none; font: inherit; font-size: 15px; color: #FFF7EE; background: #201B2A;
-  border: 1px solid #3A3348; border-radius: 10px; padding: 10px 12px; width: 6.5em; min-width: 0;
+  appearance: none; font: inherit; font-size: 15px; color: var(--cream); background: var(--cell);
+  border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; width: 6.5em; min-width: 0;
 }
-.bbar input::placeholder { color: #A49BAE; }
+.bbar input::placeholder { color: var(--dim); }
 .bbar button {
-  font: inherit; font-size: 15px; font-weight: 700; color: #1A0F16;
-  background: #FFD98A; border: none; border-radius: 10px; padding: 10px 18px; cursor: pointer; flex: 1 0 auto;
+  font: inherit; font-size: 15px; font-weight: 700; color: var(--on-honey);
+  background: var(--honey-lite); border: none; border-radius: 10px; padding: 10px 18px; cursor: pointer; flex: 1 0 auto;
 }
-.bbar button:hover { background: #FFE9B0; }
-.bbig { margin: 8px 0 26px; padding: 22px; background: #1C1726; border: 1px solid #2E2740; border-radius: 16px; }
-.bbig .bbarq { font-size: 22px; color: #FFF7EE; }
-.bbig .bbarsub { margin: 12px 0 0; font-size: 14px; color: #A49BAE; line-height: 1.5; }
+.bbar button:hover { background: var(--honey-lite); }
+.bbig { margin: 8px 0 26px; padding: 22px; background: var(--cell); border: 1px solid var(--line); border-radius: 16px; }
+.bbig .bbarq { font-size: 22px; color: var(--cream); }
+.bbig .bbarsub { margin: 12px 0 0; font-size: 14px; color: var(--dim); line-height: 1.5; }
 
 /* The trigger that opens the popup on a date page. */
 .bopenrow { margin: 2px 0 18px; }
 .bopen {
-  display: inline-block; font-size: 14px; font-weight: 600; color: #FFD98A;
-  text-decoration: none; padding: 7px 14px; border: 1px solid #3A3348; border-radius: 999px;
+  display: inline-block; font-size: 14px; font-weight: 600; color: var(--honey-lite);
+  text-decoration: none; padding: 7px 14px; border: 1px solid var(--line); border-radius: 999px;
 }
-.bopen:hover { border-color: #FFD98A; background: #241E2E; }
+.bopen:hover { border-color: var(--honey-lite); background: var(--line); }
 /* On a phone the bar has no room for a fourth pill, so the way to the app
    stands beside the birthday button instead. On anything wider it is in the
    bar and this one stays hidden. September 22, 2026. */
-.bapp { display: none; margin-left: 8px; font-size: 14px; font-weight: 600; color: #C9C2D4; text-decoration: none; padding: 7px 14px; border: 1px solid #2A2434; border-radius: 999px; }
-.bapp:hover { color: #FFF7EE; border-color: #E7A83A; }
+.bapp { display: none; margin-left: 8px; font-size: 14px; font-weight: 600; color: var(--cream-2); text-decoration: none; padding: 7px 14px; border: 1px solid var(--line); border-radius: 999px; }
+.bapp:hover { color: var(--cream); border-color: var(--honey); }
 @media (max-width: 440px) { .bapp { display: inline-block; } .barend .pill.app { display: none; } }
 
 /* The popup itself. Hidden until its id is the page's target, which a link
@@ -1364,25 +1368,25 @@ p.calkey .sw.today { background: none; box-shadow: inset 0 0 0 2px ${TODAY}; }
 .bscrim { position: absolute; inset: 0; background: rgba(10, 6, 14, .72); backdrop-filter: blur(2px); }
 .bcard {
   position: relative; z-index: 1; width: 100%; max-width: 420px; margin: 0;
-  background: #1C1726; border: 1px solid #2E2740; border-radius: 16px; padding: 26px 24px;
+  background: var(--cell); border: 1px solid var(--line); border-radius: 16px; padding: 26px 24px;
 }
-.bcard .bbarq { font-size: 20px; color: #FFF7EE; }
-.bcard .bbarsub { margin: 12px 0 0; font-size: 13px; color: #A49BAE; line-height: 1.5; }
+.bcard .bbarq { font-size: 20px; color: var(--cream); }
+.bcard .bbarsub { margin: 12px 0 0; font-size: 13px; color: var(--dim); line-height: 1.5; }
 .bx {
-  position: absolute; top: 8px; right: 12px; font-size: 26px; line-height: 1; color: #A49BAE;
+  position: absolute; top: 8px; right: 12px; font-size: 26px; line-height: 1; color: var(--dim);
   text-decoration: none; padding: 4px 8px; border-radius: 8px;
 }
-.bx:hover { color: #FFF7EE; background: #2A2434; }
+.bx:hover { color: var(--cream); background: var(--line); }
 
 /* The reader's own panel, injected by serve.ts for a reader who has given a
    birth year. It is the birthday payoff, so it reads warm and sits at the top. */
-.me { margin: 4px 0 26px; padding: 22px; background: #1C1726; border: 1px solid #2E2740; border-radius: 16px; }
-.me .mekicker { margin: 0 0 8px; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; color: #FFD98A; }
-.me .meage { margin: 0 0 10px; font-family: Georgia, "Times New Roman", serif; font-size: 30px; font-weight: 700; color: #FFF7EE; line-height: 1.15; }
-.me .meworld { margin: 0 0 12px; font-size: 16px; color: #E8DCCB; line-height: 1.5; }
-.me .menote { margin: 0; font-size: 13px; color: #A49BAE; line-height: 1.5; }
-.me .menote a { color: #FFD98A; text-decoration: none; border-bottom: 1px solid #4A4358; }
-.me .menote a:hover { border-color: #FFD98A; }
+.me { margin: 4px 0 26px; padding: 22px; background: var(--cell); border: 1px solid var(--line); border-radius: 16px; }
+.me .mekicker { margin: 0 0 8px; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; color: var(--honey-lite); }
+.me .meage { margin: 0 0 10px; font-family: var(--serif); font-size: 30px; font-weight: 700; color: var(--cream); line-height: 1.15; }
+.me .meworld { margin: 0 0 12px; font-size: 16px; color: var(--cream-2); line-height: 1.5; }
+.me .menote { margin: 0; font-size: 13px; color: var(--dim); line-height: 1.5; }
+.me .menote a { color: var(--honey-lite); text-decoration: none; border-bottom: 1px solid var(--line); }
+.me .menote a:hover { border-color: var(--honey-lite); }
 @media (max-width: 460px) {
   .bbarrow { display: grid; grid-template-columns: 1fr 1fr; }
   .bbar button { grid-column: 1 / -1; }
@@ -1401,13 +1405,13 @@ p.calkey .sw.today { background: none; box-shadow: inset 0 0 0 2px ${TODAY}; }
 ul.feed { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 12px; }
 ul.feed li {
   display: block; border-radius: 18px; padding: 16px 18px;
-  background: linear-gradient(180deg, rgba(255, 247, 238, 0.055), rgba(255, 247, 238, 0.022));
-  box-shadow: inset 0 0 0 1px rgba(255, 247, 238, 0.09);
+  background: linear-gradient(180deg, rgba(255, 243, 224, 0.055), rgba(255, 243, 224, 0.022));
+  box-shadow: inset 0 0 0 1px rgba(255, 243, 224, 0.09);
   transition: box-shadow 180ms ease, background 180ms ease;
 }
 ul.feed li:hover {
-  background: linear-gradient(180deg, rgba(239, 86, 128, 0.10), rgba(255, 247, 238, 0.03));
-  box-shadow: inset 0 0 0 1px rgba(239, 86, 128, 0.42), 0 18px 38px rgba(0, 0, 0, 0.34);
+  background: linear-gradient(180deg, rgba(244, 183, 64, 0.10), rgba(255, 243, 224, 0.03));
+  box-shadow: inset 0 0 0 1px rgba(244, 183, 64, 0.42), 0 18px 38px rgba(0, 0, 0, 0.34);
 }
 ul.feed .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 ul.feed .tag {
@@ -1419,28 +1423,28 @@ ul.feed .tag::before { content: ""; width: 6px; height: 6px; border-radius: 2px;
    colour. Every value the researcher is allowed to return has a line here.
    Fixed colours, deliberately not the month's: a badge that is violet in
    September and green in March tells a reader nothing at all. */
-.k-event { color: #F0A63C; }
+.k-event { color: var(--honey); }
 .k-release { color: #3FBFA3; }
-.k-sport { color: #6FA8FF; }
-.k-science { color: #C4AEFF; }
-.k-record { color: #6FA8FF; }
-.k-price { color: #F0A63C; }
-.k-weather { color: #6FA8FF; }
+.k-sport { color: var(--ember); }
+.k-science { color: var(--honey-lite); }
+.k-record { color: var(--ember); }
+.k-price { color: var(--honey); }
+.k-weather { color: var(--ember); }
 .k-local { color: #3FBFA3; }
-.k-older { color: #C4AEFF; }
+.k-older { color: var(--honey-lite); }
 .k-tech { color: #3FBFA3; }
-.k-music { color: #C4AEFF; }
-.k-cinema { color: #F0A63C; }
+.k-music { color: var(--honey-lite); }
+.k-cinema { color: var(--honey); }
 /* Two hues that nothing else on the page uses, for the two categories that
    are the reason the curated table exists. */
 .k-gaming { color: #9BE07A; }
 .k-meme { color: #F58BC8; }
 ul.feed .yr {
-  font-family: Georgia, serif; font-size: 15px; font-weight: 700; color: ${QUIET};
+  font-family: var(--serif); font-size: 15px; font-weight: 700; color: ${QUIET};
   font-variant-numeric: tabular-nums;
 }
 ul.feed .said {
-  font-family: Georgia, "Times New Roman", serif; font-size: 18px; line-height: 1.4;
+  font-family: var(--serif); font-size: 18px; line-height: 1.4;
   margin: 10px 0 0; text-wrap: pretty;
 }
 ul.feed .src { margin: 11px 0 0; font-size: 12px; }
@@ -1458,8 +1462,8 @@ ul.feed li.lead .yr { font-size: 30px; color: var(--day-soft); }
    people said they remembered, and the hierarchy is real. */
 ul.feed li.sealedlead {
   padding: 30px 28px 26px;
-  background: linear-gradient(168deg, #221A2E 0%, #17121F 62%);
-  border-color: #3A3348;
+  background: linear-gradient(168deg, var(--cell) 0%, var(--cell) 62%);
+  border-color: var(--line);
 }
 ul.feed li.sealedlead .said {
   font-size: clamp(28px, 4.6vw, 44px); line-height: 1.14; font-weight: 800;
@@ -1469,11 +1473,11 @@ ul.feed li.sealedlead .yr { font-size: 40px; }
 ul.feed li.sealedlead .leadmark {
   display: inline-flex; align-items: center; gap: 7px; margin: 0 0 4px;
   font-size: 10.5px; font-weight: 800; letter-spacing: 0.14em;
-  text-transform: uppercase; color: var(--day-soft, #C6B0F5);
+  text-transform: uppercase; color: var(--day-soft, var(--honey-lite));
 }
 ul.feed li.sealedlead .leadmark::before {
   content: ""; width: 18px; height: 2px; border-radius: 2px;
-  background: var(--day-soft, #C6B0F5);
+  background: var(--day-soft, var(--honey-lite));
 }
 @media (max-width: 560px) { ul.feed li.sealedlead { padding: 22px 18px 20px; } }
 
@@ -1481,30 +1485,30 @@ ul.feed li.sealedlead .leadmark::before {
    still answers a search: closed is a display state, not a missing page. */
 details.more {
   margin: 12px 0 0; border-radius: 16px; overflow: hidden;
-  background: rgba(255, 247, 238, 0.035);
-  box-shadow: inset 0 0 0 1px rgba(255, 247, 238, 0.09);
+  background: rgba(255, 243, 224, 0.035);
+  box-shadow: inset 0 0 0 1px rgba(255, 243, 224, 0.09);
 }
 details.more > summary {
   cursor: pointer; list-style: none; padding: 14px 18px;
-  font-size: 14px; font-weight: 700; color: #FFF7EE;
+  font-size: 14px; font-weight: 700; color: var(--cream);
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
 }
 details.more > summary::-webkit-details-marker { display: none; }
 details.more > summary::after { content: "+"; color: ${ACCENT}; font-size: 17px; font-weight: 700; }
 details.more[open] > summary::after { content: "\\2212"; }
-details.more > summary:hover { background: rgba(239, 86, 128, 0.10); }
+details.more > summary:hover { background: rgba(244, 183, 64, 0.10); }
 details.more .inner { padding: 2px 18px 16px; }
 details.more ul { list-style: none; margin: 0; padding: 0; }
 details.more ul li {
   display: flex; gap: 12px; align-items: baseline; background: none; border-radius: 0;
-  padding: 12px 0; border-top: 1px solid #2A2434;
+  padding: 12px 0; border-top: 1px solid var(--line);
 }
 details.more ul li:first-child { border-top: none; }
 details.more .y {
   color: ${ACCENT}; font-weight: 700; font-size: 13px; width: 44px; flex: none;
   font-variant-numeric: tabular-nums;
 }
-details.more .x { font-family: Georgia, serif; font-size: 16px; line-height: 1.4; margin: 0; color: #E9E1DB; }
+details.more .x { font-family: var(--serif); font-size: 16px; line-height: 1.4; margin: 0; color: var(--cream-2); }
 details.more .src { margin: 6px 0 0; font-size: 12px; }
 details.more .src a { color: ${QUIET}; text-decoration: none; }
 
@@ -1520,23 +1524,23 @@ details.more .src a { color: ${QUIET}; text-decoration: none; }
 .rail > * { scroll-snap-align: start; flex: none; }
 .who {
   width: 138px; border-radius: 16px; padding: 14px 13px 13px;
-  background: linear-gradient(180deg, rgba(255, 247, 238, 0.055), rgba(255, 247, 238, 0.02));
-  box-shadow: inset 0 0 0 1px rgba(255, 247, 238, 0.09);
+  background: linear-gradient(180deg, rgba(255, 243, 224, 0.055), rgba(255, 243, 224, 0.02));
+  box-shadow: inset 0 0 0 1px rgba(255, 243, 224, 0.09);
   text-decoration: none; color: inherit; display: block;
   transition: box-shadow 160ms ease;
 }
-.who:hover { box-shadow: inset 0 0 0 1px rgba(239, 86, 128, 0.45), 0 16px 32px rgba(0, 0, 0, 0.4); }
+.who:hover { box-shadow: inset 0 0 0 1px rgba(244, 183, 64, 0.45), 0 16px 32px rgba(0, 0, 0, 0.4); }
 .face {
   width: 54px; height: 54px; border-radius: 999px;
   display: flex; align-items: center; justify-content: center;
-  font-family: Georgia, serif; font-size: 20px; font-weight: 700; color: #2A0B15;
-  background-image: linear-gradient(140deg, #FFB0C6, ${ACCENT});
+  font-family: var(--serif); font-size: 20px; font-weight: 700; color: var(--on-honey);
+  background-image: linear-gradient(140deg, var(--honey-lite), var(--honey));
 }
 /* Four so the row is not one colour, dealt by position and nothing else. No
    meaning is claimed by which face gets which. */
 .who:nth-child(4n+2) .face { background-image: linear-gradient(140deg, var(--day-soft), var(--day)); }
-.who:nth-child(4n+3) .face { background-image: linear-gradient(140deg, #9FE8D6, #3FBFA3); }
-.who:nth-child(4n+4) .face { background-image: linear-gradient(140deg, #FFD79B, #F0A63C); }
+.who:nth-child(4n+3) .face { background-image: linear-gradient(140deg, var(--ember), var(--honey)); }
+.who:nth-child(4n+4) .face { background-image: linear-gradient(140deg, var(--cream-2), var(--honey-lite)); }
 .who .n { font-weight: 700; font-size: 14px; margin: 11px 0 0; line-height: 1.25; }
 .who .w { color: ${QUIET}; font-size: 12px; margin: 4px 0 0; line-height: 1.3; }
 .who .b { color: ${ACCENT}; font-size: 11px; font-weight: 700; margin: 8px 0 0; font-variant-numeric: tabular-nums; }
@@ -1546,20 +1550,20 @@ details.more .src a { color: ${QUIET}; text-decoration: none; }
 nav.pager.cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 nav.pager.cards a {
   display: block; padding: 14px 16px; border-radius: 16px; text-decoration: none; color: inherit;
-  background: linear-gradient(180deg, rgba(255, 247, 238, 0.05), rgba(255, 247, 238, 0.02));
-  box-shadow: inset 0 0 0 1px rgba(255, 247, 238, 0.09);
+  background: linear-gradient(180deg, rgba(255, 243, 224, 0.05), rgba(255, 243, 224, 0.02));
+  box-shadow: inset 0 0 0 1px rgba(255, 243, 224, 0.09);
   transition: background 160ms ease, box-shadow 160ms ease;
 }
 nav.pager.cards a:hover {
-  background: rgba(239, 86, 128, 0.10);
-  box-shadow: inset 0 0 0 1px rgba(239, 86, 128, 0.45), 0 16px 32px rgba(0, 0, 0, 0.34);
+  background: rgba(244, 183, 64, 0.10);
+  box-shadow: inset 0 0 0 1px rgba(244, 183, 64, 0.45), 0 16px 32px rgba(0, 0, 0, 0.34);
 }
 nav.pager.cards .dir {
   font-size: 10px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase;
   color: ${QUIET}; margin: 0;
 }
 nav.pager.cards .when {
-  font-family: Georgia, serif; font-size: 19px; font-weight: 700; margin: 6px 0 0; color: ${ACCENT};
+  font-family: var(--serif); font-size: 19px; font-weight: 700; margin: 6px 0 0; color: ${ACCENT};
 }
 nav.pager.cards .after { text-align: right; }
 
@@ -1672,7 +1676,7 @@ export function stripCss(css: string): string {
   return css.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\n\s*\n+/g, "\n").replace(/^[ \t]+/gm, "").trim();
 }
 
-const PAGE_STYLE = stripCss(`${STYLE}${WALL_STYLE}${SHARE_STYLE}${MASCOT_STYLE}`);
+const PAGE_STYLE = stripCss(`${THEME}${STYLE}${WALL_STYLE}${SHARE_STYLE}${MASCOT_STYLE}`);
 
 export function head(
   title: string,
@@ -1845,11 +1849,15 @@ export function tidyDescription(description: string): string {
  * never argue, and given to the page as a custom property rather than to any
  * one rule.
  */
-export function dayHue(month: number): { day: string; soft: string } {
-  // 25 puts January in orange and September in violet, and steps a month
-  // every 30 degrees from there, which keeps all twelve clear of the pink.
-  const hue = ((month - 1) * 30 + 25) % 360;
-  return { day: `hsl(${hue} 72% 62%)`, soft: `hsl(${hue} 82% 80%)` };
+export function dayHue(_month: number): { day: string; soft: string } {
+  // Until September 22, 2026 every month had its own hue, 30 degrees apart,
+  // so that 366 pages sharing a layout did not share a face. That gave the
+  // site twelve second colours on top of the two it already had. One look
+  // now, the hive's: every date is honey. The function stays because six
+  // call sites write the pair into a style attribute and the rules read it,
+  // and a month is still passed so the twelve faces can come back as tints
+  // of honey one day without touching the callers.
+  return { day: "var(--honey)", soft: "var(--honey-lite)" };
 }
 
 /**
