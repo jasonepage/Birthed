@@ -1,5 +1,6 @@
 // One tick of the wall, for the schedule in render.yaml: the history seeder,
-// the news seeder, the news pictures and then the checker, every quarter hour.
+// hindsight, the news seeder, the news pictures and then the checker, every
+// quarter hour.
 //
 //   node dist/src/wall/tick.js
 //
@@ -12,6 +13,7 @@
 import { loadConfig, loadDotEnv } from "../config.js";
 import { run as check } from "./check.js";
 import type { Db } from "./db.js";
+import { run as hindsight } from "./hindsight.js";
 import { run as history } from "./history.js";
 import { run as news } from "./news.js";
 import { run as pictures } from "./story-pictures.js";
@@ -29,6 +31,16 @@ async function main(): Promise<void> {
   } catch (error: unknown) {
     failed = true;
     console.error(`wall history failed: ${error instanceof Error ? error.message : error}`);
+  }
+  // Last year's board comes back into this year's pool, and the verdicts on
+  // last year's are written on the anniversary. After the history so a
+  // returning page that the history also files is filed once, before the
+  // news so the day's stories find it there. section 23.
+  try {
+    await hindsight(db);
+  } catch (error: unknown) {
+    failed = true;
+    console.error(`wall hindsight failed: ${error instanceof Error ? error.message : error}`);
   }
   try {
     await news(db, { userAgent: config.userAgent });
