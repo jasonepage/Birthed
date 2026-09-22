@@ -11,10 +11,14 @@ struct PeopleView: View {
     @Environment(ProfileStore.self) private var profileStore
     @Environment(NotificationService.self) private var notifications
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.colorScheme) private var colorScheme
     let repository: DayPageRepository
     let onOpenSettings: () -> Void
 
     @State private var editing: Person?
+    /// Whose day is open. A tap on a person opens their day now, not the
+    /// editor; the editor is one tap further, on their day.
+    @State private var opened: Person?
     @State private var adding = false
     @State private var addingMany = false
     @State private var following = false
@@ -58,6 +62,8 @@ struct PeopleView: View {
     private var now: Date { Date() }
 
     private var ordered: [Person] { agenda.soonestFirst(store.people, on: now) }
+    /// The page follows the appearance; the next person's panel does not.
+    private var palette: StagePalette { .forScheme(colorScheme) }
     private var today: [Person] { agenda.celebratingToday(store.people, on: now) }
 
     var body: some View {
@@ -65,10 +71,17 @@ struct PeopleView: View {
             Group {
                 if store.people.isEmpty { empty } else { list }
             }
-            .background(Theme.canvas)
+            .background(palette.ground.ignoresSafeArea())
             .navigationTitle("People")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(item: $opened) { person in
+                PersonDayView(personID: person.id, fallback: person, repository: repository)
+            }
             .toolbar {
+                // The title is the serif heading at the top of the list, so
+                // the bar carries only its buttons. The title is still set,
+                // for the back button on a person's day.
+                ToolbarItem(placement: .principal) { Text("") }
                 ToolbarItem(placement: .topBarLeading) {
                     Button(action: onOpenSettings) {
                         Label("Settings", systemImage: "gearshape")
@@ -289,25 +302,85 @@ struct PeopleView: View {
     /// Headings only appear when both groups have somebody in them. A heading
     /// over the only group there is names nothing, which is a label doing no
     /// work.
+    /// The next person first, as a panel, then the next thirty days as a
+    /// strip, then everybody else. While selecting there is no panel and no
+    /// strip, because the only thing that mode does is tick rows, and the
+    /// person in the panel has to be tickable too.
     private var list: some View {
         let celebrants = today
-        let rest = ordered.filter { person in !celebrants.contains(person) }
+        let hero: Person? = isEditing ? nil
+            : (celebrants.first { !$0.isPublicFigure } ?? ordered.first { !$0.isPublicFigure })
+        let otherCelebrants = celebrants.filter { $0.id != hero?.id }
+        let rest = ordered.filter { person in !celebrants.contains(person) && person.id != hero?.id }
         let friends = rest.filter { !$0.isPublicFigure }
         let followed = rest.filter { $0.isPublicFigure }
-        let headings = !friends.isEmpty && !followed.isEmpty
-        let reminderIn: Slot = !celebrants.isEmpty ? .today : (friends.isEmpty ? .following : .friends)
+        let upcoming = isEditing ? [] : agenda.within(UpcomingStrip.window, of: store.people.filter { !$0.isPublicFigure }, on: now)
+        let friendsHeading: String? = hero != nil ? "LATER" : (!followed.isEmpty ? "FRIENDS" : nil)
+        let followedHeading: String? = (hero != nil || !friends.isEmpty) ? "PUBLIC FIGURES" : nil
+        let reminderIn: Slot = !otherCelebrants.isEmpty ? .today : (friends.isEmpty ? .following : .friends)
 
         return List(selection: $selected) {
-            peopleSection(nil, celebrants, isToday: true, carriesReminder: reminderIn == .today)
-            peopleSection(headings ? "FRIENDS" : nil, friends, isToday: false, carriesReminder: reminderIn == .friends)
-            peopleSection(headings ? "PUBLIC FIGURES" : nil, followed, isToday: false, carriesReminder: reminderIn == .following)
+            Text("People")
+                .font(.system(size: 34, weight: .heavy, design: .serif))
+                .foregroundStyle(palette.type)
+                .listRowInsets(EdgeInsets(top: 0, leading: 22, bottom: 8, trailing: 20))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .selectionDisabled()
+
+            if let hero {
+                NextUpCard(person: hero, now: now,
+                           onOpen: { opened = hero },
+                           onSay: { saying = hero })
+                    .listRowInsets(rowInsets)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .selectionDisabled()
+                    .contextMenu {
+                        Button("Edit") { editing = hero }
+                        Button("Remove", role: .destructive) { remove(hero) }
+                    }
+
+                if showsReminderRow {
+                    reminderRow
+                        .listRowInsets(rowInsets)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .selectionDisabled()
+                }
+
+                if !upcoming.isEmpty {
+                    sectionLabel("NEXT \(UpcomingStrip.window) DAYS")
+                    UpcomingStrip(people: upcoming, now: now) { opened = $0 }
+                        .listRowInsets(rowInsets)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .selectionDisabled()
+                }
+            }
+
+            peopleSection(nil, otherCelebrants, isToday: true, carriesReminder: hero == nil && reminderIn == .today)
+            peopleSection(friendsHeading, friends, isToday: false, carriesReminder: hero == nil && reminderIn == .friends)
+            peopleSection(followedHeading, followed, isToday: false, carriesReminder: hero == nil && reminderIn == .following)
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .background(Theme.canvas)
+        .background(palette.ground)
+        .contentMargins(.bottom, 72, for: .scrollContent)
         // Applied to the list rather than left to `EditButton`, so the value
         // the list obeys is the one this file holds.
         .environment(\.editMode, $editMode)
+    }
+
+    private func sectionLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.caption.weight(.heavy))
+            .kerning(2.6)
+            .foregroundStyle(palette.type.opacity(0.55))
+            .listRowInsets(EdgeInsets(top: 18, leading: 24, bottom: 4, trailing: 20))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .selectionDisabled()
     }
 
     /// A section, with a heading or without one. Written as two branches
@@ -322,8 +395,8 @@ struct PeopleView: View {
                 } header: {
                     Text(heading)
                         .font(.caption.weight(.heavy))
-                        .kerning(2.5)
-                        .foregroundStyle(Theme.accent)
+                        .kerning(2.6)
+                        .foregroundStyle(palette.type.opacity(0.55))
                         .textCase(nil)
                         .listRowInsets(EdgeInsets(top: 18, leading: 20, bottom: 6, trailing: 20))
                         .listRowBackground(Color.clear)
@@ -575,19 +648,19 @@ struct PeopleView: View {
 
     private func row(_ person: Person) -> some View {
         Button {
-            editing = person
+            opened = person
         } label: {
             HStack(alignment: .center, spacing: 14) {
                 countdownBadge(person)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(person.trimmedName)
-                        .font(.headline)
-                        .foregroundStyle(.primary)
+                        .font(.system(size: 16.5, weight: .bold))
+                        .foregroundStyle(palette.type)
                         .lineLimit(1)
                     Text(subtitle(for: person, isToday: false))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(.footnote)
+                        .foregroundStyle(palette.type.opacity(0.6))
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -595,7 +668,11 @@ struct PeopleView: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Theme.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background(palette.type.opacity(0.06), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(palette.type.opacity(0.08), lineWidth: 1)
+            )
         }
         .buttonStyle(.plain)
         .contextMenu {
@@ -610,12 +687,12 @@ struct PeopleView: View {
         let days = agenda.calendar.daysUntil(person.birthday, from: now)
         return VStack(spacing: 0) {
             Text(String(days))
-                .font(.system(.title3, design: .serif, weight: .heavy))
-                .foregroundStyle(Theme.accent)
+                .font(.system(size: 24, weight: .black, design: .serif))
+                .foregroundStyle(palette.accent)
                 .monospacedDigit()
             Text(days == 1 ? "day" : "days")
                 .font(.caption2)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(palette.type.opacity(0.55))
         }
         .frame(width: 52)
     }
@@ -635,6 +712,11 @@ struct PeopleView: View {
             } else {
                 parts.append(isToday ? "turning \(age)" : "turns \(age)")
             }
+        }
+        // "a Thursday": which day of the week it lands on this year, the one
+        // thing a person planning around a birthday asks next.
+        if !isToday, let weekday = PersonDay.weekdayName(PersonDay(calendar: agenda.calendar).nextWeekday(of: person.birthday, from: now)) {
+            parts.append("a \(weekday)")
         }
         if let note = person.note?.trimmingCharacters(in: .whitespaces), !note.isEmpty {
             parts.append(note)

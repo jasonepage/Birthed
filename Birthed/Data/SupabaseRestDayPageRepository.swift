@@ -159,6 +159,7 @@ struct SupabaseRestDayPageRepository: DayPageRepository {
         let category: String
         let source_url: String
         let region_key: String
+        let interest: Int?
     }
 
     /// The shared date facts only. `birth_year` of zero and an empty
@@ -173,7 +174,7 @@ struct SupabaseRestDayPageRepository: DayPageRepository {
         let rows: [DayFactRow] = try await fetch(
             from: "birth_facts",
             query: [
-                URLQueryItem(name: "select", value: "id,fact,category,source_url,region_key"),
+                URLQueryItem(name: "select", value: "id,fact,category,source_url,region_key,interest"),
                 URLQueryItem(name: "birth_month", value: "eq.\(date.month)"),
                 URLQueryItem(name: "birth_day", value: "eq.\(date.day)"),
                 URLQueryItem(name: "birth_year", value: "eq.0"),
@@ -194,7 +195,8 @@ struct SupabaseRestDayPageRepository: DayPageRepository {
                 sourceURL: URL(string: row.source_url),
                 regionKey: row.region_key,
                 likes: 0,
-                likedByMe: false
+                likedByMe: false,
+                interest: row.interest
             )
         }
     }
