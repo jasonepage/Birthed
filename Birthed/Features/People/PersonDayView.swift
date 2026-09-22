@@ -71,7 +71,11 @@ struct PersonDayView: View {
                     subject: person.trimmedName
                 )
             } else {
-                SaySomethingView(person: person)
+                SaySomethingView(
+                    person: person,
+                    hooks: BirthdayHook.offered(songTitle: song?.song, songArtist: song?.artist,
+                                                twins: twins.map(\.name))
+                )
             }
         }
     }

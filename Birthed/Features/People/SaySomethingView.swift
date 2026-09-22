@@ -42,9 +42,21 @@ struct SaySomethingView: View {
     /// figure, whose line ignores the seed, which is why the control below
     /// never appears for one.
     private let drafts: [String]
+    /// Lines from their day, from whatever already loaded it. Empty when the
+    /// composer is opened from a notification, because opening it never asks
+    /// the network for anything.
+    private let hooks: [BirthdayHook]
+    @State private var hook: BirthdayHook?
+    /// "FOR SAM, ON FRIDAY", or "TODAY" on the day.
+    private let heading: String
 
-    init(person: Person, now: Date = Date()) {
+    init(person: Person, hooks: [BirthdayHook] = [], now: Date = Date()) {
         self.person = person
+        // Somebody who has died is stated and wished nothing, so nothing is
+        // added to what is said about them.
+        let offered = person.isRemembered ? [] : hooks
+        self.hooks = offered
+        _hook = State(initialValue: offered.first)
         let calendar = BirthdayCalendar()
         let age = calendar.ageOnNextBirthday(person.birthday, from: now)
         let year = calendar.calendar.component(.year, from: now)
@@ -65,7 +77,17 @@ struct SaySomethingView: View {
             if !collected.contains(draft) { collected.append(draft) }
         }
         drafts = collected
-        _text = State(initialValue: collected.first ?? "")
+        _text = State(initialValue: BirthdayHook.insert(offered.first, into: collected.first ?? ""))
+        let days = calendar.daysUntil(person.birthday, from: now)
+        if person.isRemembered {
+            heading = "REMEMBERING"
+        } else if days == 0 {
+            heading = "TODAY"
+        } else {
+            let weekday = PersonDay.weekdayName(PersonDay(calendar: calendar).nextWeekday(of: person.birthday, from: now))
+            let name = PersonDay.shortName(person.trimmedName).uppercased()
+            heading = weekday.map { "FOR \(name), ON \($0.uppercased())" } ?? "FOR \(name)"
+        }
         // A public figure cannot be texted, so the only way out is the share
         // sheet, whoever the user turns out to want to send it to.
         canUseMessages = !person.isPublicFigure && MFMessageComposeViewController.canSendText()
@@ -78,8 +100,15 @@ struct SaySomethingView: View {
     /// Read from the text rather than held in a flag, so deleting an edit back
     /// to the original brings the control back, which is what somebody who
     /// changed their mind would expect.
+    private func composed(_ variant: Int, _ hook: BirthdayHook?) -> String {
+        guard drafts.indices.contains(variant) else { return "" }
+        return BirthdayHook.insert(hook, into: drafts[variant])
+    }
+
+    /// Still the words Birthed wrote, so swapping the wording or the hook
+    /// cannot throw away something the reader typed.
     private var isUnedited: Bool {
-        drafts.indices.contains(variant) && text == drafts[variant]
+        drafts.indices.contains(variant) && text == composed(variant, hook)
     }
 
     /// Offered only while the words are still ours. Once the user has typed
@@ -92,13 +121,13 @@ struct SaySomethingView: View {
     private func nextDraft() {
         guard canSwap else { return }
         variant = (variant + 1) % drafts.count
-        text = drafts[variant]
+        text = composed(variant, hook)
     }
 
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 16) {
-                Text(person.isRemembered ? "REMEMBERING" : "TODAY")
+                Text(heading)
                     .font(.caption2.weight(.heavy))
                     .kerning(2)
                     .foregroundStyle(Theme.accent)
@@ -119,6 +148,14 @@ struct SaySomethingView: View {
                     .frame(minHeight: 140, maxHeight: 240)
                     .padding(14)
                     .background(Theme.card, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .strokeBorder(Theme.accent.opacity(0.7), lineWidth: 1.5)
+                    )
+
+                if !hooks.isEmpty {
+                    hookChips
+                }
 
                 // The footnote and the swap share a line, so the control
                 // costs no vertical space and reads as a note about the
@@ -180,6 +217,41 @@ struct SaySomethingView: View {
             }
         }
         .tint(Theme.accent)
+    }
+
+    /// Which line from their day the message carries, or none. Only while
+    /// the text is still Birthed's own; once the reader has typed, the chips
+    /// dim rather than overwrite them.
+    private var hookChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(hooks) { option in
+                    chip(option.label, on: hook == option) { choose(option) }
+                }
+                chip("Just the wish", on: hook == nil) { choose(nil) }
+            }
+        }
+        .disabled(!isUnedited)
+        .opacity(isUnedited ? 1 : 0.45)
+    }
+
+    private func chip(_ label: String, on: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.footnote.weight(.semibold))
+                .lineLimit(1)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .foregroundStyle(on ? Theme.accent : Color.primary)
+                .overlay(Capsule().strokeBorder(on ? Theme.accent : Color.primary.opacity(0.25), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func choose(_ option: BirthdayHook?) {
+        guard isUnedited else { return }
+        hook = option
+        text = composed(variant, option)
     }
 
     /// Messages first when it is there, because that is where a birthday

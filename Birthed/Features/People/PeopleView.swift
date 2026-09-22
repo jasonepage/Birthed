@@ -19,6 +19,9 @@ struct PeopleView: View {
     /// Whose day is open. A tap on a person opens their day now, not the
     /// editor; the editor is one tap further, on their day.
     @State private var opened: Person?
+    /// Lines from the next person's day for their message, read when the
+    /// panel shows them, so Say something on the panel opens with one.
+    @State private var nextHooks: (id: Person.ID, hooks: [BirthdayHook])?
     @State private var adding = false
     @State private var addingMany = false
     @State private var following = false
@@ -65,6 +68,11 @@ struct PeopleView: View {
     /// The page follows the appearance; the next person's panel does not.
     private var palette: StagePalette { .forScheme(colorScheme) }
     private var today: [Person] { agenda.celebratingToday(store.people, on: now) }
+    /// The friend the panel is about: somebody whose birthday is today, or
+    /// else the next one.
+    private var nextFriend: Person? {
+        today.first { !$0.isPublicFigure } ?? ordered.first { !$0.isPublicFigure }
+    }
 
     var body: some View {
         NavigationStack {
@@ -130,6 +138,7 @@ struct PeopleView: View {
                     }
                 }
             }
+            .task(id: nextFriend) { await loadNextHooks() }
             .task {
                 // Before the row can be shown, because it only shows on
                 // .notAsked and the service starts on .unknown.
@@ -160,7 +169,8 @@ struct PeopleView: View {
                         subject: person.trimmedName
                     )
                 } else {
-                    SaySomethingView(person: person)
+                    SaySomethingView(person: person,
+                                     hooks: nextHooks?.id == person.id ? nextHooks?.hooks ?? [] : [])
                 }
             }
             .sheet(item: $editing) { person in
@@ -180,6 +190,25 @@ struct PeopleView: View {
     /// Only ever asked for when there is nobody in the list, because that is
     /// the only screen it is shown on and nobody should pay for a request they
     /// will not see the answer to.
+    /// The song the week the next friend was born and one famous twin, the
+    /// same two reads their day makes. A date is all that is asked about.
+    private func loadNextHooks() async {
+        guard let person = nextFriend else { nextHooks = nil; return }
+        var title: String?
+        var artist: String?
+        if let year = person.birthday.year,
+           let song = (try? await repository.numberOneSong(theWeekOf: person.birthday.date, birthYear: year)) ?? nil {
+            title = song.song
+            artist = song.artist
+        }
+        let twins = (try? await repository.notablePeople(bornOn: person.birthday.date, limit: 4)) ?? []
+        let own = person.trimmedName.lowercased()
+        nextHooks = (person.id, BirthdayHook.offered(
+            songTitle: title, songArtist: artist,
+            twins: twins.map(\.name).filter { $0.lowercased() != own }
+        ))
+    }
+
     private func loadSuggestions() async {
         guard store.people.isEmpty, suggestions.isEmpty else { return }
         let found = try? await repository.recommended(
