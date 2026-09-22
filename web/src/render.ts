@@ -390,11 +390,6 @@ const STYLE = `
 /* The card page: the picture as wide as the column, never wider. */
 .cardimg { display: block; width: 100%; max-width: 540px; height: auto; margin: 16px 0 0; border-radius: 14px; background: var(--cell); }
 .cardsave { margin-top: 12px; }
-/* The way to the iPhone app, in honey so it reads as the one pill that
-   leaves the site. It gives up its word first when the bar gets narrow. */
-.pill.app { color: var(--honey-lite); border-color: var(--line-strong); }
-.pill.app:hover { color: var(--cream); border-color: var(--honey); }
-@media (max-width: 820px) { .pill.app span { display: none; } .pill.app { padding: 7px 8px; min-width: 32px; justify-content: center; } }
 /* A photograph is not square. A head sits in the top third of almost every one
    of these, so a square crop takes foreheads off. */
 img.face {
@@ -1346,9 +1341,9 @@ p.calkey .sw.today { background: none; box-shadow: inset 0 0 0 2px ${TODAY}; }
 /* On a phone the bar has no room for a fourth pill, so the way to the app
    stands beside the birthday button instead. On anything wider it is in the
    bar and this one stays hidden. September 22, 2026. */
-.bapp { display: none; margin-left: 8px; font-size: 14px; font-weight: 600; color: var(--cream-2); text-decoration: none; padding: 7px 14px; border: 1px solid var(--line); border-radius: 999px; }
-.bapp:hover { color: var(--cream); border-color: var(--honey); }
-@media (max-width: 440px) { .bapp { display: inline-block; } .barend .pill.app { display: none; } }
+/* The way to the app is on the About page and nowhere else. Nathan,
+   September 22, 2026: it was a pill in every bar and a button under every
+   date's title, and the site is the product. */
 
 /* The popup itself. Hidden until its id is the page's target, which a link
    sets and the close links clear, all without a script. */
@@ -1710,7 +1705,7 @@ ${extraHead}<style>${PAGE_STYLE}</style>
 const CREDIT = `<p>Names, years and descriptions come from <a href="https://www.wikidata.org">Wikidata</a>, released under <a href="https://creativecommons.org/publicdomain/zero/1.0/">Creative Commons Zero</a>. Credit to Wikipedia and Wikidata.</p>
 <p>Birthed is not affiliated with Wikipedia, Wikidata or the Wikimedia Foundation.</p>`;
 
-const SITELINKS = `<p class="sitelinks"><a href="/">Today</a> · <a href="/calendar/">Every date</a> · <a href="${TESTFLIGHT_URL}">Get the iPhone app</a> · <a href="/support/">Support</a> · <a href="/privacy/">Privacy</a></p>`;
+const SITELINKS = `<p class="sitelinks"><a href="/">Today</a> · <a href="/calendar/">Every date</a> · <a href="/about/">About</a> · <a href="/support/">Support</a> · <a href="/privacy/">Privacy</a></p>`;
 
 /**
  * The footer, and the one sentence on it that is not a credit.
@@ -2125,14 +2120,14 @@ export function firstAsk(rows: TimelineRow[], _now: number = new Date().getUTCFu
 // sets on three different screens.
 const DICE = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="4.6"/><circle cx="8.4" cy="8.4" r="1.35" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.35" fill="currentColor" stroke="none"/><circle cx="15.6" cy="15.6" r="1.35" fill="currentColor" stroke="none"/></svg>`;
 const CALENDAR = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3.4" y="5" width="17.2" height="15.6" rx="3.6"/><path d="M3.4 10.2h17.2M8.2 3.2v3.6M15.8 3.2v3.6"/></svg>`;
-const PHONE = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="6.4" y="2.8" width="11.2" height="18.4" rx="2.8"/><path d="M10.6 18h2.8"/></svg>`;
 const INFO = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="8.6"/><path d="M12 11v5.2"/><circle cx="12" cy="7.9" r="0.9" fill="currentColor" stroke="none"/></svg>`;
 
 const TODAY_ICON = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3.4" y="5" width="17.2" height="15.6" rx="3.6"/><path d="M3.4 10.2h17.2M8.2 3.2v3.6M15.8 3.2v3.6"/><circle cx="12" cy="15.4" r="1.6" fill="currentColor" stroke="none"/></svg>`;
 
 /**
- * The bar's end: Today, Every date, Random, About and the app, as five
- * matching pills. They used to be one pill and two bare words, which is
+ * The bar's end: Today, Every date, Random and About, as four matching
+ * pills. The app pill came off on September 22, 2026: the way to the app
+ * is the About page's one quiet line, and nowhere else. They used to be one pill and two bare words, which is
  * three controls that look like three different kinds of thing. Nathan,
  * September 10, 2026: same size, same border, an icon each, and the word
  * kept next to it so nobody has to guess what a die does.
@@ -2148,7 +2143,6 @@ function barEnd(): string {
 <a class="pill" href="/calendar/" title="Every day of the year" aria-label="Every day of the year">${CALENDAR}<span>Every date</span></a>
 <a class="pill" href="/random/" title="A random day of the year" aria-label="A random day of the year">${DICE}<span>Random</span></a>
 <a class="pill" href="/about/" title="About Birthed" aria-label="About Birthed">${INFO}<span>About</span></a>
-<a class="pill app" href="${TESTFLIGHT_URL}" title="Get the iPhone app, in beta on TestFlight" aria-label="Get the iPhone app, in beta on TestFlight">${PHONE}<span>Get the app</span></a>
 </span>`;
 }
 
@@ -2336,7 +2330,7 @@ ${birthdayForm(big ? "When is your birthday?" : "See your own birthday", big ? "
  * the overlay's id; closing is an anchor back to no id at all.
  */
 export function renderBirthdayModal(): string {
-  return `<p class="bopenrow"><a class="bopen" href="#birthday">See your own birthday</a><a class="bapp" href="${TESTFLIGHT_URL}">Get the iPhone app</a></p>
+  return `<p class="bopenrow"><a class="bopen" href="#birthday">See your own birthday</a></p>
 <div class="bmodal" id="birthday">
 <a class="bscrim" href="#" aria-label="Close" tabindex="-1"></a>
 <form class="bbar bcard" method="post" action="/year" aria-label="See your birthday">

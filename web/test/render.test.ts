@@ -1254,20 +1254,21 @@ test("a date page can be moved off in both directions without reaching the foot"
   assert.ok(!html.includes('class="everyday"'));
 });
 
-test("Today, Every date, Random, About and Get the app are five of the same control, each with its own mark and its word", () => {
+test("Today, Every date, Random and About are four of the same control, each with its own mark and its word", () => {
   const html = renderDayPage(page);
   const bar = html.slice(html.indexOf('<span class="barend">'), html.indexOf("</span>\n</div>"));
   const pills = bar.match(/<a class="pill[ "]/g) ?? [];
-  assert.equal(pills.length, 5, "five matching pills, not one pill and bare words");
-  assert.equal((bar.match(/<svg class="ic"/g) ?? []).length, 5, "a drawn mark on each, not an emoji");
-  const words = ["Today", "Every date", "Random", "About", "Get the app"];
+  assert.equal(pills.length, 4, "four matching pills, not one pill and bare words");
+  assert.equal((bar.match(/<svg class="ic"/g) ?? []).length, 4, "a drawn mark on each, not an emoji");
+  const words = ["Today", "Every date", "Random", "About"];
   for (const word of words) assert.ok(bar.includes(`<span>${word}</span>`), `the word ${word} stays next to its mark`);
   // In that order: the same words in the same order on every page is what
   // makes a site read as one site. September 22, 2026.
   const at = words.map((word) => bar.indexOf(`<span>${word}</span>`));
   assert.deepEqual([...at].sort((a, b) => a - b), at, "the pills are in one order");
-  // The way to the app, from every date page, September 22, 2026.
-  assert.ok(bar.includes('href="https://testflight.apple.com/join/hzm6Mhhm"'));
+  // The way to the app is the About page and nowhere else, September 22, 2026.
+  assert.ok(!bar.includes("testflight.apple.com"), "no app pill in the bar");
+  assert.ok(!html.includes("testflight.apple.com"), "no way to the app on a date page at all");
   assert.ok(!bar.includes('class="get"') && !bar.includes('class="dice"'), "the old shapes are gone");
 });
 
