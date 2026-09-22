@@ -4,16 +4,24 @@
     pip install cairosvg pillow
     python3 make-icon.py ../../Birthed/Assets.xcassets/AppIcon.appiconset
 
-The mark is a birthday candle: the pink straw from the founding observation in
-docs/specs/PRD.md section 2, lit. The candle runs off the bottom edge so the icon reads as
-a composition rather than a sticker centred on a square.
+The mark is a honey cake with one lit candle on it: a birthday cake and honey
+in one picture. Chosen on September 22, 2026 from three honey directions (a
+beeswax candle, a candle in a honeycomb cell, and this), when the app moved
+from pink to the hive's honey. Big shapes and few details, because at 60
+points on a home screen anything finer is a smear.
+
+The candle is the same object as `CandleMark` in the app. Its width, the way
+the flame sits over its top edge and its stripes are all written against the
+flame's height with the ratios `CandleMark.swift` uses, so the candle on the
+home screen and the candle on the Mine panel are one drawing. Change a ratio
+here and it changes there, in the same commit.
 
 Three files come out, which is what the asset catalog expects on iOS 18:
 
   AppIcon.png          light, full colour, flattened. The App Store rejects an
                        icon with an alpha channel, so this one is composited
                        onto the background colour before it is written.
-  AppIcon-Dark.png     the same mark on a deeper ground for dark mode.
+  AppIcon-Dark.png     the same cake on a dark brown ground for dark mode.
   AppIcon-Tinted.png   greyscale with transparency. The system tints by
                        luminance and supplies its own backdrop, so the flame is
                        the brightest thing in the file and there is no
@@ -31,52 +39,59 @@ FLAME = ("M 50 3 C 53 20, 63 28, 68 40 C 73 51, 73 58, 73 65 C 73 81, 63 95, 50 
 CORE = ("M 50 40 C 52 52, 60 58, 60 68 C 60 80, 55 87, 49 87 C 43 87, 38 80, 38 69 "
         "C 38 59, 47 52, 50 40 Z")
 
-# Bold, September 5, 2026. The first icon put a 150 wide candle under a 424
-# tall flame, which at 60 points on a home screen was a thin stick with a
-# small fire on it. Everything is about 1.6 times larger now, and the body is
-# a touch wider against the flame, 250 to 700 rather than 150 to 446. The
-# flame's tip is 90 from the top and the body runs off the bottom edge.
-CANDLE_X, CANDLE_Y, CANDLE_W, CANDLE_H = 387, 729, 250, 400
-FLAME_TIP, FLAME_H = 90, 665
-CANDLE_RADIUS = 47          # 0.1867 of the body width, same as before
-STRIPE_STEP, STRIPE_H = 210, 90   # 0.84 of the width, stripe 0.4286 of the step
+# The flame, a 100 by 95 box scaled to FLAME_H tall, its tip FLAME_TIP from the top.
+FLAME_TIP, FLAME_H = 20, 250
+
+# The candle, in CandleMark's ratios against the flame's height:
+# body width 0.376, flame over the top edge by 0.039, top corners 0.1867 of
+# the width, stripes a step of 0.84 of the width and 0.4286 of the step,
+# turned 36 degrees.
+CANDLE_W = round(FLAME_H * 0.376)                          # 94
+CANDLE_X = 512 - CANDLE_W / 2
+CANDLE_Y = FLAME_TIP + FLAME_H - round(FLAME_H * 0.039)    # 260
+CANDLE_RADIUS = CANDLE_W * 0.1867
+STRIPE_STEP = round(CANDLE_W * 0.84)                       # 79
+STRIPE_H = round(STRIPE_STEP * 0.4286)                     # 34
+
+# The cake: one block, two fillings, a honey glaze with five drips.
+CAKE_W, CAKE_TOP, CAKE_BOTTOM, CAKE_RADIUS = 620, 520, 900, 64
+FILLINGS = ((150, 56), (270, 56))       # offset from the top, height
+GLAZE_H, DRIP_R = 70, 32
+DRIPS = ((80, 120), (200, 70), (330, 135), (460, 85), (560, 110))  # x from the left, length
+
+FLAME_STOPS = [("0", "#FFE08A"), ("0.45", "#FFC24A"), ("1", "#FF8A3D")]
+CORE_STOPS = [("0", "#FFFFFF"), ("1", "#FFF3E0")]
 
 PALETTES = {
     "AppIcon.png": {
-        "background": [("0", "#FF88A8"), ("0.48", "#EF5680"), ("1", "#A8265A")],
-        "sheen": [("0", "#FFD9A8", "0.55"), ("0.55", "#FFB48A", "0.12"), ("1", "#FFB48A", "0")],
-        "wax": [("0", "#241031"), ("0.3", "#3A1B45"), ("1", "#1B0B24")],
-        "stripe": "#FFF3E2", "stripe_opacity": "0.94",
-        "flame": [("0", "#FFE08A"), ("0.45", "#FFC24A"), ("1", "#FF8A3D")],
-        "core": [("0", "#FFFFFF"), ("1", "#FFF0C2")],
-        "flatten": (239, 86, 128),
+        "background": [("0", "#F6B444"), ("0.5", "#DD8A1C"), ("1", "#9A4E08")],
+        "glow": [("0", "#FFE9A4", "0.55"), ("0.5", "#FFD27A", "0.18"), ("1", "#FFD27A", "0")],
+        "sponge": "#FFF3E0", "filling": "#8A4A12",
+        "glaze": [("0", "#FFD27A"), ("1", "#F4B740")],
+        "candle": "#FFF3E0", "stripe": "#EF5680",
+        "flame": FLAME_STOPS, "core": CORE_STOPS,
+        "flatten": (221, 138, 28),
     },
     "AppIcon-Dark.png": {
-        "background": [("0", "#8A2050"), ("0.5", "#4E1132"), ("1", "#20081A")],
-        "sheen": [("0", "#FFB07A", "0.30"), ("0.55", "#FF8A6A", "0.08"), ("1", "#FF8A6A", "0")],
-        "wax": [("0", "#160821"), ("0.3", "#2A1233"), ("1", "#0E0517")],
-        "stripe": "#F3E3D3", "stripe_opacity": "0.92",
-        "flame": [("0", "#FFE9A4"), ("0.45", "#FFC85A"), ("1", "#FF934A")],
-        "core": [("0", "#FFFFFF"), ("1", "#FFF4D4")],
-        "flatten": (40, 12, 30),
+        "background": [("0", "#1E1710"), ("1", "#0B0805")],
+        "glow": [("0", "#FFB347", "0.45"), ("0.5", "#F4B740", "0.10"), ("1", "#F4B740", "0")],
+        "sponge": "#F3E3C8", "filling": "#6E3A0C",
+        "glaze": [("0", "#F4B740"), ("1", "#D98A1C")],
+        "candle": "#F3E3C8", "stripe": "#EF5680",
+        "flame": FLAME_STOPS, "core": CORE_STOPS,
+        "flatten": (18, 13, 8),
     },
     "AppIcon-Tinted.png": {
         "background": None,
-        "sheen": None,
-        "wax": [("0", "#6E6E6E"), ("0.3", "#8A8A8A"), ("1", "#5E5E5E")],
-        "stripe": "#D8D8D8", "stripe_opacity": "1",
-        "flame": [("0", "#FFFFFF"), ("0.45", "#F2F2F2"), ("1", "#D0D0D0")],
+        "glow": None,
+        "sponge": "#9A9A9A", "filling": "#4E4E4E",
+        "glaze": [("0", "#C4C4C4"), ("1", "#AEAEAE")],
+        "candle": "#D4D4D4", "stripe": "#7A7A7A",
+        "flame": [("0", "#FFFFFF"), ("0.45", "#F2F2F2"), ("1", "#D6D6D6")],
         "core": [("0", "#FFFFFF"), ("1", "#FFFFFF")],
         "flatten": None,
     },
 }
-
-
-def cylinder(x, y, w, h, rtop, rbot):
-    return (f"M {x + rtop} {y} H {x + w - rtop} A {rtop} {rtop} 0 0 1 {x + w} {y + rtop} "
-            f"V {y + h - rbot} A {rbot} {rbot} 0 0 1 {x + w - rbot} {y + h} H {x + rbot} "
-            f"A {rbot} {rbot} 0 0 1 {x} {y + h - rbot} V {y + rtop} "
-            f"A {rtop} {rtop} 0 0 1 {x + rtop} {y} Z")
 
 
 def stops(entries):
@@ -88,40 +103,67 @@ def stops(entries):
     return "".join(out)
 
 
+def candle_body():
+    x, y, w, r = CANDLE_X, CANDLE_Y, CANDLE_W, CANDLE_RADIUS
+    h = CAKE_TOP - CANDLE_Y + 10   # runs into the glaze, which is drawn over it
+    return (f"M {x + r:.1f} {y} H {x + w - r:.1f} A {r:.1f} {r:.1f} 0 0 1 {x + w:.1f} {y + r:.1f} "
+            f"V {y + h} H {x:.1f} V {y + r:.1f} A {r:.1f} {r:.1f} 0 0 1 {x + r:.1f} {y} Z")
+
+
+def glaze_path():
+    left = 512 - CAKE_W // 2
+    right = left + CAKE_W
+    top, r, band = CAKE_TOP, CAKE_RADIUS, CAKE_TOP + GLAZE_H
+    path = (f"M {left} {top + r} A {r} {r} 0 0 1 {left + r} {top} H {right - r} "
+            f"A {r} {r} 0 0 1 {right} {top + r} V {band} ")
+    for x, length in sorted(DRIPS, key=lambda d: -d[0]):
+        cx = left + x
+        path += (f"L {cx + DRIP_R} {band} V {band + length - DRIP_R} "
+                 f"A {DRIP_R} {DRIP_R} 0 0 1 {cx - DRIP_R} {band + length - DRIP_R} V {band} ")
+    return path + f"L {left} {band} Z"
+
+
 def svg_for(palette):
-    body = cylinder(CANDLE_X, CANDLE_Y, CANDLE_W, CANDLE_H, CANDLE_RADIUS, 0)
+    left = 512 - CAKE_W // 2
     scale = FLAME_H / 95.0
     stripes = "".join(
-        f'<rect x="-1000" y="{y}" width="3000" height="{STRIPE_H}" fill="{palette["stripe"]}" '
-        f'opacity="{palette["stripe_opacity"]}"/>'
-        for y in range(-600, 1600, STRIPE_STEP)
+        f'<rect x="{CANDLE_X - 300:.0f}" y="{y}" width="{CANDLE_W + 600}" height="{STRIPE_H}" '
+        f'fill="{palette["stripe"]}"/>'
+        for y in range(CANDLE_Y - 300, CAKE_TOP + 300, STRIPE_STEP)
     )
-    ground = ""
-    if palette["background"]:
-        ground += f'<rect width="1024" height="1024" fill="url(#bg)"/>'
-    if palette["sheen"]:
-        # The bloom sits on the flame, not in the top corner.
-        ground += f'<ellipse cx="512" cy="{FLAME_TIP + FLAME_H * 0.6:.0f}" rx="600" ry="560" fill="url(#sheen)"/>'
+    fillings = "".join(
+        f'<rect x="{left}" y="{CAKE_TOP + offset}" width="{CAKE_W}" height="{height}" '
+        f'fill="{palette["filling"]}"/>'
+        for offset, height in FILLINGS
+    )
 
     defs = ""
+    ground = ""
     if palette["background"]:
         defs += ('<linearGradient id="bg" x1="0.1" y1="0" x2="0.9" y2="1">'
                  + stops(palette["background"]) + "</linearGradient>")
-    if palette["sheen"]:
-        defs += ('<radialGradient id="sheen" cx="50%" cy="50%" r="50%">'
-                 + stops(palette["sheen"]) + "</radialGradient>")
+        ground += '<rect width="1024" height="1024" fill="url(#bg)"/>'
+    if palette["glow"]:
+        # The bloom sits on the flame, not in the top corner.
+        defs += ('<radialGradient id="glow" cx="50%" cy="50%" r="50%">'
+                 + stops(palette["glow"]) + "</radialGradient>")
+        ground += f'<ellipse cx="512" cy="{FLAME_TIP + FLAME_H * 0.72:.0f}" rx="260" ry="260" fill="url(#glow)"/>'
 
+    body = candle_body()
     return f'''<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
 <defs>
   {defs}
-  <linearGradient id="wax" x1="0" y1="0" x2="1" y2="0">{stops(palette["wax"])}</linearGradient>
+  <linearGradient id="glaze" x1="0" y1="0" x2="0" y2="1">{stops(palette["glaze"])}</linearGradient>
   <linearGradient id="flame" x1="0.2" y1="0" x2="0.8" y2="1">{stops(palette["flame"])}</linearGradient>
   <linearGradient id="hot" x1="0" y1="0" x2="0" y2="1">{stops(palette["core"])}</linearGradient>
-  <clipPath id="body"><path d="{body}"/></clipPath>
+  <clipPath id="candle"><path d="{body}"/></clipPath>
 </defs>
 {ground}
-<path d="{body}" fill="url(#wax)"/>
-<g clip-path="url(#body)"><g transform="rotate(-36 512 {CANDLE_Y + 200})">{stripes}</g></g>
+<rect x="{left}" y="{CAKE_TOP}" width="{CAKE_W}" height="{CAKE_BOTTOM - CAKE_TOP}" rx="{CAKE_RADIUS}" fill="{palette["sponge"]}"/>
+{fillings}
+<path d="{body}" fill="{palette["candle"]}"/>
+<g clip-path="url(#candle)"><g transform="rotate(-36 512 {CANDLE_Y + 130})">{stripes}</g></g>
+<path d="{glaze_path()}" fill="url(#glaze)"/>
 <g transform="translate({512 - 50 * scale:.2f} {FLAME_TIP}) scale({scale:.4f})">
   <path d="{FLAME}" fill="url(#flame)"/>
   <path d="{CORE}" fill="url(#hot)"/>

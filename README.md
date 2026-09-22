@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/readme/icon.png" width="112" height="112" alt="The Birthed app icon: a lit candle on a calendar page">
+  <img src="docs/readme/icon.png" width="112" height="112" alt="The Birthed app icon: a honey cake with one lit, pink striped candle, on a honey ground">
 </p>
 
 <h1 align="center">Birthed</h1>

@@ -50,14 +50,17 @@ struct FlameCoreShape: Shape {
 
 /// A lit birthday candle, running off the bottom of whatever it is placed in.
 ///
-/// Every fraction below is measured off the icon rather than chosen, so the
-/// mark on the share card is the same object as the mark on the home screen.
-/// In `design/app-icon/birthed-icon.svg` the flame is a 100 by 95 box scaled
-/// by 7, which is 700 wide by 665 tall, sitting on a candle 250 wide whose
-/// top edge is 26 points above the bottom of the flame. Those four numbers are
-/// the whole of what follows. The icon runs its body off the bottom edge, so
-/// how much body shows here is a choice, not a measurement: `height` is the
-/// flame plus about as much body again.
+/// Every fraction below is shared with the icon, so the mark on the share
+/// card is the same object as the candle on the home screen. Since September
+/// 22, 2026 the icon is a honey cake with this candle standing on it, and
+/// `design/app-icon/make-icon.py` draws that candle from these same ratios:
+/// a flame 250 tall on a body 94 wide whose top edge is 10 points above the
+/// bottom of the flame. The cake hides the bottom of the body, so how much
+/// body shows here is a choice, not a measurement: `height` is the flame plus
+/// about as much body again.
+///
+/// The candle is cream with pink stripes, the one pink left in the app, the
+/// same as the icon.
 ///
 /// The flame frame keeps the drawing's own 100 by 95 aspect. Giving it any
 /// other aspect stretches the bezier, and a stretched flame reads as a taper
@@ -88,7 +91,7 @@ struct CandleMark: View {
     /// drawn below.
     ///
     /// Not the system appearance. The panel this candle usually stands on is
-    /// the same purple in light and dark on purpose, so an edge that followed
+    /// the same dark brown in light and dark on purpose, so an edge that followed
     /// the appearance would turn black while the thing behind it stayed dark,
     /// and be invisible half the time. The candle appears on the wax panel, on
     /// the system card in People and Add Friends, and on ink and cream in the
@@ -98,14 +101,15 @@ struct CandleMark: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// 424 of the 876 points from the top of the flame to the bottom of the
-    /// candle body in the icon.
+    /// The flame is a little under half the mark, and the body is the rest.
+    /// Chosen when the first icon ran the body off its bottom edge, and kept
+    /// because the Mine panel and the share cards are laid out around it.
     private var flameHeight: CGFloat { height * 0.484 }
     private var flameWidth: CGFloat { flameHeight * (100.0 / 95.0) }
-    /// 250 wide against a flame 665 tall.
+    /// 94 wide against a flame 250 tall.
     private var bodyWidth: CGFloat { flameHeight * 0.376 }
     private var bodyHeight: CGFloat { max(0, height * 0.534 - holderRise) }
-    /// The 26 points the flame sits over the candle, against a flame 665 tall.
+    /// The 10 points the flame sits over the candle, against a flame 250 tall.
     private var overlap: CGFloat { flameHeight * 0.039 }
 
     // The holder's proportions are chosen rather than measured, because there
@@ -313,24 +317,27 @@ struct CandleMark: View {
     private var stripedBody: some View {
         Rectangle()
             .fill(LinearGradient(
-                colors: [Theme.wax, Theme.waxLight, Theme.wax],
+                colors: [
+                    Color(red: 0.910, green: 0.839, blue: 0.722),  // E8D6B8
+                    Theme.cream,
+                    Color(red: 0.878, green: 0.800, blue: 0.671),  // E0CCAB
+                ],
                 startPoint: .leading, endPoint: .trailing
             ))
             .overlay(stripes)
             .frame(width: bodyWidth, height: bodyHeight)
             .clipShape(bodyShape)
-            // The wax is the same colour as the panel it usually stands on, so
-            // without this the body has no edges and the mark reads as three
-            // cream stripes floating under a flame. On a light ground the same
-            // line is ink instead, which is the whole reason it is taken from
-            // the palette rather than from the appearance.
+            // On a light ground the cream body is close to the colour behind
+            // it, so without this it has no edges and the mark reads as pink
+            // stripes floating under a flame. On the dark panel the same line
+            // is cream instead, which is the whole reason it is taken from the
+            // palette rather than from the appearance.
             .overlay(bodyShape.stroke(edge, lineWidth: edgeWidth))
     }
 
-    /// Eleven stripes 54 wide, 126 apart, turned 36 degrees, on a body 150
-    /// wide. Here that is a step of 0.84 of the width and a stripe 0.4286 of
-    /// the step, drawn wider and taller than the body because the rotation
-    /// swings the ends of each stripe outside it.
+    /// A step of 0.84 of the width and a stripe 0.4286 of the step, turned 36
+    /// degrees, the same as the icon. Drawn wider and taller than the body
+    /// because the rotation swings the ends of each stripe outside it.
     private var stripes: some View {
         GeometryReader { proxy in
             let step = proxy.size.width * 0.84
@@ -342,7 +349,7 @@ struct CandleMark: View {
                     y += step
                 }
             }
-            .fill(Theme.cream.opacity(0.94))
+            .fill(Theme.spark)
             .rotationEffect(.degrees(-36), anchor: .center)
         }
     }
