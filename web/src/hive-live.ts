@@ -1005,7 +1005,7 @@ export const HIVE_LIVE_JS = `
         if (changed) layout();
       }).catch(function () {});
   }
-  var socket = null, ref = 0, heartbeat = null, wait = 1000, everJoined = false, closedByUs = false;
+  var socket = null, ref = 0, heartbeat = null, wait = 1000, everJoined = false, closedByUs = false, failures = 0;
   function send(topic, event, payload) {
     if (!socket || socket.readyState !== 1) return;
     ref += 1;
@@ -1032,9 +1032,16 @@ export const HIVE_LIVE_JS = `
     };
     socket.onmessage = function (m) {
       var msg; try { msg = JSON.parse(m.data); } catch (e) { return; }
+      if (msg.event === "phx_reply" && msg.topic === topic && msg.payload && msg.payload.status === "error") {
+        // A refused join, which is what a full project answers
+        // (too_many_connections). Close and let the counted retry decide.
+        try { socket.close(); } catch (e) {}
+        return;
+      }
       if (msg.event === "phx_reply" && msg.topic === topic && msg.payload && msg.payload.status === "ok") {
         if (everJoined) reconcile();
         everJoined = true;
+        failures = 0;
         setLive(true, "The hive is awake");
         return;
       }
@@ -1049,6 +1056,12 @@ export const HIVE_LIVE_JS = `
       if (heartbeat) { clearInterval(heartbeat); heartbeat = null; }
       socket = null;
       if (closedByUs) return;
+      // A crowd can fill the project's live connections, September 22, 2026:
+      // the plan allows a few hundred at once. After four tries in a row the
+      // page stops asking and says so, rather than reading "Reconnecting"
+      // forever. Buzzing does not need the connection and still works.
+      failures += 1;
+      if (failures >= 4) { setLive(false, "Live paused, reload for the latest"); return; }
       setLive(false, "Reconnecting");
       setTimeout(connect, wait);
       wait = Math.min(30000, wait * 2);

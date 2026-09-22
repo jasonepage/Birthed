@@ -472,6 +472,7 @@ test("a posted tap is a story and a date, and nothing else gets through", () => 
     storyId: "11111111-1111-1111-1111-111111111111", month: 9, day: 9, back: "day",
   });
   assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=hive")!.back, "hive");
+  assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=comb")!.back, "comb");
   assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=receipt")!.back, "receipt");
   assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=elsewhere")!.back, "day");
   assert.equal(readTap("s=not-a-story&m=9&d=9"), null);

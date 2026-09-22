@@ -3,7 +3,7 @@
 
 import { DayPage, Person, monthName, neighbours, slug, everyDate } from "./model.js";
 import { SHARE_STYLE, shareBlock } from "./share-button.js";
-import { WALL_STYLE, hivePath, pictureRules, recordStanding, storyBody, wallSection, type Picture, type RecordRow, type ReceiptOptions, type WallDay, type WallStory } from "./wall.js";
+import { WALL_STYLE, combPath, hivePath, pictureRules, recordStanding, storyBody, wallSection, type Picture, type RecordRow, type ReceiptOptions, type WallDay, type WallStory } from "./wall.js";
 import { CHART_NAME, coverName, SongOfTheYear } from "./songs.js";
 import { calendar } from "./calendar.js";
 import { type CulturalEvent, textOf } from "./culture.js";
@@ -1660,6 +1660,19 @@ export type PreviewImage = string | { url: string; width: number; height: number
  */
 const SQUARE = 1080;
 
+/**
+ * The stylesheet as it is sent: the three sources with their comments taken
+ * out. The comments are the reasoning behind each rule and belong in the
+ * source; on the wire they were 39 of every page's 109 kilobytes of style,
+ * September 22, 2026. Computed once. No rule on this site puts a comment
+ * opener inside a string, and a test holds it to that.
+ */
+export function stripCss(css: string): string {
+  return css.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\n\s*\n+/g, "\n").replace(/^[ \t]+/gm, "").trim();
+}
+
+const PAGE_STYLE = stripCss(`${STYLE}${WALL_STYLE}${SHARE_STYLE}`);
+
 export function head(
   title: string,
   description: string,
@@ -1695,7 +1708,7 @@ ${picture ? `<meta property="og:image" content="${picture.url}">
 <meta property="og:image:height" content="${picture.height}">
 <meta name="twitter:image" content="${picture.url}">` : ""}
 <meta name="twitter:card" content="summary_large_image">
-${extraHead}<style>${STYLE}${WALL_STYLE}${SHARE_STYLE}</style>
+${extraHead}<style>${PAGE_STYLE}</style>
 </head>
 <body${bodyClass ? ` class="${bodyClass}"` : ""}><div class="wrap${bodyClass ? ` ${bodyClass}` : ""}">`;
 }
@@ -2694,6 +2707,29 @@ export function renderHivePage(day: WallDay, month: number, d: number, pictures:
 </div>
 ${pictureRules(pictures)}
 ${wallSection(day, name, Date.now(), { hive: true, date: { month, day: d } })}
+</div>
+${FOOT}`;
+}
+
+/**
+ * The comb: every row of a date's feed on its own page, grouped by kind.
+ * Baked from the newest year's wall like the hive page, and swapped live by
+ * serve.ts while the date is open, between the same markers. Indexed, since
+ * the rows are the date's history and the date page no longer carries them.
+ */
+export function renderCombPage(day: WallDay, month: number, d: number): string {
+  const name = `${monthName(month)} ${d}`;
+  const hue = dayHue(month);
+  return `${head(`Every story on ${name}, ${day.year}`,
+    `Everything with a birthday on ${name}: what happened, who was born, what was number one and the day's news, each with its source.`,
+    `${SITE}${combPath(month, d)}`, `${SITE}/og/${slug(month, d)}.png`)}
+<div class="day wcombday on-${slug(month, d)}" style="--day:${hue.day};--day-soft:${hue.soft}">
+<div class="daybar">
+<a class="mark" href="/" title="Birthed home">Birthed</a>
+<span class="barnav"><a class="here" href="/${slug(month, d)}/">${escapeHtml(name)}</a></span>
+${barEnd()}
+</div>
+${wallSection(day, name, Date.now(), { comb: true, date: { month, day: d } })}
 </div>
 ${FOOT}`;
 }

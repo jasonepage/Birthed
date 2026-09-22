@@ -6,7 +6,7 @@ import {
   eastern,
   yearsAgo,
   BEE, PLAIN, PLAIN_DATES, VIEW_MIN, allowanceOn, emptyWallDay, fetchWall, hivePath, newestByDate, storyPath, takingBoosts,
-  tapsLeftSentence, tierLabel, yearAttr, SAVE_PICTURE, tiersDiffer, hiveDaysNav, units, viewportFor, voiceFor, wallMarks, wallSection, pictureRules, songParts, subjectOf, takeTurns, FEED_SHOWN, tileKind, kindMark, WALL_STYLE, sealedLine, hindsightLine, latestOutcome, outcomeStamp, recordStanding, yoursLine, fitType, tileYear, type WallDay, type WallStory,
+  tapsLeftSentence, tierLabel, yearAttr, SAVE_PICTURE, tiersDiffer, hiveDaysNav, units, viewportFor, voiceFor, wallMarks, wallSection, pictureRules, songParts, subjectOf, takeTurns, FEED_SHOWN, tileKind, kindMark, WALL_STYLE, sealedLine, picturedSubjects, hindsightLine, latestOutcome, outcomeStamp, recordStanding, yoursLine, fitType, tileYear, type WallDay, type WallStory,
 } from "../src/wall.js";
 import { picturesFor } from "../src/render.js";
 import { SHARE_SCRIPT } from "../src/share-button.js";
@@ -471,8 +471,9 @@ test("the typed field is on the live section only, posts a plain form to /find, 
   assert.ok(live.includes('name="m" value="9"') && live.includes('name="d" value="9"'));
   assert.ok(live.includes(">Find</button>"));
   // Said under the board now, so the field sits right above the hive.
-  assert.ok(live.includes("Typing spends nothing."));
-  assert.ok(live.indexOf("Typing spends nothing.") > live.indexOf('class="wboard'), "the note is under the board");
+  assert.ok(live.includes("makes its story bigger."));
+  assert.ok(live.indexOf("makes its story bigger.") > live.indexOf('class="wboard'), "the note is under the board");
+  assert.ok(!live.includes("Typing spends nothing."), "cut, September 22, 2026");
   // No script anywhere near it: a form and a button and nothing else.
   assert.ok(!/<script|onsubmit|oninput/i.test(live));
   // The miss is the front door to submission rather than a dead end.
@@ -732,17 +733,47 @@ test("under the backed stories the kinds take turns, news first, and a kind that
   assert.deepEqual(takeTurns([]), []);
 });
 
-test("the feed shows a dozen rows and folds the rest behind one line that counts them", () => {
+test("the feed shows a dozen rows and sends the rest to the comb, with a card that counts them", () => {
   const stories: WallStory[] = [];
   for (let i = 0; i < 30; i++) stories.push(pooled(`aaaaaaaa-0000-0000-0000-0000000000${String(i).padStart(2, "0")}`, i % 3 === 0 ? null : i % 3 === 1 ? "historical_event" : "person"));
   const html = wallSection(day(stories), "September 9", LIVE);
   const open = html.slice(html.indexOf('<ul class="wlist">'), html.indexOf("</ul>"));
   assert.equal((open.match(/<li /g) ?? []).length, FEED_SHOWN);
-  assert.ok(html.includes("<summary>Show all 30</summary>"));
-  const folded = html.slice(html.indexOf('<details class="wmore">'), html.indexOf("</details>"));
-  assert.equal((folded.match(/<li /g) ?? []).length, 30 - FEED_SHOWN);
-  // A short feed has no fold to open.
-  assert.ok(!wallSection(day(stories.slice(0, 5)), "September 9", LIVE).includes("wmore"));
+  // The rest is not on the page at all any more, September 22, 2026.
+  assert.equal((html.match(/<li id="w-/g) ?? []).length, FEED_SHOWN, "no folded rows");
+  assert.ok(!html.includes("wmore"));
+  assert.ok(html.includes('<a class="wcomb" href="/september-9/comb/">'));
+  assert.ok(html.includes(`${30 - FEED_SHOWN} more cells in the comb`));
+  assert.ok(html.includes("Open all 30"));
+  assert.ok(html.includes("still takes a buzz"));
+  // A short feed has no comb to go to.
+  assert.ok(!wallSection(day(stories.slice(0, 5)), "September 9", LIVE).includes("wcomb"));
+});
+
+test("the comb carries every row, grouped by kind, and a buzz from it comes back to it", () => {
+  const stories: WallStory[] = [];
+  for (let i = 0; i < 30; i++) stories.push(pooled(`aaaaaaaa-0000-0000-0000-0000000000${String(i).padStart(2, "0")}`, i % 3 === 0 ? null : i % 3 === 1 ? "historical_event" : "person"));
+  const html = wallSection(day(stories), "September 9", LIVE, { comb: true, interactive: true, date: { month: 9, day: 9 } });
+  assert.equal((html.match(/<li id="w-/g) ?? []).length, 30, "every row");
+  assert.ok(html.includes('id="comb-happened"') && html.includes('id="comb-born"') && html.includes('id="comb-news"'));
+  assert.ok(html.indexOf('id="comb-happened"') < html.indexOf('id="comb-born"'));
+  assert.ok(html.includes('href="#comb-born"'), "a jump to each kind");
+  assert.ok(html.includes('name="v" value="comb"'), "a buzz from the comb comes back to the comb");
+  assert.ok(!html.includes('class="wboard'), "the comb draws no board");
+  // Sealed, it says so and carries no button.
+  const sealed = wallSection(day(stories), "September 9", Date.parse("2026-09-12T00:00:00Z"), { comb: true, date: { month: 9, day: 9 } });
+  assert.ok(sealed.includes("when the hive sealed. It takes no more."));
+  assert.ok(!sealed.includes('action="/boost"'));
+});
+
+test("a date page draws only the pictures it shows", () => {
+  const tile = story({ id: "aaaaaaaa-0000-0000-0000-000000000001", status: "placed" });
+  const row = pooled("aaaaaaaa-0000-0000-0000-000000000002", null);
+  const song = story({ id: "aaaaaaaa-0000-0000-0000-000000000003", status: "pool", rect: null, subjectKind: "song", subjectId: "1994-09-10" });
+  const drawn = picturedSubjects(day([tile, row, song]));
+  assert.ok(drawn.has(`story:${tile.id}`));
+  assert.ok(drawn.has("song:1994-09-10"));
+  assert.ok(!drawn.has(`story:${row.id}`), "a feed row draws no picture");
 });
 
 test("every tile carries a kind mark: happened, born, song or news", () => {
@@ -945,7 +976,7 @@ test("the way to the record is drawn for a browser that has buzzed something and
   const line = yoursLine(true, BEE);
   assert.ok(line.includes('href="/yours/"'));
   assert.ok(line.includes("buzzed"), "the hive's own word");
-  assert.ok(line.includes("not a score"));
+  assert.ok(!line.includes("not a score"), "said on the record page itself, not here");
   // A number in front of the page would be the thing the page refuses, one
   // step earlier. docs/the-wall.md section 25.
   assert.ok(!/\d/.test(line), `no number belongs on this line: ${line}`);

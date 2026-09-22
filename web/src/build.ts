@@ -16,7 +16,7 @@ import { DayPage, Person, everyDate, slug } from "./model.js";
 import { fetchWall, newestByDate, storyPath, wallKey } from "./wall.js";
 import { coverageByDay, fetchChartWeeks, songsForDate, withDownloadedCovers } from "./songs.js";
 import { buildSeed, factsByDay, factsForDate, fetchFacts, pickHighlights } from "./facts.js";
-import { faceName, isReady, picturesFor, renderCalendarPage, renderDayPage, renderNotFound, renderRobots, renderSitemap, renderHivePage, renderStoryPage } from "./render.js";
+import { faceName, isReady, picturesFor, renderCalendarPage, renderDayPage, renderNotFound, renderRobots, renderSitemap, renderHivePage, renderCombPage, renderStoryPage } from "./render.js";
 import type { Picture } from "./wall.js";
 import { eventsByDay, eventsForDate, fetchEvents, fetchSealedMemory } from "./timeline.js";
 import { culturalByDate, culturalForDate, fetchCulturalEvents } from "./culture.js";
@@ -279,6 +279,19 @@ async function main(): Promise<void> {
     hives++;
   }
   if (hives > 0) console.log(`wrote ${hives} hive pages`);
+
+  // The comb, one per date that has a wall: every row of its feed, which the
+  // date page no longer carries past the first dozen. Swapped live by
+  // serve.ts while the date is open, like the hive.
+  let combs = 0;
+  for (const [key, day] of wallFor) {
+    const [month, d] = key.split("-").map(Number) as [number, number];
+    const directory = join(OUT, slug(month, d), "comb");
+    await mkdir(directory, { recursive: true });
+    await writeFile(join(directory, "index.html"), renderCombPage(day, month, d), "utf8");
+    combs++;
+  }
+  if (combs > 0) console.log(`wrote ${combs} comb pages`);
 
   // The index of all 366, on its own page rather than at the foot of every
   // date page.

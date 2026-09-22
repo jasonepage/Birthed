@@ -32,7 +32,7 @@ import { extname, join, normalize, resolve, sep } from "node:path";
 import { everyDate, monthName, slug } from "./model.js";
 import { ASK_SLOTS, FIRST_CHART_YEAR, TODAY, renderCardPage, renderMePanel, renderRecord, renderStoryPage, withMe } from "./render.js";
 import { SHARE_SCRIPT_SOURCE } from "./share-button.js";
-import { ASK_MAX, easternMidnight, emptyWallDay, fetchWallDay, hiveDaysNav, openWallDates, pictureRules, replaceWall, hivePath, takingBoosts, wallKey, wallMarks, wallSection, withChecks, type Anniversary, type RecordRow, type TapBack, type WallDay } from "./wall.js";
+import { ASK_MAX, easternMidnight, emptyWallDay, fetchWallDay, hiveDaysNav, openWallDates, pictureRules, picturedSubjects, replaceWall, combPath, hivePath, takingBoosts, wallKey, wallMarks, wallSection, withChecks, type Anniversary, type RecordRow, type TapBack, type WallDay } from "./wall.js";
 import { fetchSnapshotScores, liveHiveSection, type Standing } from "./hive-live.js";
 import { answer as findAnswer } from "./find.js";
 import { fetchPictureFor, fetchPicturesFor, type StoredPicture } from "./stored-pictures.js";
@@ -697,7 +697,7 @@ export function readTap(body: string): Tap | null {
   if (!Number.isInteger(month) || month < 1 || month > 12) return null;
   if (!Number.isInteger(day) || day < 1 || day > 31) return null;
   const v = form.get("v");
-  return { storyId, month, day, back: v === "hive" || v === "receipt" ? v : "day" };
+  return { storyId, month, day, back: v === "hive" || v === "receipt" || v === "comb" ? v : "day" };
 }
 
 /**
@@ -1086,6 +1086,8 @@ async function handle(
     }
     const where = tap.back === "hive"
       ? hivePath(tap.month, tap.day)
+      : tap.back === "comb"
+        ? combPath(tap.month, tap.day)
       : tap.back === "receipt"
         ? `/${slug(tap.month, tap.day)}/wall/${tap.storyId}/`
         : `/${slug(tap.month, tap.day)}/`;
@@ -1148,6 +1150,8 @@ async function handle(
     }
     const where = tap.back === "hive"
       ? hivePath(tap.month, tap.day)
+      : tap.back === "comb"
+        ? combPath(tap.month, tap.day)
       : tap.back === "receipt"
         ? `/${slug(tap.month, tap.day)}/wall/${tap.storyId}/`
         : `/${slug(tap.month, tap.day)}/`;
@@ -1484,6 +1488,7 @@ async function handle(
         // The way to this reader's own record, drawn for a browser carrying
         // the token and for no other. docs/the-wall.md section 25.
         token !== null,
+        marked.comb,
       );
       let marks = "";
       // The reader's own taps and count, for a browser that has a token and
@@ -1555,7 +1560,7 @@ async function handle(
     // is streamed exactly as built, below.
     const open = readable ? dateFor(path) : null;
     if (open !== null) {
-      const wall = (await liveWall(open.month, open.day, Date.now(), false, open.hive))?.section ?? null;
+      const wall = (await liveWall(open.month, open.day, Date.now(), false, open.hive, null, null, [], null, false, open.comb))?.section ?? null;
       if (wall !== null) {
         let html: string | null = null;
         try {
@@ -1829,6 +1834,8 @@ async function liveWall(
    * every such request is answered no-store by the caller.
    */
   yours: boolean = false,
+  /** The comb, every row of the feed on its own page. */
+  comb: boolean = false,
 ): Promise<{ section: string; day: WallDay } | null> {
   const key = process.env.SUPABASE_ANON_KEY;
   if (!key) return null;
@@ -1894,8 +1901,14 @@ async function liveWall(
   // the button is a convenience and its absence costs the reader the window,
   // never the page.
   const undo = undoOn === null ? null : read.stories.find((s) => s.id === undoOn) ?? null;
+  // Only the pictures something on this page draws: the tiles on the board
+  // and the song covers. Every story's picture was written into every date
+  // page, which on September 22, 2026 was 207 kilobytes of rules for rows
+  // that draw no picture. The comb draws none at all.
+  const drawn = comb ? new Set<string>() : picturedSubjects(wall);
+  const shown = pictures.filter((p) => drawn.has(p.subject));
   return {
-    section: pictureRules(pictures) + (hive ? hiveDaysNav(month, day, now) : "") + wallSection(wall, `${monthName(month)} ${day}`, now, { interactive: true, hive, date: { month, day }, found: stories, undo, anniversary, yours }),
+    section: pictureRules(shown) + (hive ? hiveDaysNav(month, day, now) : "") + wallSection(wall, `${monthName(month)} ${day}`, now, { interactive: true, hive, comb, date: { month, day }, found: stories, undo, anniversary, yours }),
     day: wall,
   };
 }
@@ -1950,11 +1963,12 @@ export function pictureFor(requestPath: string): { month: number; day: number } 
 }
 
 /** The date a request path names, or null. The hive page names its date too. */
-function dateFor(requestPath: string): { month: number; day: number; hive: boolean } | null {
+function dateFor(requestPath: string): { month: number; day: number; hive: boolean; comb: boolean } | null {
   for (const d of everyDate()) {
     const at = `/${slug(d.month, d.day)}`;
-    if (requestPath === at || requestPath === `${at}/` || requestPath === `${at}/index.html`) return { month: d.month, day: d.day, hive: false };
-    if (requestPath === `${at}/hive` || requestPath === `${at}/hive/` || requestPath === `${at}/hive/index.html`) return { month: d.month, day: d.day, hive: true };
+    if (requestPath === at || requestPath === `${at}/` || requestPath === `${at}/index.html`) return { month: d.month, day: d.day, hive: false, comb: false };
+    if (requestPath === `${at}/hive` || requestPath === `${at}/hive/` || requestPath === `${at}/hive/index.html`) return { month: d.month, day: d.day, hive: true, comb: false };
+    if (requestPath === `${at}/comb` || requestPath === `${at}/comb/` || requestPath === `${at}/comb/index.html`) return { month: d.month, day: d.day, hive: false, comb: true };
   }
   return null;
 }

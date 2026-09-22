@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ASK_SLOTS, FIRST_CHART_YEAR, askCandidates, renderDayPage, renderCalendarPage, renderRecord, renderRobots, renderSitemap, escapeHtml, isReady, renderMePanel, meMarker, withMe} from "../src/render.js";
+import { ASK_SLOTS, FIRST_CHART_YEAR, askCandidates, renderDayPage, renderCalendarPage, renderRecord, renderRobots, renderSitemap, escapeHtml, isReady, renderMePanel, meMarker, withMe, stripCss} from "../src/render.js";
 import type { RecordRow } from "../src/wall.js";
 import { everyDate, neighbours, slug } from "../src/model.js";
 
@@ -1758,3 +1758,11 @@ test("withMe fills the marker, and leaves a page with no marker alone", () => {
   assert.equal(withMe(page, null), page);
 });
 
+
+test("the stylesheet is sent without its comments, and nothing in it depends on one", () => {
+  const html = renderDayPage(page);
+  const style = html.slice(html.indexOf("<style>") + 7, html.indexOf("</style>"));
+  assert.ok(!style.includes("/*"), "no comment reaches the page");
+  assert.ok(style.includes(".wcomb {"), "and the rules are all still there");
+  assert.equal(stripCss('a { content: "x"; } /* why */\n\n\n  b { color: red; }'), 'a { content: "x"; } \nb { color: red; }');
+});

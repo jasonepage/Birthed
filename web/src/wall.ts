@@ -332,6 +332,19 @@ export function pictureRules(pictures: Picture[]): string {
   return `<style class="wpics">${each}${noYear}{display:none}${all}{color:#FFF7EE;--wink:#FFF7EE;--wbtn:#FFE9B0;--wbtn-ink:#2A1A08;--wmark:#FFE9B0;justify-content:flex-end;--scrim:linear-gradient(to top,rgba(20,12,4,.94) 0%,rgba(20,12,4,.62) 48%,rgba(20,12,4,.18) 100%)}</style>`;
 }
 
+/**
+ * The subjects whose pictures a date page actually draws: every tile on the
+ * board, and every number one, whose cover is in the strip. A feed row draws
+ * no picture, so a rule for one is weight and nothing else.
+ */
+export function picturedSubjects(day: Pick<WallDay, "stories">): Set<string> {
+  const out = new Set<string>();
+  for (const s of day.stories) {
+    if (s.status === "placed" || s.status === "false" || s.subjectKind === "song") out.add(subjectOf(s) ?? `story:${s.id}`);
+  }
+  return out;
+}
+
 /** How many feed rows are shown before the fold. A dozen is a screen on a phone and a sample of every kind. */
 export const FEED_SHOWN = 12;
 
@@ -798,7 +811,7 @@ export function fitType(w: number, h: number, length: number): { fit: number; li
 
 /** The fields a buzz posts: the story, and the date page to come back to. */
 /** Where a buzz lands the reader afterwards: the date page, the full screen hive, or the story's own receipt. */
-export type TapBack = "day" | "hive" | "receipt";
+export type TapBack = "day" | "hive" | "receipt" | "comb";
 
 function tapFields(story: WallStory, back: TapBack): string {
   const { month, day } = parts(story.wallDate);
@@ -1059,11 +1072,11 @@ export function andList(names: readonly string[]): string {
  * story is sourced, and four desks on one line is that argument in the feed.
  * docs/the-wall.md section 28.
  */
-function listRow(story: WallStory, live: boolean, voice: Voice, alsoIn: readonly string[] | null = null): string {
+function listRow(story: WallStory, live: boolean, voice: Voice, alsoIn: readonly string[] | null = null, back: TapBack = "day"): string {
   const count = units(story.support, voice);
   const also = alsoIn === null || alsoIn.length === 0 ? "" : ` <span class="walso">with ${escapeHtml(andList([...alsoIn]))}</span>`;
   const meta = `<span class="wmeta">${escapeHtml(story.outlet)}${also}${rowChip(story.tier)}${count === "" ? "" : ` ${count}`}${mine(voice)}</span>`;
-  const control = live && story.status !== "false" ? ` ${buzzForm(story, voice)}` : "";
+  const control = live && story.status !== "false" ? ` ${buzzForm(story, voice, back)}` : "";
   return `<li id="w-${story.id}"${subjectAttr(story)}${yearAttr(story.headline)}><a href="${storyPath(story)}">${escapeHtml(story.headline)}</a> ${meta}${control}</li>`;
 }
 
@@ -1175,6 +1188,12 @@ export interface WallOptions {
    * it.
    */
   hive?: boolean;
+  /**
+   * The comb: every row of the date's feed on its own page, grouped by
+   * kind, so the date page can carry a dozen and a card instead of all of
+   * them. A buzz from it comes back to it. September 22, 2026.
+   */
+  comb?: boolean;
   /**
    * The month and day the page is for, so a date with no wall yet can say
    * when its first hive opens. Without it a page with no wall draws
@@ -1294,12 +1313,19 @@ export function recordStanding(row: Pick<RecordRow, "sealed" | "status" | "outco
  */
 export function yoursLine(yours: boolean | undefined, voice: Voice): string {
   if (yours !== true) return "";
-  return `<p class="wnote wyours"><a href="/yours/">Everything you have ${voice.past}</a>.`
-    + ` Only you can see it, it is read from this browser, and it is not a score.</p>`;
+  // Just the link, since September 22, 2026. What the page is, that only
+  // this browser sees it and that it is not a score, is said on the page
+  // itself, where it is true, rather than twice.
+  return `<p class="wnote wyours"><a href="/yours/">Everything you have ${voice.past}</a></p>`;
 }
 
 export function wallSection(day: WallDay | null, name: string, now: number = Date.now(), options: WallOptions = {}): string {
   return `${WALL_START}${wallBody(day, name, now, options)}${WALL_END}`;
+}
+
+/** "/september-9/comb/", every row of a date's feed on its own page. */
+export function combPath(month: number, day: number): string {
+  return `/${slug(month, day)}/comb/`;
 }
 
 /** "/september-9/hive/", the full screen page for a date's hive. */
@@ -1554,6 +1580,100 @@ ${rows}
 }
 
 /**
+ * The groups the comb is cut into, in the order they read, and the words
+ * each one is headed with. Songs are not here: they have their own strip on
+ * the date page, with covers, and every one of them is already there.
+ */
+const COMB_GROUPS: Array<{ id: string; kinds: TileKind[]; head: string; short: string }> = [
+  { id: "happened", kinds: ["happened"], head: "What happened", short: "happened" },
+  { id: "born", kinds: ["born"], head: "Who was born", short: "born" },
+  { id: "number-ones", kinds: ["album", "film"], head: "Number one albums and films", short: "number ones" },
+  { id: "news", kinds: ["news"], head: "In the news", short: "in the news" },
+];
+
+function combGroups(stories: WallStory[]): Array<{ id: string; head: string; short: string; stories: WallStory[] }> {
+  return COMB_GROUPS
+    .map((g) => ({ id: g.id, head: g.head, short: g.short, stories: stories.filter((s) => g.kinds.includes(tileKind(s))) }))
+    .filter((g) => g.stories.length > 0);
+}
+
+/**
+ * The honeycomb drawn behind the comb card and the comb's own heading.
+ * Markup rather than a picture, because the page sends img-src 'self' and a
+ * data address is a picture: an inline svg element is neither a request nor
+ * an image, so it cannot be refused. One pattern cell, a hexagon and the
+ * stroke to the next row, tiled.
+ */
+function combPattern(id: string): string {
+  return `<svg class="wcombhex" aria-hidden="true" focusable="false"><defs><pattern id="${id}" width="28" height="50" patternUnits="userSpaceOnUse" patternTransform="scale(.9)"><path d="M14 33L0 25L0 8L14 0L28 8L28 25L14 33L14 50" fill="none" stroke="currentColor" stroke-width="1.2"/></pattern></defs><rect width="100%" height="100%" fill="url(#${id})"/></svg>`;
+}
+
+/**
+ * The way from the date page to the rest of its feed. Hana's walkthrough and
+ * the page weight, September 22, 2026: the rows past the first dozen were
+ * 418 kilobytes folded into every date page. They are one card now, and the
+ * card says what is behind it, by kind, so it reads as a place to go rather
+ * than a list somebody hid.
+ */
+export function combCard(rest: WallStory[], total: number, month: number, d: number, name: string, voice: Voice = BEE, sealed: boolean = false): string {
+  const groups = combGroups(rest);
+  const counts = groups.map((g) => `<span><b>${g.stories.length}</b> ${escapeHtml(g.short)}</span>`).join("");
+  const cells = rest.length === 1 ? "1 more cell" : `${rest.length} more cells`;
+  const say = sealed
+    ? `Everything else with a birthday on ${escapeHtml(name)}, kept as the hive sealed.`
+    : `Everything else with a birthday on ${escapeHtml(name)}. Every one still takes a ${voice.one}.`;
+  return `<a class="wcomb" href="${combPath(month, d)}">
+${combPattern(`hex-${slug(month, d)}`)}
+<span class="wcombkick">The comb</span>
+<span class="wcombhead">${cells} in the comb</span>
+<span class="wcombsay">${say}</span>
+<span class="wcombcounts">${counts}</span>
+<span class="wcombgo">Open all ${total} <span aria-hidden="true">&rarr;</span></span>
+</a>`;
+}
+
+function combBody(
+  day: WallDay,
+  name: string,
+  now: number,
+  waiting: WallStory[],
+  alsoIn: ReadonlyMap<string, readonly string[]>,
+  live: boolean,
+  closed: boolean,
+  voice: Voice,
+  options: WallOptions,
+): string {
+  const { month, day: d } = parts(day.wallDate);
+  const groups = combGroups(waiting);
+  const jumps = groups.map((g) => `<a href="#comb-${g.id}"><b>${g.stories.length}</b> ${escapeHtml(g.short)}</a>`).join("");
+  const say = live
+    ? `Everything with a birthday on ${escapeHtml(name)} that is not on the board, most ${voice.past} first. A ${voice.one} here counts the same as one on the hive.`
+    : closed
+      ? `Everything with a birthday on ${escapeHtml(name)} that was in the feed when the hive sealed. It takes no more.`
+      : `Everything with a birthday on ${escapeHtml(name)}. When the hive opens, every one of these takes ${voice.many}.`;
+  const sections = groups.map((g) => `<section class="wcombgroup" id="comb-${g.id}" aria-labelledby="comb-${g.id}-head">
+<h2 class="section" id="comb-${g.id}-head">${escapeHtml(g.head)} <span class="wcombn">${g.stories.length}</span></h2>
+<ul class="wlist">
+${g.stories.map((s) => listRow(s, live, voice, alsoIn.get(s.id) ?? null, "comb")).join("\n")}
+</ul>
+</section>`).join("\n");
+  return `<section class="wall wcombpage" aria-labelledby="wallhead">
+<div class="wcombtop">
+${combPattern(`hex-top-${slug(month, d)}`)}
+<p class="wcombkick">The comb</p>
+<h1 class="wcombtitle" id="wallhead">Every cell in the hive for ${escapeHtml(longDate(day))}</h1>
+<p class="wcombsay">${say}</p>
+<p class="wstate">${stateLine(day, now)}</p>
+${live ? countLine(day, now, voice) : ""}
+<nav class="wcombjump" aria-label="Jump to a kind">${jumps}</nav>
+</div>
+${afterwords(voice, name, options.undo ?? null, "comb")}
+${waiting.length === 0 ? `<p class="wnote">Everything filed for ${escapeHtml(name)} is on the hive.</p>` : sections}
+<p class="wnote wcombback"><a href="/${slug(month, d)}/">Back to ${escapeHtml(name)} and its hive</a></p>
+</section>`;
+}
+
+/**
  * The moment the board sealed, in numbers, under a sealed board. Hana's
  * walkthrough, September 22, 2026: the hive for September 20 had 8 tiles
  * sealed where an open hive shows 43, and nothing said why, so it read as
@@ -1689,6 +1809,10 @@ ${yoursLine(options.yours, voice)}
 </section>`;
   }
 
+  if (options.comb === true) {
+    return combBody(day, name, now, waiting, agreed.alsoIn, live, closed, voice, options);
+  }
+
   // Under the hive, one feed: everything with a birthday on the date that is
   // not on the hive, with one button each. Before the worker has filed
   // anything for the date, the baked history stands in, so tomorrow's page
@@ -1697,18 +1821,18 @@ ${yoursLine(options.yours, voice)}
   // A dozen rows, then the rest behind one line. A reader who wants the
   // whole day opens it once; a reader with three buzzes to spend does not
   // scroll a hundred and fifty rows to find one worth spending on.
+  //
+  // The rest is not folded into this page any more. It was, behind a
+  // details element, and on September 22, 2026 that was 617 rows and 418
+  // kilobytes of a date page nobody had opened. It lives on the comb now,
+  // and the card below the dozen says what is in it.
   const shown = waiting.slice(0, FEED_SHOWN);
   const folded = waiting.slice(FEED_SHOWN);
   const feedList = waiting.length > 0
     ? `<ul class="wlist">
 ${shown.map((s) => listRow(s, live, voice, agreed.alsoIn.get(s.id) ?? null)).join("\n")}
 </ul>` + (folded.length === 0 ? "" : `
-<details class="wmore">
-<summary>Show all ${waiting.length}</summary>
-<ul class="wlist">
-${folded.map((s) => listRow(s, live, voice, agreed.alsoIn.get(s.id) ?? null)).join("\n")}
-</ul>
-</details>`)
+${combCard(folded, waiting.length, month, d, name, voice, closed)}`)
     : unfiled && history !== ""
       ? ""
       : `<p class="wnote wnofeed">Everything filed for ${escapeHtml(name)} is on the hive.</p>`;
@@ -1731,7 +1855,7 @@ ${folded.map((s) => listRow(s, live, voice, agreed.alsoIn.get(s.id) ?? null)).jo
   // board was a wall of text, and the people who need it are on the About
   // page anyway.
   const under = live
-    ? `<p class="wnote wunder">A ${voice.one} makes its story bigger. Three a day. Typing spends nothing. <a href="/about/">How the hive works</a></p>`
+    ? `<p class="wnote wunder">A ${voice.one} makes its story bigger. <a href="/about/">How the hive works</a></p>`
     : closed
       ? `<p class="wnote wunder">${escapeHtml(sealedLine(day, onWall, voice))} Every story is a link to its source. <a href="/about/">How the hive works</a></p>`
       : "";
@@ -2097,6 +2221,43 @@ export const WALL_STYLE = `
 .wfull a { color: #A49BAE; text-decoration: none; border-bottom: 1px solid #3A3348; }
 .wfull a:hover { color: #FFD98A; border-color: #FFD98A; }
 .walso { opacity: .85; }
+/* The comb card. Honey on the page's dark, a honeycomb drawn faintly behind
+   the words and fading out to the right, and the counts set as a row of
+   small cells. The whole card is the link. */
+.wcomb {
+  position: relative; display: grid; gap: 6px; margin: 14px 0 0; padding: 20px 20px 18px; overflow: hidden;
+  border-radius: 16px; text-decoration: none; color: #FFF7EE;
+  background: linear-gradient(135deg, #2A1F0E 0%, #1B1520 70%);
+  box-shadow: inset 0 0 0 1px rgba(231, 168, 58, .35);
+  transition: box-shadow 160ms ease, transform 160ms ease;
+}
+.wcomb:hover { box-shadow: inset 0 0 0 1px rgba(255, 217, 138, .8); }
+.wcomb:active { transform: scale(.995); }
+.wcombhex { position: absolute; inset: 0; width: 100%; height: 100%; color: #E7A83A; opacity: .22; pointer-events: none;
+  -webkit-mask-image: linear-gradient(90deg, rgba(0,0,0,.15) 0%, #000 55%, #000 100%); mask-image: linear-gradient(90deg, rgba(0,0,0,.15) 0%, #000 55%, #000 100%); }
+.wcomb > span, .wcombtop > :not(svg) { position: relative; }
+.wcombkick { margin: 0; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #FFD98A; }
+.wcombhead { font-family: Georgia, "Times New Roman", serif; font-weight: 800; font-size: 24px; line-height: 1.15; }
+.wcombsay { font-size: 14px; line-height: 1.45; color: #D9CFC4; max-width: 52ch; }
+.wcombcounts, .wcombjump { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 0; }
+.wcombcounts span, .wcombjump a {
+  font-size: 13px; color: #EFE0B8; padding: 4px 10px; border-radius: 8px;
+  background: rgba(231, 168, 58, .12); box-shadow: inset 0 0 0 1px rgba(231, 168, 58, .28); text-decoration: none;
+}
+.wcombcounts b, .wcombjump b { color: #FFD98A; font-weight: 800; margin-right: 3px; }
+.wcombjump a:hover { background: rgba(231, 168, 58, .22); }
+.wcombgo { justify-self: start; margin-top: 8px; font-size: 14px; font-weight: 800; color: #2A1A08; background: #E7A83A; padding: 8px 16px; border-radius: 999px; }
+.wcomb:hover .wcombgo { background: #FFD98A; }
+/* The comb's own page: the same honey panel as a heading, then the kinds. */
+.wcombtop { position: relative; overflow: hidden; margin: 8px 0 0; padding: 22px 20px 18px; border-radius: 18px;
+  background: linear-gradient(135deg, #2A1F0E 0%, #1B1520 70%); box-shadow: inset 0 0 0 1px rgba(231, 168, 58, .35); }
+.wcombtop .wcombsay { margin: 8px 0 0; }
+.wcombtop .wstate { margin: 8px 0 0; }
+.wcombtitle { margin: 4px 0 0; font-size: clamp(26px, 6vw, 36px); line-height: 1.1; }
+.wcombgroup { margin: 28px 0 0; scroll-margin-top: 72px; }
+.wcombgroup h2.section { margin: 0 0 10px; }
+.wcombn { font-size: .6em; font-weight: 700; color: #A49BAE; vertical-align: middle; margin-left: 4px; }
+.wcombback { margin-top: 26px; }
 .wsongs .wonhive { font-weight: 700; color: #FFD98A; text-decoration: none; border-bottom: 1px solid #5A4420; }
 .wsongs .wonhive:hover { border-color: #FFD98A; }
 .whivesealed { max-width: 60ch; margin: 10px auto 0; text-align: center; }
