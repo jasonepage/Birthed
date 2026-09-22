@@ -499,7 +499,10 @@ enum HiveCopy {
 
     /// The one line under the board. The tier chip came off the tile, so the
     /// legend is the only place that says what a colour means.
-    static let legend = "A tile's colour is its tier, and a tier is not a verdict."
+    static let legend = "A tile's stripe is its tier, and a tier is not a verdict."
+    /// The question the full screen hive asks under the date, the same one
+    /// the website's live hive asks.
+    static let question = "What will still matter?"
 
     /// What the feed under the hive is, said once.
     static func feedNote(dateName: String, phase: WallDay.Phase, voice: HiveVoice) -> String {

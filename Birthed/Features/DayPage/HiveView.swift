@@ -69,7 +69,11 @@ struct HiveView: View {
                 HiveBoard(day: day, date: date, ageLines: ageLines, onOpen: { selected = $0 })
                 if !day.onHive.isEmpty {
                     underTheBoard(phase: phase)
-                    legend
+                    // No key on a one tier board, the same as the website:
+                    // three chips explaining one colour is noise.
+                    if Set(day.onHive.map(\.tier)).count > 1 {
+                        legend
+                    }
                 }
                 anniversary
                 addButton
@@ -119,7 +123,7 @@ struct HiveView: View {
                 Text(HiveCopy.anniversaryHead.uppercased())
                     .font(.caption.weight(.heavy))
                     .kerning(2.0)
-                    .foregroundStyle(HivePalette.amber)
+                    .foregroundStyle(palette.accent)
                 Text(HiveCopy.anniversaryNote)
                     .font(.caption2)
                     .foregroundStyle(palette.type.opacity(0.45))
@@ -141,7 +145,7 @@ struct HiveView: View {
                             Text(HiveCopy.anniversaryLine(from: from, to: to, voice: voice).uppercased())
                                 .font(.system(size: 10, weight: .heavy))
                                 .kerning(1.4)
-                                .foregroundStyle(HivePalette.amber)
+                                .foregroundStyle(palette.accent)
                             Text(note.headline)
                                 .font(.system(size: 16, weight: .semibold, design: .serif))
                                 .foregroundStyle(palette.type)
@@ -210,7 +214,7 @@ struct HiveView: View {
                 Image(systemName: "arrow.up.left.and.arrow.down.right")
                     .font(.system(size: 10, weight: .bold))
             }
-            .foregroundStyle(HivePalette.amber)
+            .foregroundStyle(palette.accent)
         }
         .buttonStyle(.plain)
     }
@@ -493,7 +497,7 @@ private struct HiveField: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(HivePalette.amber)
+                .foregroundStyle(palette.accent)
             }
         case let .one(match):
             VStack(alignment: .leading, spacing: 8) {
@@ -533,7 +537,7 @@ private struct HiveField: View {
                     if wall.hasBuzzed(story) {
                         Text(voice.mark)
                             .fontWeight(.heavy)
-                            .foregroundStyle(HivePalette.amber)
+                            .foregroundStyle(palette.accent)
                     }
                 }
                 .font(.caption)
@@ -605,7 +609,7 @@ private struct HiveField: View {
             }
         }
         .buttonStyle(.plain)
-        .foregroundStyle(HivePalette.amber)
+        .foregroundStyle(palette.accent)
         .disabled(finding || filing != nil)
         .accessibilityHint(HiveCopy.findWillSearch(dateName: date.displayName()))
     }
@@ -728,7 +732,7 @@ private struct HiveField: View {
             Text(HiveCopy.confirm(voice: voice).uppercased())
                 .font(.caption.weight(.heavy))
                 .kerning(2.0)
-                .foregroundStyle(HivePalette.amber)
+                .foregroundStyle(palette.accent)
 
             // The headline opens the receipt, the way it does everywhere
             // else, so a reader who wants the sources before spending has
@@ -803,7 +807,7 @@ private struct HiveField: View {
                     Button(action: { Task { await takeBack(story) } }) {
                         Text(HiveCopy.undo)
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(HivePalette.amber)
+                            .foregroundStyle(palette.accent)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 7)
                             .overlay(Capsule().strokeBorder(HivePalette.amber.opacity(0.6), lineWidth: 1))
@@ -834,7 +838,7 @@ private struct HiveField: View {
             } label: {
                 Text(HiveCopy.notThisOne)
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(HivePalette.amber)
+                    .foregroundStyle(palette.accent)
             }
             .buttonStyle(.plain)
         }
@@ -916,6 +920,9 @@ private struct HiveBoard: View {
     var body: some View {
         let tiles = WallBoard.tiles(day.stories)
         let view = WallBoard.viewport(forStories: day.stories)
+        // A tile's heat is its buzzes against the most buzzed tile, the
+        // website's --heat. Nought on a board nobody has buzzed.
+        let hottest = Double(tiles.map(\.support).max() ?? 0)
         let phase = day.phase(now: wall.now)
         let voice = wall.voice
         GeometryReader { geometry in
@@ -939,6 +946,8 @@ private struct HiveBoard: View {
                                  // thirty seconds are up.
                                  undoable: wall.canUndo(story, now: tick),
                                  ageLine: HiveFeed.ageLine(for: story, lines: ageLines),
+                                 heat: hottest > 0 ? Double(story.support) / hottest : 0,
+                                 picture: story.pictureKey.flatMap { wall.pictures[$0]?.url },
                                  onOpen: { onOpen(story) },
                                  onBuzz: { Task { await cast(story) } },
                                  onUndo: { Task { await takeBack(story) } })
@@ -1024,20 +1033,49 @@ private struct HiveTile: View {
     /// offers to take it back instead of showing the mark.
     let undoable: Bool
     let ageLine: String?
+    /// Nought to one: this tile's buzzes against the most buzzed tile.
+    let heat: Double
+    /// The event's lead picture, when the project holds one.
+    let picture: URL?
     let onOpen: () -> Void
     let onBuzz: () -> Void
     let onUndo: () -> Void
 
-    private var type: Color { HivePalette.type(story.tier) }
+    private var type: Color { HivePalette.cellType }
+    private var corner: CGFloat { 5 }
     private var count: String? { HiveCopy.count(story.support, voice: voice) }
     private var takes: Bool { live && story.status != .shownFalse }
 
+    /// The website's live tile: a dark cell with a hairline edge, a stripe
+    /// for the tier, cream type, and a warm glow that grows with the tile's
+    /// share of the buzzes. The reader's own tile is outlined in honey.
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: corner, style: .continuous)
         ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                .fill(HivePalette.fill(story.tier))
+            // The picture is an overlay on the cell rather than a layer of its
+            // own, so a filled image can never make the tile bigger than the
+            // frame the board gave it.
+            shape
+                .fill(HivePalette.cell)
+                .overlay {
+                    if let picture {
+                        TilePicture(url: picture)
+                    }
+                }
+            if heat > 0 {
+                shape
+                    .strokeBorder(HivePalette.heat.opacity(0.55 * heat), lineWidth: 5)
+                    .blur(radius: 4)
+                    .allowsHitTesting(false)
+            }
+            if let stripe = HivePalette.stripe(story.tier) {
+                Rectangle()
+                    .fill(stripe)
+                    .frame(height: 2)
+                    .allowsHitTesting(false)
+            }
             words
-                .padding(4)
+                .padding(5)
             if story.status == .shownFalse {
                 VStack {
                     Spacer(minLength: 0)
@@ -1046,19 +1084,18 @@ private struct HiveTile: View {
                         .kerning(0.5)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 1)
-                        .background(HivePalette.ink)
-                        .foregroundStyle(HivePalette.pale)
+                        .background(Theme.emberDeep)
+                        .foregroundStyle(HivePalette.buzzInk)
                 }
             }
         }
+        .clipShape(shape)
         .opacity(story.status == .shownFalse ? 0.55 : 1)
         .overlay {
-            // The reader's own outline, on a story this install backed.
-            if buzzed {
-                RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .strokeBorder(HivePalette.markType(story.tier), lineWidth: 1.5)
-            }
+            shape.strokeBorder(buzzed ? HivePalette.cellMark : HivePalette.cellEdge,
+                               lineWidth: buzzed ? 1.5 : 0.75)
         }
+        .shadow(color: HivePalette.heat.opacity(0.30 * heat), radius: 6 * heat)
         .accessibilityElement(children: .contain)
     }
 
@@ -1073,12 +1110,7 @@ private struct HiveTile: View {
                             .font(.system(size: 8, weight: .bold))
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
-                        HStack(spacing: 3) {
-                            Text(story.outlet).lineLimit(1).opacity(0.8)
-                            if let count { Text(count).fontWeight(.bold) }
-                        }
-                        .font(.system(size: 8))
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                        smallWords
                     }
                 }
                 .foregroundStyle(type)
@@ -1128,6 +1160,34 @@ private struct HiveTile: View {
         }
     }
 
+    /// A small tile is about fifty points square on a phone. It used to show
+    /// only its outlet, so a board of them read "en.wikip..." forty times.
+    /// The website puts the headline there, and so does this: two lines and
+    /// the control when the tile is tall enough, three lines alone when not.
+    private var smallWords: some View {
+        ViewThatFits(in: .vertical) {
+            VStack(alignment: .leading, spacing: 2) {
+                smallHeadline(lines: 2)
+                Spacer(minLength: 0)
+                HStack(spacing: 4) {
+                    control
+                    countText
+                }
+            }
+            smallHeadline(lines: 3)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func smallHeadline(lines: Int) -> some View {
+        Text(story.headline)
+            .font(.system(size: 8.5, weight: .bold, design: .serif))
+            .lineLimit(lines)
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .foregroundStyle(type)
+    }
+
     /// The control first, then the count it changes, then the outlet. No tier
     /// chip: the tile's colour is its tier and the legend says so, and a chip
     /// beside the outlet was what pushed a phone tile down to one line of
@@ -1170,8 +1230,8 @@ private struct HiveTile: View {
                     .lineLimit(1)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 1)
-                    .overlay(Capsule().strokeBorder(HivePalette.markType(story.tier), lineWidth: 1))
-                    .foregroundStyle(HivePalette.markType(story.tier))
+                    .overlay(Capsule().strokeBorder(HivePalette.cellMark, lineWidth: 1))
+                    .foregroundStyle(HivePalette.cellMark)
             }
             .buttonStyle(.plain)
             .disabled(working)
@@ -1182,7 +1242,7 @@ private struct HiveTile: View {
             Text(voice.mark)
                 .font(.system(size: 8, weight: .heavy))
                 .lineLimit(1)
-                .foregroundStyle(HivePalette.markType(story.tier))
+                .foregroundStyle(HivePalette.cellMark)
         } else if takes {
             Button(action: onBuzz) {
                 Text(voice.button)
@@ -1190,8 +1250,12 @@ private struct HiveTile: View {
                     .lineLimit(1)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 1)
-                    .background(HivePalette.buttonFill(story.tier), in: Capsule())
-                    .foregroundStyle(HivePalette.buttonType(story.tier))
+                    .background(
+                        LinearGradient(colors: [HivePalette.buzzTop, HivePalette.buzzBottom],
+                                       startPoint: .top, endPoint: .bottom),
+                        in: Capsule()
+                    )
+                    .foregroundStyle(HivePalette.buzzInk)
             }
             .buttonStyle(.plain)
             .disabled(working)
@@ -1206,7 +1270,7 @@ private struct HiveTile: View {
             Text(count)
                 .font(.system(size: 8, weight: .bold))
                 .lineLimit(1)
-                .foregroundStyle(type)
+                .foregroundStyle(HivePalette.cellMark)
                 .contentTransition(.numericText())
         }
     }
@@ -1215,7 +1279,7 @@ private struct HiveTile: View {
         Text(story.outlet)
             .font(.system(size: 8))
             .lineLimit(1)
-            .foregroundStyle(type.opacity(0.8))
+            .foregroundStyle(HivePalette.cellDim)
     }
 
     private var label: String {
@@ -1229,12 +1293,52 @@ private struct HiveTile: View {
     }
 }
 
+// MARK: - A tile's picture
+
+/// The lead picture under a tile's words, the website's `.wcell::before`: the
+/// picture at nine tenths, darkened towards the bottom where the words are,
+/// so cream type holds on any photograph. Nothing is drawn until it arrives
+/// and nothing replaces it if it never does; the cell is the fallback.
+private struct TilePicture: View {
+    let url: URL
+
+    var body: some View {
+        AsyncImage(url: url, transaction: Transaction(animation: .easeOut(duration: 0.25))) { phase in
+            if let image = phase.image {
+                ZStack {
+                    image
+                        .resizable()
+                        .scaledToFill()
+                        .opacity(0.9)
+                    LinearGradient(
+                        colors: [HivePalette.cell.opacity(0.35), HivePalette.cell.opacity(0.88)],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                }
+                .transition(.opacity)
+            } else {
+                Color.clear
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
 // MARK: - The hive, full screen
 
-/// The hive alone, as big as the window, with its count and its legend and
-/// nothing else. The same page `/<date>/hive/` is on the website.
+/// The hive alone, as the website's live page draws it: the dark ground in
+/// both appearances, the date and its question over the board, and the board
+/// itself twice the width of the phone so a tile has room for its headline
+/// and its button. The reader pans across it; one button fits it back to the
+/// screen. The same page `/<date>/hive/` is on the website.
+///
+/// It used to be the inline board again on a light sheet, the same size, so
+/// opening it gave the reader nothing the Today tab had not.
 private struct HiveFullScreenView: View {
     let date: CalendarDate
+    /// The palette of the screen it was opened from. Not used here: this page
+    /// is dark whatever the phone's appearance, so it reads `stage` instead.
     let palette: StagePalette
     let ageLines: [String: String]
 
@@ -1242,51 +1346,90 @@ private struct HiveFullScreenView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var selected: WallStory?
+    /// Twice the screen, so a small tile is about a hundred points and draws
+    /// its headline with its button. Off fits the board to the width.
+    @State private var zoomed = true
+
+    private let stage = StagePalette.ink
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
+            GeometryReader { outer in
+                let fit = max(0, outer.size.width - 32)
+                let side = zoomed ? max(fit * 2, 640) : fit
+                let axes: Axis.Set = zoomed ? [.horizontal, .vertical] : .vertical
+                VStack(alignment: .leading, spacing: 10) {
+                    heading
+                        .padding(.horizontal, 16)
                     if let day = wall.day {
-                        let phase = day.phase(now: wall.now)
-                        if let left = wall.unitsLeft {
-                            Text(HiveCopy.allowance(left, allowance: wall.allowance, phase: phase, voice: wall.voice))
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(palette.type.opacity(0.6))
-                                .contentTransition(.numericText())
+                        ScrollView(axes) {
+                            HiveBoard(day: day, date: date, ageLines: ageLines, onOpen: { selected = $0 })
+                                .frame(width: side, height: side)
+                                .padding(16)
                         }
-                        // The one sentence that says what the hive is for.
-                        // It came off the Today tab, where it sat above the
-                        // field asking the same question the field asks;
-                        // here the board is the whole page and the sentence
-                        // is about the board.
-                        Text(phase == .live
-                             ? HiveCopy.lede(dateName: date.displayName(), voice: wall.voice)
-                             : HiveCopy.quietLede(dateName: date.displayName(), phase: phase, voice: wall.voice))
-                            .font(.footnote)
-                            .foregroundStyle(palette.type.opacity(0.5))
-                        HiveBoard(day: day, date: date, ageLines: ageLines, onOpen: { selected = $0 })
+                        .scrollIndicators(.hidden)
                         Text(HiveCopy.legend)
                             .font(.caption)
-                            .foregroundStyle(palette.type.opacity(0.5))
+                            .foregroundStyle(stage.type.opacity(0.5))
+                            .padding(.horizontal, 16)
+                            .padding(.bottom, 8)
                     } else {
                         Text(HiveCopy.noHive)
                             .font(.subheadline)
-                            .foregroundStyle(palette.type.opacity(0.5))
+                            .foregroundStyle(stage.type.opacity(0.5))
+                            .padding(.horizontal, 16)
+                        Spacer(minLength: 0)
                     }
                 }
-                .padding(16)
             }
-            .background(Theme.canvas)
-            .navigationTitle(date.displayName())
+            .background(HivePalette.board.ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(HivePalette.board, for: .navigationBar)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        withAnimation(.snappy) { zoomed.toggle() }
+                    } label: {
+                        Image(systemName: zoomed ? "arrow.down.right.and.arrow.up.left"
+                                                 : "arrow.up.left.and.arrow.down.right")
+                    }
+                    .accessibilityLabel(zoomed ? "Fit the hive to the screen" : "Make the hive bigger")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
                 }
             }
             .sheet(item: $selected) { story in
-                WallStoryView(storyID: story.id, date: date, palette: palette)
+                WallStoryView(storyID: story.id, date: date, palette: stage)
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    /// "September 22. What will still matter?", the website's live heading,
+    /// with the allowance and the one line of what the hive is for under it.
+    @ViewBuilder
+    private var heading: some View {
+        let dateText = Text("\(date.displayName()).").foregroundStyle(stage.type)
+        let question = Text(HiveCopy.question).italic().foregroundStyle(stage.accent)
+        VStack(alignment: .leading, spacing: 6) {
+            Text("\(dateText) \(question)")
+                .font(.system(size: 28, weight: .heavy, design: .serif))
+                .fixedSize(horizontal: false, vertical: true)
+            if let day = wall.day {
+                let phase = day.phase(now: wall.now)
+                Text(phase == .live
+                     ? HiveCopy.lede(dateName: date.displayName(), voice: wall.voice)
+                     : HiveCopy.quietLede(dateName: date.displayName(), phase: phase, voice: wall.voice))
+                    .font(.footnote)
+                    .foregroundStyle(HivePalette.cellDim)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let left = wall.unitsLeft {
+                    Text(HiveCopy.allowance(left, allowance: wall.allowance, phase: phase, voice: wall.voice))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(stage.type.opacity(0.8))
+                        .contentTransition(.numericText())
+                }
             }
         }
     }
