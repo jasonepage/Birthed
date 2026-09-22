@@ -34,6 +34,7 @@
 import { agreeOnNews } from "./agree.js";
 import { monthName, slug } from "./model.js";
 import { shareBlock } from "./share-button.js";
+import { beeSvg } from "./mascot.js";
 
 // Its own copy rather than render.ts's, because render.ts imports this file
 // for the section and the styles, and a module cycle that reads a constant
@@ -1369,7 +1370,7 @@ export function promise(name: string, month: number, day: number, now: number): 
   // The blank board is drawn, with the opening date on it, so a date with
   // no hive yet looks like a hive waiting rather than a paragraph.
   return `<section class="wall wpromise" aria-labelledby="wallhead">
-<p class="whead"><span class="section" id="wallhead">The hive for ${escapeHtml(name)}</span> <span class="wstate">Not open yet.</span></p>
+<p class="whead">${beeSvg()}<span class="section" id="wallhead">The hive for ${escapeHtml(name)}</span> <span class="wstate">Not open yet.</span></p>
 <p class="wlede">${escapeHtml(name)} has no hive yet. Its first one opens on ${opens} at midnight Eastern, takes everything with a birthday that day and the buzzes people give it, and seals two days later, for good. Every date gets one a year, and they stack.</p>
 <div class="wboard wblank" role="img" aria-label="An empty hive. The first one for ${escapeHtml(name)} opens ${opens}.">
 <p class="wnothing"><b>First hive opens ${opens}</b><span>at midnight Eastern. Everything below takes buzzes then.</span></p>
@@ -1467,7 +1468,7 @@ export function afterwords(voice: Voice, name: string, undo: WallStory | null = 
 <p class="wsaid" id="wrallied">Link copied. Send it to whoever should ${v.one} this. It opens the hive with that tile lit, and nothing about you or them travels with it.</p>`
     : "";
   return `<div class="wsaids">
-<div class="wsaid" id="wkept"><p>${kept}</p>${takeItBack}</div>
+<div class="wsaid" id="wkept"><p>${beeSvg()}${kept}</p>${takeItBack}</div>
 <p class="wsaid" id="wundone">Taken back. That ${v.one} is gone and you have it again. <span class="wleft"></span></p>
 <p class="wsaid" id="wtoolate">That one stands. A ${v.one} can be taken back for thirty seconds after it is cast, and only by the browser that cast it. Nothing was changed.</p>
 <p class="wsaid" id="walready">You already ${v.past} that one, on this browser. It did not spend a ${v.one}.</p>
@@ -1629,7 +1630,7 @@ export function combCard(rest: WallStory[], songs: WallStory[], month: number, d
     : `Everything else with a birthday on ${escapeHtml(name)}, and the number one in every year. Every one still takes a ${voice.one}.`;
   return `<a class="wcomb" href="${combPath(month, d)}">
 ${combPattern(`hex-${slug(month, d)}`)}
-<span class="wcombkick">The comb</span>
+<span class="wcombkick">${beeSvg()}The comb</span>
 <span class="wcombhead">${cells} in the comb</span>
 <span class="wcombsay">${say}</span>
 <span class="wcombcounts">${counts}</span>
@@ -1695,7 +1696,7 @@ ${list}
   return `<section class="wall wcombpage" aria-labelledby="wallhead">
 <div class="wcombtop">
 ${combPattern(`hex-top-${slug(month, d)}`)}
-<p class="wcombkick">The comb</p>
+<p class="wcombkick">${beeSvg()}The comb</p>
 <h1 class="wcombtitle" id="wallhead">Every cell in the hive for ${escapeHtml(longDate(day))}</h1>
 <p class="wcombsay">${say}</p>
 <p class="wstate">${stateLine(day, now)}</p>
@@ -1912,7 +1913,7 @@ ${shown.map((s) => listRow(s, live, voice, agreed.alsoIn.get(s.id) ?? null)).joi
   // sentence, the field and the count right above the board, and the board.
   // Everything that explains sits under it. Decided September 10, 2026.
   return `<section class="wall" aria-labelledby="wallhead">
-<p class="whead"><span class="section" id="wallhead">The hive for ${escapeHtml(longDate(day))}</span> <span class="wstate">${stateLine(day, now)}</span></p>
+<p class="whead">${beeSvg()}<span class="section" id="wallhead">The hive for ${escapeHtml(longDate(day))}</span> <span class="wstate">${stateLine(day, now)}</span></p>
 ${lede === "" ? "" : `<p class="wlede">${lede}</p>`}
 ${live ? askForm(day, name, voice) : ""}${countLine(day, now, voice, live)}${foundBlock(options.found ?? [], day, live, voice)}${afterwords(voice, name, options.undo ?? null)}
 ${board}
@@ -2639,6 +2640,18 @@ export const WALL_STYLE = `
    the page it leads to borrows the anniversary's row so the two read as the
    same thing, which is what they are. */
 .wyours { margin: 14px 0 0; }
+/* The three ways on from the board, as buttons rather than grey underlined
+   words, Jason, September 22, 2026: the full screen hive, how it works, and
+   everything this browser has buzzed. One size, one shape, honey outline. */
+.wfull a, .wunder a, .wyours a {
+  display: inline-flex; align-items: center; min-height: 40px; padding: 9px 18px; box-sizing: border-box;
+  font-size: 15px; font-weight: 700; line-height: 1.2; color: #FFE9B0; text-decoration: none;
+  border: 1px solid #5A4420; border-bottom-width: 1px; border-radius: 999px; background: rgba(231, 168, 58, .08);
+}
+.wfull a:hover, .wunder a:hover, .wyours a:hover { color: #2A1A08; background: #E7A83A; border-color: #E7A83A; }
+.wfull { font-size: 15px; }
+.wunder { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin: 12px 0 0; font-size: 14px; }
+.wyours { margin: 10px 0 0; }
 .wyourshead {
   margin: 18px 0 6px; color: #E9E1DB;
   font-family: Georgia, "Times New Roman", serif; font-size: 26px; line-height: 1.2;

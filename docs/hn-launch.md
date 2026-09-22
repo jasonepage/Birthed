@@ -21,7 +21,7 @@ each line off by editing this file.
       "Only you can see it" clause cut from the link to /yours/ (the page
       itself already says it).
 - [ ] Deploy. After the push, check on the live site: a date page, the comb,
-      a story page and its Share button on a phone, the card page, /support/,
+      a story page and its Share button on a phone, /support/,
       /every-date/.
 - [ ] Measure the September 22 page again in the browser's network tab.
       It was 857 kilobytes of HTML before; write the new number here: ____

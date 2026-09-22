@@ -3,6 +3,7 @@
 
 import { DayPage, Person, monthName, neighbours, slug, everyDate } from "./model.js";
 import { SHARE_STYLE, shareBlock } from "./share-button.js";
+import { MASCOT_STYLE } from "./mascot.js";
 import { WALL_STYLE, combPath, hivePath, pictureRules, recordStanding, storyBody, wallSection, type Picture, type RecordRow, type ReceiptOptions, type WallDay, type WallStory } from "./wall.js";
 import { CHART_NAME, coverName, SongOfTheYear } from "./songs.js";
 import { calendar } from "./calendar.js";
@@ -1671,7 +1672,7 @@ export function stripCss(css: string): string {
   return css.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\n\s*\n+/g, "\n").replace(/^[ \t]+/gm, "").trim();
 }
 
-const PAGE_STYLE = stripCss(`${STYLE}${WALL_STYLE}${SHARE_STYLE}`);
+const PAGE_STYLE = stripCss(`${STYLE}${WALL_STYLE}${SHARE_STYLE}${MASCOT_STYLE}`);
 
 export function head(
   title: string,
@@ -2278,19 +2279,22 @@ export function renderMePanel(
   const worlds: string[] = [];
   if (older.length > 0) worlds.push(`You are older than ${landmarkList(older)}.`);
   if (younger.length > 0) worlds.push(`${landmarkList(younger)} ${younger.length === 1 ? "was" : "were"} already here when you arrived.`);
-  const card = `<a href="/${slug(month, day)}/card/">Save your card</a>.`;
+  // "Save your card" came off, September 22, 2026: the picture was not good
+  // enough to ask anybody to keep. The card page stays in the code and its
+  // address sends a reader to the date page. Bring the link back here.
+  const card = "";
   let note: string;
   if (own) {
     // The song strip starts in 1959, so a reader born before that has no
     // number one to be promised. Say so plainly rather than promise a row the
     // page does not have.
     note = birthYear < FIRST_CHART_YEAR
-      ? `The charts this site uses begin in ${FIRST_CHART_YEAR}, so there is no number one song for the week you were born. Below: everyone who shares ${name} and everything that ever happened on your date. ${card}`
-      : `Below: everyone who shares ${name} and everything that ever happened on your date. <a href="/${slug(month, day)}/comb/#comb-songs">The number one song the week you were born</a> is on the comb. ${card}`;
+      ? `The charts this site uses begin in ${FIRST_CHART_YEAR}, so there is no number one song for the week you were born. Below: everyone who shares ${name} and everything that ever happened on your date.`
+      : `Below: everyone who shares ${name} and everything that ever happened on your date. <a href="/${slug(month, day)}/comb/#comb-songs">The number one song the week you were born</a> is on the comb.`;
   } else if (known) {
-    note = `This is ${name}, not your date. Below, each year says how old you were on ${name} that year. <a href="/${slug(b.month!, b.day!)}/">Go to ${theirs}</a>. ${card}`;
+    note = `This is ${name}, not your date. Below, each year says how old you were on ${name} that year. <a href="/${slug(b.month!, b.day!)}/">Go to ${theirs}</a>.`;
   } else {
-    note = `Below, each year says roughly how old you were on ${name}. Add your month and day and the site can tell your own date from every other one. <a href="#birthday">Add them</a>. ${card}`;
+    note = `Below, each year says roughly how old you were on ${name}. Add your month and day and the site can tell your own date from every other one. <a href="#birthday">Add them</a>.`;
   }
   // The year itself is never printed, here or anywhere on the page. The age
   // and the decade already say as much as the reader chose to show.

@@ -799,10 +799,41 @@ export const HIVE_LIVE_JS = `
       }).catch(function () { say("wfailed"); line.remove(); });
     });
   }
+  // The buzz, as a sound. Jason's mom's idea, September 22, 2026. Made here
+  // rather than loaded: a sawtooth near a bee's wingbeat, a flutter on its
+  // loudness, a low pass to take the edge off, half a second long and quiet.
+  // Played inside the tap, which is the one moment every browser allows a
+  // page to make a sound. Nothing is fetched and nothing is sent.
+  var audio = null;
+  function buzzSound() {
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      if (!audio) audio = new AC();
+      if (audio.state === "suspended") audio.resume();
+      var t = audio.currentTime, dur = 0.5;
+      var osc = audio.createOscillator(); osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(185, t);
+      osc.frequency.linearRampToValueAtTime(240, t + 0.14);
+      osc.frequency.linearRampToValueAtTime(205, t + dur);
+      var lp = audio.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1500;
+      var flutter = audio.createGain(); flutter.gain.value = 0.7;
+      var wing = audio.createOscillator(); wing.frequency.value = 32;
+      var depth = audio.createGain(); depth.gain.value = 0.3;
+      wing.connect(depth); depth.connect(flutter.gain);
+      var level = audio.createGain(); level.gain.setValueAtTime(0, t);
+      level.gain.linearRampToValueAtTime(0.16, t + 0.04);
+      level.gain.setValueAtTime(0.16, t + dur - 0.15);
+      level.gain.linearRampToValueAtTime(0, t + dur);
+      osc.connect(lp); lp.connect(flutter); flutter.connect(level); level.connect(audio.destination);
+      osc.start(t); wing.start(t); osc.stop(t + dur + 0.05); wing.stop(t + dur + 0.05);
+    } catch (e) {}
+  }
   function youBuzz(s, ev) {
     if (sealed) { say("wclosed"); return; }
     if (backed[s.id]) { say("walready"); return; }
     if (left <= 0) { say("wspent"); return; }
+    buzzSound();
     left -= 1; paintBudget();
     backed[s.id] = true;
     pendingOwn[s.id] = true;

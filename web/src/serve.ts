@@ -44,6 +44,7 @@ const TYPES: Record<string, string> = {
   ".xml": "application/xml; charset=utf-8",
   ".txt": "text/plain; charset=utf-8",
   ".png": "image/png",
+  ".wav": "audio/wav",
   ".jpg": "image/jpeg",
   ".svg": "image/svg+xml",
   ".ico": "image/x-icon",
@@ -95,7 +96,9 @@ const SECURITY: Record<string, string> = {
     // the project's public bucket, copied there by the worker,
     // stored-pictures.ts. Still no picture from Wikipedia, Commons or any
     // news site is loaded by a page.
-    `default-src 'none'; img-src 'self' ${projectBase()}; style-src 'unsafe-inline' 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`,
+    // media-src 'self' since September 22, 2026, for the one sound on the
+    // site: the buzz, /buzz.wav, played by the page that follows a buzz.
+    `default-src 'none'; img-src 'self' ${projectBase()}; style-src 'unsafe-inline' 'self'; media-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`,
   "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
 };
 
@@ -225,7 +228,7 @@ export function securityFor(requestPath: string, now: number = Date.now()): Reco
     return {
       ...SECURITY,
       "Content-Security-Policy":
-        `default-src 'none'; img-src 'self' ${projectBase()}; style-src 'unsafe-inline' 'self'; ` +
+        `default-src 'none'; img-src 'self' ${projectBase()}; style-src 'unsafe-inline' 'self'; media-src 'self'; ` +
         `script-src ${SHARE_SCRIPT_SOURCE}; connect-src 'self'; ` +
         "base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
     };
@@ -455,6 +458,11 @@ export function redirectFor(
   // The bar's pill says Every date and the page is /calendar/, so people
   // type the words they read. Hana did, September 22, 2026, and got a 404.
   if (path === "/every-date" || path === "/every-day") return "/calendar/";
+
+  // The card page is off for now, September 22, 2026. Anybody holding a
+  // link to one lands on its date instead of a picture that was not ready.
+  const card = /^\/([a-z]+-\d{1,2})\/card$/.exec(path);
+  if (card !== null && everyDate().some((d) => slug(d.month, d.day) === card[1])) return `/${card[1]}/`;
 
   if (path === "/today") {
     const shifted = new Date(now.getTime() - TODAY_BEHIND_UTC_HOURS * 60 * 60 * 1000);
@@ -1410,7 +1418,7 @@ async function handle(
       // The picture credit, one small read for the one story, because the
       // day's read carries no pictures either.
       const credit = method === "HEAD" ? null : await fetchPictureFor(projectBase(), key, story, WALL_TIMEOUT_MS);
-      response.end(method === "HEAD" ? undefined : renderStoryPage(told, wall.day, now, { interactive: true, undo, credit }) + marks);
+      response.end(method === "HEAD" ? undefined : renderStoryPage(told, wall.day, now, { interactive: true, undo, credit }) + marks + (tapped === "kept" ? BUZZ_SOUND : ""));
       return;
     }
   }
@@ -1550,7 +1558,7 @@ async function handle(
             "Cache-Control": "no-store",
             ...securityFor(path),
           });
-          response.end(method === "HEAD" ? undefined : withMe(withWall(html, wall?.section ?? null), mePanel) + marks);
+          response.end(method === "HEAD" ? undefined : withMe(withWall(html, wall?.section ?? null), mePanel) + marks + (tapped === "kept" ? BUZZ_SOUND : ""));
           return;
         }
       }
@@ -1628,6 +1636,17 @@ async function handle(
  * Empty for a reader with no year, and the page keeps the words it was built
  * with.
  */
+/**
+ * The buzz, heard. Jason's mom's idea, September 22, 2026. The page that
+ * follows a buzz that counted carries one audio element that plays by
+ * itself, because the pages that take a buzz run no script and this is the
+ * only way they can make a sound. A browser may decline to play it: Chrome
+ * usually allows it after the tap that led here, Safari on a phone usually
+ * does not, and nothing breaks either way. The live full screen hive plays
+ * the same buzz from its script, where every browser allows it.
+ */
+export const BUZZ_SOUND = `<audio class="wbuzzsound" src="/buzz.wav" autoplay preload="auto"></audio>`;
+
 export function yoursMark(dateSlug: string, year: number | null): string {
   if (year === null) return "";
   return `<style class="wyours">.on-${dateSlug} .wsaveall{display:none}.on-${dateSlug} .wsavemine{display:inline}</style>`;

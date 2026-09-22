@@ -1686,7 +1686,7 @@ test("the reader's panel says Your only on the reader's own date, and prints no 
   assert.ok(own.includes("You are older than the PlayStation, Amazon and Google."));
   // The exact birth year is never printed: the site keeps it off the page.
   assert.ok(!own.includes("1991"));
-  assert.ok(own.includes('href="/september-4/card/"'));
+  assert.ok(!own.includes("Save your card"), "off for now, September 22, 2026");
   // A younger reader gets both sides of the world line.
   const young = renderMePanel(9, 4, { year: 2005, month: 9, day: 4 }, now);
   assert.ok(young.includes("You are older than the iPhone, Bitcoin and Instagram."));
@@ -1729,7 +1729,6 @@ test("the panel promises a number one song only to a reader the charts cover", (
   assert.ok(before.includes("The charts this site uses begin in 1959, so there is no number one song for the week you were born."));
   assert.ok(before.includes("Below: everyone who shares September 4 and everything that ever happened on your date."));
   assert.ok(!/the number one song the week you were born/i.test(before));
-  assert.ok(before.includes('href="/september-4/card/"'));
   // 1958 is deliberately not imported, so it is on the wrong side of the line.
   assert.ok(on(1958).includes("begin in 1959"));
   // From the first chart year on, the promise stands.
