@@ -1736,16 +1736,22 @@ function combBody(
     : closed
       ? `Everything with a birthday on ${escapeHtml(name)} that was in the feed when the hive sealed, and the number one in every year. It takes no more.`
       : `Everything with a birthday on ${escapeHtml(name)}, and the number one in every year. When the hive opens, every one of these takes ${voice.many}.`;
-  const sections = groups.map((g) => {
+  const sections = groups.map((g, index) => {
     const list = g.id === "songs"
       ? `<p class="wnote">${live ? `A ${voice.one} on a song counts the same as one on anything else.` : "The week's number one on this date, back to 1959."}</p>
 <ul class="wsongs">
 ${g.stories.map((s) => songRow(s, live, voice, "comb")).join("\n")}
 </ul>`
       : combCells(combRank(g.stories, alsoIn), live, voice, alsoIn);
+    // A forager over each kind's comb, September 22, 2026, Nathan: the comb
+    // has to be alive whether or not anybody has buzzed yet, and every
+    // motion it had keyed off buzzes. One bee per kind, on its own loop,
+    // drawn by the stylesheet and hidden from a screen reader; a decoration
+    // and nothing else, off under reduced motion like everything here.
+    const forager = g.id === "songs" ? "" : `<span class="wforager" aria-hidden="true" style="--loop:${22 + (index % 3) * 5}s;--start:${-(index * 7)}s">${beeSvg("wforagerbee")}</span>`;
     return `<section class="wcombgroup" id="comb-${g.id}" aria-labelledby="comb-${g.id}-head">
 <h2 class="section" id="comb-${g.id}-head">${escapeHtml(g.head)} <span class="wcombn">${g.stories.length}</span></h2>
-${list}
+${forager}${list}
 </section>`;
   }).join("\n");
   return `<section class="wall wcombpage" aria-labelledby="wallhead">
@@ -2378,7 +2384,12 @@ export const WALL_STYLE = `
   display: flex; flex-direction: column; justify-content: center; gap: 4px; overflow: hidden; position: relative;
   padding: 26% 12% 24%; box-sizing: border-box;
   clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
-  background: var(--cell); font-size: 13px; line-height: 1.3; text-align: center;
+  /* Wax, with a sheen: a band of light that crosses the cell, offset by
+     the cell's place in the deal so it reads as one wave crossing the
+     comb rather than every cell blinking together. Nathan, September 22,
+     2026: the comb has to move on its own, not only when buzzed. */
+  background: linear-gradient(115deg, transparent 40%, rgba(255, 207, 107, .11) 50%, transparent 60%) 100% 0 / 320% 100% no-repeat, var(--cell-2);
+  font-size: 13px; line-height: 1.3; text-align: center;
   transition: transform 160ms ease;
 }
 .wcells li.wcell:last-child { margin-bottom: 0; }
@@ -2389,7 +2400,7 @@ export const WALL_STYLE = `
 .wcells li.wcell::after {
   content: ""; position: absolute; inset: 0; pointer-events: none;
   clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%, 50% 0, 50% 2px, 2px 25.5%, 2px 74.5%, 50% calc(100% - 2px), calc(100% - 2px) 74.5%, calc(100% - 2px) 25.5%, 50% 2px);
-  background: var(--kc); opacity: calc(.45 + .55 * var(--heat));
+  background: var(--kc); opacity: calc(.7 + .3 * var(--heat));
 }
 .wcells li.wcell.wcbacked { box-shadow: inset 0 0 calc(40px * var(--heat)) rgba(255, 175, 70, calc(.5 * var(--heat))); }
 .wcells li.wcell:hover { transform: scale(1.04); z-index: 2; }
@@ -2434,10 +2445,29 @@ export const WALL_STYLE = `
 .wcombmore[open] > summary::after { content: "\\2191"; }
 .wcombmore > summary:hover { color: var(--on-honey); background: var(--honey); border-color: var(--honey); }
 .wcombmore[open] > summary { margin-bottom: 12px; }
-@keyframes wcellin { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes wcellin { from { opacity: 0; transform: translateY(14px) scale(.94); } to { opacity: 1; transform: none; } }
 @keyframes wcbuzz {
   0%, 100% { filter: brightness(1); }
   50% { filter: brightness(1.12); }
+}
+@keyframes wsheen { from { background-position: 100% 0, 0 0; } to { background-position: 0 0, 0 0; } }
+/* The forager: a bee that crosses the kind's comb and comes back, dipping
+   as it goes, the way a bee works a comb. Positioned by percentages so the
+   same loop fits a phone and a desk, and turned round for the way back. */
+.wcombgroup { position: relative; }
+.wforager { position: absolute; left: 0; top: 40px; z-index: 3; width: 48px; pointer-events: none; opacity: 0; }
+.wforager .bee { width: 48px; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, .5)); }
+@keyframes wforage {
+  0% { opacity: 0; left: -4%; top: 6%; transform: rotate(8deg); }
+  4% { opacity: 1; }
+  18% { left: 30%; top: 22%; transform: rotate(-6deg); }
+  34% { left: 62%; top: 12%; transform: rotate(10deg); }
+  48% { left: 96%; top: 30%; transform: rotate(-4deg); }
+  50% { left: 100%; top: 32%; transform: rotate(0) scaleX(-1); }
+  64% { left: 70%; top: 48%; transform: rotate(6deg) scaleX(-1); }
+  80% { left: 36%; top: 36%; transform: rotate(-8deg) scaleX(-1); }
+  96% { opacity: 1; }
+  100% { opacity: 0; left: -4%; top: 6%; transform: rotate(0) scaleX(-1); }
 }
 /* The honeycomb behind the comb's heading drifts one cell at a time, so the
    loop has no seam: the pattern is 25.2 by 45 pixels after its scale. */
@@ -2447,8 +2477,17 @@ export const WALL_STYLE = `
    one beat apart, a backed cell breathes the way the board's tiles grow,
    and the comb behind the heading drifts. */
 @media (prefers-reduced-motion: no-preference) {
-  .wcells li.wcell, .wcombpage .wsongs li { animation: wcellin 560ms cubic-bezier(.2, .7, .2, 1) both; animation-delay: calc(var(--i, 0) * 45ms); }
-  .wcells li.wcbacked { animation: wcellin 560ms cubic-bezier(.2, .7, .2, 1) both, wcbuzz 2.8s ease-in-out 800ms infinite; animation-delay: calc(var(--i, 0) * 45ms), 800ms; }
+  .wcells li.wcell, .wcombpage .wsongs li { animation: wcellin 560ms cubic-bezier(.2, .7, .2, 1) both, wsheen 12s linear infinite; animation-delay: calc(var(--i, 0) * 45ms), calc(var(--i, 0) * -900ms); }
+  .wcells li.wcbacked { animation: wcellin 560ms cubic-bezier(.2, .7, .2, 1) both, wsheen 12s linear infinite, wcbuzz 2.8s ease-in-out 800ms infinite; animation-delay: calc(var(--i, 0) * 45ms), calc(var(--i, 0) * -900ms), 800ms; }
+  .wforager { animation: wforage var(--loop, 24s) ease-in-out var(--start, 0s) infinite; }
+  /* Where the browser can key an animation to scrolling, a cell wakes as
+     it comes into view rather than in the half second after the page
+     loads, which nobody scrolled down in time to see. Chrome and Safari
+     today; elsewhere the timed wave above stands. */
+  @supports (animation-timeline: view()) {
+    .wcells li.wcell { animation: wcellin 1ms linear both, wsheen 12s linear infinite; animation-timeline: view(), auto; animation-range: entry 0% entry 40%, normal; animation-delay: 0s, calc(var(--i, 0) * -900ms); }
+    .wcells li.wcbacked { animation: wcellin 1ms linear both, wsheen 12s linear infinite, wcbuzz 2.8s ease-in-out infinite; animation-timeline: view(), auto, auto; animation-range: entry 0% entry 40%, normal, normal; animation-delay: 0s, calc(var(--i, 0) * -900ms), 800ms; }
+  }
   .wcombtop .wcombhex { animation: wcombdrift 30s linear infinite; }
 }
 .wsongs .wonhive { font-weight: 700; color: var(--honey-lite); text-decoration: none; border-bottom: 1px solid var(--line-strong); }
