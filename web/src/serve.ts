@@ -32,7 +32,7 @@ import { extname, join, normalize, resolve, sep } from "node:path";
 import { everyDate, monthName, slug } from "./model.js";
 import { ASK_SLOTS, FIRST_CHART_YEAR, TODAY, renderCardPage, renderMePanel, renderRecord, renderStoryPage, withMe } from "./render.js";
 import { SHARE_SCRIPT_SOURCE } from "./share-button.js";
-import { ASK_MAX, easternMidnight, emptyWallDay, fetchWallDay, hiveDaysNav, openWallDates, pictureRules, picturedSubjects, replaceWall, combPath, hivePath, takingBoosts, wallKey, wallMarks, wallSection, withChecks, type Anniversary, type RecordRow, type TapBack, type WallDay } from "./wall.js";
+import { ASK_MAX, easternMidnight, emptyWallDay, fetchWallDay, hiveDaysNav, openWallDates, pictureRules, picturedSubjects, combPictured, replaceWall, combPath, hivePath, takingBoosts, wallKey, wallMarks, wallSection, withChecks, type Anniversary, type RecordRow, type TapBack, type WallDay } from "./wall.js";
 import { fetchSnapshotScores, liveHiveSection, type Standing } from "./hive-live.js";
 import { answer as findAnswer } from "./find.js";
 import { fetchPictureFor, fetchPicturesFor, type StoredPicture } from "./stored-pictures.js";
@@ -1904,8 +1904,9 @@ async function liveWall(
   // Only the pictures something on this page draws: the tiles on the board
   // and the song covers. Every story's picture was written into every date
   // page, which on September 22, 2026 was 207 kilobytes of rules for rows
-  // that draw no picture. The comb draws none at all.
-  const drawn = comb ? new Set<string>() : picturedSubjects(wall);
+  // that draw no picture. The comb draws its cells' pictures, the news
+  // aside, whose pictures are the publishers' and the heaviest.
+  const drawn = comb ? combPictured(wall) : picturedSubjects(wall);
   const shown = pictures.filter((p) => drawn.has(p.subject));
   return {
     section: pictureRules(shown) + (hive ? hiveDaysNav(month, day, now) : "") + wallSection(wall, `${monthName(month)} ${day}`, now, { interactive: true, hive, comb, date: { month, day }, found: stories, undo, anniversary, yours }),

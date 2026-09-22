@@ -1704,7 +1704,7 @@ test("on somebody else's date the panel names the reader's own date and their re
   assert.ok(other.includes("You have been alive for 36 years."));
   assert.ok(other.includes('href="/june-15/"'), "and the way to their own date");
   assert.ok(other.includes("This is September 22, not your date."));
-  assert.ok(!other.includes("the number one song the week you were born"), "no week is promised on a date that is not theirs");
+  assert.ok(!/the number one song the week you were born/i.test(other), "no week is promised on a date that is not theirs");
   assert.ok(!/1990(?!s)/.test(other), "the decade, never the year");
   // The age comes from the real birthday, not from the page: born December
   // 25, 1990, the reader is 35 on September 22, 2026 whichever page is open.
@@ -1728,15 +1728,16 @@ test("the panel promises a number one song only to a reader the charts cover", (
   const before = on(1950);
   assert.ok(before.includes("The charts this site uses begin in 1959, so there is no number one song for the week you were born."));
   assert.ok(before.includes("Below: everyone who shares September 4 and everything that ever happened on your date."));
-  assert.ok(!before.includes("the number one song the week you were born"));
+  assert.ok(!/the number one song the week you were born/i.test(before));
   assert.ok(before.includes('href="/september-4/card/"'));
   // 1958 is deliberately not imported, so it is on the wrong side of the line.
   assert.ok(on(1958).includes("begin in 1959"));
   // From the first chart year on, the promise stands.
   const first = on(1959);
-  assert.ok(first.includes("the number one song the week you were born"));
+  assert.ok(/the number one song the week you were born/i.test(first));
+  assert.ok(first.includes('href="/september-4/comb/#comb-songs"'), "and it is on the comb now");
   assert.ok(!first.includes("begin in 1959"));
-  assert.ok(on(1994).includes("the number one song the week you were born"));
+  assert.ok(/the number one song the week you were born/i.test(on(1994)));
 });
 
 test("render.ts and build.ts agree on the first chart year", async () => {

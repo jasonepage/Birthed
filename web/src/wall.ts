@@ -329,18 +329,20 @@ export function pictureRules(pictures: Picture[]): string {
   // A pictured small tile is the picture and nothing else: its year is what
   // stands in when there is none. docs/the-wall.md section 27.
   const noYear = pictures.map((p) => `.wtile.small[data-subject="${safe(p.subject)}"] .wyr,.wtile.tiny[data-subject="${safe(p.subject)}"] .wyr`).join(",");
-  return `<style class="wpics">${each}${noYear}{display:none}${all}{color:#FFF7EE;--wink:#FFF7EE;--wbtn:#FFE9B0;--wbtn-ink:#2A1A08;--wmark:#FFE9B0;justify-content:flex-end;--scrim:linear-gradient(to top,rgba(20,12,4,.94) 0%,rgba(20,12,4,.62) 48%,rgba(20,12,4,.18) 100%)}</style>`;
+  // A comb cell has room for its picture only when there is one.
+  const cells = pictures.map((p) => `.wcell[data-subject="${safe(p.subject)}"] .wcellpic`).join(",");
+  return `<style class="wpics">${each}${noYear}{display:none}${cells}{display:block}${all}{color:#FFF7EE;--wink:#FFF7EE;--wbtn:#FFE9B0;--wbtn-ink:#2A1A08;--wmark:#FFE9B0;justify-content:flex-end;--scrim:linear-gradient(to top,rgba(20,12,4,.94) 0%,rgba(20,12,4,.62) 48%,rgba(20,12,4,.18) 100%)}</style>`;
 }
 
 /**
  * The subjects whose pictures a date page actually draws: every tile on the
- * board, and every number one, whose cover is in the strip. A feed row draws
- * no picture, so a rule for one is weight and nothing else.
+ * board. A feed row draws no picture, and the song covers moved to the comb
+ * on September 22, 2026, so a rule for either is weight and nothing else.
  */
 export function picturedSubjects(day: Pick<WallDay, "stories">): Set<string> {
   const out = new Set<string>();
   for (const s of day.stories) {
-    if (s.status === "placed" || s.status === "false" || s.subjectKind === "song") out.add(subjectOf(s) ?? `story:${s.id}`);
+    if (s.status === "placed" || s.status === "false") out.add(subjectOf(s) ?? `story:${s.id}`);
   }
   return out;
 }
@@ -1098,7 +1100,7 @@ export function yearAttr(headline: string): string {
  * opens the receipt, the way a headline does. A song with no cover is the
  * made tile the covers wall already draws for records Apple does not carry.
  */
-function songRow(story: WallStory, live: boolean, voice: Voice): string {
+function songRow(story: WallStory, live: boolean, voice: Voice, back: TapBack = "day"): string {
   const parts = songParts(story.headline);
   const year = parts?.year ?? "";
   const title = parts?.title ?? story.headline;
@@ -1108,8 +1110,8 @@ function songRow(story: WallStory, live: boolean, voice: Voice): string {
   // and a second copy of the id.
   const onHive = story.status === "placed" || story.status === "false";
   const control = onHive
-    ? `<a class="wonhive" href="#w-${story.id}">On the hive</a>`
-    : live ? buzzForm(story, voice) : "";
+    ? `<a class="wonhive" href="${back === "comb" ? `/${slug(Number(story.wallDate.slice(5, 7)), Number(story.wallDate.slice(8, 10)))}/` : ""}#w-${story.id}">On the hive</a>`
+    : live ? buzzForm(story, voice, back) : "";
   return `<li${onHive ? ` class="wsongonhive"` : ` id="w-${story.id}"`}${subjectAttr(story)}>`
     + `<a class="wart" href="${storyPath(story)}" title="${escapeHtml(story.headline)}"><span class="wyr"${year === "" ? "" : ` id="${year}"`}>${year}</span></a>`
     + `<span class="wsongt">${escapeHtml(title)}</span>`
@@ -1580,14 +1582,15 @@ ${rows}
 }
 
 /**
- * The groups the comb is cut into, in the order they read, and the words
- * each one is headed with. Songs are not here: they have their own strip on
- * the date page, with covers, and every one of them is already there.
+ * The groups the comb is cut into, in the order they read. The order is for
+ * the eye as much as the kinds: words, then covers, then faces, then words
+ * again, so the page never runs a hundred rows of one shape.
  */
 const COMB_GROUPS: Array<{ id: string; kinds: TileKind[]; head: string; short: string }> = [
   { id: "happened", kinds: ["happened"], head: "What happened", short: "happened" },
+  { id: "songs", kinds: ["song"], head: "The number one song, every year", short: "number one songs" },
   { id: "born", kinds: ["born"], head: "Who was born", short: "born" },
-  { id: "number-ones", kinds: ["album", "film"], head: "Number one albums and films", short: "number ones" },
+  { id: "number-ones", kinds: ["album", "film"], head: "Number one albums and films", short: "albums and films" },
   { id: "news", kinds: ["news"], head: "In the news", short: "in the news" },
 ];
 
@@ -1609,27 +1612,50 @@ function combPattern(id: string): string {
 }
 
 /**
- * The way from the date page to the rest of its feed. Hana's walkthrough and
- * the page weight, September 22, 2026: the rows past the first dozen were
- * 418 kilobytes folded into every date page. They are one card now, and the
- * card says what is behind it, by kind, so it reads as a place to go rather
- * than a list somebody hid.
+ * The way from the date page to the rest of its feed and its number ones.
+ * Hana's walkthrough and the page weight, September 22, 2026: the rows past
+ * the first dozen were 418 kilobytes folded into every date page and the
+ * song covers another 51. They are one card now, and the card says what is
+ * behind it, by kind, so it reads as a place to go rather than a list
+ * somebody hid.
  */
-export function combCard(rest: WallStory[], total: number, month: number, d: number, name: string, voice: Voice = BEE, sealed: boolean = false): string {
-  const groups = combGroups(rest);
+export function combCard(rest: WallStory[], songs: WallStory[], month: number, d: number, name: string, voice: Voice = BEE, sealed: boolean = false): string {
+  const inside = [...rest, ...songs];
+  const groups = combGroups(inside);
   const counts = groups.map((g) => `<span><b>${g.stories.length}</b> ${escapeHtml(g.short)}</span>`).join("");
-  const cells = rest.length === 1 ? "1 more cell" : `${rest.length} more cells`;
+  const cells = inside.length === 1 ? "1 more cell" : `${inside.length} more cells`;
   const say = sealed
-    ? `Everything else with a birthday on ${escapeHtml(name)}, kept as the hive sealed.`
-    : `Everything else with a birthday on ${escapeHtml(name)}. Every one still takes a ${voice.one}.`;
+    ? `Everything else with a birthday on ${escapeHtml(name)}, and the number one in every year, kept as the hive sealed.`
+    : `Everything else with a birthday on ${escapeHtml(name)}, and the number one in every year. Every one still takes a ${voice.one}.`;
   return `<a class="wcomb" href="${combPath(month, d)}">
 ${combPattern(`hex-${slug(month, d)}`)}
 <span class="wcombkick">The comb</span>
 <span class="wcombhead">${cells} in the comb</span>
 <span class="wcombsay">${say}</span>
 <span class="wcombcounts">${counts}</span>
-<span class="wcombgo">Open all ${total} <span aria-hidden="true">&rarr;</span></span>
+<span class="wcombgo">Open the comb <span aria-hidden="true">&rarr;</span></span>
 </a>`;
+}
+
+/**
+ * One cell of the comb: a small card rather than a row, so the page reads as
+ * a comb and not as a list. A cell can carry a picture, drawn from the same
+ * --pic rule the tiles use and shown only when pictureRules says there is
+ * one. A backed cell is wide and breathes, the way a hive tile grows. Every
+ * seventh is wide too, so the rhythm is not a spreadsheet's.
+ */
+function combCell(story: WallStory, live: boolean, voice: Voice, alsoIn: readonly string[] | null, index: number): string {
+  const kind = tileKind(story);
+  const count = units(story.support, voice);
+  const also = alsoIn === null || alsoIn.length === 0 ? "" : ` <span class="walso">with ${escapeHtml(andList([...alsoIn]))}</span>`;
+  const wide = story.support > 0 || index % 7 === 0;
+  const control = live && story.status !== "false" ? buzzForm(story, voice, "comb") : "";
+  const classes = `wcell wc-${kind}${wide ? " wcwide" : ""}${story.support > 0 ? " wcbacked" : ""}`;
+  return `<li id="w-${story.id}" class="${classes}"${subjectAttr(story)}${yearAttr(story.headline)} style="--i:${Math.min(index, 24)}">`
+    + `<span class="wcellpic" aria-hidden="true"></span>`
+    + `<span class="wcelltop">${kindMark(kind)}${count === "" ? "" : `<span class="wn">${count}</span>`}</span>`
+    + `<a class="wch" href="${storyPath(story)}">${escapeHtml(story.headline)}</a>`
+    + `<span class="wcellfoot"><span class="wmeta">${escapeHtml(story.outlet)}${also}${rowChip(story.tier)}${mine(voice)}</span>${control}</span></li>`;
 }
 
 function combBody(
@@ -1637,6 +1663,7 @@ function combBody(
   name: string,
   now: number,
   waiting: WallStory[],
+  songs: WallStory[],
   alsoIn: ReadonlyMap<string, readonly string[]>,
   live: boolean,
   closed: boolean,
@@ -1644,19 +1671,27 @@ function combBody(
   options: WallOptions,
 ): string {
   const { month, day: d } = parts(day.wallDate);
-  const groups = combGroups(waiting);
+  const groups = combGroups([...waiting, ...songs]);
   const jumps = groups.map((g) => `<a href="#comb-${g.id}"><b>${g.stories.length}</b> ${escapeHtml(g.short)}</a>`).join("");
   const say = live
-    ? `Everything with a birthday on ${escapeHtml(name)} that is not on the board, most ${voice.past} first. A ${voice.one} here counts the same as one on the hive.`
+    ? `Everything with a birthday on ${escapeHtml(name)} that is not on the board, and the number one in every year, most ${voice.past} first. A ${voice.one} here counts the same as one on the hive.`
     : closed
-      ? `Everything with a birthday on ${escapeHtml(name)} that was in the feed when the hive sealed. It takes no more.`
-      : `Everything with a birthday on ${escapeHtml(name)}. When the hive opens, every one of these takes ${voice.many}.`;
-  const sections = groups.map((g) => `<section class="wcombgroup" id="comb-${g.id}" aria-labelledby="comb-${g.id}-head">
+      ? `Everything with a birthday on ${escapeHtml(name)} that was in the feed when the hive sealed, and the number one in every year. It takes no more.`
+      : `Everything with a birthday on ${escapeHtml(name)}, and the number one in every year. When the hive opens, every one of these takes ${voice.many}.`;
+  const sections = groups.map((g) => {
+    const list = g.id === "songs"
+      ? `<p class="wnote">${live ? `A ${voice.one} on a song counts the same as one on anything else.` : "The week's number one on this date, back to 1959."}</p>
+<ul class="wsongs">
+${g.stories.map((s) => songRow(s, live, voice, "comb")).join("\n")}
+</ul>`
+      : `<ul class="wlist wcells">
+${g.stories.map((s, i) => combCell(s, live, voice, alsoIn.get(s.id) ?? null, i)).join("\n")}
+</ul>`;
+    return `<section class="wcombgroup" id="comb-${g.id}" aria-labelledby="comb-${g.id}-head">
 <h2 class="section" id="comb-${g.id}-head">${escapeHtml(g.head)} <span class="wcombn">${g.stories.length}</span></h2>
-<ul class="wlist">
-${g.stories.map((s) => listRow(s, live, voice, alsoIn.get(s.id) ?? null, "comb")).join("\n")}
-</ul>
-</section>`).join("\n");
+${list}
+</section>`;
+  }).join("\n");
   return `<section class="wall wcombpage" aria-labelledby="wallhead">
 <div class="wcombtop">
 ${combPattern(`hex-top-${slug(month, d)}`)}
@@ -1668,9 +1703,16 @@ ${live ? countLine(day, now, voice) : ""}
 <nav class="wcombjump" aria-label="Jump to a kind">${jumps}</nav>
 </div>
 ${afterwords(voice, name, options.undo ?? null, "comb")}
-${waiting.length === 0 ? `<p class="wnote">Everything filed for ${escapeHtml(name)} is on the hive.</p>` : sections}
+${groups.length === 0 ? `<p class="wnote">Everything filed for ${escapeHtml(name)} is on the hive.</p>` : sections}
 <p class="wnote wcombback"><a href="/${slug(month, d)}/">Back to ${escapeHtml(name)} and its hive</a></p>
 </section>`;
+}
+
+/** The subjects whose pictures the comb draws: everything but the news, whose pictures are the publishers' and heavy. */
+export function combPictured(day: Pick<WallDay, "stories">): Set<string> {
+  const out = new Set<string>();
+  for (const s of day.stories) if (s.subjectKind !== null) out.add(subjectOf(s) ?? `story:${s.id}`);
+  return out;
 }
 
 /**
@@ -1810,7 +1852,7 @@ ${yoursLine(options.yours, voice)}
   }
 
   if (options.comb === true) {
-    return combBody(day, name, now, waiting, agreed.alsoIn, live, closed, voice, options);
+    return combBody(day, name, now, waiting, songs, agreed.alsoIn, live, closed, voice, options);
   }
 
   // Under the hive, one feed: everything with a birthday on the date that is
@@ -1827,12 +1869,10 @@ ${yoursLine(options.yours, voice)}
   // kilobytes of a date page nobody had opened. It lives on the comb now,
   // and the card below the dozen says what is in it.
   const shown = waiting.slice(0, FEED_SHOWN);
-  const folded = waiting.slice(FEED_SHOWN);
   const feedList = waiting.length > 0
     ? `<ul class="wlist">
 ${shown.map((s) => listRow(s, live, voice, agreed.alsoIn.get(s.id) ?? null)).join("\n")}
-</ul>` + (folded.length === 0 ? "" : `
-${combCard(folded, waiting.length, month, d, name, voice, closed)}`)
+</ul>`
     : unfiled && history !== ""
       ? ""
       : `<p class="wnote wnofeed">Everything filed for ${escapeHtml(name)} is on the hive.</p>`;
@@ -1860,11 +1900,13 @@ ${combCard(folded, waiting.length, month, d, name, voice, closed)}`)
       ? `<p class="wnote wunder">${escapeHtml(sealedLine(day, onWall, voice))} Every story is a link to its source. <a href="/about/">How the hive works</a></p>`
       : "";
 
-  const songStrip = songs.length === 0 ? "" : `<h3 class="wsub small">The number one song, every year</h3>
-<p class="wnote">${live ? `A ${voice.one} on a song counts the same as one on anything else.` : "The week's number one on this date, back to 1959."}</p>
-<ul class="wsongs">
-${songs.map((s) => songRow(s, live, voice)).join("\n")}
-</ul>`;
+  // The number ones went to the comb with the rest, September 22, 2026:
+  // sixty covers and sixty forms were 51 kilobytes of a date page. The card
+  // counts them with everything else behind it.
+  const folded = waiting.slice(FEED_SHOWN);
+  const card = folded.length === 0 && songs.length === 0
+    ? ""
+    : combCard(folded, songs, month, d, name, voice, closed);
 
   // The hive is the hero: the name, one line saying what the hive is, one
   // sentence, the field and the count right above the board, and the board.
@@ -1884,7 +1926,7 @@ ${yoursLine(options.yours, voice)}
 <p class="wnote">Everything with a birthday on ${escapeHtml(name)}, today's and every year's. ${feedNote}</p>
 ${feedList}
 ${HISTORY_START}${stood}${HISTORY_END}
-${songStrip}
+${card}
 </section>`;
 }
 
@@ -2258,6 +2300,48 @@ export const WALL_STYLE = `
 .wcombgroup h2.section { margin: 0 0 10px; }
 .wcombn { font-size: .6em; font-weight: 700; color: #A49BAE; vertical-align: middle; margin-left: 4px; }
 .wcombback { margin-top: 26px; }
+/* The comb's cells. A grid of small cards rather than a list of rows, with
+   the wide ones filling the gaps, each kind edged in its own colour. */
+.wcells { grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); grid-auto-flow: dense; gap: 8px; }
+.wcells li.wcell {
+  --kc: #E7A83A;
+  display: flex; flex-direction: column; gap: 6px; padding: 0 0 11px; overflow: hidden; position: relative;
+  border-radius: 14px; background: #17141F; box-shadow: inset 0 2px 0 var(--kc), inset 0 0 0 1px rgba(255, 247, 238, .05);
+  font-size: 14px; line-height: 1.35;
+}
+.wcells li.wcell::before { margin: 10px 12px 0; }
+.wcells .wcwide { grid-column: span 2; }
+.wcells .wc-happened { --kc: #E7A83A; }
+.wcells .wc-born { --kc: #EF5680; }
+.wcells .wc-album, .wcells .wc-film { --kc: #9B8CF0; }
+.wcells .wc-news { --kc: #5CB8A8; }
+.wcellpic { display: none; aspect-ratio: 16 / 9; background: #241E2E var(--pic, none) center 22% / cover no-repeat; }
+.wc-born .wcellpic { aspect-ratio: 4 / 3; background-position: center 18%; }
+.wcelltop { display: flex; align-items: center; gap: 6px; margin: 10px 12px 0; color: var(--kc); }
+.wcelltop .wkind svg { width: 16px; }
+.wcelltop .wn { margin-left: auto; font-size: 12px; font-weight: 800; color: #FFD98A; }
+.wcells a.wch { margin: 0 12px; font-weight: 650; color: #F3EDE4; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; overflow: hidden; }
+.wcells .wcwide a.wch { font-family: Georgia, "Times New Roman", serif; font-size: 17px; font-weight: 800; line-height: 1.25; }
+.wcellfoot { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: auto 12px 0; }
+.wcellfoot .wbuzz { margin-left: auto; }
+@keyframes wcellin { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes wcbuzz {
+  0%, 100% { box-shadow: inset 0 2px 0 var(--kc), inset 0 0 0 1px rgba(231, 168, 58, .35); }
+  50% { box-shadow: inset 0 2px 0 var(--kc), inset 0 0 0 1px rgba(255, 217, 138, .9), 0 0 22px rgba(231, 168, 58, .22); }
+}
+/* The honeycomb behind the comb's heading drifts one cell at a time, so the
+   loop has no seam: the pattern is 25.2 by 45 pixels after its scale. */
+.wcombtop .wcombhex { inset: -45px -26px auto auto; width: calc(100% + 52px); height: calc(100% + 90px); }
+@keyframes wcombdrift { from { transform: translate(0, 0); } to { transform: translate(25.2px, 45px); } }
+@media (max-width: 420px) { .wcells { grid-template-columns: repeat(2, minmax(0, 1fr)); } .wcells a.wch { -webkit-line-clamp: 7; } }
+/* The motion, only for a reader who has not asked for less: cells settle in
+   one beat apart, a backed cell breathes the way the board's tiles grow,
+   and the comb behind the heading drifts. */
+@media (prefers-reduced-motion: no-preference) {
+  .wcells li.wcell, .wcombpage .wsongs li { animation: wcellin 560ms cubic-bezier(.2, .7, .2, 1) both; animation-delay: calc(var(--i, 0) * 32ms); }
+  .wcells li.wcbacked { animation: wcellin 560ms cubic-bezier(.2, .7, .2, 1) both, wcbuzz 2.8s ease-in-out 800ms infinite; animation-delay: calc(var(--i, 0) * 32ms), 800ms; }
+  .wcombtop .wcombhex { animation: wcombdrift 30s linear infinite; }
+}
 .wsongs .wonhive { font-weight: 700; color: #FFD98A; text-decoration: none; border-bottom: 1px solid #5A4420; }
 .wsongs .wonhive:hover { border-color: #FFD98A; }
 .whivesealed { max-width: 60ch; margin: 10px auto 0; text-align: center; }

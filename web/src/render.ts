@@ -2286,7 +2286,7 @@ export function renderMePanel(
     // page does not have.
     note = birthYear < FIRST_CHART_YEAR
       ? `The charts this site uses begin in ${FIRST_CHART_YEAR}, so there is no number one song for the week you were born. Below: everyone who shares ${name} and everything that ever happened on your date. ${card}`
-      : `Below: everyone who shares ${name}, the number one song the week you were born, and everything that ever happened on your date. ${card}`;
+      : `Below: everyone who shares ${name} and everything that ever happened on your date. <a href="/${slug(month, day)}/comb/#comb-songs">The number one song the week you were born</a> is on the comb. ${card}`;
   } else if (known) {
     note = `This is ${name}, not your date. Below, each year says how old you were on ${name} that year. <a href="/${slug(b.month!, b.day!)}/">Go to ${theirs}</a>. ${card}`;
   } else {
@@ -2717,7 +2717,7 @@ ${FOOT}`;
  * serve.ts while the date is open, between the same markers. Indexed, since
  * the rows are the date's history and the date page no longer carries them.
  */
-export function renderCombPage(day: WallDay, month: number, d: number): string {
+export function renderCombPage(day: WallDay, month: number, d: number, pictures: Picture[] = []): string {
   const name = `${monthName(month)} ${d}`;
   const hue = dayHue(month);
   return `${head(`Every story on ${name}, ${day.year}`,
@@ -2729,6 +2729,7 @@ export function renderCombPage(day: WallDay, month: number, d: number): string {
 <span class="barnav"><a class="here" href="/${slug(month, d)}/">${escapeHtml(name)}</a></span>
 ${barEnd()}
 </div>
+${pictureRules(pictures.filter((p) => !p.subject.startsWith("story:")))}
 ${wallSection(day, name, Date.now(), { comb: true, date: { month, day: d } })}
 </div>
 ${FOOT}`;

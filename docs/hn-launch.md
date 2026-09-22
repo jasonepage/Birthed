@@ -11,6 +11,12 @@ each line off by editing this file.
       comments. The first dozen rows stay, the rest are on the comb
       (`/<date>/comb/`), the picture rules name only what is drawn, and the
       comments are stripped on the way out. Measure again after deploy.
+- [x] The number one song covers moved to the comb too (51 kilobytes of the
+      date page), and the comb became a grid of cells by kind, with pictures,
+      the covers in the middle, and motion that settles in, breathes on a
+      backed cell and drifts behind the heading, all switched off for a
+      reader who asked for reduced motion. The comb is the heavy page now,
+      which is the point: it is the one a reader asked for.
 - [x] "Three a day. Typing spends nothing." cut from under the board, and the
       "Only you can see it" clause cut from the link to /yours/ (the page
       itself already says it).

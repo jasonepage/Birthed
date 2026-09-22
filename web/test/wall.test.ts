@@ -6,7 +6,7 @@ import {
   eastern,
   yearsAgo,
   BEE, PLAIN, PLAIN_DATES, VIEW_MIN, allowanceOn, emptyWallDay, fetchWall, hivePath, newestByDate, storyPath, takingBoosts,
-  tapsLeftSentence, tierLabel, yearAttr, SAVE_PICTURE, tiersDiffer, hiveDaysNav, units, viewportFor, voiceFor, wallMarks, wallSection, pictureRules, songParts, subjectOf, takeTurns, FEED_SHOWN, tileKind, kindMark, WALL_STYLE, sealedLine, picturedSubjects, hindsightLine, latestOutcome, outcomeStamp, recordStanding, yoursLine, fitType, tileYear, type WallDay, type WallStory,
+  tapsLeftSentence, tierLabel, yearAttr, SAVE_PICTURE, tiersDiffer, hiveDaysNav, units, viewportFor, voiceFor, wallMarks, wallSection, pictureRules, songParts, subjectOf, takeTurns, FEED_SHOWN, tileKind, kindMark, WALL_STYLE, sealedLine, picturedSubjects, combPictured, hindsightLine, latestOutcome, outcomeStamp, recordStanding, yoursLine, fitType, tileYear, type WallDay, type WallStory,
 } from "../src/wall.js";
 import { picturesFor } from "../src/render.js";
 import { SHARE_SCRIPT } from "../src/share-button.js";
@@ -387,8 +387,13 @@ test("the number one songs are one strip, baked under the feed until the worker 
   // Once the worker has filed a song story, the strip is the stories and the baked one is not drawn beside it.
   const filed = story({ id: "aaaaaaaa-0000-0000-0000-000000000009", status: "pool", rect: null, placedAt: null, support: 0, subjectKind: "song", subjectId: "2001-09-08", headline: "2001: A Song by A Band was the number one song" });
   const later = renderDayPage(PAGE, songs, [], [], [], null, new Map(), new Map(), day([story(), filed]));
-  assert.equal((later.match(/class="wsongs"/g) ?? []).length, 1, "still one strip");
-  assert.ok(later.includes('id="2001"'), "the year is still an address");
+  // Once filed, the songs live on the comb, September 22, 2026, and the
+  // date page carries the card that leads there instead of a second strip.
+  assert.equal((later.match(/class="wsongs"/g) ?? []).length, 0, "no strip on the date page once filed");
+  assert.ok(later.includes('<a class="wcomb" href="/september-9/comb/">'));
+  const comb = wallSection(day([story(), filed]), "September 9", Date.now(), { comb: true });
+  assert.equal((comb.match(/class="wsongs"/g) ?? []).length, 1, "one strip, on the comb");
+  assert.ok(comb.includes('id="2001"'), "the year is still an address");
 });
 
 // ---------------------------------------------------------------------------
@@ -647,14 +652,17 @@ test("a tile and a row carry the subject the worker filed them under, and news c
   assert.equal(subjectOf({ subjectKind: "person", subjectId: "Q42" }), "person:Q42");
 });
 
-test("the number ones in the pool are a strip of covers under the feed, not sixty rows in it", () => {
+test("the number ones are a strip of covers on the comb, not sixty rows in the feed", () => {
   const older = song("aaaaaaaa-0000-0000-0000-000000000001", 1994, "1994-09-10");
   const newer = song("aaaaaaaa-0000-0000-0000-000000000002", 2026, "2026-09-12");
   const backed = song("aaaaaaaa-0000-0000-0000-000000000003", 1971, "1971-09-11", 2);
   const news = story({ id: "bbbbbbbb-0000-0000-0000-000000000002", status: "pool", rect: null, placedAt: null });
-  const html = wallSection(day([older, newer, backed, news]), "September 9", LIVE, { interactive: true });
-  const feed = html.slice(html.indexOf('<ul class="wlist">'), html.indexOf("</ul>"));
+  const page = wallSection(day([older, newer, backed, news]), "September 9", LIVE, { interactive: true });
+  const feed = page.slice(page.indexOf('<ul class="wlist">'), page.indexOf("</ul>"));
   assert.ok(feed.includes(`id="w-${news.id}"`));
+  assert.ok(!page.includes('<ul class="wsongs">'), "the covers are on the comb, not the date page");
+  assert.ok(page.includes("3</b> number one songs"), "and the card counts them");
+  const html = wallSection(day([older, newer, backed, news]), "September 9", LIVE, { interactive: true, comb: true });
   assert.ok(!feed.includes("subject:song") && !feed.includes(`id="w-${older.id}"`), "no song sits in the feed list");
   const strip = html.slice(html.indexOf('<ul class="wsongs">'), html.indexOf("</ul>", html.indexOf('<ul class="wsongs">')));
   const order = [backed.id, newer.id, older.id].map((id) => strip.indexOf(`id="w-${id}"`));
@@ -664,8 +672,9 @@ test("the number ones in the pool are a strip of covers under the feed, not sixt
   const shown = /<span class="wsongt">([^<]*)<\/span>/.exec(strip)?.[1] ?? "";
   assert.ok(shown.includes("Boyz II Men") && !shown.includes("was the number one song"), `the song and artist, not the whole sentence: ${shown}`);
   assert.equal((strip.match(/<form class="wbuzz"/g) ?? []).length, 3, "one button each while the date is live");
+  assert.ok(strip.includes('name="v" value="comb"'), "a buzz on a song comes back to the comb");
   // A hive with no songs filed draws no strip and no heading for one.
-  assert.ok(!wallSection(day([news]), "September 9", LIVE).includes("wsongs"));
+  assert.ok(!wallSection(day([news]), "September 9", LIVE, { comb: true }).includes("wsongs"));
 });
 
 test("the picture rules name a tile by its subject and put nothing but a path on this domain in them", () => {
@@ -744,7 +753,7 @@ test("the feed shows a dozen rows and sends the rest to the comb, with a card th
   assert.ok(!html.includes("wmore"));
   assert.ok(html.includes('<a class="wcomb" href="/september-9/comb/">'));
   assert.ok(html.includes(`${30 - FEED_SHOWN} more cells in the comb`));
-  assert.ok(html.includes("Open all 30"));
+  assert.ok(html.includes("Open the comb"));
   assert.ok(html.includes("still takes a buzz"));
   // A short feed has no comb to go to.
   assert.ok(!wallSection(day(stories.slice(0, 5)), "September 9", LIVE).includes("wcomb"));
@@ -762,7 +771,7 @@ test("the comb carries every row, grouped by kind, and a buzz from it comes back
   assert.ok(!html.includes('class="wboard'), "the comb draws no board");
   // Sealed, it says so and carries no button.
   const sealed = wallSection(day(stories), "September 9", Date.parse("2026-09-12T00:00:00Z"), { comb: true, date: { month: 9, day: 9 } });
-  assert.ok(sealed.includes("when the hive sealed. It takes no more."));
+  assert.ok(sealed.includes("when the hive sealed") && sealed.includes("It takes no more."));
   assert.ok(!sealed.includes('action="/boost"'));
 });
 
@@ -772,8 +781,12 @@ test("a date page draws only the pictures it shows", () => {
   const song = story({ id: "aaaaaaaa-0000-0000-0000-000000000003", status: "pool", rect: null, subjectKind: "song", subjectId: "1994-09-10" });
   const drawn = picturedSubjects(day([tile, row, song]));
   assert.ok(drawn.has(`story:${tile.id}`));
-  assert.ok(drawn.has("song:1994-09-10"));
+  assert.ok(!drawn.has("song:1994-09-10"), "the covers moved to the comb");
   assert.ok(!drawn.has(`story:${row.id}`), "a feed row draws no picture");
+  // The comb draws its cells' pictures and the covers, and not the news.
+  const combed = combPictured(day([tile, row, song]));
+  assert.ok(combed.has("song:1994-09-10"));
+  assert.ok(!combed.has(`story:${row.id}`), "a news picture is the publisher's and heavy");
 });
 
 test("every tile carries a kind mark: happened, born, song or news", () => {
@@ -1202,10 +1215,10 @@ test("a sealed board says what it sealed with, and why an older one is small", (
 test("a number one on the board stays in the song strip, pointing at its tile", () => {
   const onBoard = story({ id: "aaaaaaaa-0000-0000-0000-00000000a980", headline: "1980: \"Upside Down\" by Diana Ross was the number one song", subjectKind: "song", subjectId: "1980-09-27", status: "placed", support: 1 });
   const pooled = story({ id: "aaaaaaaa-0000-0000-0000-00000000a981", headline: "1981: \"Endless Love\" by Diana Ross and Lionel Richie was the number one song", subjectKind: "song", subjectId: "1981-09-26", status: "pool", rect: null, support: 0 });
-  const html = wallSection(day([onBoard, pooled]), "September 9", Date.parse("2026-09-09T20:00:00Z"));
+  const html = wallSection(day([onBoard, pooled]), "September 9", Date.parse("2026-09-09T20:00:00Z"), { comb: true });
   const strip = html.slice(html.indexOf('<ul class="wsongs">'));
   assert.ok(strip.includes('id="1980"'), "1980 is still a row in the strip");
-  assert.ok(strip.includes(`href="#w-${onBoard.id}"`), "and it points at its tile");
-  assert.equal((html.match(new RegExp(`id="w-${onBoard.id}"`, "g")) ?? []).length, 1, "the tile keeps the one id");
+  assert.ok(strip.includes(`href="/september-9/#w-${onBoard.id}"`), "and it points at its tile, on the date page");
+  assert.equal((html.match(new RegExp(`id="w-${onBoard.id}"`, "g")) ?? []).length, 0, "the tile keeps the one id, on the date page");
   assert.ok(strip.includes('id="1981"'));
 });

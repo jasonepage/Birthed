@@ -288,7 +288,7 @@ async function main(): Promise<void> {
     const [month, d] = key.split("-").map(Number) as [number, number];
     const directory = join(OUT, slug(month, d), "comb");
     await mkdir(directory, { recursive: true });
-    await writeFile(join(directory, "index.html"), renderCombPage(day, month, d), "utf8");
+    await writeFile(join(directory, "index.html"), renderCombPage(day, month, d, picturesByKey.get(key) ?? []), "utf8");
     combs++;
   }
   if (combs > 0) console.log(`wrote ${combs} comb pages`);
