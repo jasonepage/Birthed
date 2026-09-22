@@ -650,6 +650,20 @@ function chip(tier: WallTier): string {
   return `<span class="wchip w-${tier}">${tierLabel(tier)}</span>`;
 }
 
+/**
+ * The chip on a row, which says nothing for the lowest tier.
+ *
+ * Every seeded story is claimed and stays claimed, because nothing adds a
+ * second source yet, so "Claimed" sat on every row of the feed and a label
+ * on everything is a label on nothing. A row is silent about the floor and
+ * speaks when a story rises above it. The receipt still names every tier,
+ * claimed included, because that is where a reader goes to ask.
+ * September 22, 2026.
+ */
+function rowChip(tier: WallTier): string {
+  return tier === "claimed" ? "" : ` ${chip(tier)}`;
+}
+
 // ---------------------------------------------------------------------------
 // The wall on a date page
 // ---------------------------------------------------------------------------
@@ -1034,9 +1048,21 @@ export function andList(names: readonly string[]): string {
 function listRow(story: WallStory, live: boolean, voice: Voice, alsoIn: readonly string[] | null = null): string {
   const count = units(story.support, voice);
   const also = alsoIn === null || alsoIn.length === 0 ? "" : ` <span class="walso">with ${escapeHtml(andList([...alsoIn]))}</span>`;
-  const meta = `<span class="wmeta">${escapeHtml(story.outlet)}${also} ${chip(story.tier)}${count === "" ? "" : ` ${count}`}${mine(voice)}</span>`;
+  const meta = `<span class="wmeta">${escapeHtml(story.outlet)}${also}${rowChip(story.tier)}${count === "" ? "" : ` ${count}`}${mine(voice)}</span>`;
   const control = live && story.status !== "false" ? ` ${buzzForm(story, voice)}` : "";
-  return `<li id="w-${story.id}"${subjectAttr(story)}><a href="${storyPath(story)}">${escapeHtml(story.headline)}</a> ${meta}${control}</li>`;
+  return `<li id="w-${story.id}"${subjectAttr(story)}${yearAttr(story.headline)}><a href="${storyPath(story)}">${escapeHtml(story.headline)}</a> ${meta}${control}</li>`;
+}
+
+/**
+ * The year a history row is about, as an attribute, so the server can put
+ * the reader's age on it without touching the baked page. Only a headline
+ * that opens "1975: " has one; the news and the people do not, because the
+ * news is this year and a person's birth year is not something that
+ * happened to the reader. See ageMark in serve.ts.
+ */
+export function yearAttr(headline: string): string {
+  const found = /^(\d{3,4}): /.exec(headline);
+  return found === null ? "" : ` data-y="${found[1]}"`;
 }
 
 /**
@@ -1425,7 +1451,7 @@ function foundBlock(found: WallStory[], day: WallDay, live: boolean, voice: Voic
   const heading = found.length === 1 ? "Is this the one?" : "A few stories say that. Which one did you mean?";
   const rows = found.map((s) => {
     const count = units(s.support, voice);
-    const meta = `<span class="wmeta">${escapeHtml(s.outlet)} ${chip(s.tier)}${count === "" ? "" : ` ${count}`}</span>`;
+    const meta = `<span class="wmeta">${escapeHtml(s.outlet)}${rowChip(s.tier)}${count === "" ? "" : ` ${count}`}</span>`;
     const control = s.status === "false"
       ? ` <span class="wmeta">Later shown false. Takes no ${voice.many}.</span>`
       : live ? ` ${buzzForm(s, voice)}` : "";

@@ -6,7 +6,7 @@ import {
   eastern,
   yearsAgo,
   BEE, PLAIN, PLAIN_DATES, VIEW_MIN, allowanceOn, emptyWallDay, fetchWall, hivePath, newestByDate, storyPath, takingBoosts,
-  tapsLeftSentence, tierLabel, units, viewportFor, voiceFor, wallMarks, wallSection, pictureRules, songParts, subjectOf, takeTurns, FEED_SHOWN, tileKind, kindMark, WALL_STYLE, hindsightLine, latestOutcome, outcomeStamp, recordStanding, yoursLine, fitType, tileYear, type WallDay, type WallStory,
+  tapsLeftSentence, tierLabel, yearAttr, units, viewportFor, voiceFor, wallMarks, wallSection, pictureRules, songParts, subjectOf, takeTurns, FEED_SHOWN, tileKind, kindMark, WALL_STYLE, hindsightLine, latestOutcome, outcomeStamp, recordStanding, yoursLine, fitType, tileYear, type WallDay, type WallStory,
 } from "../src/wall.js";
 import { picturesFor } from "../src/render.js";
 
@@ -1095,4 +1095,24 @@ test("a buzz already spent is never folded into somebody else's row", () => {
   const html = wallSection(day([backed, other]), "September 9");
   assert.ok(html.includes("Sri Lanka court convicts 15 men over deadly Easter Sunday bombings"), "the backed row keeps its own button");
   assert.equal((html.match(/Sri Lanka court convicts/g) ?? []).length, 2, "both rows are drawn");
+});
+
+test("a feed row says nothing about the lowest tier and names every tier above it", () => {
+  const claimed = story({ id: "aaaaaaaa-0000-0000-0000-00000000c001", status: "pool", rect: null, placedAt: null, support: 0, tier: "claimed", headline: "1975: A claimed row" });
+  const reported = story({ id: "aaaaaaaa-0000-0000-0000-00000000c002", status: "pool", rect: null, placedAt: null, support: 0, tier: "reported", headline: "A reported row" });
+  const html = wallSection(day([claimed, reported]), "September 9");
+  const rowOf = (id: string): string => { const i = html.indexOf(`<li id="w-${id}"`); assert.ok(i >= 0, id); return html.slice(i, html.indexOf("</li>", i)); };
+  assert.ok(!rowOf(claimed.id).includes("wchip"), "every seeded story is claimed, so the chip said nothing");
+  assert.ok(rowOf(reported.id).includes('<span class="wchip w-reported">Reported</span>'));
+  // And the dated row carries its year for the reader's age.
+  assert.ok(rowOf(claimed.id).includes(' data-y="1975"'));
+  assert.ok(!rowOf(reported.id).includes("data-y"));
+});
+
+test("only a headline that opens with a year carries one", () => {
+  assert.equal(yearAttr("1975: Sara Jane Moore tries to shoot the President"), ' data-y="1975"');
+  assert.equal(yearAttr("476: The last emperor in the West is deposed"), ' data-y="476"');
+  assert.equal(yearAttr("How Trump's media ban sparked a broadcaster boycott"), "");
+  assert.equal(yearAttr("Tatiana Maslany, Canadian actress, born 1985"), "");
+  assert.equal(yearAttr("10000 people march"), "");
 });
