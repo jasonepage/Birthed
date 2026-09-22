@@ -1,70 +1,85 @@
 import SwiftUI
 
-/// Two screens, no sign-in, no permission prompts, and something true about
-/// the person on every one of them before they are asked for the next thing.
+/// The first five minutes: your day, your year, and one person whose birthday
+/// you keep forgetting. No sign-in, no permission prompts, and something true
+/// on every screen before the next thing is asked for.
+///
+/// Redrawn on September 22, 2026 on the same dark honey stage as Mine and
+/// People, so the app looks like itself from the first second rather than
+/// from the second tab. `docs/first-five-minutes.md` says a person is
+/// activated when they have entered a year and added one other person in the
+/// first session. The first half was always here; the second was hidden in
+/// the People tab, so it is the third screen now, and it can be skipped.
 ///
 /// `FR-007` caps this at four screens and forbids a sign-in screen. `FR-002`
-/// and `FR-003` make the year optional and keep every feature working
-/// without it. The place screen is gone: with the catalog cut, nothing on any
-/// screen reads the region, so it lives in Settings where it costs nobody a
-/// tap on the way in. `FR-005` and `FR-006` still hold, since the operating
-/// system's location prompt is nowhere near here.
+/// and `FR-003` make the year optional and keep every feature working without
+/// it. The region lives in Settings, where it costs nobody a tap on the way
+/// in, and the operating system's location prompt is nowhere near here.
 ///
 /// The screens are not forms. The day wheel answers with how far away the day
-/// is and with one true thing that happened on it. The year wheel answers, as
-/// it turns, with the day of
-/// the week and how many days that has been, and once it settles, with the
-/// number one song that week. That is the best fact in the product, it needs
-/// the year, and the year is the field people skip. So it is paid for on the
-/// spot.
+/// is, which weekday it lands on, and one true thing that happened on it. The
+/// year wheel answers with the day of the week, how many days that has been,
+/// and, once it settles, the number one song that week, with its cover and a
+/// sample a tap away. That is the best fact in the product and the year is the
+/// field people skip, so it is paid for on the spot.
 ///
-/// The day screen used to answer with who shares the date, and it must not.
-/// That list is `notable_people` ordered by `notability_score`, which is the
-/// same table, column and order the website's share card used before it was
-/// fixed, and it led with Ted Bundy on November 24, Charles Manson on
-/// November 12 and Bashar al-Assad on September 11. See `DayLine` for why the
-/// names were cut rather than filtered. Nothing on this screen reads a name
-/// now, and nothing here may ever fall back to one.
+/// The day screen must never show who shares the date. That list led with
+/// Ted Bundy and Charles Manson on the website's old share card; see
+/// `DayLine` for why names were cut rather than filtered.
 ///
 /// The lookups use only the anonymous key, the same as every other read in
-/// the app, and the profile is not saved until the last button. Offline, the
-/// wheel still answers with the weekday and the day count, and the song is
-/// simply absent rather than an error.
+/// the app, and the profile is not saved until the last button. The friend's
+/// name is saved to the phone like every other person and goes nowhere else.
 struct OnboardingView: View {
     enum Step: Int, CaseIterable {
-        case day, year
+        case day, year, person
     }
 
     let repository: DayPageRepository
     let onFinish: (Profile) -> Void
 
+    @Environment(PeopleStore.self) private var people
+
     @State private var step: Step = .day
-    /// True when a link brought a date with it and the screen is asking about
-    /// that date instead of offering a wheel.
-    ///
-    /// The premise in docs/first-five-minutes.md is that it is the reader's
-    /// birthday and a friend just sent them something. Handing that person a
-    /// wheel and asking them to find the day they were born, on the day they
-    /// were born, when the thing they tapped already said which day it was,
-    /// is the app's first move being a chore. One button instead.
-    ///
-    /// It is a state and not a constant because saying no has to work: the
-    /// date can be somebody else's, or a friend can be sharing a date for its
-    /// own sake, and the answer to both is the wheel this screen already had.
     @State private var confirming: Bool
     @State private var month: Int
     @State private var day: Int
     @State private var observance: LeapObservance
     @State private var year: Int
+    /// Whether the reader kept the year. Decided on the year screen and
+    /// saved with the profile after the person screen.
+    @State private var keepsYear = true
+
+    /// A replay from Settings is somebody looking at their own day again, so
+    /// it ends after the year and never asks for a person.
+    private let isFirstRun: Bool
+
+    /// The one person, on the third screen.
+    @State private var friendName = ""
+    @State private var friendMonth: Int
+    @State private var friendDay: Int
+    @State private var friendObservance: LeapObservance = .february28
+    @State private var pastingList = false
+    @FocusState private var nameFocused: Bool
+
+    @State private var region: String?
+
+    @State private var happened: DayLine?
+    @State private var song: ChartWeek?
+    @State private var lineTask: Task<Void, Never>?
+    @State private var songTask: Task<Void, Never>?
+    @State private var preview = PreviewPlayer()
+
+    private let calendar = BirthdayCalendar()
+    private let stage = StagePalette.wax
+
+    private static let thisYear = Calendar.current.component(.year, from: Date())
+    private static let oldestYear = thisYear - 110
 
     /// A first run starts on September 4 and nineteen years ago. A replay
-    /// from Settings starts on the day and year already saved, so the
-    /// wheels are already right and the reveal is the point. A first run that
-    /// came from a link starts on the date the link named, with the wheel put
-    /// away until somebody says the date is wrong.
-    /// `arriving` is a date a link carried in. It only ever applies to a first
-    /// run: a replay from Settings is somebody editing what they already
-    /// saved, and a link should not quietly offer to overwrite it.
+    /// starts on the day and year already saved. A first run that came from a
+    /// link starts on the date the link named, with the wheel put away until
+    /// somebody says the date is wrong. A link never applies to a replay.
     init(
         repository: DayPageRepository,
         starting profile: Profile? = nil,
@@ -73,6 +88,7 @@ struct OnboardingView: View {
     ) {
         self.repository = repository
         self.onFinish = onFinish
+        isFirstRun = profile == nil
         let birthday = profile?.birthday
         let arrived = profile == nil ? arriving : nil
         _confirming = State(initialValue: arrived != nil)
@@ -81,56 +97,57 @@ struct OnboardingView: View {
         _observance = State(initialValue: birthday?.leapObservance ?? .february28)
         _year = State(initialValue: birthday?.year ?? (OnboardingView.thisYear - 19))
         _region = State(initialValue: profile?.regionCode)
+        // The friend's wheels start a week from today, which is the date
+        // somebody is most likely to be worried about.
+        let soon = Calendar.current.date(byAdding: .day, value: 7, to: Date()) ?? Date()
+        _friendMonth = State(initialValue: Calendar.current.component(.month, from: soon))
+        _friendDay = State(initialValue: Calendar.current.component(.day, from: soon))
     }
 
-    /// Carried through a replay untouched, since onboarding no longer asks
-    /// for it and finishing must not erase what Settings holds.
-    @State private var region: String?
-
-    /// The one thing that happened on the chosen date, or nothing. Nothing is
-    /// an ordinary answer here: offline it is what every date gives back, and
-    /// the section is simply absent, exactly as the names were when they
-    /// failed to load.
-    @State private var happened: DayLine?
-    @State private var song: ChartWeek?
-    @State private var album: ChartWeek?
-    @State private var film: ChartWeek?
-    @State private var lineTask: Task<Void, Never>?
-    @State private var songTask: Task<Void, Never>?
-
-    private let calendar = BirthdayCalendar()
-    private let facts = DateFacts()
-
-    private static let thisYear = Calendar.current.component(.year, from: Date())
-    private static let oldestYear = thisYear - 110
+    private var steps: [Step] { isFirstRun ? Step.allCases : [.day, .year] }
 
     private var chosenDate: CalendarDate {
         CalendarDate(month: month, day: day) ?? CalendarDate(month: 1, day: 1)!
     }
 
-    /// The birthday as the wheels currently describe it. Both screens read
-    /// from this so the year screen's facts are already right if somebody
-    /// goes back and changes the day.
     private func birthday(withYear: Bool) -> CalendarBirthday {
         CalendarBirthday(date: chosenDate, year: withYear ? year : nil, leapObservance: observance)
     }
 
+    private var friendDate: CalendarDate {
+        CalendarDate(month: friendMonth, day: friendDay) ?? CalendarDate(month: 1, day: 1)!
+    }
+
+    private var trimmedFriendName: String {
+        friendName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    // MARK: The screen
+
     var body: some View {
         ZStack {
-            Theme.celebration.ignoresSafeArea()
-
-            VStack(alignment: .leading, spacing: 0) {
-                header
-                Spacer(minLength: 10)
-                card
-                Spacer(minLength: 10)
-                controls
+            background
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    header
+                    Group {
+                        switch step {
+                        case .day: dayScreen
+                        case .year: yearScreen
+                        case .person: personScreen
+                        }
+                    }
+                    .padding(.top, 20)
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 12)
+                .padding(.bottom, 12)
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 18)
-            .padding(.bottom, 24)
+            .scrollDismissesKeyboard(.interactively)
+            .safeAreaInset(edge: .bottom) { controls }
         }
-        .foregroundStyle(Theme.cream)
+        .foregroundStyle(stage.type)
+        .preferredColorScheme(.dark)
         .animation(.easeInOut(duration: 0.25), value: step)
         .sensoryFeedback(.selection, trigger: chosenDate)
         .sensoryFeedback(.selection, trigger: year)
@@ -142,333 +159,412 @@ struct OnboardingView: View {
         }
         .onChange(of: year) { _, _ in lookUpSong() }
         .onChange(of: step) { _, newStep in
+            preview.stop()
             if newStep == .year { lookUpSong() }
+        }
+        .sheet(isPresented: $pastingList) {
+            AddFriendsView { added in
+                for person in added { people.add(person) }
+                if !added.isEmpty { finish() }
+            }
         }
     }
 
-    // MARK: Header
+    /// The stage: the darkest ground with the honey glow in the top corner,
+    /// the same light the Mine panel and the Next up card carry.
+    private var background: some View {
+        ZStack {
+            Theme.ink
+            RadialGradient(colors: [Theme.honey.opacity(0.20), .clear],
+                           center: UnitPoint(x: 0.9, y: 0.05), startRadius: 0, endRadius: 520)
+        }
+        .ignoresSafeArea()
+    }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .bottom, spacing: 10) {
-                CandleMark(height: 44)
-                    .padding(.bottom, 2)
-                Text("BIRTHED")
+            if step == .day {
+                HStack(alignment: .bottom, spacing: 10) {
+                    CandleMark(height: 44, on: stage)
+                        .padding(.bottom, 2)
+                    Text("BIRTHED")
+                        .font(.caption.weight(.heavy))
+                        .kerning(4)
+                        .foregroundStyle(Theme.spark)
+                        .padding(.bottom, 6)
+                    Spacer()
+                }
+                .padding(.bottom, 8)
+            } else {
+                Text(kicker)
                     .font(.caption.weight(.heavy))
-                    .kerning(4)
-                    .opacity(0.8)
-                    .padding(.bottom, 6)
-                Spacer()
+                    .kerning(2.8)
+                    .foregroundStyle(stage.accent)
+                    .padding(.top, 8)
             }
 
             Text(title)
-                .font(Theme.display(.largeTitle))
-                .lineLimit(2)
+                .font(.system(size: 40, weight: .heavy, design: .serif))
+                .lineLimit(3)
                 .minimumScaleFactor(0.7)
                 .fixedSize(horizontal: false, vertical: true)
                 .contentTransition(.opacity)
 
             Text(subtitle)
                 .font(.subheadline)
-                .opacity(0.88)
+                .foregroundStyle(stage.type.opacity(0.6))
                 .fixedSize(horizontal: false, vertical: true)
                 .contentTransition(.opacity)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private var kicker: String {
+        switch step {
+        case .day: return ""
+        case .year: return chosenDate.displayName().uppercased()
+        case .person: return "ONE MORE"
+        }
+    }
+
     private var title: String {
         switch step {
         case .day:
-            guard confirming else { return "When is your day?" }
-            // "Is today your birthday?" is only true on the day, and on any
-            // other day it would be the app's first sentence being wrong.
-            return isArrivedDateToday ? "Is today your birthday?" : "Is this your day?"
+            guard confirming else { return "When is your birthday?" }
+            return chosenDate == CalendarDate.today() ? "Is today your birthday?" : "Is this your day?"
         case .year: return "Which year?"
+        case .person: return "Whose birthday do you always forget?"
         }
     }
 
-    /// Whether the date a link brought is the date it is now.
-    private var isArrivedDateToday: Bool { chosenDate == CalendarDate.today() }
-
-    /// Two rules for this copy. It says what the field buys, because a field
-    /// with no stated reason gets skipped. And it does not overclaim: the
-    /// birthday and the year are both sent to the Birthed account, so nothing
-    /// here says or implies they stay on the phone. What is true, and what
-    /// the second line says, is that no card Birthed makes carries a name.
     private var subtitle: String {
         switch step {
         case .day:
-            guard confirming else { return "This is the only thing Birthed needs." }
+            guard confirming else { return "The only thing Birthed needs." }
             return "Somebody sent you \(chosenDate.displayName()). If it is yours, that is the only thing Birthed needs."
         case .year:
-            return "Optional. It turns on the number one song the week you were born, and the day of the week it was. Your name is never on anything Birthed makes."
+            return "Optional. Your name is never on anything Birthed makes."
+        case .person:
+            return "Birthed reminds you the morning of and three days before. Their name stays on this phone."
         }
     }
 
-    // MARK: The card
+    // MARK: Screen one, your day
 
-    @ViewBuilder
-    private var card: some View {
-        VStack(spacing: 0) {
-            switch step {
-            case .day:
-                if confirming {
-                    arrivedDay
-                } else {
+    private var dayScreen: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if confirming {
+                panel {
+                    Text(chosenDate.displayName())
+                        .font(.system(size: 46, weight: .black, design: .serif))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(20)
+                }
+            } else {
+                panel {
                     BirthdayPicker(month: $month, day: $day, observance: $observance)
-                        .tint(Theme.accentDeep)
-                    dayReveal
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
                 }
-            case .year:
-                YearWheel(year: $year, newest: Self.thisYear, oldest: Self.oldestYear)
-                yearReveal
             }
-        }
-        .foregroundStyle(Color.primary)
-        .padding(.horizontal, 18)
-        .padding(.top, 8)
-        .padding(.bottom, 18)
-        .frame(maxWidth: .infinity)
-        .background(Theme.cream, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .colorScheme(.light)
-    }
 
-    /// The date a link named, set large, with the one thing already known
-    /// about it underneath.
-    ///
-    /// Deliberately not the wheel with the answer pre-spun. A wheel is an
-    /// invitation to turn it, and this screen is not asking a question with
-    /// 366 answers, it is asking one with two. The fact under the date is the
-    /// same one the wheel reveals, because a screen that asks for a yes owes
-    /// the reader a reason to give one.
-    private var arrivedDay: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(chosenDate.displayName())
-                .font(.system(size: 46, weight: .black, design: .serif))
-                .foregroundStyle(Theme.accentDeep)
-                .lineLimit(2)
-                .minimumScaleFactor(0.6)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            countdown(to: birthday(withYear: false), label: { days in
+                days == 0 ? "is your day" : (days == 1 ? "day away" : "days away")
+            })
+            .padding(.top, 22)
 
             if let happened {
-                Divider()
-                HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    Text(String(happened.year))
-                        .font(.subheadline.weight(.bold))
-                        .monospacedDigit()
-                        .foregroundStyle(Theme.accentDeep)
-                    Text(happened.text)
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(3)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 0)
-                }
-            }
-        }
-        .padding(.vertical, 16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    /// What the day wheel gives back: the countdown, which is offline and
-    /// instant, and one thing that happened on the date, which arrives a beat
-    /// after the wheel settles.
-    private var dayReveal: some View {
-        let until = calendar.daysUntil(birthday(withYear: false), from: Date())
-
-        return VStack(alignment: .leading, spacing: 10) {
-            Divider().padding(.bottom, 4)
-
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(until == 0 ? "Today" : "\(until)")
-                    .font(Theme.display(.title))
-                    .foregroundStyle(Theme.accentDeep)
-                    .contentTransition(.numericText(value: Double(until)))
-                    .monospacedDigit()
-                Text(until == 0 ? "is your day" : (until == 1 ? "day away" : "days away"))
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
-            }
-            .animation(.snappy, value: until)
-
-            HStack(spacing: 6) {
-                let sign = facts.zodiacSign(for: chosenDate)
-                Text("\(sign.symbol) \(sign.rawValue)")
-                Text("·").foregroundStyle(.tertiary)
-                Text(facts.birthstone(for: chosenDate))
-            }
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(.secondary)
-            .contentTransition(.opacity)
-            .animation(.snappy, value: chosenDate)
-
-            if let happened {
-                HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    Text(String(happened.year))
-                        .font(.subheadline.weight(.bold))
-                        .monospacedDigit()
-                        .foregroundStyle(Theme.accentDeep)
-                    Text(happened.text)
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(3)
-                        .minimumScaleFactor(0.85)
+                card {
+                    kickerText("ON \(chosenDate.displayName().uppercased())", color: stage.accent)
+                    Text("In \(String(happened.year)), \(lowercasedFirst(happened.text))")
+                        .font(.system(size: 17, weight: .bold, design: .serif))
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                .padding(.top, 16)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
         .animation(.spring(duration: 0.45), value: happened)
     }
 
-    /// What the year wheel gives back. The weekday and the day count follow
-    /// the wheel live and need no network. The song lands once the wheel
-    /// stops, with the candle beside it.
-    private var yearReveal: some View {
+    /// The big number and the weekday under it, for your day and for theirs.
+    private func countdown(to birthday: CalendarBirthday, label: (Int) -> String) -> some View {
+        let now = Date()
+        let days = calendar.daysUntil(birthday, from: now)
+        let next = calendar.nextOccurrence(of: birthday, from: now)
+        let weekday = PersonDay.weekdayName(calendar.calendar.component(.weekday, from: next))
+        let nextYear = calendar.calendar.component(.year, from: next) > calendar.calendar.component(.year, from: now)
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(days == 0 ? "Today" : String(days))
+                    .font(.system(size: 64, weight: .black, design: .serif))
+                    .monospacedDigit()
+                    .contentTransition(.numericText(value: Double(days)))
+                Text(label(days))
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(stage.type.opacity(0.6))
+            }
+            .animation(.snappy, value: days)
+            if days > 0, let weekday {
+                (Text("Lands on a ") + honey(weekday) + Text(nextYear ? " next year" : " this year"))
+                    .font(.system(size: 16))
+            }
+        }
+    }
+
+    // MARK: Screen two, the year
+
+    private var yearScreen: some View {
         let known = birthday(withYear: true)
         let daysAlive = calendar.daysAlive(known, on: Date())
-        let weekdayName = calendar.birthWeekday(known).flatMap { number -> String? in
-            let names = Calendar.current.weekdaySymbols
-            guard number >= 1, number <= names.count else { return nil }
-            return names[number - 1]
-        }
+        let weekday = calendar.birthWeekday(known).flatMap { PersonDay.weekdayName($0) }
+        return VStack(alignment: .leading, spacing: 0) {
+            panel {
+                YearWheel(year: $year, newest: Self.thisYear, oldest: Self.oldestYear)
+                    .padding(.horizontal, 8)
+            }
 
-        return VStack(alignment: .leading, spacing: 12) {
-            Divider().padding(.bottom, 2)
-
-            if let weekdayName, let daysAlive {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("Born on a")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-                    Text(weekdayName)
-                        .font(Theme.display(.title2))
-                        .foregroundStyle(Theme.accentDeep)
-                        .contentTransition(.opacity)
-                }
-
-                if let animal = facts.chineseAnimal(for: known) {
-                    Text("Year of the \(animal.rawValue)")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .contentTransition(.opacity)
-                }
-
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
+            if let weekday, let daysAlive {
+                (Text("Born on a ") + honey(weekday))
+                    .font(.system(size: 17))
+                    .padding(.top, 20)
+                    .contentTransition(.opacity)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(daysAlive.formatted())
-                        .font(Theme.display(.title2))
-                        .foregroundStyle(Theme.accentDeep)
+                        .font(.system(size: 64, weight: .black, design: .serif))
                         .monospacedDigit()
+                        .minimumScaleFactor(0.6)
+                        .lineLimit(1)
                         .contentTransition(.numericText(value: Double(daysAlive)))
-                    Text("days ago")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
+                    Text("days old")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(stage.type.opacity(0.6))
                 }
+                .animation(.snappy, value: daysAlive)
             } else {
                 Text("That day has not happened yet.")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(stage.type.opacity(0.6))
+                    .padding(.top, 20)
             }
 
             if let song {
-                HStack(alignment: .top, spacing: 14) {
-                    CandleMark(height: 58)
-                        .padding(.top, 2)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("NUMBER ONE THAT WEEK")
-                            .font(.caption2.weight(.heavy))
-                            .kerning(2)
-                            .foregroundStyle(Theme.accentDeep)
-                        Text(song.song)
-                            .font(Theme.display(.title3, weight: .bold))
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.8)
-                        Text(song.artist)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                        if album != nil || film != nil {
-                            Text(alsoNumberOne)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                card {
+                    // The one pink kicker, the song's, as on Mine.
+                    kickerText("NUMBER ONE THE WEEK YOU WERE BORN", color: Theme.spark)
+                    HStack(spacing: 12) {
+                        cover(song)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(song.song)
+                                .font(.system(size: 20, weight: .heavy, design: .serif))
                                 .lineLimit(2)
-                                .padding(.top, 4)
-                                .transition(.opacity)
+                                .minimumScaleFactor(0.7)
+                            Text(song.artist)
+                                .font(.footnote)
+                                .foregroundStyle(HivePalette.cellDim)
+                                .lineLimit(1)
                         }
                     }
-                    Spacer(minLength: 0)
                 }
-                .padding(.top, 2)
+                .padding(.top, 14)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .animation(.snappy, value: daysAlive)
-        .animation(.snappy, value: weekdayName)
         .animation(.spring(duration: 0.5), value: song)
-        .animation(.easeInOut(duration: 0.3), value: album)
-        .animation(.easeInOut(duration: 0.3), value: film)
     }
 
-    /// "Album: Nellyville, Nelly. Film: Signs." One line, so the song stays
-    /// the headline and the card does not grow past a small screen.
-    private var alsoNumberOne: String {
-        var parts: [String] = []
-        if let album { parts.append("Album: \(album.song), \(album.artist)") }
-        if let film { parts.append("Film: \(film.song)") }
-        return parts.joined(separator: "  ")
+    /// The cover, with the sample a tap away. Never played on its own: sound
+    /// nobody asked for is the fastest way to be put face down on a table.
+    private func cover(_ song: ChartWeek) -> some View {
+        ZStack {
+            AsyncImage(url: song.artworkURL) { phase in
+                if case let .success(image) = phase {
+                    image.resizable().aspectRatio(contentMode: .fill)
+                } else {
+                    LinearGradient(colors: [Color(red: 0.42, green: 0.29, blue: 0.16), HivePalette.cell],
+                                   startPoint: .topLeading, endPoint: .bottomTrailing)
+                }
+            }
+            if song.previewURL != nil {
+                Circle().fill(.black.opacity(0.42)).frame(width: 30, height: 30)
+                Image(systemName: preview.nowPlaying == song.previewURL ? "pause.fill" : "play.fill")
+                    .font(.system(size: 13, weight: .black))
+                    .foregroundStyle(.white)
+            }
+        }
+        .frame(width: 64, height: 64)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .onTapGesture {
+            if let sample = song.previewURL { preview.toggle(sample) }
+        }
+        .accessibilityLabel(song.previewURL == nil ? song.song : "Play a sample of \(song.song)")
+        .accessibilityAddTraits(.isButton)
+    }
+
+    // MARK: Screen three, one person
+
+    private var personScreen: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            TextField("", text: $friendName, prompt: Text("Their name").foregroundStyle(stage.type.opacity(0.35)))
+                .font(.system(size: 19))
+                .textInputAutocapitalization(.words)
+                .autocorrectionDisabled()
+                .submitLabel(.done)
+                .focused($nameFocused)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+                .background(HivePalette.cell, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(nameFocused || !trimmedFriendName.isEmpty ? Theme.honey : HivePalette.cellEdge, lineWidth: 1.5)
+                )
+
+            panel {
+                BirthdayPicker(month: $friendMonth, day: $friendDay, observance: $friendObservance)
+                    .padding(.horizontal, 8)
+            }
+            .padding(.top, 12)
+
+            let friend = CalendarBirthday(date: friendDate, leapObservance: friendObservance)
+            let days = calendar.daysUntil(friend, from: Date())
+            let weekday = PersonDay.weekdayName(PersonDay(calendar: calendar).nextWeekday(of: friend, from: Date()))
+            Group {
+                if days == 0 {
+                    Text("That is today.")
+                } else {
+                    (Text("In ") + honey(days == 1 ? "1 day" : "\(days) days")
+                        + Text(weekday == nil ? "" : ", on a ") + honey(weekday ?? ""))
+                }
+            }
+            .font(.system(size: 16))
+            .padding(.top, 14)
+        }
+    }
+
+    // MARK: Pieces
+
+    /// The honey panel the wheels sit on: the Mine panel's ground and glow,
+    /// with the wheels drawn in the dark appearance so they read on it.
+    private func panel<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        content()
+            .frame(maxWidth: .infinity)
+            .background {
+                ZStack {
+                    stage.ground
+                    RadialGradient(colors: [Theme.honey.opacity(0.22), .clear],
+                                   center: UnitPoint(x: 0.85, y: 0.05), startRadius: 0, endRadius: 300)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(HivePalette.cellEdge, lineWidth: 1))
+            .environment(\.colorScheme, .dark)
+    }
+
+    private func card<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8, content: content)
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(HivePalette.cell, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(HivePalette.cellEdge, lineWidth: 1))
+    }
+
+    private func kickerText(_ text: String, color: Color) -> some View {
+        Text(text)
+            .font(.caption.weight(.heavy))
+            .kerning(2.4)
+            .foregroundStyle(color)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func honey(_ text: String) -> Text {
+        Text(text).foregroundColor(Theme.accentSoft).fontWeight(.bold)
+    }
+
+    /// "In 1998, the Beatles..." rather than "In 1998, The Beatles...". Only
+    /// the articles are lowered; a sentence that opens with a name keeps it.
+    private func lowercasedFirst(_ text: String) -> String {
+        for article in ["The ", "A ", "An "] where text.hasPrefix(article) {
+            return article.lowercased() + text.dropFirst(article.count)
+        }
+        return text
     }
 
     // MARK: Controls
 
     private var controls: some View {
         VStack(spacing: 12) {
-            HStack(spacing: 7) {
-                ForEach(Step.allCases, id: \.rawValue) { value in
-                    Capsule()
-                        .fill(Theme.cream.opacity(value == step ? 1 : 0.35))
-                        .frame(width: value == step ? 22 : 7, height: 7)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .animation(.easeInOut(duration: 0.25), value: step)
-
             Button(action: advance) {
                 Text(primaryLabel)
                     .font(.headline)
+                    .foregroundStyle(HivePalette.buzzInk)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 15)
-                    .background(Theme.cream, in: Capsule())
-                    .foregroundStyle(Theme.accentDeep)
+                    .padding(.vertical, 16)
+                    .background(
+                        LinearGradient(colors: [HivePalette.buzzTop, HivePalette.buzzBottom],
+                                       startPoint: .top, endPoint: .bottom),
+                        in: Capsule()
+                    )
+                    .opacity(primaryDisabled ? 0.45 : 1)
             }
+            .buttonStyle(.plain)
+            .disabled(primaryDisabled)
 
-            if step == .year {
-                Button("Skip the year", action: finishWithoutYear)
-                    .font(.subheadline.weight(.semibold))
-                    .opacity(0.9)
-            } else if confirming {
-                // Saying no is not a dead end and not another screen. It puts
-                // back the wheel this screen would have shown, already turned
-                // to the date that arrived, so the reader is nudging it rather
-                // than starting from September 4.
+            secondary
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(stage.type.opacity(0.6))
+
+            HStack(spacing: 7) {
+                ForEach(steps, id: \.rawValue) { value in
+                    Capsule()
+                        .fill(value == step ? Theme.honey : HivePalette.cellEdge)
+                        .frame(width: value == step ? 22 : 7, height: 7)
+                }
+            }
+            .animation(.easeInOut(duration: 0.25), value: step)
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
+        .background(Theme.ink.opacity(0.94).ignoresSafeArea(edges: .bottom))
+    }
+
+    @ViewBuilder
+    private var secondary: some View {
+        switch step {
+        case .day:
+            if confirming {
                 Button("No, my day is another one") { confirming = false }
-                    .font(.subheadline.weight(.semibold))
-                    .opacity(0.9)
             } else {
-                Text(chosenDate.displayName())
-                    .font(.subheadline.weight(.semibold))
-                    .opacity(0.9)
+                Text(" ")
+            }
+        case .year:
+            Button("Skip the year") {
+                keepsYear = false
+                goOnFromYear()
+            }
+        case .person:
+            HStack {
+                Button("Paste a list instead") { pastingList = true }
+                Spacer()
+                Button("Later") { finish() }
             }
         }
     }
 
-    // MARK: Actions
-
-    /// "Yes" only when the screen asked a question. Everywhere else the button
-    /// moves the reader on and says so.
     private var primaryLabel: String {
-        if step == .year { return "Start" }
-        return confirming ? "Yes, that is my day" : "Continue"
+        switch step {
+        case .day: return confirming ? "Yes, that is my day" : "Continue"
+        case .year: return "That's me"
+        case .person:
+            return trimmedFriendName.isEmpty ? "Add them" : "Add \(PersonDay.shortName(trimmedFriendName))"
+        }
+    }
+
+    private var primaryDisabled: Bool {
+        step == .person && trimmedFriendName.isEmpty
     }
 
     private func advance() {
@@ -476,42 +572,43 @@ struct OnboardingView: View {
         case .day:
             step = .year
         case .year:
-            finish(with: birthday(withYear: true))
+            keepsYear = true
+            goOnFromYear()
+        case .person:
+            guard !trimmedFriendName.isEmpty else { return }
+            people.add(Person(
+                name: trimmedFriendName,
+                birthday: CalendarBirthday(date: friendDate, leapObservance: friendObservance)
+            ))
+            finish()
         }
     }
 
-    private func finishWithoutYear() {
-        finish(with: birthday(withYear: false))
+    private func goOnFromYear() {
+        if isFirstRun {
+            step = .person
+        } else {
+            finish()
+        }
     }
 
-    private func finish(with birthday: CalendarBirthday) {
+    private func finish() {
         lineTask?.cancel()
         songTask?.cancel()
-        onFinish(Profile(birthday: birthday, regionCode: region))
+        preview.stop()
+        onFinish(Profile(birthday: birthday(withYear: keepsYear), regionCode: region))
     }
 
-    /// Waits for the wheel to stop before asking, so a flick through six
-    /// months is one request rather than six.
-    ///
-    /// The two reads are sequential rather than at the same time, and on
-    /// purpose. The researched facts win whenever there are any, and there are
-    /// any on most dates, so asking for the events first would be fetching a
-    /// hundred and fifty rows that get thrown away on most flicks of the
-    /// wheel. The dates with no researched fact pay one extra round trip for
-    /// that, which nobody can feel behind a wheel that already waits.
-    ///
-    /// Both reads are reads. Neither may ever start a search, because a search
-    /// costs money per date and this wheel walks across dates as fast as a
-    /// thumb can flick.
+    // MARK: Lookups
+
     private func lookUpDayLine() {
         lineTask?.cancel()
         // Copied out before the task is made, because a child task may only
         // carry what is Sendable and a view is not.
         let date = chosenDate
         let repository = self.repository
-        // Cleared at once, the same as the song is, because a line about
-        // September 4 sitting under a countdown to September 12 is wrong
-        // rather than merely late.
+        // Cleared at once, because a line about September 4 under a countdown
+        // to September 12 is wrong rather than merely late.
         happened = nil
         lineTask = Task {
             try? await Task.sleep(for: .milliseconds(350))
@@ -536,9 +633,8 @@ struct OnboardingView: View {
         songTask?.cancel()
         let date = chosenDate
         let year = year
+        let repository = self.repository
         song = nil
-        album = nil
-        film = nil
         songTask = Task {
             try? await Task.sleep(for: .milliseconds(450))
             guard !Task.isCancelled else { return }
@@ -548,19 +644,10 @@ struct OnboardingView: View {
             let found = (try? await repository.numberOneSong(theWeekOf: date, birthYear: year)) ?? nil
             guard !Task.isCancelled else { return }
             song = found
-            let foundAlbum = (try? await repository.numberOne(on: .billboard200, theWeekOf: date, birthYear: year)) ?? nil
-            guard !Task.isCancelled else { return }
-            album = foundAlbum
-            let foundFilm = (try? await repository.numberOne(on: .boxOffice, theWeekOf: date, birthYear: year)) ?? nil
-            guard !Task.isCancelled else { return }
-            film = foundFilm
         }
     }
 }
 
-/// A year, newest first, with no "rather not say" row: skipping is a button,
-/// not a wheel position, so the wheel is always sitting on a real year and
-/// always has something true to say about it.
 private struct YearWheel: View {
     @Binding var year: Int
     let newest: Int
@@ -573,6 +660,6 @@ private struct YearWheel: View {
             }
         }
         .pickerStyle(.wheel)
-        .frame(height: 150)
+        .frame(height: 170)
     }
 }
