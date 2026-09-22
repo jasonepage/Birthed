@@ -323,6 +323,8 @@ extension NotificationPlannerTests {
                 XCTAssertEqual(opened, .personBirthday(personID: personID), planned.identifier)
             case let .personSoon(personID, _):
                 XCTAssertEqual(opened, .personSoon(personID: personID), planned.identifier)
+            case let .hiveSealed(wallDate):
+                XCTAssertEqual(opened, .hiveSealed(wallDate: wallDate), planned.identifier)
             }
         }
     }
