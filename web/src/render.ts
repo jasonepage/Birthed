@@ -2329,6 +2329,14 @@ ${birthdayForm(big ? "When is your birthday?" : "See your own birthday", big ? "
  * the rest of the page's interaction is too. The link is a plain anchor to
  * the overlay's id; closing is an anchor back to no id at all.
  */
+/*
+ * Under the hive, not over it, since September 23, 2026: docs/the-wall.md
+ * section 30. A stranger's first screen was the date, then a question about
+ * their birthday, then the board, and a question about a birthday before
+ * anything else reads as the harvesting the first strangers accused the site
+ * of. The board comes first; the way to your own date is the first thing
+ * after it.
+ */
 export function renderBirthdayModal(): string {
   return `<p class="bopenrow"><a class="bopen" href="#birthday">See your own birthday</a></p>
 <div class="bmodal" id="birthday">
@@ -2541,13 +2549,13 @@ ${siteBar(`<span class="barnav">
 </span>
 `)}
 <h1>${name}</h1>
-${renderBirthdayModal()}
 ${meMarker()}
 ${pictureRules([...picturesFor(songs, page.people), ...morePictures])}
 ${wallSection(wall, name, Date.now(), {
     date: { month: page.month, day: page.day },
     history: historyRows([...picked, ...rest], page.people, songs, name),
   })}
+${renderBirthdayModal()}
 ${songs.length > 0 ? `<p class="credit">Chart positions are from the ${escapeHtml(CHART_NAME)}, compiled by Wikipedia and released under Creative Commons Attribution ShareAlike. ${songs.some((song) => song.hasArtwork) ? "Cover art comes from the iTunes Search API. " : ""}Birthed is not affiliated with Billboard, Wikipedia or Apple.</p>` : ""}
 ${feedCredits(timeline, name, searched, timeline.length - searched - curatedCount, curatedCount)}
 ${count === 0 ? `<p class="credit">Nobody imported for this date yet.</p>` : `<p class="credit">Names, years and descriptions of the ${count} people come from Wikidata, under Creative Commons Zero. Credit to Wikipedia and Wikidata.</p>`}

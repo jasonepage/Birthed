@@ -245,10 +245,13 @@ test("the baked section carries no forms, and the interactive one carries a tap 
   // The headline is the link to the receipt, on the tile and in the list.
   assert.ok(live.includes(`<a class="wh" href="${storyPath(onWall)}"`));
   assert.ok(live.includes(`<li id="w-${pooled.id}" data-subject="story:${pooled.id}"><a href="${storyPath(pooled)}">`));
-  // No sentence above the board since September 22, 2026: the line above it
-  // says the hive is open and the line under it says what a buzz does.
-  assert.ok(!live.includes("will still matter about September 9"), "no third telling above the board");
-  assert.ok(!live.includes('class="wlede"'), "and no empty paragraph where it was");
+  // One line above the board since September 23, 2026 (the-wall.md section
+  // 30): what to do and what a buzz does, before the board. It names no
+  // number, because the count under it does.
+  assert.ok(live.includes(`<p class="wlede">${HOW_TO}</p>`), "the how-to is above the board");
+  assert.ok(live.indexOf('class="wlede"') < live.indexOf('class="wboard'), "above it, not under it");
+  assert.ok(!/\d/.test(HOW_TO), "and it names no number");
+  assert.ok(!baked.includes('class="wlede"'), "a page with nothing to spend says nothing about spending");
   assert.ok(live.includes("Three buzzes left today."));
   assert.ok(live.includes("You buzzed this"));
   // Nothing claims a model decided anything. The tier key is drawn only when
@@ -459,7 +462,7 @@ test("the full screen page is the hive, its count and its sentences, and a buzz 
 // The typed field. docs/the-wall.md section 15.
 // ---------------------------------------------------------------------------
 
-import { ASK_MAX, checkRuns, spanWords, type WallCheck } from "../src/wall.js";
+import { ASK_MAX, HOW_TO, checkRuns, spanWords, type WallCheck } from "../src/wall.js";
 
 test("the typed field is on the live section only, posts a plain form to /find, and spends nothing", () => {
   const d = day([story({ rect: { mx: 3, my: 5, w: 4, h: 3 } })]);

@@ -1492,6 +1492,9 @@ export function afterwords(voice: Voice, name: string, undo: WallStory | null = 
 </div>`;
 }
 
+/** The one line above an open board, docs/the-wall.md section 30. */
+export const HOW_TO = "Buzz what people will still care about in ten years. Each buzz makes its tile bigger.";
+
 /** The most a reader may type into the field. The input says so and the server holds it to the same. */
 export const ASK_MAX = 120;
 
@@ -1956,7 +1959,14 @@ ${shown.map((s) => listRow(s, live, voice, agreed.alsoIn.get(s.id) ?? null)).joi
   // This was the third telling and it pushed the board down a line on a
   // phone. The earlier call on September 10 cut it everywhere but here; this
   // finishes that.
-  const lede = "";
+  //
+  // One line is back, September 23, 2026, and it is not the third telling:
+  // nothing else on the page now says what to do or what a buzz does, and a
+  // stranger was handed forty tiles with no instruction at all. It says the
+  // job and the effect in two short sentences and names no number, because
+  // the count right under it already does, and the number is one on the day
+  // after a date. Only where a buzz can be spent. docs/the-wall.md section 30.
+  const lede = live ? HOW_TO : "";
   // One line under the board, and a link for anybody who wants the rest.
   // Nathan, September 10, 2026: three paragraphs of explanation under the
   // board was a wall of text, and the people who need it are on the About

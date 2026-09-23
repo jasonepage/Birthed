@@ -27,6 +27,17 @@ test("the page names the date in the title and the heading", () => {
   assert.match(html, /<meta name="description" content="Who was born on September 4\.">/);
 });
 
+test("the hive comes before the question about your birthday", () => {
+  // docs/the-wall.md section 30, September 23, 2026. A question about a
+  // birthday above the board read as the harvesting; the board comes first.
+  const html = renderDayPage(page);
+  const hive = html.indexOf("<!--wall:start-->");
+  const ask = html.indexOf('class="bopenrow"');
+  assert.ok(hive > 0 && ask > 0, "both are on the page");
+  assert.ok(hive < ask, "the hive is above the birthday link");
+  assert.ok(html.indexOf("<h1>") < hive, "and the date's name is still above the hive");
+});
+
 test("the page does not lead with the list of names", () => {
   // The regression this guards is not cosmetic. The list is ordered by
   // notability_score, which is attention, and infamy is attention, so leading
