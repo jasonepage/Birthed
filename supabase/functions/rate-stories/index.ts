@@ -36,13 +36,24 @@ Deno.serve(async (request: Request) => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const geminiKey = Deno.env.get("GEMINI_API_KEY");
   if (!url || !serviceRoleKey || !geminiKey) return json({ error: "function is misconfigured" }, 500);
-  // The same gate as rate-facts: the key it was sent has to read a row only
-  // the service role can see. Deployed with JWT verification off.
-  const provided = (request.headers.get("apikey") ??
-    (request.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "")).trim();
-  if (!provided) return json({ error: "not allowed" }, 403);
-  const probe = await createClient(url, provided).from("birth_facts").select("id").eq("verified", false).limit(1);
-  if (probe.error || !probe.data?.length) return json({ error: "not allowed" }, 403);
+  // Two callers may spend on this. The worker, holding the project's secret
+  // key: the gate rate-facts uses, the key it was sent has to read a row only
+  // the service role can see. And a signed in curator from the panel: the
+  // is_admin check measure-reach uses. Deployed with JWT verification off.
+  const authorization = request.headers.get("Authorization") ?? "";
+  const provided = (request.headers.get("apikey") ?? authorization.replace(/^Bearer\s+/i, "")).trim();
+  let allowed = false;
+  if (provided) {
+    const probe = await createClient(url, provided).from("birth_facts").select("id").eq("verified", false).limit(1);
+    allowed = !probe.error && (probe.data?.length ?? 0) > 0;
+  }
+  if (!allowed && authorization.toLowerCase().startsWith("bearer ")) {
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+    const asCaller = createClient(url, anonKey, { global: { headers: { Authorization: authorization } } });
+    const { data: isAdmin } = await asCaller.rpc("is_admin");
+    allowed = isAdmin === true;
+  }
+  if (!allowed) return json({ error: "not allowed" }, 403);
 
   let limit = 4;
   let date: string | null = null;
