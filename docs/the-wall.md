@@ -2891,3 +2891,45 @@ sent to the date page. Web tests: 426. Not run against the live project.
 board at tile size and the phone is where the tap is cheap. If the web page
 earns its place, the app follows.
 
+### Buzzes that refill through the day, written September 23, 2026
+
+**The times, Nathan's call.** Midnight, 8 am and 4 pm Eastern, kept Eastern
+rather than moved to Pacific hours: the hive opens and seals on the Eastern
+clock and one site keeps one clock. Still three on the date and one on the
+day after, section 4; unspent ones carry over inside the day, because the
+allowance at any instant is how many have arrived so far and the day's
+spend counts against that. A reader who opens the site at 5 pm with nothing
+spent has three; at 9 am with one spent at 1 am, one.
+
+**The migration, `20260923010000_buzzes_that_refill.sql`, is written and
+NOT applied.** Two new functions, `wall_boost_allowance(instant, date)` for
+what has arrived and `wall_next_refill(instant, date)` for when the next
+one comes, and four replaced: the budget trigger, which is the authority and
+now reads what has arrived by `cast_at`; `wall_units_left` for the app;
+`wall_web_standing` for the website, which now also answers `next_at`; and
+`wall_cast_web_boost`'s early check so it still answers in a word. Nothing
+about a buzz row changes and one buzz is one unit at every hour. It was run
+inside a transaction on the live project and rolled back, with twenty nine
+checks inside it: the count at every boundary in daylight time and in
+standard time, the next refill at each, and the trigger itself refusing a
+second unit at 1 am and taking it at 8 am, refusing a third at 8:01 and
+taking it at 4 pm, refusing a fourth, refusing a three unit app buzz at 1
+am and taking one at 5 pm, and giving the day after its one and no more.
+The live project was read afterwards and had neither function, the old
+trigger and thirty six rows.
+
+**The pages, gated.** `web/src/refills.ts` and `Refills` in
+`Birthed/Domain/Wall.swift` are the page's copy of the same arithmetic,
+pinned to the same instants, and both carry a flag that is off. With it on
+the count says what has arrived and when the next one comes: "No buzzes
+left right now. The next one arrives at 4 pm Eastern." The live hive adds a
+unit when a refill lands while the page is open, on the seal clock's tick
+and no second timer. The day after is unchanged and says what it said. The
+order matters and is written on the migration: apply it, then flip the two
+flags in the same deploy. Web tests: 433.
+
+**Not decided, for Nathan.** The three dots under the live board draw the
+day's allowance with the spent ones dark; with refills on, a dot for a unit
+that has not arrived yet looks the same as one spent. A third look for
+"coming" is a design call and was not made here.
+
