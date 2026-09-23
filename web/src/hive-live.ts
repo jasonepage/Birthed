@@ -27,10 +27,11 @@
 import { slug } from "./model.js";
 import { HIVE_ALLOCATOR_JS } from "./hive-allocator.js";
 import {
-  SAVE_PICTURE, afterwords, allowanceOn, anniversaryBlock, liveTile, storyPath, subjectOf, takingBoosts, tapsLeftSentence,
+  SAVE_PICTURE, afterwords, allowanceOn, anniversaryBlock, freshLeft, liveTile, storyPath, subjectOf, takingBoosts, tapsLeftSentence,
   KIND_WORD, tiersDiffer, tileKind, kindMark, voiceFor, yoursLine, crownBlock, crownFor, crownName, type Anniversary, type TileKind, type WallDay, type WallStory,
 } from "./wall.js";
 import { HIVE_CROWN_JS, crownMark, rawBoost } from "./crown.js";
+import { REFILLS_ON, dayRefills, nextRefillWords } from "./refills.js";
 
 function escapeHtml(value: string): string {
   return value
@@ -199,7 +200,7 @@ export function liveHiveSection(day: WallDay, name: string, now: number, options
   const live = takingBoosts(day, now);
   const allowance = allowanceOn(day, now);
   const standing = options.standing ?? null;
-  const left = standing?.left ?? allowance;
+  const left = standing?.left ?? freshLeft(day, now);
   const backed = standing?.backed ?? [];
   const onWall = day.stories.filter((s) => s.rect !== null && (s.status === "placed" || s.status === "false"));
   const max = Math.max(1, ...onWall.map((s) => s.support));
@@ -209,6 +210,14 @@ export function liveHiveSection(day: WallDay, name: string, now: number, options
   const tiles = onWall.map((s, index) => liveTile(s, live, voice, index, heatFor(s.support, max), s.id === crown.holder)).join("\n");
   const total = day.stories.reduce((sum, s) => sum + s.support, 0);
   const closes = day.closedAt ?? day.closesAt;
+  const next = nextRefillWords(now, day.wallDate, allowance);
+  // The refills the page will see while it is open, so the count line can
+  // say the next one and the script can add a unit when it arrives, with no
+  // second clock: the seal clock already ticks once a second. Every refill
+  // left on the day, each with the words for the one after it.
+  const refills = REFILLS_ON && allowance === 3
+    ? dayRefills(now, day.wallDate).map((at) => ({ at: new Date(at).toISOString(), then: nextRefillWords(at, day.wallDate, allowance) }))
+    : [];
   const seals = clockFor(Date.parse(closes) - now);
   const month = day.month;
   const d = day.day;
@@ -229,9 +238,13 @@ export function liveHiveSection(day: WallDay, name: string, now: number, options
     // rows because the role cannot read one.
     boosts: (day.boosts ?? []).map(rawBoost),
     crownMark: crownMark(),
+    // The next refill while this page is open: when, and the words for the
+    // one after it. Empty with refills off.
+    next,
+    refills,
   };
   const dots = Array.from({ length: allowance }, (_, i) => `<span class="wdot${i < left ? "" : " wspent"}"></span>`).join("");
-  const sentence = tapsLeftSentence(left, allowance, voice);
+  const sentence = tapsLeftSentence(left, allowance, voice, next);
   // The words on the board while it is empty. A hive taking buzzes with no
   // tile is a date the worker has not laid out yet, and the page says so.
   const empty = onWall.length === 0
@@ -545,13 +558,29 @@ export const HIVE_LIVE_JS = `
   var text = function (id, value) { var e = document.getElementById(id); if (e) e.textContent = value; };
 
   function units(n) { return n <= 0 ? "" : n === 1 ? "1 " + voice.one : n + " " + voice.many; }
+  var nextWords = D.next || "";
   function leftSentence(n) {
     var words = ["No", "One", "Two", "Three", "Four"];
     var m = Math.max(0, Math.min(n, 4));
     var tap = m === 1 ? voice.one : voice.many;
     var yesterday = D.allowance === 1;
+    if (nextWords) {
+      var arriving = " The next one arrives at " + nextWords + ".";
+      if (m === 0) return "No " + voice.many + " left right now." + arriving;
+      return words[m] + " " + tap + " left right now." + arriving;
+    }
     if (m === 0) return yesterday ? "No " + voice.many + " left today on this date." : "No " + voice.many + " left today.";
     return yesterday ? words[m] + " " + tap + " left today on this date. It closes tonight." : words[m] + " " + tap + " left today.";
+  }
+  // A refill arriving while the page is open: one more to spend, and the
+  // sentence moves on to the one after. Checked by the seal clock's tick.
+  var refills = (D.refills || []).slice();
+  function refillTick() {
+    if (!refills.length || Date.now() < Date.parse(refills[0].at)) return;
+    var r = refills.shift();
+    left = Math.min(D.allowance, left + 1);
+    nextWords = r.then || "";
+    paintBudget();
   }
 
   // The tiles. One per story that holds a place; made on demand for a story
@@ -1218,6 +1247,7 @@ export const HIVE_LIVE_JS = `
   // The clock to the seal.
   function two(n) { return (n < 10 ? "0" : "") + n; }
   function tick() {
+    refillTick();
     var ms = Date.parse(D.closesAt) - Date.now();
     var s = Math.max(0, Math.floor(ms / 1000));
     text("wclock", two(Math.floor(s / 3600)) + ":" + two(Math.floor((s % 3600) / 60)) + ":" + two(s % 60));

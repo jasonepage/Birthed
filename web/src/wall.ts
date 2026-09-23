@@ -36,6 +36,7 @@ import { monthName, slug } from "./model.js";
 import { shareBlock } from "./share-button.js";
 import { beeSvg } from "./mascot.js";
 import { boostFrom, crownLine, crownMark, crownOf, crownSaid, noCrownYet, type Crown, type WallBoost } from "./crown.js";
+import { REFILLS_ON, arrivedBy, nextRefillWords } from "./refills.js";
 
 export type { Crown, CrownChange, WallBoost } from "./crown.js";
 
@@ -1471,7 +1472,7 @@ const WORDS = ["No", "One", "Two", "Three", "Four"];
  * shared, cached section carries the allowance and the browser's own number
  * lands on top of it.
  */
-export function tapsLeftSentence(left: number, allowance: number, voice: Voice = BEE): string {
+export function tapsLeftSentence(left: number, allowance: number, voice: Voice = BEE, next: string = ""): string {
   const n = Math.max(0, Math.min(left, WORDS.length - 1));
   const word = WORDS[n]!;
   const tap = n === 1 ? voice.one : voice.many;
@@ -1479,8 +1480,29 @@ export function tapsLeftSentence(left: number, allowance: number, voice: Voice =
   // the page whose count needs "on this date" to make sense: the reader may
   // still have three on today's.
   const yesterday = allowance === 1;
+  // With refills, docs/the-wall.md section 30, the count is what has arrived
+  // and not been spent, and the sentence says when the next one comes:
+  // "No buzzes left right now. The next one arrives at 4 pm Eastern." The
+  // words come from refills.ts and are "" until the migration is applied.
+  if (next !== "") {
+    const arriving = ` The next one arrives at ${next}.`;
+    if (n === 0) return `No ${voice.many} left right now.${arriving}`;
+    return `${word} ${tap} left right now.${arriving}`;
+  }
   if (n === 0) return yesterday ? `No ${voice.many} left today on this date.` : `No ${voice.many} left today.`;
   return yesterday ? `${word} ${tap} left today on this date. It closes tonight.` : `${word} ${tap} left today.`;
+}
+
+/**
+ * The count for a browser that has done nothing on the date: what has
+ * arrived by now with refills on, the day's allowance without. The day's
+ * allowance is still what the dots draw and what "on this date" is decided
+ * by; this is the number in the sentence.
+ */
+export function freshLeft(day: WallDay, now: number, on: boolean = REFILLS_ON): number {
+  const allowance = allowanceOn(day, now);
+  if (!on || allowance === 0) return allowance;
+  return Math.min(allowance, arrivedBy(now, day.wallDate));
 }
 
 function countLine(day: WallDay, now: number, voice: Voice, live: boolean = true): string {
@@ -1492,7 +1514,7 @@ function countLine(day: WallDay, now: number, voice: Voice, live: boolean = true
   if (!takingBoosts(day, now) || !live) return "";
   const allowance = allowanceOn(day, now);
   return `<p class="wcount"><span class="wleft"></span></p>` +
-    `<style>.wleft::after{content:"${tapsLeftSentence(allowance, allowance, voice)}"}</style>`;
+    `<style>.wleft::after{content:"${tapsLeftSentence(freshLeft(day, now), allowance, voice, nextRefillWords(now, day.wallDate, allowance))}"}</style>`;
 }
 
 /**
@@ -2183,7 +2205,7 @@ ${card}
 export function wallMarks(standing: { left: number; allowance: number; backed: string[] }, day: WallDay, now: number): string {
   const rules: string[] = [];
   if (takingBoosts(day, now)) {
-    const sentence = tapsLeftSentence(standing.left, standing.allowance, voiceOf(day));
+    const sentence = tapsLeftSentence(standing.left, standing.allowance, voiceOf(day), nextRefillWords(now, day.wallDate, standing.allowance));
     rules.push(`.wleft::after{content:"${sentence}"}`);
   }
   for (const id of standing.backed) {

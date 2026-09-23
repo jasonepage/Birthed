@@ -22,8 +22,9 @@
 import { agreeOnNews } from "./agree.js";
 import { monthName, slug } from "./model.js";
 import { FOOT, dayHue, head, siteBar, SITE } from "./render.js";
+import { nextRefillWords } from "./refills.js";
 import {
-  allowanceOn, combRank, crownTook, hivePath, storyPath, takingBoosts, tapsLeftSentence, tierLabel, tileKind, kindMark, units, voiceFor,
+  allowanceOn, combRank, crownTook, freshLeft, hivePath, storyPath, takingBoosts, tapsLeftSentence, tierLabel, tileKind, kindMark, units, voiceFor,
   type Voice, type WallDay, type WallStory,
 } from "./wall.js";
 
@@ -149,7 +150,7 @@ export function renderPickPage(day: WallDay, month: number, d: number, now: numb
   const voice = voiceFor(month, d);
   const live = takingBoosts(day, now);
   const allowance = allowanceOn(day, now);
-  const left = options.standing?.left ?? allowance;
+  const left = options.standing?.left ?? freshLeft(day, now);
   const backed = new Set(options.standing?.backed ?? []);
   const list = pickList(day, backed);
   const pairs = pickPairs(list);
@@ -177,7 +178,7 @@ ${side(pair.b, voice, live, left, p, month, d, "b")}
     body = `<p class="wnote wpickdone">You have seen every pair. <a href="${pickPath(month, d)}">Start from the top</a> or <a href="/${slug(month, d)}/">go back to the hive</a>.</p>`;
   }
 
-  const count = live ? `<p class="wcount"><span class="wleft wset">${tapsLeftSentence(left, allowance, voice)}</span></p>` : `<p class="wcount">This hive is not taking ${voice.many} right now.</p>`;
+  const count = live ? `<p class="wcount"><span class="wleft wset">${tapsLeftSentence(left, allowance, voice, nextRefillWords(now, day.wallDate, allowance))}</span></p>` : `<p class="wcount">This hive is not taking ${voice.many} right now.</p>`;
   return `${head(`Pick one on ${name}`, `Two stories from ${name}'s hive and one question: which will people still care about in ten years?`, `${SITE}${pickPath(month, d)}`, undefined, true, "pickpage")}
 <div class="day wstory wpick" style="--day:${hue.day};--day-soft:${hue.soft}">
 ${siteBar(`<span class="barnav"><a class="here" href="/${slug(month, d)}/">${escapeHtml(name)}</a></span>
