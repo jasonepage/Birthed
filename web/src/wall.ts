@@ -86,6 +86,8 @@ export interface WallStory {
   support: number;
   /** Order among unbacked stories in the feed: the date's own history above the news feeds. 0 to 9. */
   priority: number;
+  /** The editor's one to ten, would somebody born on this day tell a friend; null until the sweep reaches it. Orders what nobody has buzzed. September 22, 2026. */
+  interest?: number | null;
   placedAt: string | null;
   rect: { mx: number; my: number; w: number; h: number } | null;
   falseAt: string | null;
@@ -178,7 +180,7 @@ async function rows<T>(url: string, key: string, path: string): Promise<T[]> {
 interface DayRow { wall_date: string; opens_at: string; live_at: string; closes_at: string; closed_at: string | null }
 interface StoryRow {
   id: string; wall_date: string; submitted_at: string; headline: string; url: string; outlet: string;
-  status: WallStatus; tier: WallTier; support: number; priority: number | null; placed_at: string | null;
+  status: WallStatus; tier: WallTier; support: number; priority: number | null; interest?: number | null; placed_at: string | null;
   anchor_mx: number | null; anchor_my: number | null; w_modules: number | null; h_modules: number | null;
   false_at: string | null; false_note: string | null;
   subject_kind?: string | null; subject_id?: string | null;
@@ -201,7 +203,7 @@ export async function fetchWall(url: string, key: string): Promise<WallDay[]> {
   const days = await rows<DayRow>(url, key, "wall_days?select=wall_date,opens_at,live_at,closes_at,closed_at&order=wall_date.asc");
   if (days.length === 0) return [];
   const stories = await rows<StoryRow>(url, key,
-    "wall_stories?select=id,wall_date,submitted_at,headline,url,outlet,status,tier,support,priority,placed_at,anchor_mx,anchor_my,w_modules,h_modules,false_at,false_note,subject_kind,subject_id&order=wall_date.asc,submitted_at.asc,id.asc");
+    "wall_stories?select=id,wall_date,submitted_at,headline,url,outlet,status,tier,support,priority,interest,placed_at,anchor_mx,anchor_my,w_modules,h_modules,false_at,false_note,subject_kind,subject_id&order=wall_date.asc,submitted_at.asc,id.asc");
   const sources = await rows<SourceRow>(url, key,
     "wall_sources?select=id,story_id,url,outlet,owner,headline,quotation,verified_at,added_at&order=added_at.asc,id.asc");
   const checks = await rows<CheckRow>(url, key,
@@ -235,7 +237,7 @@ export async function fetchWall(url: string, key: string): Promise<WallDay[]> {
     const list = storiesByDate.get(s.wall_date) ?? [];
     list.push({
       id: s.id, wallDate: s.wall_date, submittedAt: s.submitted_at, headline: s.headline, url: s.url, outlet: s.outlet,
-      status: s.status, tier: s.tier, support: s.support, priority: s.priority ?? 0, placedAt: s.placed_at,
+      status: s.status, tier: s.tier, support: s.support, priority: s.priority ?? 0, interest: s.interest ?? null, placedAt: s.placed_at,
       rect: s.anchor_mx === null || s.anchor_my === null || s.w_modules === null || s.h_modules === null
         ? null
         : { mx: s.anchor_mx, my: s.anchor_my, w: s.w_modules, h: s.h_modules },
@@ -262,7 +264,7 @@ interface EmbeddedStoryRow extends StoryRow {
 function storyFrom(s: StoryRow, sources: WallSource[], outcomes: WallOutcome[] = []): WallStory {
   return {
     id: s.id, wallDate: s.wall_date, submittedAt: s.submitted_at, headline: s.headline, url: s.url, outlet: s.outlet,
-    status: s.status, tier: s.tier, support: s.support, priority: s.priority ?? 0, placedAt: s.placed_at,
+    status: s.status, tier: s.tier, support: s.support, priority: s.priority ?? 0, interest: s.interest ?? null, placedAt: s.placed_at,
     rect: s.anchor_mx === null || s.anchor_my === null || s.w_modules === null || s.h_modules === null
       ? null
       : { mx: s.anchor_mx, my: s.anchor_my, w: s.w_modules, h: s.h_modules },
@@ -424,7 +426,7 @@ export async function fetchWallDay(url: string, key: string, wallDate: string, t
     if (d === undefined) return null;
 
     const storiesResponse = await fetch(
-      `${url}/rest/v1/wall_stories?select=id,wall_date,submitted_at,headline,url,outlet,status,tier,support,priority,placed_at,anchor_mx,anchor_my,w_modules,h_modules,false_at,false_note,subject_kind,subject_id,`
+      `${url}/rest/v1/wall_stories?select=id,wall_date,submitted_at,headline,url,outlet,status,tier,support,priority,interest,placed_at,anchor_mx,anchor_my,w_modules,h_modules,false_at,false_note,subject_kind,subject_id,`
       + `wall_sources(id,story_id,url,outlet,owner,headline,quotation,verified_at,added_at),`
       + `wall_outcomes(anniversary,outcome,note,recorded_at)`
       + `&wall_date=eq.${wallDate}&order=submitted_at.asc,id.asc&wall_sources.order=added_at.asc&wall_outcomes.order=anniversary.asc`,
@@ -1624,8 +1626,11 @@ export const COMB_SHOWN = 12;
  */
 export function combRank(stories: readonly WallStory[], alsoIn: ReadonlyMap<string, readonly string[]>): WallStory[] {
   const desks = (s: WallStory): number => (alsoIn.get(s.id)?.length ?? 0);
+  // The editor's score sits between buzzes and priority: a buzz beats it,
+  // it beats the rules. September 22, 2026.
   return [...stories].sort((a, b) =>
     b.support - a.support
+    || (b.interest ?? 0) - (a.interest ?? 0)
     || b.priority - a.priority
     || desks(b) - desks(a)
     || a.submittedAt.localeCompare(b.submittedAt)

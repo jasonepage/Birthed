@@ -582,6 +582,34 @@ was the only page that looked designed, so every page looks like it now.
   reach birthed.app or the project. A data change still needs a manual
   deploy; a style change under `web/**` deploys on push.
 
+### The editor on the hive, decided September 22, 2026
+
+Nathan's call, the night of the Hacker News post. The unbuzzed board was
+ordered by a priority of 0 to 3 stamped by rules, which put a film market
+trade item and the Emancipation Proclamation as equals.
+
+- **Every story on an open date gets the editor's one to ten**, the same
+  question the facts editor asks: would somebody born on this day stop
+  scrolling and tell a friend. `wall_stories.interest`, written by the
+  `rate-stories` Edge Function (`_shared/story-editor.ts`), one call a date
+  with search off, about a cent. A death, an attack or a crash is capped at
+  six in the prompt, and the violent notoriety screen still runs in front.
+- **One buzz beats every score.** The allocator weights by support wherever
+  anybody has buzzed; the score decides only among stories nobody has. It
+  never touches a sealed board. The worker's `scoresFor` reads it as
+  `story:<id>` at ten times the score, on the panel's own scale, and the
+  panel's points for a subject stand in until a story is scored. On the web
+  `combRank` sorts by support, then interest, then priority.
+- **Two ways to run it**: the quarter hour tick calls it after the facts
+  editor (`worker/src/stories-editor.ts`), and the curation panel has a
+  "Score the open hives" button for not waiting.
+- **Not fake buzzes.** Asked for and refused the same night: a sealed board
+  is what people chose, the seed path is labelled, the code is public, and
+  Hacker News opens receipts. Ordering is honest curation; votes are not.
+- **To turn on**: apply migration `20260923000000_the_editor_on_the_hive`,
+  deploy `rate-stories` with JWT verification off (like `rate-facts`), then
+  redeploy the worker. Neither had been done when this was written.
+
 ### The tick read whatever it was sent, found September 22, 2026
 
 - **The worker cron died on every run for an hour** with `FATAL ERROR: Reached

@@ -222,8 +222,11 @@ export function settle(
   /** The curation panel's points by "kind:id", from scoreEvents. Optional so the tests that are not about order need not build one. */
   scores: Map<string, number> = new Map(),
 ): Settled {
+  // The editor's score for the story itself, when it has one, September 22,
+  // 2026; the panel's points for its subject stand in until then. Keyed by
+  // "story:<id>" so a news story, which has no subject, can carry one.
   const scoreOf = (story: StoryRow): number | undefined =>
-    story.subject_kind && story.subject_id ? scores.get(`${story.subject_kind}:${story.subject_id}`) : undefined;
+    scores.get(`story:${story.id}`) ?? (story.subject_kind && story.subject_id ? scores.get(`${story.subject_kind}:${story.subject_id}`) : undefined);
   const updates = new Map<string, StoryUpdate>();
   const touch = (id: string): StoryUpdate => {
     const existing = updates.get(id);
@@ -382,7 +385,14 @@ export async function scoresFor(db: Db, wallDate: string, log: (line: string) =>
     const leads = await rows<{ subject_id: string }>(db, `lead_lines?select=subject_id&subject_kind=eq.historical_event&event_month=eq.${m}&event_day=eq.${d}`);
     const scores = scoreEvents(events, reach, new Set(selected.map((s) => s.event_year)), new Set(leads.map((l) => l.subject_id)));
     const measured = reach.filter((r) => r.error === null && r.views_on_date_low !== null).length;
-    log(`wall scores ${wallDate}: ${scores.size} history rows scored, ${urls.length} name an article, ${measured} of those measured`);
+    // The editor's one to ten on each story, as a number on the panel's
+    // scale: a ten is a hundred, the top of what a history row can reach,
+    // so the two orderings are comparable where a story has no score yet.
+    // One buzz beats all of this; the allocator weights by support wherever
+    // anybody has buzzed.
+    const rated = await rows<{ id: string; interest: number }>(db, `wall_stories?select=id,interest&wall_date=eq.${wallDate}&interest=not.is.null`);
+    for (const r of rated) scores.set(`story:${r.id}`, r.interest * 10);
+    log(`wall scores ${wallDate}: ${scores.size - rated.length} history rows scored, ${urls.length} name an article, ${measured} of those measured, ${rated.length} stories scored by the editor`);
     return scores;
   } catch (error: unknown) {
     log(`wall scores ${wallDate}: could not be read, so the board is ordered by priority alone this run: ${error instanceof Error ? error.message : error}`);

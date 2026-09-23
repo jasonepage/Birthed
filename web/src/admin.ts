@@ -1187,7 +1187,7 @@ ${POINTS_JS}
       'This date scores <b class="dp">' + date + "</b>: the best row counts in full, the next at 95 percent, then 90, so fixing the top row moves it and adding a dull one does not. " +
       (measured > 0 ? measured + (measured === 1 ? " row is" : " rows are") + " measured by readers and that number replaces the estimate. " : "") +
       (needy > 0 ? needy + " published " + (needy === 1 ? "row is" : "rows are") + " a title with nothing written, so no reader sees " + (needy === 1 ? "it" : "them") + ". " : "") +
-      '<button class="act" id="measure">Measure reach</button> <button class="act" id="measure-all">Measure every date</button> <span class="note" id="measure-note" style="margin:0"></span></p>';
+      '<button class="act" id="measure">Measure reach</button> <button class="act" id="measure-all">Measure every date</button> <button class="act" id="rate-hive">Score the open hives</button> <span class="note" id="measure-note" style="margin:0"></span></p>';
 
     function rowMarkup(it) {
       var offLabel = it.off ? '<span class="st st-' + esc(it.off === "needs a sentence" ? "candidate" : it.off) + '">' + esc(it.off) + "</span>" : "";
@@ -1224,6 +1224,7 @@ ${POINTS_JS}
     wire();
     el("measure").addEventListener("click", measureReach);
     el("measure-all").addEventListener("click", measureEveryDate);
+    el("rate-hive").addEventListener("click", rateHives);
   }
 
   /**
@@ -1283,6 +1284,35 @@ ${POINTS_JS}
       return again().catch(function (e) { note("measure-note", String(e.message || e), "bad"); walking = false; b.textContent = "Measure every date"; });
     }
     nextDate();
+  }
+
+  /**
+   * The editor on the hive, September 22, 2026: one click scores every
+   * unscored story on the open dates, one to ten, for whether somebody born
+   * on the day would tell a friend. The next tick's board and the comb read
+   * it. The quarter hour tick calls the same function on its own; this is
+   * for not waiting. About a cent a date.
+   */
+  function rateHives() {
+    var b = el("rate-hive");
+    b.disabled = true;
+    note("measure-note", "Asking the editor to score the open hives. About a cent a date.");
+    function again(total) {
+      return fetch(API + "/functions/v1/rate-stories", {
+        method: "POST", headers: headers(),
+        body: JSON.stringify({ limit: 8 }),
+      }).then(function (r) { return r.json(); })
+        .then(function (r) {
+          if (r.status !== "done") { note("measure-note", r.error || "Failed.", "bad"); b.disabled = false; return; }
+          var scored = 0, waiting = 0, i;
+          for (i = 0; i < r.report.length; i++) { scored += r.report[i].scored; waiting += r.report[i].waiting; }
+          total += scored;
+          if (waiting > 0 && scored > 0) { note("measure-note", total + " scored so far, " + waiting + " waiting."); return again(total); }
+          note("measure-note", total + " stories scored. The board reads it on the next tick, within fifteen minutes.", "good");
+          b.disabled = false;
+        });
+    }
+    again(0).catch(function (e) { note("measure-note", String(e.message || e), "bad"); b.disabled = false; });
   }
 
   function measureReach() {

@@ -18,6 +18,7 @@ import { run as history } from "./history.js";
 import { run as news } from "./news.js";
 import { run as pictures } from "./story-pictures.js";
 import { run as factsEditor } from "../facts-editor.js";
+import { run as storiesEditor } from "../stories-editor.js";
 
 async function main(): Promise<void> {
   await loadDotEnv();
@@ -71,6 +72,14 @@ async function main(): Promise<void> {
   } catch (error: unknown) {
     failed = true;
     console.error(`facts editor failed: ${error instanceof Error ? error.message : error}`);
+  }
+  // And over the hive's own stories, September 22, 2026: the score that
+  // orders what nobody has buzzed. The next tick's board reads it.
+  try {
+    await storiesEditor(db);
+  } catch (error: unknown) {
+    failed = true;
+    console.error(`stories editor failed: ${error instanceof Error ? error.message : error}`);
   }
   if (failed) process.exit(1);
 }
