@@ -323,6 +323,78 @@ enum WallBudget {
     }
 }
 
+// MARK: - Buzzes that refill through the day
+
+/// docs/the-wall.md section 30, decided September 23, 2026. Still three a
+/// day on the date and one on the day after; they arrive one at a time, at
+/// midnight, 8 am and 4 pm Eastern, and unspent ones carry over inside the
+/// day. The database is the authority (migration
+/// `20260923010000_buzzes_that_refill.sql`, and `wall_units_left` already
+/// answers against what has arrived once it is applied). This is the app's
+/// copy of the arithmetic for the count sentence, the same as
+/// `web/src/refills.ts`, pinned to the same instants the migration was
+/// tested against.
+///
+/// `on` is false until Jason applies the migration, and flips in the same
+/// build. With it off the app says three at midnight, which is what the
+/// database gives until then.
+enum Refills {
+    static let on = false
+
+    /// The Eastern hours a unit arrives on the date's own day, after the midnight one.
+    static let hours = [8, 16]
+
+    /// How many units have arrived for a wall date by an instant. The
+    /// database's `wall_boost_allowance`.
+    static func arrived(by instant: Date, wallDate: WallDate) -> Int {
+        let today = WallClock.easternDate(of: instant)
+        if today == wallDate {
+            let hour = WallClock.eastern.component(.hour, from: instant)
+            return 1 + hours.filter { hour >= $0 }.count
+        }
+        if let after = WallBudget.dayAfter(wallDate), today == after { return 1 }
+        return 0
+    }
+
+    /// The instants a unit arrives on the date's own day after the midnight
+    /// one: 8 am and 4 pm Eastern as instants, by the calendar, so the day
+    /// the clocks change is still answered by the clock.
+    static func refillInstants(wallDate: WallDate) -> [Date] {
+        hours.compactMap { hour in
+            var components = DateComponents()
+            components.year = wallDate.year
+            components.month = wallDate.month
+            components.day = wallDate.day
+            components.hour = hour
+            components.minute = 0
+            return WallClock.eastern.date(from: components)
+        }
+    }
+
+    /// The next refill on the date's own day after an instant, or nil when
+    /// none is coming today. The midnight that starts the day after is the
+    /// day changing, not a unit arriving, and is not returned.
+    static func next(after instant: Date, wallDate: WallDate) -> Date? {
+        guard WallClock.easternDate(of: instant) == wallDate else { return nil }
+        return refillInstants(wallDate: wallDate).first { $0 > instant }
+    }
+
+    /// "8 am Eastern", "4 pm Eastern".
+    static func words(_ instant: Date) -> String {
+        let hour = WallClock.eastern.component(.hour, from: instant)
+        if hour == 0 { return "midnight Eastern" }
+        if hour == 12 { return "noon Eastern" }
+        return "\(hour % 12) \(hour < 12 ? "am" : "pm") Eastern"
+    }
+
+    /// The words for the count sentence, or "" when refills are off, the
+    /// allowance is not the date's own three, or nothing more arrives today.
+    static func nextWords(now: Date, wallDate: WallDate, allowance: Int, on: Bool = Refills.on) -> String {
+        guard on, allowance == 3, let next = next(after: now, wallDate: wallDate) else { return "" }
+        return words(next)
+    }
+}
+
 // MARK: - Idempotent boosting
 
 /// One request identifier per tap, never two for the same tap.

@@ -121,6 +121,7 @@ final class HiveTests: XCTestCase {
             for voice in [HiveVoice.bee, .plain] {
                 sentences.append(HiveCopy.crownSub(phase: phase, voice: voice))
                 sentences.append(HiveCopy.allowance(2, allowance: 3, phase: phase, voice: voice))
+                sentences.append(HiveCopy.allowance(0, allowance: 3, phase: phase, voice: voice, next: "4 pm Eastern"))
                 sentences.append(HiveCopy.quietLede(dateName: dateName, phase: phase, voice: voice))
                 sentences.append(HiveCopy.feedNote(dateName: dateName, phase: phase, voice: voice))
                 sentences.append(HiveCopy.empty(phase: phase, voice: voice))

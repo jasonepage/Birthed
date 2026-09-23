@@ -195,7 +195,7 @@ struct HiveView: View {
     private func underTheBoard(phase: WallDay.Phase) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             if phase == .live, let left = wall.unitsLeft {
-                Text(HiveCopy.allowance(left, allowance: wall.allowance, phase: phase, voice: voice))
+                Text(HiveCopy.allowance(left, allowance: wall.allowance, phase: phase, voice: voice, next: wall.nextRefillWords))
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(palette.type.opacity(0.6))
                     .contentTransition(.numericText())
@@ -808,7 +808,7 @@ private struct HiveField: View {
                  ? HiveCopy.takesNone(voice: voice)
                  : buzzed
                     ? HiveCopy.alreadyBacked(voice: voice)
-                    : HiveCopy.allowance(left, allowance: wall.allowance, phase: wall.phase ?? .live, voice: voice))
+                    : HiveCopy.allowance(left, allowance: wall.allowance, phase: wall.phase ?? .live, voice: voice, next: wall.nextRefillWords))
                 .font(.footnote.weight(canBuzz ? .regular : .semibold))
                 .foregroundStyle(palette.type.opacity(0.6))
                 .contentTransition(.numericText())
@@ -1498,7 +1498,7 @@ private struct HiveFullScreenView: View {
                     .foregroundStyle(HivePalette.cellDim)
                     .fixedSize(horizontal: false, vertical: true)
                 if let left = wall.unitsLeft {
-                    Text(HiveCopy.allowance(left, allowance: wall.allowance, phase: phase, voice: wall.voice))
+                    Text(HiveCopy.allowance(left, allowance: wall.allowance, phase: phase, voice: wall.voice, next: wall.nextRefillWords))
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(stage.type.opacity(0.8))
                         .contentTransition(.numericText())

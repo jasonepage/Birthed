@@ -160,7 +160,7 @@ struct WallStoryView: View {
                  ? HiveCopy.takesNone(voice: voice)
                  : buzzed
                     ? HiveCopy.alreadyBacked(voice: voice)
-                    : HiveCopy.allowance(left, allowance: wall.allowance, phase: phase, voice: voice))
+                    : HiveCopy.allowance(left, allowance: wall.allowance, phase: phase, voice: voice, next: wall.nextRefillWords))
                 .font(.footnote.weight(left == 0 || !canBuzz ? .semibold : .regular))
                 .foregroundStyle(.secondary)
                 .contentTransition(.numericText())

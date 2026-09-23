@@ -192,6 +192,15 @@ final class WallService {
         return WallBudget.allowance(castOn: WallClock.easternDate(of: now), wallDate: day.wallDate)
     }
 
+    /// When the next buzz arrives today, for the count sentence, or "" when
+    /// refills are off or nothing more arrives today. docs/the-wall.md
+    /// section 30. `unitsLeft` already comes from the server against what
+    /// has arrived once the migration is applied; this is only the words.
+    var nextRefillWords: String {
+        guard let day else { return "" }
+        return Refills.nextWords(now: now, wallDate: day.wallDate, allowance: allowance)
+    }
+
     /// What this install backed on the date being shown, in earlier years.
     ///
     /// docs/the-wall.md section 15. Read from what is already on the phone,
@@ -490,7 +499,7 @@ final class WallService {
             return story.support
         }
         if let left = unitsLeft, !WallBudget.canSpend(1, left: left) {
-            let line = HiveCopy.allowance(left, allowance: allowance, phase: phase ?? .live, voice: voice)
+            let line = HiveCopy.allowance(left, allowance: allowance, phase: phase ?? .live, voice: voice, next: nextRefillWords)
             lastRefusal = line
             throw WriteError.refused(line)
         }

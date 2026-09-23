@@ -438,10 +438,20 @@ enum HiveCopy {
     /// An allowance of one is the day after the date, and that is the screen
     /// whose count needs "on this date" to make sense, because the reader may
     /// still have three on today's.
-    static func left(_ left: Int, allowance: Int, voice: HiveVoice) -> String {
+    /// With refills, docs/the-wall.md section 30, the count is what has
+    /// arrived and not been spent, and the sentence says when the next one
+    /// comes: "No buzzes left right now. The next one arrives at 4 pm
+    /// Eastern." `next` is `Refills.nextWords`, "" until the migration is
+    /// applied, and the same sentence the website says.
+    static func left(_ left: Int, allowance: Int, voice: HiveVoice, next: String = "") -> String {
         let n = max(0, min(left, words.count - 1))
         let unit = n == 1 ? voice.one : voice.many
         let dayAfter = allowance == 1
+        if !next.isEmpty {
+            let arriving = " The next one arrives at \(next)."
+            if n == 0 { return "No \(voice.many) left right now." + arriving }
+            return "\(words[n]) \(unit) left right now." + arriving
+        }
         if n == 0 {
             return dayAfter ? "No \(voice.many) left today on this date." : "No \(voice.many) left today."
         }
@@ -451,12 +461,12 @@ enum HiveCopy {
     }
 
     /// What the screen says about the reader's allowance, by phase.
-    static func allowance(_ left: Int, allowance: Int, phase: WallDay.Phase, voice: HiveVoice) -> String {
+    static func allowance(_ left: Int, allowance: Int, phase: WallDay.Phase, voice: HiveVoice, next: String = "") -> String {
         switch phase {
         case .notYetOpen: return "This hive has not opened yet."
         case .submissionsOnly: return "Stories only until the date arrives. \(voice.many.capitalizedFirst) start then."
         case .closed: return "This hive has sealed and is permanent now."
-        case .live: return Self.left(left, allowance: allowance, voice: voice)
+        case .live: return Self.left(left, allowance: allowance, voice: voice, next: next)
         }
     }
 
