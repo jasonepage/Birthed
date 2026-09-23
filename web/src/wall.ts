@@ -35,7 +35,7 @@ import { agreeOnNews } from "./agree.js";
 import { monthName, slug } from "./model.js";
 import { shareBlock } from "./share-button.js";
 import { beeSvg } from "./mascot.js";
-import { boostFrom, crownLine, crownMark, crownOf, noCrownYet, type Crown, type WallBoost } from "./crown.js";
+import { boostFrom, crownLine, crownMark, crownOf, crownSaid, noCrownYet, type Crown, type WallBoost } from "./crown.js";
 
 export type { Crown, CrownChange, WallBoost } from "./crown.js";
 
@@ -852,7 +852,7 @@ export function fitType(w: number, h: number, length: number): { fit: number; li
 
 /** The fields a buzz posts: the story, and the date page to come back to. */
 /** Where a buzz lands the reader afterwards: the date page, the full screen hive, or the story's own receipt. */
-export type TapBack = "day" | "hive" | "receipt" | "comb";
+export type TapBack = "day" | "hive" | "receipt" | "comb" | "pick";
 
 function tapFields(story: WallStory, back: TapBack): string {
   const { month, day } = parts(story.wallDate);
@@ -1503,8 +1503,12 @@ function countLine(day: WallDay, now: number, voice: Voice, live: boolean = true
  * included, because a tap can be refused on a date that closed after the
  * page was served, and that reader lands on the baked page.
  */
-export function afterwords(voice: Voice, name: string, undo: WallStory | null = null, back: TapBack = "day", live: boolean = false): string {
+export function afterwords(voice: Voice, name: string, undo: WallStory | null = null, back: TapBack = "day", live: boolean = false, took: string | null = null): string {
   const v = voice;
+  // The crown, when the buzz that just counted took it. Jason's call,
+  // September 23, 2026: the list under the board says it two lines down,
+  // and the sentence that answers the tap should say it too.
+  const crowned = took === null ? "" : ` <b class="wcrowntook">${escapeHtml(took)}</b>`;
   // The Undo button, only on the page that follows a buzz that counted, and
   // only when the redirect said which story it counted for. The sentence is
   // the same one either way: what changes is whether there is still a way
@@ -1520,7 +1524,7 @@ export function afterwords(voice: Voice, name: string, undo: WallStory | null = 
   // buzz moved into the span instead (HiveShare in hive-live.ts).
   const kept = live
     ? `That counts. <span class="wshare" id="wshare"></span> <span class="wleft"></span>`
-    : `That counts. <span class="wleft"></span> The hive redraws on the quarter hour, so a bigger tile takes a few minutes to show; your mark is there now.`;
+    : `That counts.${crowned} <span class="wleft"></span> The hive redraws on the quarter hour, so a bigger tile takes a few minutes to show; your mark is there now.`;
   const rallied = live
     ? `
 <p class="wsaid" id="wrallied">Link copied. Send it to whoever should ${v.one} this. It opens the hive with that tile lit, and nothing about you or them travels with it.</p>`
@@ -1539,6 +1543,21 @@ export function afterwords(voice: Voice, name: string, undo: WallStory | null = 
 <p class="wsaid" id="wblank">Those words are too common to search on. Try a name, a place or what happened. Nothing was spent.</p>
 <p class="wsaid" id="wnofind">The hive could not be searched just now: either it has sealed, or this end could not reach it. Nothing was spent. Try it again.</p>
 </div>`;
+}
+
+/**
+ * What to say when a buzz that just counted took the crown, or null. The
+ * crown's last change of hands has to be to this story and inside the last
+ * minute, so a buzz on a story that already wore it says nothing, and a
+ * page opened later with the same query says nothing either.
+ */
+export function crownTook(day: WallDay, storyId: string, now: number): string | null {
+  const crown = crownFor(day);
+  const last = crown.changes[crown.changes.length - 1];
+  if (last === undefined || last.to !== storyId || crown.holder !== storyId) return null;
+  if (now - Date.parse(last.at) > 60_000 || now < Date.parse(last.at) - 5_000) return null;
+  const names = new Map(day.stories.map((s) => [s.id, crownName(s)]));
+  return crownSaid(last, (id) => names.get(id) ?? "a story in the feed");
 }
 
 /** The one line above an open board, docs/the-wall.md section 30. */
@@ -1976,6 +1995,8 @@ ${HISTORY_START}${history}${HISTORY_END}
   const waiting = takeTurns(agreed.stories);
   const view = viewportFor(onWall.map((s) => s.rect!));
   const crown = crownFor(day);
+  // The crown sentence for the buzz that just counted, if it took it.
+  const took = options.undo === undefined || options.undo === null ? null : crownTook(day, options.undo.id, now);
   const tiles = onWall.map((s, index) => tile(s, live, voice, view, hive, index, s.id === crown.holder)).join("\n");
   const notYet = now < Date.parse(day.liveAt);
   const closed = !takingBoosts(day, now) && !notYet;
@@ -2036,7 +2057,7 @@ ${crownBlock(day, crown, voice, now)}`;
   if (hive) {
     return `<section class="wall whive" aria-labelledby="wallhead">
 <h2 class="section" id="wallhead">${escapeHtml(longDate(day))}</h2>
-${countLine(day, now, voice, live)}${afterwords(voice, name, options.undo ?? null, "hive")}
+${countLine(day, now, voice, live)}${afterwords(voice, name, options.undo ?? null, "hive", false, took)}
 ${board}${closed ? `
 <p class="wnote wunder whivesealed">${escapeHtml(sealedLine(day, onWall, voice))}</p>` : ""}
 ${legend}
@@ -2106,7 +2127,10 @@ ${shown.map((s) => listRow(s, live, voice, agreed.alsoIn.get(s.id) ?? null, "day
   const under = closed
     ? `<p class="wnote wunder">${escapeHtml(sealedLine(day, onWall, voice))} Every story is a link to its source.</p>`
     : "";
-  const ways = `<p class="wways">${full}<a href="/about/">How the hive works</a>${options.yours === true ? `<a href="/yours/">Everything you have ${voice.past}</a>` : ""}</p>`;
+  // Pick between two, docs/the-wall.md section 30: the way in for a
+  // stranger, only while a buzz can be spent.
+  const pick = live ? `<a href="/${slug(month, d)}/pick/">Pick between two</a>` : "";
+  const ways = `<p class="wways">${pick}${full}<a href="/about/">How the hive works</a>${options.yours === true ? `<a href="/yours/">Everything you have ${voice.past}</a>` : ""}</p>`;
 
   // The number ones went to the comb with the rest, September 22, 2026:
   // sixty covers and sixty forms were 51 kilobytes of a date page. The card
@@ -2122,7 +2146,7 @@ ${shown.map((s) => listRow(s, live, voice, agreed.alsoIn.get(s.id) ?? null, "day
   return `<section class="wall" aria-labelledby="wallhead">
 <p class="whead">${beeSvg()}<span class="section" id="wallhead">The hive for ${escapeHtml(longDate(day))}</span> <span class="wstate">${stateLine(day, now)}</span></p>
 ${lede === "" ? "" : `<p class="wlede">${lede}</p>`}
-${live ? askForm(day, name, voice) : ""}${countLine(day, now, voice, live)}${foundBlock(options.found ?? [], day, live, voice)}${afterwords(voice, name, options.undo ?? null)}
+${live ? askForm(day, name, voice) : ""}${countLine(day, now, voice, live)}${foundBlock(options.found ?? [], day, live, voice)}${afterwords(voice, name, options.undo ?? null, "day", false, took)}
 ${board}
 <div class="wafter">${onWall.length > 0 ? legend : ""}${save}</div>
 ${under}${ways}
@@ -2399,6 +2423,29 @@ ${others.map((s) => `<li><a href="/${slug(month, d)}/wall/${s.id}/">${escapeHtml
 
 /** Appended to the site stylesheet. Colours follow the day's own hue. */
 export const WALL_STYLE = `
+/* This or that, docs/the-wall.md section 30: two stories, one question, one tap. */
+.wpickq { font-size: clamp(24px, 5vw, 36px); line-height: 1.1; margin: 8px 0 10px; text-wrap: balance; }
+.wpickpair { display: grid; grid-template-columns: 1fr; gap: 10px; align-items: stretch; margin: 14px 0 0; }
+@media (min-width: 640px) { .wpickpair { grid-template-columns: 1fr auto 1fr; } }
+.wpickside { display: flex; flex-direction: column; gap: 8px; background: var(--cell); border: 1px solid var(--line-strong); border-radius: 14px; padding: 16px 16px 14px; --stripe: #9C8862; box-shadow: inset 4px 0 0 var(--stripe); min-height: 160px; }
+.wpickside.w-reported { --stripe: #F0B84E; }
+.wpickside.w-seen_direct { --stripe: #FF9A3C; }
+.wpickkind { margin: 0; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+.wpickkind .wkind svg { width: 14px; height: 14px; }
+.wpickh { font-family: var(--serif); font-optical-sizing: auto; font-weight: 700; font-size: 20px; line-height: 1.2; color: var(--cream); text-decoration: none; flex: 1; }
+.wpickh:hover { text-decoration: underline; text-decoration-color: rgba(255, 243, 224, .45); }
+.wpickmeta { margin: 0; font-size: 12px; color: var(--dim); }
+.wpickbuzz button { font-size: 16px; padding: 8px 22px; }
+.wpickor { align-self: center; font-family: var(--serif); font-style: italic; color: var(--dimmer); font-size: 18px; text-align: center; }
+.wpickskip { margin: 12px 0 0; font-size: 14px; }
+.wpickskip a { color: var(--dim); text-decoration: none; border-bottom: 1px solid var(--line); }
+.wpickskip a:hover { color: var(--honey-lite); border-color: var(--honey-lite); }
+.wpicknote { color: var(--dimmer); font-size: 13px; }
+.wpick .wsaid.wshow { display: block; }
+.wcrowntook { color: var(--honey-lite); font-weight: 700; }
+.wpickdone { font-size: 15px; }
+
+
 .wall { margin: 8px 0 0; }
 .wall h2.section { margin-top: 26px; }
 /* The hive is the hero, September 10, 2026. What sits between the date's

@@ -34,6 +34,7 @@ import { ASK_SLOTS, FIRST_CHART_YEAR, TODAY, renderCardPage, renderMePanel, rend
 import { SHARE_SCRIPT_SOURCE } from "./share-button.js";
 import { ASK_MAX, easternMidnight, emptyWallDay, fetchWallDay, hiveDaysNav, openWallDates, pictureRules, picturedSubjects, combPictured, replaceWall, combPath, hivePath, takingBoosts, wallKey, wallMarks, wallSection, withChecks, type Anniversary, type RecordRow, type TapBack, type WallDay } from "./wall.js";
 import { fetchSnapshotScores, liveHiveSection, type Standing } from "./hive-live.js";
+import { pickFor, pickIndexFrom, pickPath, renderPickPage, PICK_MAX } from "./pick.js";
 import { answer as findAnswer } from "./find.js";
 import { fetchPictureFor, fetchPicturesFor, type StoredPicture } from "./stored-pictures.js";
 import { personalName } from "./share.js";
@@ -691,8 +692,10 @@ export interface Tap {
   storyId: string;
   month: number;
   day: number;
-  /** Where the reader is sent back to: the date page, the full screen hive, or the story's receipt. */
+  /** Where the reader is sent back to: the date page, the full screen hive, the story's receipt, the comb, or the pick page. */
   back: TapBack;
+  /** The pair the pick page was showing, carried back so the reader lands on the same place in the list. Nought elsewhere. */
+  pick: number;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -711,7 +714,12 @@ export function readTap(body: string): Tap | null {
   if (!Number.isInteger(month) || month < 1 || month > 12) return null;
   if (!Number.isInteger(day) || day < 1 || day > 31) return null;
   const v = form.get("v");
-  return { storyId, month, day, back: v === "hive" || v === "receipt" || v === "comb" ? v : "day" };
+  const p = Number(form.get("p") ?? "0");
+  // A hand made post with a pair index out of range is answered from the
+  // top of the list rather than refused: the index is a place to come back
+  // to and nothing the database is told.
+  const pick = Number.isInteger(p) && p >= 0 && p <= PICK_MAX ? p : 0;
+  return { storyId, month, day, back: v === "hive" || v === "receipt" || v === "comb" || v === "pick" ? v : "day", pick };
 }
 
 /**
@@ -1104,7 +1112,12 @@ async function handle(
         ? combPath(tap.month, tap.day)
       : tap.back === "receipt"
         ? `/${slug(tap.month, tap.day)}/wall/${tap.storyId}/`
+      : tap.back === "pick"
+        // The pick page carries its pair index in the query, so the word
+        // below joins it with an ampersand rather than a question mark.
+        ? `${pickPath(tap.month, tap.day)}?p=${tap.pick}`
         : `/${slug(tap.month, tap.day)}/`;
+    const joiner = where.includes("?") ? "&" : "?";
     // A tap that counted lands on the story it counted for, so the tile
     // reads as changed through :target and the page scrolls to it. The
     // sentence for it is revealed by a :has rule in the stylesheet rather
@@ -1118,7 +1131,7 @@ async function handle(
     // counted: there is nothing to take back after any other word.
     const on = said === "kept" ? `&on=${tap.storyId}` : "";
     response.writeHead(303, {
-      Location: `${where}?tapped=${said}${on}#${fragment}`,
+      Location: `${where}${joiner}tapped=${said}${on}#${fragment}`,
       "Cache-Control": "no-store",
       "Set-Cookie": `${TOKEN_COOKIE}=${token}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax; Secure`,
       ...SECURITY,
@@ -1168,9 +1181,14 @@ async function handle(
         ? combPath(tap.month, tap.day)
       : tap.back === "receipt"
         ? `/${slug(tap.month, tap.day)}/wall/${tap.storyId}/`
+      : tap.back === "pick"
+        // The pick page carries its pair index in the query, so the word
+        // below joins it with an ampersand rather than a question mark.
+        ? `${pickPath(tap.month, tap.day)}?p=${tap.pick}`
         : `/${slug(tap.month, tap.day)}/`;
+    const joiner = where.includes("?") ? "&" : "?";
     response.writeHead(303, {
-      Location: `${where}?tapped=${said}#${TAP_FRAGMENT[said]}`,
+      Location: `${where}${joiner}tapped=${said}#${TAP_FRAGMENT[said]}`,
       "Cache-Control": "no-store",
       ...SECURITY,
     });
@@ -1248,6 +1266,55 @@ async function handle(
   // than a redirect or a miss: the address is named on the privacy page and
   // should answer for anybody who types it. A read that fails is the one
   // case that must not answer "nothing", so it says so instead.
+  // This or that, docs/the-wall.md section 30. Two stories from an open
+  // hive and one question, drawn per request for this reader: which pairs
+  // are shown depends on what this browser has buzzed, so the page is never
+  // stored. On a date that is not taking buzzes it sends the reader to the
+  // date page, where the board says why. No script and the default policy.
+  const picking = method === "GET" || method === "HEAD" ? pickFor(path, everyDate()) : null;
+  if (picking !== null) {
+    const now = Date.now();
+    const wallDate = openWallDates(now).get(wallKey(picking.month, picking.day));
+    const tapped = tappedFrom(query);
+    const address = String(request.headers["x-forwarded-for"] ?? "").split(",")[0]?.trim()
+      || request.socket.remoteAddress || "unknown";
+    const fresh = tapped !== null && underLimit(address);
+    const wall = wallDate === undefined ? null : await liveWall(picking.month, picking.day, now, fresh, false);
+    if (wall === null || !takingBoosts(wall.day, now)) {
+      response.writeHead(302, {
+        Location: `/${slug(picking.month, picking.day)}/`,
+        "Cache-Control": "no-store",
+        ...securityFor(path),
+      });
+      response.end();
+      return;
+    }
+    const token = tokenFromCookie(request.headers.cookie);
+    const standing = token === null ? null : await wallStanding(wall.day.wallDate, token);
+    // The Undo button only for a browser whose own standing says it backed
+    // that story. The date page gates it on the word alone and the database
+    // refuses a stranger either way; here the standing is already in hand,
+    // so the control is drawn only where it can work.
+    const undoOn = tapped === "kept" ? tappedOnFrom(query) : null;
+    const undo = undoOn === null || standing === null || !standing.backed.includes(undoOn)
+      ? null
+      : wall.day.stories.find((s) => s.id === undoOn) ?? null;
+    response.writeHead(200, {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store",
+      Vary: "Cookie",
+      ...securityFor(path),
+    });
+    if (method === "HEAD") { response.end(); return; }
+    response.end(renderPickPage(wall.day, picking.month, picking.day, now, {
+      standing: standing === null ? null : { left: standing.left, allowance: standing.allowance, backed: standing.backed },
+      p: pickIndexFrom(query),
+      tapped,
+      undo,
+    }));
+    return;
+  }
+
   if ((path === "/yours" || path === "/yours/") && (method === "GET" || method === "HEAD")) {
     const token = tokenFromCookie(request.headers.cookie);
     const rows = token === null ? [] : await wallRecord(token);

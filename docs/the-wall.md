@@ -2826,3 +2826,68 @@ as a buzz lands, which is how the app's board already behaves.
 
 **Not yet.** The comb page does not mark the holder's cell.
 
+**The sentence that answers the tap says it too, Jason's call the same
+day.** On the plain date page and on the pick page, "That counts." is
+followed by "Bruce Springsteen took the crown from Typhoid Mary." when the
+buzz that just counted moved the crown: the last change of hands is to that
+story and landed inside the last minute. A buzz on the story already wearing
+it says nothing, and the same address opened ten minutes later says nothing.
+`crownTook` in `wall.ts`.
+
+### This or that, built September 23, 2026
+
+**Where it lives.** Its own page, `/<date>/pick/`, linked from the row of
+pills under the board as "Pick between two" while a buzz can be spent. Not a
+block on the date page: the date page opens with the board and one line, and
+a second game above or below it would be the third telling the September 22
+entry took off. A page with one question and two stories is the two second
+thing on its own.
+
+**What it is.** Two stories side by side under "Which will people still care
+about in ten years?", each with one button, "This one". A tap is the same
+plain form every tile carries, posting to `/boost` with `v=pick` and the
+pair's index, and the server sends the reader back to the same pair with
+the word in the query, the way every other tap comes back. "That counts.
+Here is the next pair." with the Undo button, then the next pair, which is
+the loser against the next story down. "Skip this pair" is a link to the
+next index and spends nothing. No script; the page runs under the default
+policy like the date page, and a test reads the header.
+
+**How the pairs are drawn, pinned in `web/test/pick.test.ts`.** The day's
+stories, the news collapsed to one row per story as the feed does, in the
+comb's order: buzzes, then the editor's score, then priority, then desks,
+then arrival. A story stamped false is out and a story this browser already
+buzzed is out. Then top down, each story takes the next one below it that it
+may face, and two news stories from one outlet may not: that is a newsroom
+against itself. A story with nobody to face is left out. A story never faces
+itself. With zero buzzes the top pair is the two most interesting stories;
+with one, the winner is gone and the loser faces the third; with three, the
+top three are gone and the list runs from the fourth.
+
+**Drawn per request and never stored.** Which pairs a reader sees depends on
+which stories their browser has buzzed, so the page reads this browser's
+standing and is answered `no-store`, like the record page. A browser with no
+cookie gets the allowance and the top of the list. The Undo button is drawn
+only when the standing says this browser backed that story; the date page
+gates it on the word alone and the database refuses a stranger either way.
+On a date that is not taking buzzes the address sends the reader to the date
+page, where the board says why.
+
+**A hand made address cannot break it.** The pair index is a whole number
+from nought to 9,999 and anything else is the top of the list; past the last
+pair the page says every pair has been seen and offers the top or the board.
+Nothing about the index reaches the database. The buzz itself is the buzz
+the tiles send, with the same cookie, the same limit and the same word, and
+the privacy page's description of a buzz is unchanged.
+
+**Tested.** Zero, one and three buzzes; the same outlet rule; the reader's
+own buzzes left out; one story left; the last pair; past the end; no buzzes
+left; the outcome sentences; the crown sentence on a buzz that took it; a
+tap from the second pair coming back to the second pair with its word and
+its cookie; a stranger handed the address getting no undo; a closed date
+sent to the date page. Web tests: 426. Not run against the live project.
+
+**Not built.** No iOS pick screen; the app's hive already hands a reader the
+board at tile size and the phone is where the tap is cheap. If the web page
+earns its place, the app follows.
+

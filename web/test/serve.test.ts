@@ -482,9 +482,16 @@ import { readTap, receiptFor, tappedFrom } from "../src/serve.js";
 
 test("a posted tap is a story and a date, and nothing else gets through", () => {
   assert.deepEqual(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9"), {
-    storyId: "11111111-1111-1111-1111-111111111111", month: 9, day: 9, back: "day",
+    storyId: "11111111-1111-1111-1111-111111111111", month: 9, day: 9, back: "day", pick: 0,
   });
   assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=hive")!.back, "hive");
+  // The pick page's own field. Out of range, or absent, is the top of the list.
+  assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=pick&p=4")!.back, "pick");
+  assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=pick&p=4")!.pick, 4);
+  assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=pick&p=-1")!.pick, 0);
+  assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=pick&p=1.5")!.pick, 0);
+  assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=pick&p=99999")!.pick, 0);
+  assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=pick&p=abc")!.pick, 0);
   assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=comb")!.back, "comb");
   assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=receipt")!.back, "receipt");
   assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=elsewhere")!.back, "day");
