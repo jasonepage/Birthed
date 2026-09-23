@@ -67,6 +67,7 @@ struct HiveView: View {
                     quietHeading(day, phase: phase)
                 }
                 HiveBoard(day: day, date: date, ageLines: ageLines, onOpen: { selected = $0 })
+                decadeLine(day, phase: phase)
                 crownList(day, phase: phase)
                 if !day.onHive.isEmpty {
                     underTheBoard(phase: phase)
@@ -202,6 +203,36 @@ struct HiveView: View {
             }
             Spacer(minLength: 8)
             fullScreenLink
+        }
+    }
+
+    /// Decade teams, docs/the-wall.md section 30: which decade holds the
+    /// most of the hive, by buzzes, and the top three. Nothing with no
+    /// buzzes. A fact about tiles and never about a reader.
+    @ViewBuilder
+    private func decadeLine(_ day: WallDay, phase: WallDay.Phase) -> some View {
+        let standing = HiveDecades.standing(for: day)
+        let line = HiveDecades.line(standing, dateName: date.displayName(), voice: voice, sealed: phase == .closed)
+        if phase != .notYetOpen, phase != .submissionsOnly, !line.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(line)
+                    .font(.system(.subheadline, design: .serif, weight: .bold))
+                    .foregroundStyle(palette.type)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 12) {
+                    ForEach(standing.teams.prefix(3), id: \.decade) { team in
+                        HStack(spacing: 3) {
+                            Text(HiveDecades.name(team.decade))
+                            Text(String(team.buzzes)).fontWeight(.bold).foregroundStyle(palette.accent)
+                        }
+                        .font(.caption)
+                        .foregroundStyle(palette.type.opacity(0.6))
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 6)
+            .accessibilityElement(children: .combine)
         }
     }
 
