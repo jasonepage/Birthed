@@ -37,6 +37,7 @@ import { shareBlock } from "./share-button.js";
 import { beeSvg } from "./mascot.js";
 import { boostFrom, crownLine, crownMark, crownOf, crownSaid, noCrownYet, type Crown, type WallBoost } from "./crown.js";
 import { REFILLS_ON, arrivedBy, nextRefillWords } from "./refills.js";
+import { decadeLine, decadeOf, decadeStanding } from "./decades.js";
 
 export type { Crown, CrownChange, WallBoost } from "./crown.js";
 
@@ -1052,6 +1053,10 @@ function tile(story: WallStory, live: boolean, voice: Voice, view: Viewport, hiv
   const style = `grid-column:${rect.mx - view.ox + 1} / span ${rect.w};grid-row:${rect.my - view.oy + 1} / span ${rect.h};--lines:${lines};--fit:${fit};--tw:${rect.w};--i:${index}`;
   const stamp = outcomeStamp(story);
   const classes = `wtile ${size} w-${story.tier}${rect.h <= 3 ? " wh3" : ""}${story.status === "false" ? " wfalse" : ""}${crowned ? " wcrowned" : ""}`;
+  // The tile's decade, docs/the-wall.md section 30, so a stylesheet can
+  // find a team's tiles. Absent when the headline carries no year.
+  const decade = decadeOf(story);
+  const team = decade === null ? "" : ` data-decade="${decade}"`;
   const receipt = storyPath(story);
 
   if (size === "tiny" || size === "small") {
@@ -1074,11 +1079,11 @@ function tile(story: WallStory, live: boolean, voice: Voice, view: Viewport, hiv
     const inner = `<span class="wh wsh">${escapeHtml(story.headline)}</span>`
       + `<span class="wyr">${escapeHtml(year ?? story.outlet)}</span>`
       + (count === "" ? "" : `<span class="wn">${count}</span>`);
-    return `<a class="${classes}${year === null ? " wnoyr" : ""}" id="w-${story.id}" href="${receipt}" style="${style}"${subjectAttr(story)} title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${inner}${stamp}${crown}</a>`;
+    return `<a class="${classes}${year === null ? " wnoyr" : ""}" id="w-${story.id}" href="${receipt}" style="${style}"${subjectAttr(story)}${team} title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${inner}${stamp}${crown}</a>`;
   }
 
   const takes = live && story.status !== "false";
-  return `<div class="${classes}" id="w-${story.id}" style="${style}"${subjectAttr(story)} role="listitem">`
+  return `<div class="${classes}" id="w-${story.id}" style="${style}"${subjectAttr(story)}${team} role="listitem">`
     + `<a class="wh" href="${receipt}" title="${escapeHtml(label)} The receipt: every source, every quotation, every check.">${escapeHtml(story.headline)}</a>`
     + `${mine(voice)}${footer(story, takes, voice, hive)}${stamp}${crown}</div>`;
 }
@@ -1977,6 +1982,23 @@ ${items}
 </div>`;
 }
 
+/**
+ * Decade teams, docs/the-wall.md section 30: which decade holds the most
+ * of the hive, by buzzes. One line under the board, and the top three
+ * decades with their counts. Nothing with no buzzes, nothing before the
+ * date opens. It counts buzzes on tiles and never anything about a reader.
+ * `live` adds the id the live page rewrites.
+ */
+export function decadesBlock(day: WallDay, name: string, voice: Voice, now: number, live: boolean = false): string {
+  if (now < Date.parse(day.liveAt)) return "";
+  const closed = !takingBoosts(day, now);
+  const standing = decadeStanding(day);
+  const line = decadeLine(day, name, voice, closed);
+  if (line === "") return live ? `<div class="wdecades" id="wdecades" hidden><p class="wdecadeline" id="wdecadeline"></p><p class="wdecadeteams" id="wdecadeteams"></p></div>` : "";
+  const teams = standing.teams.slice(0, 3).map((t) => `<span class="wdecade">${t.decade}s <b>${t.buzzes}</b></span>`).join(" ");
+  return `<div class="wdecades" id="wdecades"><p class="wdecadeline" id="wdecadeline">${escapeHtml(line)}</p><p class="wdecadeteams" id="wdecadeteams">${teams}</p></div>`;
+}
+
 function wallBody(day: WallDay | null, name: string, now: number, options: WallOptions): string {
   const history = options.history ?? "";
   if (day === null) {
@@ -2042,6 +2064,7 @@ ${HISTORY_START}${history}${HISTORY_END}
 ${tiles}${empty}
 </div>${hindsight === null ? "" : `
 <p class="whindsight">${escapeHtml(hindsight)} <span class="whindsightsay">The board is as it sealed. The marks are what happened since.</span></p>`}
+${decadesBlock(day, name, voice, now)}
 ${crownBlock(day, crown, voice, now)}`;
 
   const full = onWall.length > 0 && !hive
@@ -2939,6 +2962,13 @@ export const WALL_STYLE = `
 .wcrownlist .wcrownnone { list-style: none; margin-left: -1.2em; color: var(--dimmer); }
 .wcrownsay { margin: 6px 0 0; font-size: 14px; color: var(--honey-lite); min-height: 1.4em; }
 .wcrownsay:empty { display: none; }
+/* Decade teams, docs/the-wall.md section 30. One line and the top three. */
+.wdecades { margin: 12px 0 0; max-width: 62ch; }
+.wdecades[hidden] { display: none; }
+.wdecadeline { margin: 0; font-family: var(--serif); font-optical-sizing: auto; font-weight: 700; font-size: 17px; line-height: 1.3; color: var(--cream); }
+.wdecadeteams { margin: 4px 0 0; font-size: 13px; color: var(--dim); display: flex; flex-wrap: wrap; gap: 6px 12px; }
+.wdecadeteams:empty { display: none; }
+.wdecade b { color: var(--honey-lite); font-weight: 700; }
 .wlivehive .whindsight, .hivepage .whindsight { color: #FFF3E0; }
 .wlivehive .whindsightsay, .hivepage .whindsightsay { color: var(--dim); }
 

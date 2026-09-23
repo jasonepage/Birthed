@@ -2933,3 +2933,41 @@ day's allowance with the spent ones dark; with refills on, a dot for a unit
 that has not arrived yet looks the same as one spent. A third look for
 "coming" is a design call and was not made here.
 
+### Decade teams, built September 23, 2026
+
+**Nathan's calls, made on the three live boards.** On September 21 the
+news was nine of forty four tiles and held one buzz of five; the 1780s,
+the Pennsylvania Packet, held two. On September 22 all three buzzes fell
+on the news. On September 23 the 1860s and the 1940s had one each. So: the
+news counts as the 2020s, because a buzz on today's news is a buzz on this
+decade and a line that said "the 1940s lead" on September 22 would have
+been a half truth. Counted by buzzes, which is what the pie already cuts
+the hive by, so the news does not lead on tile count alone. With no buzzes
+there is no line, the same rule as the crown: a decade leads only because
+somebody buzzed it.
+
+**What the reader sees.** One line under the board, above the crown list:
+"The 1940s lead September 23 with 2 of 3 buzzes." With one buzz on the
+hive, "with the only buzz so far"; with every buzz on one decade, "with all
+3 buzzes so far"; sealed, "led" and no "so far". A tie is a tie: "The
+1860s and 1940s are level on September 23, 1 buzz each." Under the line,
+the top three decades with their counts. On the live hive the line moves
+as buzzes land. Every tile carries `data-decade` in its markup.
+
+**How a tile gets its decade.** `decadeOf` in `web/src/decades.ts`, the
+same in `HiveDecades` on iOS: a history row, a number one and a fact from
+their leading year, a person from "born YYYY", the news from the wall
+date's year. A story with no year is on no team, and a story stamped false
+counts for none. A pooled story with a buzz counts, because the pie counts
+it.
+
+**What is not recorded.** Nothing. The standing is a sum over the story
+rows the page already has, the line is generated text, and there is no
+table, column or cookie for a reader's decade.
+
+**Tested.** Zero, one and three buzzes, the tie, the three live boards
+pinned as fixtures, a false story, a story with no year, the block before
+the date opens, the sealed tense, the page's copy against the server's, and
+bent rows into the page's own sum. Web tests: 440. iOS `HiveDecadesTests`
+written and not run.
+

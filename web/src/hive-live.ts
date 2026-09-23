@@ -28,10 +28,11 @@ import { slug } from "./model.js";
 import { HIVE_ALLOCATOR_JS } from "./hive-allocator.js";
 import {
   SAVE_PICTURE, afterwords, allowanceOn, anniversaryBlock, freshLeft, liveTile, storyPath, subjectOf, takingBoosts, tapsLeftSentence,
-  KIND_WORD, tiersDiffer, tileKind, kindMark, voiceFor, yoursLine, crownBlock, crownFor, crownName, type Anniversary, type TileKind, type WallDay, type WallStory,
+  KIND_WORD, tiersDiffer, tileKind, kindMark, voiceFor, yoursLine, crownBlock, crownFor, crownName, decadesBlock, type Anniversary, type TileKind, type WallDay, type WallStory,
 } from "./wall.js";
 import { HIVE_CROWN_JS, crownMark, rawBoost } from "./crown.js";
 import { REFILLS_ON, dayRefills, nextRefillWords } from "./refills.js";
+import { HIVE_DECADES_JS, decadeOf } from "./decades.js";
 
 function escapeHtml(value: string): string {
   return value
@@ -76,6 +77,8 @@ export interface LiveStory {
   headline: string;
   /** What a crown line calls it: crownName. */
   name: string;
+  /** The decade team it counts for, or null. docs/the-wall.md section 30. */
+  decade: number | null;
   outlet: string;
   tier: WallStory["tier"];
   status: WallStory["status"];
@@ -121,6 +124,7 @@ export function liveStories(day: WallDay, scores: Map<string, number> = new Map(
     id: s.id,
     headline: s.headline,
     name: crownName(s),
+    decade: decadeOf(s),
     outlet: s.outlet,
     tier: s.tier,
     status: s.status,
@@ -267,6 +271,7 @@ ${tiles}${empty}
 <p class="wlegend">${tiersDiffer(onWall) ? `<span class="wlg"><span class="wsw w-seen_direct"></span>Seen directly</span> <span class="wlg"><span class="wsw w-reported"></span>Reported</span> <span class="wlg"><span class="wsw w-claimed"></span>Claimed</span> <span class="wlegendsay">Brightness is how ${voice.past} a story is. The stripe is how well it is sourced, not whether it is true.</span>` : `<span class="wlegendsay">Brightness is how ${voice.past} a story is.</span>`}</p>
 <div class="wswarm"><p class="wswarmhead">The swarm, right now</p><div id="wswarm" aria-live="polite"><p class="wswarmrow wswarmquiet">Nobody has ${voice.past} since you arrived.</p></div></div>
 </div>
+${decadesBlock(day, name, voice, now, true)}
 ${crownBlock(day, crown, voice, now, true)}
 <p class="wsave">${SAVE_PICTURE ? `<a href="/${slug(month, d)}/yours.png"><span class="wsaveall">Save this picture</span><span class="wsavemine">Save your version</span></a> &middot; ` : ""}<a href="/${slug(month, d)}/">Back to the day</a></p>
 ${anniversaryBlock(options.anniversary ?? [], day, voice)}
@@ -275,6 +280,7 @@ ${yoursLine(options.yours, voice)}
 <script>${HIVE_ALLOCATOR_JS}
 ${HIVE_SHARE_JS}
 ${HIVE_CROWN_JS}
+${HIVE_DECADES_JS}
 ${HIVE_LIVE_JS}</script>
 </section>`;
 }
@@ -741,8 +747,33 @@ export const HIVE_LIVE_JS = `
     var totalEl = document.getElementById("wtotal");
     if (totalEl) { totalEl.textContent = String(total); var after = totalEl.nextSibling; if (after && after.nodeType === 3) after.textContent = " " + (total === 1 ? voice.one : voice.many) + " so far"; }
     crownPaint();
+    decadesPaint();
   }
   function rankOf(id) { return placedOrder.indexOf(id); }
+
+  // Decade teams, docs/the-wall.md section 30: the line under the board
+  // from the counts as they stand. Hidden with no buzzes.
+  function decadesPaint() {
+    if (typeof HiveDecades === "undefined") return;
+    var box = document.getElementById("wdecades"); if (!box) return;
+    var rows = [];
+    for (var i = 0; i < stories.length; i++) { var s = stories[i]; if (s.status !== "false") rows.push({ decade: s.decade, support: s.support }); }
+    var st = HiveDecades.standing(rows);
+    var line = HiveDecades.line(st, D.name, voice, sealed);
+    if (!line) { box.hidden = true; return; }
+    text("wdecadeline", line);
+    var teams = document.getElementById("wdecadeteams");
+    if (teams) {
+      teams.innerHTML = "";
+      st.teams.slice(0, 3).forEach(function (t, k) {
+        var span = el("span", "wdecade"); span.appendChild(document.createTextNode(HiveDecades.name(t.decade) + " "));
+        var b = el("b"); b.textContent = String(t.buzzes); span.appendChild(b);
+        if (k > 0) teams.appendChild(document.createTextNode(" "));
+        teams.appendChild(span);
+      });
+    }
+    box.hidden = false;
+  }
 
   // The crown. Replayed from the log, never from the counts on screen, so
   // the tile that wears it and the list under the board are one answer.
