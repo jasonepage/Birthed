@@ -28,8 +28,9 @@ import { slug } from "./model.js";
 import { HIVE_ALLOCATOR_JS } from "./hive-allocator.js";
 import {
   SAVE_PICTURE, afterwords, allowanceOn, anniversaryBlock, liveTile, storyPath, subjectOf, takingBoosts, tapsLeftSentence,
-  KIND_WORD, tiersDiffer, tileKind, kindMark, voiceFor, yoursLine, type Anniversary, type TileKind, type WallDay, type WallStory,
+  KIND_WORD, tiersDiffer, tileKind, kindMark, voiceFor, yoursLine, crownBlock, crownFor, crownName, type Anniversary, type TileKind, type WallDay, type WallStory,
 } from "./wall.js";
+import { HIVE_CROWN_JS, crownMark, rawBoost } from "./crown.js";
 
 function escapeHtml(value: string): string {
   return value
@@ -72,6 +73,8 @@ export interface LiveHiveOptions {
 export interface LiveStory {
   id: string;
   headline: string;
+  /** What a crown line calls it: crownName. */
+  name: string;
   outlet: string;
   tier: WallStory["tier"];
   status: WallStory["status"];
@@ -116,6 +119,7 @@ export function liveStories(day: WallDay, scores: Map<string, number> = new Map(
   return day.stories.map((s) => ({
     id: s.id,
     headline: s.headline,
+    name: crownName(s),
     outlet: s.outlet,
     tier: s.tier,
     status: s.status,
@@ -199,7 +203,10 @@ export function liveHiveSection(day: WallDay, name: string, now: number, options
   const backed = standing?.backed ?? [];
   const onWall = day.stories.filter((s) => s.rect !== null && (s.status === "placed" || s.status === "false"));
   const max = Math.max(1, ...onWall.map((s) => s.support));
-  const tiles = onWall.map((s, index) => liveTile(s, live, voice, index, heatFor(s.support, max))).join("\n");
+  // The crown as the rows stand at this read. The page replays the same
+  // rows itself and moves it as buzzes land. docs/the-wall.md section 30.
+  const crown = crownFor(day);
+  const tiles = onWall.map((s, index) => liveTile(s, live, voice, index, heatFor(s.support, max), s.id === crown.holder)).join("\n");
   const total = day.stories.reduce((sum, s) => sum + s.support, 0);
   const closes = day.closedAt ?? day.closesAt;
   const seals = clockFor(Date.parse(closes) - now);
@@ -217,6 +224,11 @@ export function liveHiveSection(day: WallDay, name: string, now: number, options
     stories: liveStories(day, options.scores ?? new Map()),
     kinds,
     kindWords,
+    // The day's buzz rows for the crown's replay, in the shape Realtime
+    // sends a new one: a story, its units and when. No booster is in these
+    // rows because the role cannot read one.
+    boosts: (day.boosts ?? []).map(rawBoost),
+    crownMark: crownMark(),
   };
   const dots = Array.from({ length: allowance }, (_, i) => `<span class="wdot${i < left ? "" : " wspent"}"></span>`).join("");
   const sentence = tapsLeftSentence(left, allowance, voice);
@@ -242,12 +254,14 @@ ${tiles}${empty}
 <p class="wlegend">${tiersDiffer(onWall) ? `<span class="wlg"><span class="wsw w-seen_direct"></span>Seen directly</span> <span class="wlg"><span class="wsw w-reported"></span>Reported</span> <span class="wlg"><span class="wsw w-claimed"></span>Claimed</span> <span class="wlegendsay">Brightness is how ${voice.past} a story is. The stripe is how well it is sourced, not whether it is true.</span>` : `<span class="wlegendsay">Brightness is how ${voice.past} a story is.</span>`}</p>
 <div class="wswarm"><p class="wswarmhead">The swarm, right now</p><div id="wswarm" aria-live="polite"><p class="wswarmrow wswarmquiet">Nobody has ${voice.past} since you arrived.</p></div></div>
 </div>
+${crownBlock(day, crown, voice, now, true)}
 <p class="wsave">${SAVE_PICTURE ? `<a href="/${slug(month, d)}/yours.png"><span class="wsaveall">Save this picture</span><span class="wsavemine">Save your version</span></a> &middot; ` : ""}<a href="/${slug(month, d)}/">Back to the day</a></p>
 ${anniversaryBlock(options.anniversary ?? [], day, voice)}
 ${yoursLine(options.yours, voice)}
 <script type="application/json" id="hivedata">${jsonIsland(data)}</script>
 <script>${HIVE_ALLOCATOR_JS}
 ${HIVE_SHARE_JS}
+${HIVE_CROWN_JS}
 ${HIVE_LIVE_JS}</script>
 </section>`;
 }
@@ -382,7 +396,13 @@ export const HIVE_LIVE_STYLE = `
   transition: box-shadow .6s ease, border-color .6s ease;
 }
 .wlive .wtile:hover .wcell { border-color: var(--honey); }
-.wlive .wtile.wlead .wcell { border-color: rgba(244, 183, 64, .5); }
+/* The leader's edge follows the crown, docs/the-wall.md section 30, so the
+   board has one leader: the most buzzed story, held on a tie. Until then
+   it followed the pie's order, which breaks a tie by the editor's score. */
+.wlive .wtile.wcrowned .wcell { border-color: var(--honey); outline: 1px solid rgba(244, 183, 64, .45); outline-offset: 0; }
+.wlive .wtile .wcell > .wcrownmark { animation: wcrownin .6s ease; }
+@keyframes wcrownin { 0% { opacity: 0; transform: translateY(-6px) scale(.7); } 60% { opacity: 1; transform: translateY(1px) scale(1.15); } 100% { transform: none; } }
+.wlivehive .wcrown { max-width: none; margin-top: 14px; }
 .wlive .wtile::before, .wlive .wtile::after { content: none; }
 .wlive .wcell::before, .wlive .wcell::after { content: ""; position: absolute; inset: 0; pointer-events: none; }
 .wlive .wcell::before { background: var(--pic, none) center / cover no-repeat; opacity: .9; }
@@ -465,6 +485,7 @@ export const HIVE_LIVE_STYLE = `
   .wlive .wripple, .wlive .wsurge { display: none; }
   .wswarmrow { animation: none; }
   .wpeek { animation: none; }
+  .wlive .wtile .wcell > .wcrownmark { animation: none; }
 }
 `;
 
@@ -507,6 +528,16 @@ export const HIVE_LIVE_JS = `
   // comes back over the socket too, sometimes before the answer does, and it
   // is already counted on the screen.
   var pendingOwn = {};
+  // The crown, docs/the-wall.md section 30. The day's buzz rows, replayed
+  // by HiveCrown on every change: a row is appended when a buzz lands here
+  // or over the socket, removed when one is taken back, and the whole log
+  // is read again after a reconnect. The reader's own buzz is in the log
+  // under a temporary id until the database names it.
+  var boosts = (D.boosts || []).slice();
+  var ownRow = {};
+  var crownHolder = null;
+  var crownChanges = 0;
+  var crownPainted = false;
   var placedOrder = [];
   var sealed = Date.now() >= Date.parse(D.closesAt);
   var q = function (sel, root) { return (root || document).querySelector(sel); };
@@ -636,7 +667,6 @@ export const HIVE_LIVE_JS = `
     t.style.setProperty("--w", r.w); t.style.setProperty("--h", r.h);
     t.style.setProperty("--tw", r.w); t.style.setProperty("--lines", linesFor(r.h)); t.style.setProperty("--i", index);
     t.classList.toggle("wh3", r.h <= 3);
-    t.classList.toggle("wlead", index === 0 && s.support > 0);
     var heat = s.support <= 0 ? 0 : 0.15 + 0.85 * Math.pow(s.support / Math.max(1, max), 0.8);
     var cell = q(".wcell", t); if (cell) cell.style.setProperty("--heat", heat.toFixed(3));
     // A tile the server drew for a story nobody had buzzed has no count
@@ -681,8 +711,73 @@ export const HIVE_LIVE_JS = `
     var total = 0; stories.forEach(function (s) { total += s.support; });
     var totalEl = document.getElementById("wtotal");
     if (totalEl) { totalEl.textContent = String(total); var after = totalEl.nextSibling; if (after && after.nodeType === 3) after.textContent = " " + (total === 1 ? voice.one : voice.many) + " so far"; }
+    crownPaint();
   }
   function rankOf(id) { return placedOrder.indexOf(id); }
+
+  // The crown. Replayed from the log, never from the counts on screen, so
+  // the tile that wears it and the list under the board are one answer.
+  // The holder is the story with the most buzzes and a tie keeps it.
+  function eligibleStories() { var e = {}; stories.forEach(function (s) { if (s.status !== "false") e[s.id] = true; }); return e; }
+  function nameOf(id) { var s = byId[id]; return s ? (s.name || s.headline) : "a story in the feed"; }
+  function crownMarkEl() { var w = el("span"); w.innerHTML = D.crownMark || ""; return w.firstChild; }
+  function crownPaint() {
+    if (typeof HiveCrown === "undefined") return;
+    var c = HiveCrown.replay(boosts, eligibleStories());
+    var worn = board.querySelectorAll(".wtile.wcrowned");
+    for (var i = 0; i < worn.length; i++) {
+      if (worn[i].id !== "w-" + c.holder) { worn[i].classList.remove("wcrowned"); var old = q(".wcrownmark", worn[i]); if (old) old.remove(); }
+    }
+    if (c.holder !== null) {
+      var t = document.getElementById("w-" + c.holder);
+      if (t) {
+        t.classList.add("wcrowned");
+        var cell = q(".wcell", t) || t;
+        if (!q(".wcrownmark", cell)) { var mark = crownMarkEl(); if (mark) cell.appendChild(mark); }
+      }
+    }
+    var list = document.getElementById("wcrownlist");
+    if (list) {
+      list.innerHTML = "";
+      if (c.changes.length === 0) { var none = el("li", "wcrownnone"); none.textContent = HiveCrown.none(voice); list.appendChild(none); }
+      c.changes.forEach(function (change) { var li = el("li"); li.textContent = HiveCrown.line(change, nameOf); list.appendChild(li); });
+    }
+    // Said once per change of hands, and never for the crown as it stood
+    // when the page opened.
+    // A takeover is said as one; a buzz taken back that hands the crown
+    // back is said as that, because nobody took anything.
+    if (crownPainted && c.holder !== null && c.holder !== crownHolder) {
+      var last = c.changes[c.changes.length - 1];
+      var sayEl = document.getElementById("wcrownsay");
+      if (sayEl && last) sayEl.textContent = c.changes.length < crownChanges ? HiveCrown.back(nameOf(c.holder)) : HiveCrown.said(last, nameOf);
+    }
+    crownHolder = c.holder; crownChanges = c.changes.length; crownPainted = true;
+  }
+  function logBoost(row) { boosts.push(row); crownPaint(); }
+  function unlogBoost(id) {
+    for (var i = boosts.length - 1; i >= 0; i--) if (String(boosts[i].id) === String(id)) boosts.splice(i, 1);
+    crownPaint();
+  }
+  // The reader's own buzz enters the log at once, under a temporary id and
+  // the browser's clock, so the crown answers the tap without waiting for
+  // the round trip. The database's id and time replace both when they come.
+  function logOwn(s) {
+    var row = { id: "own:" + s.id + ":" + Date.now(), story_id: s.id, units: 1, cast_at: new Date().toISOString() };
+    ownRow[s.id] = row;
+    logBoost(row);
+  }
+  function nameOwn(s, id, castAt) {
+    var row = ownRow[s.id]; if (!row) return;
+    row.id = String(id); if (castAt) row.cast_at = castAt;
+  }
+  // The reader's own row and no other: somebody else's buzz on the same
+  // story is a different row and stays in the log.
+  function unlogOwn(s) {
+    var row = ownRow[s.id]; if (!row) return;
+    delete ownRow[s.id];
+    var at = boosts.indexOf(row); if (at >= 0) boosts.splice(at, 1);
+    crownPaint();
+  }
 
   // What a buzz looks like: a gold ripple from where it landed, and a flag
   // when the story climbs past the one above it.
@@ -781,6 +876,11 @@ export const HIVE_LIVE_JS = `
       post("/unboost", s.id).then(function (a) {
         var word = a && typeof a.result === "string" ? a.result : "failed";
         if (word === "undone") {
+          // The row is gone from the database, and from the log here. The
+          // socket's delete for it then finds nothing to remove, which is
+          // right: it was already counted out.
+          unlogOwn(s);
+          for (var bid in boostStory) if (boostStory[bid] === s.id) delete boostStory[bid];
           if (a && typeof a.support === "number") { s.support = a.support; layout(); } else { bump(s, -1, null); }
           if (a && typeof a.left === "number") left = a.left; else left = Math.min(D.allowance, left + 1);
           delete backed[s.id];
@@ -831,6 +931,7 @@ export const HIVE_LIVE_JS = `
     left -= 1; paintBudget();
     backed[s.id] = true;
     pendingOwn[s.id] = true;
+    logOwn(s);
     bump(s, 1, ev, true);
     swarmLine("You", s);
     post("/boost", s.id).then(function (a) {
@@ -843,10 +944,12 @@ export const HIVE_LIVE_JS = `
           s.support = a.support; layout();
           sayShare(Math.max(0, was), s.support, Math.max(0, totalWas), totalSupport());
         }
-        if (typeof a.boost_id === "number" || typeof a.boost_id === "string") { seenBoosts[String(a.boost_id)] = true; boostStory[String(a.boost_id)] = s.id; }
+        if (typeof a.boost_id === "number" || typeof a.boost_id === "string") { seenBoosts[String(a.boost_id)] = true; boostStory[String(a.boost_id)] = s.id; nameOwn(s, a.boost_id, null); }
         say("wkept"); offerUndo(s);
       } else {
-        // Refused. The count goes back to what the database says it is.
+        // Refused. The count goes back to what the database says it is,
+        // and the buzz comes out of the crown's log.
+        unlogOwn(s);
         if (typeof a.support === "number") { s.support = a.support; } else { s.support = Math.max(0, s.support - 1); }
         if (word !== "already") { delete backed[s.id]; var t = document.getElementById("w-" + s.id); if (t) { t.classList.remove("wbacked"); var m = q(".wmine", t); if (m) m.style.display = ""; var bb = q(".wbuzz button", t); if (bb) bb.disabled = false; } }
         if (word === "failed" || word === "bad") left = Math.min(D.allowance, left + 1);
@@ -857,6 +960,7 @@ export const HIVE_LIVE_JS = `
       peekRefresh(s);
     }).catch(function () {
       delete pendingOwn[s.id];
+      unlogOwn(s);
       s.support = Math.max(0, s.support - 1); delete backed[s.id]; left = Math.min(D.allowance, left + 1);
       var t = document.getElementById("w-" + s.id); if (t) { t.classList.remove("wbacked"); var m = q(".wmine", t); if (m) m.style.display = ""; var bb = q(".wbuzz button", t); if (bb) bb.disabled = false; }
       layout(); paintBudget(); say("wfailed");
@@ -1007,14 +1111,16 @@ export const HIVE_LIVE_JS = `
     if (seenBoosts[id]) return;
     seenBoosts[id] = true;
     var s = byId[record.story_id];
-    if (s && pendingOwn[s.id]) { boostStory[id] = s.id; delete pendingOwn[s.id]; return; }
+    if (s && pendingOwn[s.id]) { boostStory[id] = s.id; delete pendingOwn[s.id]; nameOwn(s, id, typeof record.cast_at === "string" ? record.cast_at : null); crownPaint(); return; }
     if (s) { boostStory[id] = s.id; bump(s, typeof record.units === "number" ? record.units : 1, null); }
+    logBoost({ id: id, story_id: String(record.story_id), units: typeof record.units === "number" ? record.units : 1, cast_at: typeof record.cast_at === "string" ? record.cast_at : new Date().toISOString() });
     swarmLine("Someone", s || null);
   }
   function onUnboost(old) {
     if (!old) return;
     var id = String(old.id);
     var storyId = boostStory[id];
+    unlogBoost(id);
     if (!storyId) return;
     delete boostStory[id];
     var s = byId[storyId]; if (s) bump(s, -1, null);
@@ -1028,6 +1134,21 @@ export const HIVE_LIVE_JS = `
         var changed = false;
         rows.forEach(function (row) { var s = byId[row.id]; if (s && typeof row.support === "number" && s.support !== row.support) { s.support = row.support; changed = true; } });
         if (changed) layout();
+      }).catch(function () {});
+    // The crown's log, read whole, because a buzz that landed while the
+    // socket was down never arrived. A row of the reader's own still on
+    // its way keeps its place.
+    var logUrl = D.project + "/rest/v1/wall_boosts?select=id,story_id,units,cast_at&wall_date=eq." + encodeURIComponent(D.date) + "&order=cast_at.asc,id.asc";
+    fetch(logUrl, { headers: { apikey: D.key, Authorization: "Bearer " + D.key, Accept: "application/json" } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (rows) {
+        if (!rows || !rows.length || typeof HiveCrown === "undefined") return;
+        var fresh = [];
+        for (var i = 0; i < rows.length; i++) if (HiveCrown.valid(rows[i])) fresh.push(rows[i]);
+        var known = {}; fresh.forEach(function (row) { known[String(row.id)] = true; });
+        for (var k in ownRow) if (!known[String(ownRow[k].id)]) fresh.push(ownRow[k]);
+        boosts = fresh;
+        crownPaint();
       }).catch(function () {});
   }
   var socket = null, ref = 0, heartbeat = null, wait = 1000, everJoined = false, closedByUs = false, failures = 0;

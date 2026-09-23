@@ -35,6 +35,9 @@ import { agreeOnNews } from "./agree.js";
 import { monthName, slug } from "./model.js";
 import { shareBlock } from "./share-button.js";
 import { beeSvg } from "./mascot.js";
+import { boostFrom, crownLine, crownMark, crownOf, noCrownYet, type Crown, type WallBoost } from "./crown.js";
+
+export type { Crown, CrownChange, WallBoost } from "./crown.js";
 
 // Its own copy rather than render.ts's, because render.ts imports this file
 // for the section and the styles, and a module cycle that reads a constant
@@ -134,6 +137,13 @@ export interface WallDay {
   closesAt: string;
   closedAt: string | null;
   stories: WallStory[];
+  /**
+   * The day's buzz rows in the order they were cast, without the booster,
+   * which the website's role cannot select. The crown and every change of
+   * hands are replayed from these, docs/the-wall.md section 30. Absent on a
+   * day built by a fixture that predates the crown; treated as none.
+   */
+  boosts?: WallBoost[];
 }
 
 /** "9-9" for a month and day, the same key shape the rest of the build uses. */
@@ -210,6 +220,19 @@ export async function fetchWall(url: string, key: string): Promise<WallDay[]> {
     "wall_checks?select=source_id,checked_at,kind,passed,http_status,detail&order=checked_at.asc,id.asc");
   const outcomes = await rows<OutcomeRow>(url, key,
     "wall_outcomes?select=story_id,anniversary,outcome,note,recorded_at&order=anniversary.asc,id.asc");
+  // The columns the role may select, and not one more: booster_id is not
+  // granted and is never asked for. docs/the-wall.md section 30.
+  const boosts = await rows<unknown>(url, key,
+    "wall_boosts?select=id,story_id,wall_date,units,cast_at&order=cast_at.asc,id.asc");
+  const boostsByDate = new Map<string, WallBoost[]>();
+  for (const raw of boosts) {
+    const b = boostFrom(raw);
+    const wallDate = (raw as { wall_date?: unknown }).wall_date;
+    if (b === null || typeof wallDate !== "string") continue;
+    const list = boostsByDate.get(wallDate) ?? [];
+    list.push(b);
+    boostsByDate.set(wallDate, list);
+  }
   const outcomesByStory = new Map<string, WallOutcome[]>();
   for (const o of outcomes) {
     const list = outcomesByStory.get(o.story_id) ?? [];
@@ -253,6 +276,7 @@ export async function fetchWall(url: string, key: string): Promise<WallDay[]> {
     wallDate: d.wall_date, ...parts(d.wall_date),
     opensAt: d.opens_at, liveAt: d.live_at, closesAt: d.closes_at, closedAt: d.closed_at,
     stories: storiesByDate.get(d.wall_date) ?? [],
+    boosts: boostsByDate.get(d.wall_date) ?? [],
   }));
 }
 
@@ -435,9 +459,20 @@ export async function fetchWallDay(url: string, key: string, wallDate: string, t
     if (!storiesResponse.ok) throw new Error(`wall: wall_stories answered ${storiesResponse.status}`);
     const stories = (await storiesResponse.json()) as EmbeddedStoryRow[];
 
+    // The day's buzzes, for the crown. The same columns the live page is
+    // sent over Realtime, and never the booster.
+    const boostsResponse = await fetch(
+      `${url}/rest/v1/wall_boosts?select=id,story_id,units,cast_at&wall_date=eq.${wallDate}&order=cast_at.asc,id.asc`,
+      { headers, signal: controller.signal },
+    );
+    if (!boostsResponse.ok) throw new Error(`wall: wall_boosts answered ${boostsResponse.status}`);
+    const boostRows = (await boostsResponse.json()) as unknown;
+    const boosts = Array.isArray(boostRows) ? boostRows.map(boostFrom).filter((b): b is WallBoost => b !== null) : [];
+
     return {
       wallDate: d.wall_date, ...parts(d.wall_date),
       opensAt: d.opens_at, liveAt: d.live_at, closesAt: d.closes_at, closedAt: d.closed_at,
+      boosts,
       stories: stories.map((s) => storyFrom(s, (s.wall_sources ?? []).map((src) => ({
         id: src.id, url: src.url, outlet: src.outlet, owner: src.owner, headline: src.headline, quotation: src.quotation,
         verifiedAt: src.verified_at, addedAt: src.added_at,
@@ -529,6 +564,7 @@ export function emptyWallDay(wallDate: string): WallDay {
     closesAt: new Date(easternMidnight(after)).toISOString(),
     closedAt: null,
     stories: [],
+    boosts: [],
   };
 }
 
@@ -991,12 +1027,18 @@ export function hindsightLine(day: Pick<WallDay, "stories">): string | null {
   return `${YEARS_ON[latest] ?? `${latest} years on`}: ${partsOut.join(", ")}.`;
 }
 
-function tile(story: WallStory, live: boolean, voice: Voice, view: Viewport, hive: boolean, index: number = 0): string {
+function tile(story: WallStory, live: boolean, voice: Voice, view: Viewport, hive: boolean, index: number = 0, crowned: boolean = false): string {
   const rect = story.rect!;
   const size = tileClass(rect);
   const count = units(story.support, voice);
   const label = `${story.headline}. ${story.outlet}. ${tierLabel(story.tier)}${count === "" ? "" : `, ${count}`}.`
-    + (story.status === "false" ? " Later shown false." : "");
+    + (story.status === "false" ? " Later shown false." : "")
+    + (crowned ? " Wears the crown." : "");
+  // The crown, docs/the-wall.md section 30: on the most buzzed story and
+  // nowhere else. A mark the stylesheet pins to the corner, on every size
+  // of tile, because a crown that only the big tiles could wear would be
+  // missing on the very day a small tile takes it.
+  const crown = crowned ? crownMark() : "";
   // The size and the line budget, fitted to the box and the sentence
   // together. fitType says why the two used to be worked out apart.
   const { fit, lines } = fitType(rect.w, rect.h, story.headline.length);
@@ -1008,7 +1050,7 @@ function tile(story: WallStory, live: boolean, voice: Voice, view: Viewport, hiv
   // three quarters empty. The stylesheet grows the type with the width.
   const style = `grid-column:${rect.mx - view.ox + 1} / span ${rect.w};grid-row:${rect.my - view.oy + 1} / span ${rect.h};--lines:${lines};--fit:${fit};--tw:${rect.w};--i:${index}`;
   const stamp = outcomeStamp(story);
-  const classes = `wtile ${size} w-${story.tier}${rect.h <= 3 ? " wh3" : ""}${story.status === "false" ? " wfalse" : ""}`;
+  const classes = `wtile ${size} w-${story.tier}${rect.h <= 3 ? " wh3" : ""}${story.status === "false" ? " wfalse" : ""}${crowned ? " wcrowned" : ""}`;
   const receipt = storyPath(story);
 
   if (size === "tiny" || size === "small") {
@@ -1031,13 +1073,13 @@ function tile(story: WallStory, live: boolean, voice: Voice, view: Viewport, hiv
     const inner = `<span class="wh wsh">${escapeHtml(story.headline)}</span>`
       + `<span class="wyr">${escapeHtml(year ?? story.outlet)}</span>`
       + (count === "" ? "" : `<span class="wn">${count}</span>`);
-    return `<a class="${classes}${year === null ? " wnoyr" : ""}" id="w-${story.id}" href="${receipt}" style="${style}"${subjectAttr(story)} title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${inner}${stamp}</a>`;
+    return `<a class="${classes}${year === null ? " wnoyr" : ""}" id="w-${story.id}" href="${receipt}" style="${style}"${subjectAttr(story)} title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${inner}${stamp}${crown}</a>`;
   }
 
   const takes = live && story.status !== "false";
   return `<div class="${classes}" id="w-${story.id}" style="${style}"${subjectAttr(story)} role="listitem">`
     + `<a class="wh" href="${receipt}" title="${escapeHtml(label)} The receipt: every source, every quotation, every check.">${escapeHtml(story.headline)}</a>`
-    + `${mine(voice)}${footer(story, takes, voice, hive)}${stamp}</div>`;
+    + `${mine(voice)}${footer(story, takes, voice, hive)}${stamp}${crown}</div>`;
 }
 
 /**
@@ -1051,20 +1093,24 @@ function tile(story: WallStory, live: boolean, voice: Voice, view: Viewport, hiv
  * live section of an open date's full screen hive, and the script builds the
  * same shape for a story the pie brings onto the board later.
  */
-export function liveTile(story: WallStory, live: boolean, voice: Voice, index: number = 0, heat: number = 0): string {
+export function liveTile(story: WallStory, live: boolean, voice: Voice, index: number = 0, heat: number = 0, crowned: boolean = false): string {
   const rect = story.rect!;
   const count = units(story.support, voice);
   const label = `${story.headline}. ${story.outlet}. ${tierLabel(story.tier)}${count === "" ? "" : `, ${count}`}.`
-    + (story.status === "false" ? " Later shown false." : "");
+    + (story.status === "false" ? " Later shown false." : "")
+    + (crowned ? " Wears the crown." : "");
   const { fit, lines } = fitType(rect.w, rect.h, story.headline.length);
   const style = `--x:${rect.mx};--y:${rect.my};--w:${rect.w};--h:${rect.h};--lines:${lines};--fit:${fit};--tw:${rect.w};--i:${index}`;
   const stamp = outcomeStamp(story);
-  const classes = `wtile big w-${story.tier}${rect.h <= 3 ? " wh3" : ""}${story.status === "false" ? " wfalse" : ""}`;
+  const classes = `wtile big w-${story.tier}${rect.h <= 3 ? " wh3" : ""}${story.status === "false" ? " wfalse" : ""}${crowned ? " wcrowned" : ""}`;
   const takes = live && story.status !== "false";
+  // The crown goes inside the cell, which is what the script moves and
+  // lights, so it travels with the tile. The script adds and removes the
+  // same mark as the crown changes hands.
   return `<div class="${classes}" id="w-${story.id}" style="${style}"${subjectAttr(story)} role="listitem">`
     + `<div class="wcell" style="--heat:${heat}"><span class="wstripe"></span>`
     + `<a class="wh" href="${storyPath(story)}" title="${escapeHtml(label)} The receipt: every source, every quotation, every check.">${escapeHtml(story.headline)}</a>`
-    + `${mine(voice)}${footer(story, takes, voice, true)}${stamp}</div></div>`;
+    + `${mine(voice)}${footer(story, takes, voice, true)}${stamp}${crowned ? crownMark() : ""}</div></div>`;
 }
 
 /** One row in the list under the board. The headline opens the receipt; the button spends a unit while the date takes them. */
@@ -1084,12 +1130,15 @@ export function andList(names: readonly string[]): string {
  * story is sourced, and four desks on one line is that argument in the feed.
  * docs/the-wall.md section 28.
  */
-function listRow(story: WallStory, live: boolean, voice: Voice, alsoIn: readonly string[] | null = null, back: TapBack = "day"): string {
+function listRow(story: WallStory, live: boolean, voice: Voice, alsoIn: readonly string[] | null = null, back: TapBack = "day", crowned: boolean = false): string {
   const count = units(story.support, voice);
   const also = alsoIn === null || alsoIn.length === 0 ? "" : ` <span class="walso">with ${escapeHtml(andList([...alsoIn]))}</span>`;
   const meta = `<span class="wmeta">${escapeHtml(story.outlet)}${also}${rowChip(story.tier)}${count === "" ? "" : ` ${count}`}${mine(voice)}</span>`;
   const control = live && story.status !== "false" ? ` ${buzzForm(story, voice, back)}` : "";
-  return `<li id="w-${story.id}"${subjectAttr(story)}${yearAttr(story.headline)}><a href="${storyPath(story)}">${escapeHtml(story.headline)}</a> ${meta}${control}</li>`;
+  // A story can wear the crown from the feed: a buzz on a pooled story
+  // counts the same, and its tile waits for the tick. The mark goes where
+  // the story is.
+  return `<li id="w-${story.id}"${subjectAttr(story)}${yearAttr(story.headline)}${crowned ? ` class="wcrowned"` : ""}>${crowned ? crownMark() : ""}<a href="${storyPath(story)}">${escapeHtml(story.headline)}</a> ${meta}${control}</li>`;
 }
 
 /**
@@ -1813,6 +1862,80 @@ export function sealedLine(day: Pick<WallDay, "closesAt" | "closedAt">, onWall: 
   return said + older;
 }
 
+/**
+ * The crown as it stands on this day, from the buzz rows and the stories.
+ * docs/the-wall.md section 30. A day with no rows read has no crown.
+ */
+export function crownFor(day: Pick<WallDay, "stories" | "boosts">): Crown {
+  return crownOf(day.boosts ?? [], day.stories);
+}
+
+/**
+ * What a story is called in a crown line: a person's name, a song's title
+ * with its artist, an album's or a film's title, and otherwise the headline.
+ * "Bruce Springsteen took the crown from Ray Charles" is the sentence the
+ * brief asked for, and a person's tile headline is their name, what they
+ * are and their years, which is three clauses too many for it. Anything
+ * this cannot read stays the headline, cut at a word by the replay.
+ */
+export function crownName(story: Pick<WallStory, "headline" | "subjectKind">): string {
+  const h = story.headline;
+  if (story.subjectKind === "person") {
+    const m = /^(.+?), .*\bborn \d{3,4}/.exec(h);
+    if (m !== null) return m[1]!;
+  }
+  if (story.subjectKind === "song") {
+    const s = songParts(h);
+    if (s !== null) return s.title;
+  }
+  if (story.subjectKind === "album") {
+    const m = /^\d{4}: (.+) was the number one album$/.exec(h);
+    if (m !== null) return m[1]!;
+  }
+  if (story.subjectKind === "film") {
+    const m = /^\d{4}: (.+) was the number one film/.exec(h);
+    if (m !== null) return m[1]!;
+  }
+  return h;
+}
+
+/**
+ * The list under the board: every time the crown changed hands, oldest
+ * first, each line with the Eastern time of the buzz that moved it. An
+ * open board nobody has buzzed says so in one line, so the reader knows
+ * the first buzz takes it. A sealed board with no buzzes shows nothing,
+ * because the line under it already says nobody buzzed, and a date that
+ * has not opened shows nothing, because there is nothing to replay.
+ *
+ * It is a fact about tiles. Every line names two stories and a time of
+ * day, and the time of day is when an anonymous buzz landed, which the
+ * live hive already shows as it happens and the privacy page says. No
+ * line names, counts or points at a person.
+ *
+ * `live` adds the empty status line the live page writes a takeover into.
+ */
+export function crownBlock(day: WallDay, crown: Crown, voice: Voice, now: number, live: boolean = false): string {
+  const notYet = now < Date.parse(day.liveAt);
+  if (notYet) return "";
+  const closed = !takingBoosts(day, now);
+  if (closed && crown.changes.length === 0) return "";
+  const names = new Map(day.stories.map((s) => [s.id, crownName(s)]));
+  const nameOf = (id: string): string => names.get(id) ?? "a story in the feed";
+  const items = crown.changes.length === 0
+    ? `<li class="wcrownnone">${escapeHtml(noCrownYet(voice))}</li>`
+    : crown.changes.map((c) => `<li>${escapeHtml(crownLine(c, nameOf))}</li>`).join("\n");
+  const say = live ? `\n<p class="wcrownsay" id="wcrownsay" role="status" aria-live="polite"></p>` : "";
+  const sub = closed
+    ? `The most ${voice.past} story wore it. Every time it changed hands before the seal:`
+    : `The most ${voice.past} story wears it. Every time it changes hands today:`;
+  return `<div class="wcrown" id="wcrown">
+<p class="wcrownhead">${crownMark()}<b>The crown</b> <span class="wcrownsub">${sub}</span></p>${say}
+<ol class="wcrownlist" id="wcrownlist">
+${items}
+</ol>
+</div>`;
+}
+
 function wallBody(day: WallDay | null, name: string, now: number, options: WallOptions): string {
   const history = options.history ?? "";
   if (day === null) {
@@ -1852,7 +1975,8 @@ ${HISTORY_START}${history}${HISTORY_END}
   const agreed = agreeOnNews(inPool.filter((s) => s.subjectKind !== "song"));
   const waiting = takeTurns(agreed.stories);
   const view = viewportFor(onWall.map((s) => s.rect!));
-  const tiles = onWall.map((s, index) => tile(s, live, voice, view, hive, index)).join("\n");
+  const crown = crownFor(day);
+  const tiles = onWall.map((s, index) => tile(s, live, voice, view, hive, index, s.id === crown.holder)).join("\n");
   const notYet = now < Date.parse(day.liveAt);
   const closed = !takingBoosts(day, now) && !notYet;
   const { month, day: d } = parts(day.wallDate);
@@ -1874,7 +1998,8 @@ ${HISTORY_START}${history}${HISTORY_END}
   const board = `<div class="wboard${onWall.length === 0 ? " wblank" : ""}${closed ? " wsealed" : ""}" role="list" aria-label="The hive, ${onWall.length} stories" style="--side:${view.side}">
 ${tiles}${empty}
 </div>${hindsight === null ? "" : `
-<p class="whindsight">${escapeHtml(hindsight)} <span class="whindsightsay">The board is as it sealed. The marks are what happened since.</span></p>`}`;
+<p class="whindsight">${escapeHtml(hindsight)} <span class="whindsightsay">The board is as it sealed. The marks are what happened since.</span></p>`}
+${crownBlock(day, crown, voice, now)}`;
 
   const full = onWall.length > 0 && !hive
     ? `<a class="wfull" href="${hivePath(month, d)}">Open the hive full screen</a>`
@@ -1941,7 +2066,7 @@ ${yoursLine(options.yours, voice)}
   const shown = waiting.slice(0, FEED_SHOWN);
   const feedList = waiting.length > 0
     ? `<ul class="wlist">
-${shown.map((s) => listRow(s, live, voice, agreed.alsoIn.get(s.id) ?? null)).join("\n")}
+${shown.map((s) => listRow(s, live, voice, agreed.alsoIn.get(s.id) ?? null, "day", s.id === crown.holder)).join("\n")}
 </ul>`
     : unfiled && history !== ""
       ? ""
@@ -2722,6 +2847,29 @@ export const WALL_STYLE = `
 .wstamp.wforgot { background: var(--line); color: var(--dim); }
 .whindsight { margin: 10px 0 0; font-size: 14px; color: var(--on-honey); }
 .whindsight .whindsightsay { color: #6B5A42; font-size: 12px; }
+/* The crown, docs/the-wall.md section 30. A mark pinned to the top right
+   corner of the most buzzed tile, on every size of tile, and a honey edge
+   so the tile reads as the leader from across the room. The list under
+   the board is every time it changed hands, in the Eastern time of the
+   buzz that moved it. */
+.wtile > .wcrownmark, .wtile .wcell > .wcrownmark { position: absolute; top: 3px; right: 4px; z-index: 3; width: 18px; height: 18px; color: var(--honey-lite); filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .7)); pointer-events: none; }
+.wcrownmark svg { display: block; width: 100%; height: 100%; }
+.wcrownmark .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.wboard:not(.wlive) .wtile.wcrowned { border-color: var(--honey); box-shadow: inset 4px 0 0 var(--stripe), 0 0 0 1px var(--honey), 0 0 18px rgba(244, 183, 64, .28); }
+.wtile.tiny > .wcrownmark, .wtile.small > .wcrownmark { width: 14px; height: 14px; top: 2px; right: 3px; }
+.wlist li.wcrowned { box-shadow: inset 0 0 0 1px var(--honey); }
+.wlist li.wcrowned .wcrownmark { display: inline-block; width: 16px; height: 16px; vertical-align: -3px; margin-right: 6px; color: var(--honey-lite); }
+.wlist li.wcrowned .wcrownmark svg { display: block; }
+.wcrown { margin: 12px 0 0; max-width: 62ch; }
+.wcrownhead { margin: 0; font-size: 13px; color: var(--dimmer); line-height: 1.45; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.wcrownhead .wcrownmark { width: 16px; height: 16px; color: var(--honey-lite); display: inline-block; }
+.wcrownhead .wcrownmark svg { display: block; }
+.wcrownhead b { color: var(--cream); }
+.wcrownlist { margin: 6px 0 0; padding: 0 0 0 1.2em; font-size: 13px; color: var(--dim); line-height: 1.5; }
+.wcrownlist li { margin: 0 0 2px; }
+.wcrownlist .wcrownnone { list-style: none; margin-left: -1.2em; color: var(--dimmer); }
+.wcrownsay { margin: 6px 0 0; font-size: 14px; color: var(--honey-lite); min-height: 1.4em; }
+.wcrownsay:empty { display: none; }
 .wlivehive .whindsight, .hivepage .whindsight { color: #FFF3E0; }
 .wlivehive .whindsightsay, .hivepage .whindsightsay { color: var(--dim); }
 

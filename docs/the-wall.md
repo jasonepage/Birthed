@@ -2739,5 +2739,81 @@ and scored 2 points. `docs/hn-launch.md` has the new post and it goes up after
 the crown or this or that is live.
 
 **Not built.** This section is written before the code, which is the house
-rule. Nothing in it exists yet.
+rule. Nothing in it exists yet. The entries below record each piece as it
+lands.
+
+### The crown, built September 23, 2026
+
+**The tie rule, Nathan's call.** The crown is held until another story has
+strictly more buzzes, and on a tie the holder keeps it. The brief offered the
+board's own order for equal counts, and it was not taken: that order breaks a
+tie by the editor's score, so a crown following it could move on a tie, which
+would say a story was passed when nothing passed it, and the score is not on
+the date page at all, so the two pages could disagree about who wore it. The
+crown depends on the buzz rows and on nothing else. On September 23, 2026 the
+live table was the proof: three stories with one buzz each, and under the
+board's order the editor would have picked the one wearing it.
+
+**Derived, not stored.** `web/src/crown.ts` replays the day's `wall_boosts`
+rows in `cast_at` order, then by row id for two in the same instant, and
+keeps every change of hands. No table records a takeover. A buzz taken back
+inside its thirty seconds is a row that no longer exists, so it was never a
+takeover and the list does not say it was. The website's role reads
+`wall_boosts` through the column grant in
+`20260909120000_the_wall_writes.sql`, which allows `id`, `story_id`,
+`wall_date`, `units`, `cast_at`, `tier_at_cast` and `support_before` and
+refuses `booster_id`; the read asks for four of those and never the booster,
+and a row not shaped like a buzz (units outside one to three, a time that
+does not parse) is dropped wherever it came from. A story stamped false
+cannot wear the crown and its buzzes count for nothing, the same way the pie
+gives it no share. A story that is not on the date counts for nothing.
+
+**One copy of the rule.** `HIVE_CROWN_JS` is plain JavaScript; the server
+evaluates it to draw the baked page and every sealed hive, the live hive
+runs it in the browser on every change, and the test runs the same string.
+The live page keeps the day's rows, appends each buzz as it lands here or
+over the socket, removes one taken back, and reads the whole log again after
+a reconnect, because a buzz that landed while the socket was down never
+arrives.
+
+**What the reader sees.** The holder's tile carries a small crown mark in its
+top corner and a honey edge, on the date page, the full screen hive and the
+sealed hive alike, and a story leading from the feed carries it on its row
+until the tick gives it a tile. Under the board, "The crown", and a list:
+"4:27 am Eastern: Typhoid Mary took the crown." then "3:12 pm Eastern:
+Bruce Springsteen took the crown from Typhoid Mary." The first crown of the
+day is taken from nobody and the line says so by saying nothing. A person is
+named, a song is its title and artist, and anything else is its headline cut
+at a word (`crownName` in `wall.ts`). An open board nobody has buzzed says
+"No crown yet. The first buzz on this hive takes it." A sealed board with no
+buzzes shows no list, because the line under it already says nobody buzzed.
+On the live hive the crown moves to the new tile the moment its buzz lands
+and a status line under the board says the takeover; a buzz taken back that
+hands it back says "The crown is back with Typhoid Mary." The mark's arrival
+is animated and stops under `prefers-reduced-motion`.
+
+**The live hive's leader edge is the crown now.** It followed the pie's
+first tile, which is the board's order and so the editor's tie break; a
+board with one leader by the crown's rule and another by the pie's would be
+two answers to one question. `wlead` is gone.
+
+**The time of day is the time of a buzz.** Every line shows when an
+anonymous buzz landed, which the live hive already shows as it happens and
+the row already carries for any reader of the project. The privacy page was
+edited in the same commit to say the crown list shows those times and names
+nobody.
+
+**Tested, and tried against.** Zero, one and three buzzes; a tie; a three
+unit app buzz passing two ones; rows arriving out of order; two rows in the
+same instant; an undo that unmakes a takeover; a false story; a story off
+the date; rows with units of nought, four and one and a half; a headline
+carrying the characters that end a list or a style block. The live page was
+driven in a headless browser with a faked socket and a faked `/boost`: a tie
+over the socket left the holder, the reader's own buzz took the crown and
+was not counted twice when the socket echoed it, an undo handed it back, a
+three unit buzz passed everything, bent rows counted for nothing, and a
+reconnect re-read the log. Web tests: 414. Not run against the live project.
+
+**Not yet.** The iOS port (`HiveCopy`, `WallBoard`) follows in its own
+commit. The comb page does not mark the holder's cell.
 
