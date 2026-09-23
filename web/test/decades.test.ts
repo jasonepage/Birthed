@@ -106,6 +106,10 @@ test("the block: nothing before the date, nothing with no buzzes, the line and t
   assert.ok(html.includes('<p class="wdecadeline" id="wdecadeline">The 1940s lead September 23 with 3 of 7 buzzes.</p>'));
   assert.ok(html.includes('<span class="wdecade">1940s <b>3</b></span> <span class="wdecade">1950s <b>2</b></span> <span class="wdecade">1860s <b>1</b></span>'));
   assert.ok(!html.includes("2020s <b>"), "only the top three");
+  // A four way tie shows all four, because the line names all four.
+  const four = wallSection(day(stories.map((s) => ({ ...s, support: 1 }))), "September 23", NOW, { interactive: true, date: { month: 9, day: 23 } });
+  assert.ok(four.includes("The 1860s, 1940s, 1950s and 2020s are level on September 23, 1 buzz each."));
+  assert.ok(four.includes("2020s <b>1</b>"));
   assert.ok(html.indexOf('id="wdecades"') < html.indexOf('id="wcrown"'), "the teams line sits above the crown list");
   assert.ok(html.includes(`data-decade="1940"`) && html.includes(`data-decade="2020"`));
   const sealed = wallSection(day(stories, { closedAt: "2026-09-25T04:00:00Z" }), "September 23", Date.parse("2026-10-01T00:00:00Z"), { hive: true, date: { month: 9, day: 23 } });

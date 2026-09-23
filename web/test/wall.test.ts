@@ -483,7 +483,7 @@ test("the typed field is on the live section only, posts a plain form to /find, 
   // fragment between them is gone. Nathan, September 22, 2026.
   assert.ok(!live.includes("makes its story bigger."), "cut, September 22, 2026");
   assert.ok(live.indexOf('class="wways"') > live.indexOf('class="wboard'), "the row is under the board");
-  assert.ok(live.includes('<a href="/about/">How the hive works</a>'));
+  assert.ok(live.includes('<a class="wread" href="/about/">How the hive works</a>'));
   assert.ok(!live.includes("Typing spends nothing."), "cut, September 22, 2026");
   // No script anywhere near it: a form and a button and nothing else.
   assert.ok(!/<script|onsubmit|oninput/i.test(live));

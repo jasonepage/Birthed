@@ -765,7 +765,7 @@ export const HIVE_LIVE_JS = `
     var teams = document.getElementById("wdecadeteams");
     if (teams) {
       teams.innerHTML = "";
-      st.teams.slice(0, 3).forEach(function (t, k) {
+      st.teams.slice(0, Math.max(3, st.leaders.length)).forEach(function (t, k) {
         var span = el("span", "wdecade"); span.appendChild(document.createTextNode(HiveDecades.name(t.decade) + " "));
         var b = el("b"); b.textContent = String(t.buzzes); span.appendChild(b);
         if (k > 0) teams.appendChild(document.createTextNode(" "));

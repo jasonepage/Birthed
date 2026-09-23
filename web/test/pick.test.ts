@@ -183,7 +183,7 @@ test("the crown sentence: only for a change to this story inside the last minute
 
 test("the date page links to it while a buzz can be spent, and a sealed page does not", () => {
   const live = wallSection(day(six()), "September 23", NOW, { interactive: true, date: { month: 9, day: 23 } });
-  assert.ok(live.includes('<a href="/september-23/pick/">Pick between two</a>'));
+  assert.ok(live.includes('<a class="wdo" href="/september-23/pick/">Pick between two</a>'));
   const sealed = wallSection(day(six(), { closedAt: "2026-09-25T04:00:00Z" }), "September 23", Date.parse("2026-10-01T00:00:00Z"), { interactive: true, date: { month: 9, day: 23 } });
   assert.ok(!sealed.includes("Pick between two"));
 });

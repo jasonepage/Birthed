@@ -1995,7 +1995,9 @@ export function decadesBlock(day: WallDay, name: string, voice: Voice, now: numb
   const standing = decadeStanding(day);
   const line = decadeLine(day, name, voice, closed);
   if (line === "") return live ? `<div class="wdecades" id="wdecades" hidden><p class="wdecadeline" id="wdecadeline"></p><p class="wdecadeteams" id="wdecadeteams"></p></div>` : "";
-  const teams = standing.teams.slice(0, 3).map((t) => `<span class="wdecade">${t.decade}s <b>${t.buzzes}</b></span>`).join(" ");
+  // The top three, or every decade in a tie at the top: a line that names
+  // four decades level over chips that show three reads as a mistake.
+  const teams = standing.teams.slice(0, Math.max(3, standing.leaders.length)).map((t) => `<span class="wdecade">${t.decade}s <b>${t.buzzes}</b></span>`).join(" ");
   return `<div class="wdecades" id="wdecades"><p class="wdecadeline" id="wdecadeline">${escapeHtml(line)}</p><p class="wdecadeteams" id="wdecadeteams">${teams}</p></div>`;
 }
 
@@ -2068,7 +2070,7 @@ ${decadesBlock(day, name, voice, now)}
 ${crownBlock(day, crown, voice, now)}`;
 
   const full = onWall.length > 0 && !hive
-    ? `<a class="wfull" href="${hivePath(month, d)}">Open the hive full screen</a>`
+    ? `<a class="wfull wview" href="${hivePath(month, d)}">Open the hive full screen</a>`
     : "";
 
   /**
@@ -2174,8 +2176,14 @@ ${shown.map((s) => listRow(s, live, voice, agreed.alsoIn.get(s.id) ?? null, "day
     : "";
   // Pick between two, docs/the-wall.md section 30: the way in for a
   // stranger, only while a buzz can be spent.
-  const pick = live ? `<a href="/${slug(month, d)}/pick/">Pick between two</a>` : "";
-  const ways = `<p class="wways">${pick}${full}<a href="/about/">How the hive works</a>${options.yours === true ? `<a href="/yours/">Everything you have ${voice.past}</a>` : ""}</p>`;
+  // Three looks that mean three things, Nathan on September 23, 2026, when a
+  // fourth pill made a row of four that all looked alike: filled honey for
+  // the one thing to do, an outline for another view of the same board, and
+  // plain text for things to read.
+  const pick = live ? `<a class="wdo" href="/${slug(month, d)}/pick/">Pick between two</a>` : "";
+  // Two rows on purpose: the pills, then the reading. Four in one row wrapped
+  // one link onto a line of its own, which read as an accident.
+  const ways = `<p class="wways">${pick}${full}</p><p class="wways wwaysread"><a class="wread" href="/about/">How the hive works</a>${options.yours === true ? `<a class="wread" href="/yours/">Everything you have ${voice.past}</a>` : ""}</p>`;
 
   // The number ones went to the comb with the rest, September 22, 2026:
   // sixty covers and sixty forms were 51 kilobytes of a date page. The card
@@ -3081,6 +3089,13 @@ export const WALL_STYLE = `
   border: 1px solid var(--line-strong); border-radius: 999px; background: rgba(244, 183, 64, .08);
 }
 .wways a:hover, .wyours a:hover { color: var(--on-honey); background: var(--honey); border-color: var(--honey); }
+/* The one thing to do: filled. Another view: outlined. Things to read: plain text. */
+.wways a.wdo { background: linear-gradient(180deg, var(--honey-lite), var(--honey)); color: var(--on-honey); border-color: var(--honey); box-shadow: 0 0 14px rgba(244, 183, 64, .25); }
+.wways a.wdo:hover { filter: brightness(1.06); }
+.wways a.wview { background: transparent; border-color: var(--honey); }
+.wways.wwaysread { margin-top: 8px; gap: 4px 18px; }
+.wways a.wread { background: transparent; border-color: transparent; padding-left: 6px; padding-right: 6px; font-weight: 600; color: var(--dim); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 4px; }
+.wways a.wread:hover { background: transparent; color: var(--honey-lite); text-decoration-color: var(--honey-lite); }
 .wunder { margin: 12px 0 0; font-size: 14px; }
 .wyours { margin: 10px 0 0; }
 .wyourshead {

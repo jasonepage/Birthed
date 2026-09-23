@@ -2971,3 +2971,14 @@ the date opens, the sealed tense, the page's copy against the server's, and
 bent rows into the page's own sum. Web tests: 440. iOS `HiveDecadesTests`
 written and not run.
 
+**Seen live the same morning, and two fixes.** Jason pushed and the line
+read "The 1860s, 1940s, 1970s and 2020s are level" over three chips, so a
+tie at the top now shows every decade in it. And the fourth pill under the
+board made a row of four that all looked alike; Nathan asked for colour
+that means something. Three looks now: "Pick between two" is filled honey,
+the one thing to do; "Open the hive full screen" is outlined, another view
+of the same board; "How the hive works" and "Everything you have buzzed"
+are plain underlined text on their own row, things to read. All within the
+theme's tokens; nothing new is pink and nothing is a colour that is not
+honey or cream.
+
