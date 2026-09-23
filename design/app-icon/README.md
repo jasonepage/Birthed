@@ -40,4 +40,21 @@ Three variants, which is what iOS 18 expects in the asset catalog:
 `docs/readme/icon.png` is `AppIcon.png` at 200 pixels. Write it again after
 changing the icon.
 
+The website's icons under `web/static` (`favicon.ico` at 16, 32 and 48,
+`favicon-32.png`, `apple-touch-icon.png` at 180, `icon-192.png` and
+`icon-512.png`) are `AppIcon.png` resized, the light appearance, since a
+honey square reads on a tab bar of any colour. They were left on the old
+pink candle until September 23, 2026, when Nathan noticed. Write them again
+after changing the icon:
+
+```
+python3 - <<'PY'
+from PIL import Image
+src = Image.open("Birthed/Assets.xcassets/AppIcon.appiconset/AppIcon.png").convert("RGBA")
+for name, size in [("icon-512.png", 512), ("icon-192.png", 192), ("apple-touch-icon.png", 180), ("favicon-32.png", 32)]:
+    src.resize((size, size), Image.LANCZOS).save(f"web/static/{name}")
+src.resize((48, 48), Image.LANCZOS).save("web/static/favicon.ico", format="ICO", sizes=[(16, 16), (32, 32), (48, 48)])
+PY
+```
+
 No bee character or mascot, and nothing that looks like an existing brand.
