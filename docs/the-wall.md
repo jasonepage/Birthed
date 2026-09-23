@@ -2674,3 +2674,70 @@ The one outside call is the judgment, and it needs one key.
 This section is written before the code, which is the house rule. Nothing in it
 exists. The order is the schema, then the embeddings and the rhyme, then
 PageRank, then the model call, and each lands on its own.
+
+## 30. Drama, decided September 23, 2026
+
+**The numbers that started it.** From the first buzz on September 9 to
+September 23, the live table held **36 buzzes from 13 boosters, and 2 of those
+boosters buzzed on a second day**. On September 22, the day of the Hacker News
+post, one booster buzzed. Nathan asked how to make the hive feel like r/place,
+with more drama and more reason to come back, and whether it could be more
+intuitive. Muse, Meta's model, had read the site and said the same about
+intuitive.
+
+**The honest limit first.** Drama needs a crowd. No rule makes a fight happen
+between two people. What the rules can do is make one reader's visit feel like
+a contest, give a reason to come back more than once a day, and give people
+something worth posting. Everything below is aimed at those three and none of
+it pretends to be a crowd.
+
+**What r/place had that the hive does not.** A visible takeover, where your
+work covers somebody else's. A short wait that pulled people back all day.
+Teams fighting over space. A hard end. The hive has the hard end and, since
+section 24, the rally link. It is missing the takeover and the wait.
+
+**Nathan's calls, all four, plus the front door:**
+
+1. **The crown.** The biggest tile on an open hive wears a crown. When another
+   tile passes it, the board says so in one line, for example "3:12 pm: Bruce
+   Springsteen took the crown from Ray Charles", and a short list under the
+   board keeps every lead change of the day. It is a fact about tiles, never
+   about a person, so sections 6 and 8 stand: no score, no leaderboard, no
+   name. A sealed hive keeps its last crown and its list.
+2. **This or that.** Two tiles side by side and one question: which will
+   people still care about in ten years. One tap spends one buzz and the next
+   pair comes up. This is the way in for a stranger, who today has to shop
+   forty tiles to spend one tap. The pairs come from the board's own order;
+   how they are drawn is for the build to argue.
+3. **Buzzes that refill through the day.** Still three a day, but one arrives
+   every eight hours rather than three at midnight Eastern. The daily total is
+   unchanged, so the scarcity section 4 calls the engine is unchanged. What
+   changes is that spending all three takes three visits. The limit stays
+   server authoritative, which means the budget trigger changes and so does a
+   migration.
+4. **Decade teams.** Every tile already carries a year. The board shows which
+   decade holds the most of the hive, for example "The 1940s lead September
+   23". Teams with no accounts and no membership: a reader rallies for a
+   decade by buzzing it, and nothing records which decade a reader favoured.
+5. **The board comes first.** The date page opens with the hive and one line
+   above it: "Tap what people will still care about in 10 years. 3 taps a day.
+   Locks at midnight." The birthday picker moves below the board. This is the
+   trust fix the "What the first strangers hit" entry in CLAUDE.md named and
+   left open.
+
+**Order.** The front door and the crown first, because they are the cheapest
+and the crown is the most drama for the work. This or that second. Then the
+refill, because it needs a migration Jason applies. Decade teams last.
+
+**What this does not license.** No fake buzzes, same as the editor entry.
+No live count of people here now, same as section 7. No number about a reader,
+anywhere. No double value for a late buzz: one buzz is one unit at every hour.
+
+**The Hacker News repost waits for this.** The September 22 post went up as
+"Birthed", linking to the GitHub repository, at 5:01 pm Pacific on a Tuesday,
+and scored 2 points. `docs/hn-launch.md` has the new post and it goes up after
+the crown or this or that is live.
+
+**Not built.** This section is written before the code, which is the house
+rule. Nothing in it exists yet.
+

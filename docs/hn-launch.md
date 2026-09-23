@@ -93,3 +93,53 @@ First comment, posted right after:
 - Post on a weekday morning, Eastern time.
 - Stay for the first two hours and answer every real question plainly.
 - Watch the Render logs and the Supabase Realtime logs.
+
+## What happened on September 22
+
+The post went up as the bare title "Birthed", with no "Show HN" in front,
+linking to https://github.com/jasonepage/Birthed rather than the site, at
+00:01 UTC on September 23, which is 5:01 pm Pacific on Tuesday September 22.
+It scored 2 points and 1 comment. On the database, one booster buzzed that day.
+Three lines of this checklist were skipped: the title, the link and the
+weekday morning.
+
+Hacker News allows a repost: "If a story has not had significant attention in
+the last year or so, a small number of reposts is ok." Do not delete the first
+one; the same FAQ asks people not to delete and repost.
+
+## The second post
+
+Posted after the crown or this or that is live (`docs/the-wall.md` section 30),
+on a weekday between 8 and 10 am Eastern.
+
+- [ ] The crown or this or that is live.
+- [ ] The board is above the birthday picker on the date page.
+
+Title:
+
+    Show HN: Birthed, vote on what today will be remembered for before it locks
+
+Link: https://birthed.app/ (the site, never the repository)
+
+First comment, posted right after:
+
+    Hi HN, I'm Jason. Every calendar date on Birthed gets a board. It holds
+    everything tied to that date: history, people born, the number one song,
+    and today's news. You get three buzzes a day. Each one grows a tile. At
+    midnight Eastern the board locks for good, and next year the same date
+    gets a fresh board beside it.
+
+    The idea: Wikipedia records what happened. I want a record of what people
+    thought would matter, made on the day, that nobody can edit later. In a
+    year we can check who called it.
+
+    No account, no sign-up, no analytics. Date pages run no JavaScript. Every
+    tile has a receipt page showing its sources.
+
+    The board is thin right now because it is new. If you buzz something, you
+    are one of the first votes on a record that never changes.
+
+    One question: did you understand what to do in the first ten seconds?
+
+Update the first comment to name whichever of the new mechanics shipped.
+
