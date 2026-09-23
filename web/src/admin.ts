@@ -1300,7 +1300,7 @@ ${POINTS_JS}
     function again(total) {
       return fetch(API + "/functions/v1/rate-stories", {
         method: "POST", headers: headers(),
-        body: JSON.stringify({ limit: 8 }),
+        body: JSON.stringify({ limit: 3 }),
       }).then(function (r) { return r.json(); })
         .then(function (r) {
           if (r.status !== "done") { note("measure-note", r.error || "Failed.", "bad"); b.disabled = false; return; }

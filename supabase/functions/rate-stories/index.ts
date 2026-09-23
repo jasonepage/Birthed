@@ -55,22 +55,24 @@ Deno.serve(async (request: Request) => {
   }
   if (!allowed) return json({ error: "not allowed" }, 403);
 
-  let limit = 4;
+  let limit = 3;
   let date: string | null = null;
   try {
     const body = await request.json();
-    if (Number.isInteger(body?.limit)) limit = Math.max(1, Math.min(20, body.limit));
+    if (Number.isInteger(body?.limit)) limit = Math.max(1, Math.min(6, body.limit));
     if (typeof body?.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.date)) date = body.date;
   } catch {
     // An empty body is the defaults.
   }
 
   const admin = createClient(url, serviceRoleKey);
+  // Tomorrow first, then today, then yesterday: the board that opens next is
+  // the one a stranger sees first.
   let dates: string[];
   if (date !== null) {
     dates = [date];
   } else {
-    const { data } = await admin.from("wall_days").select("wall_date").gt("closes_at", new Date().toISOString()).order("wall_date");
+    const { data } = await admin.from("wall_days").select("wall_date").gt("closes_at", new Date().toISOString()).order("wall_date", { ascending: false });
     dates = (data ?? []).map((d: { wall_date: string }) => d.wall_date);
   }
 

@@ -24,7 +24,7 @@ export function prompt(date: string, rows: Row[]): string {
     `Score each one from 1 to 10 for one question: would somebody born on this day stop scrolling and tell a friend about it?`,
     `A name people say out loud, a moment people remember, a thing a twelve year old could be told in one breath: high. A trade item, a listicle, a live blog, a minor appointment, a technical milestone nobody outside the field knows: low.`,
     `A death, an attack, a crash or a massacre is never above 6, however famous. Do not reward length or detail. Most rows on most days are 3 to 5; be strict with 7 and above, and give a 9 or 10 only to something the whole world knows.`,
-    `Score what the row is, not how it is worded.`,
+    `Score what the row is, not how it is worded. A number one song, album or film is never below 4, even one you do not recognise: it was the most popular thing in the country that week, and a recent one may be after what you know.`,
     ``,
     `The rows to score:`,
     ...rows.map((r) => `- id ${r.id} [${kind(r)}] ${r.headline} (${r.outlet})`),
