@@ -48,14 +48,14 @@ final class HiveDecadesTests: XCTestCase {
         XCTAssertEqual(HiveDecades.line(for: day([mary, bruce, news]), dateName: "September 23", voice: .bee, sealed: false), "")
         XCTAssertEqual(HiveDecades.standing(for: day([mary, bruce, news])), .empty)
         let one = day([mary, story("b", bruce.headline, support: 1), news])
-        XCTAssertEqual(HiveDecades.line(for: one, dateName: "September 23", voice: .bee, sealed: false), "The 1940s lead September 23 with the only buzz so far.")
+        XCTAssertEqual(HiveDecades.line(for: one, dateName: "September 23", voice: .bee, sealed: false), "The 1940s (Boomers) lead September 23 with the only buzz so far.")
         let three = day([story("a", mary.headline, support: 1), story("b", bruce.headline, support: 2), news])
-        XCTAssertEqual(HiveDecades.line(for: three, dateName: "September 23", voice: .bee, sealed: false), "The 1940s lead September 23 with 2 of 3 buzzes.")
-        XCTAssertEqual(HiveDecades.standing(for: three).teams, [HiveDecades.Team(decade: 1940, buzzes: 2), HiveDecades.Team(decade: 1860, buzzes: 1)])
+        XCTAssertEqual(HiveDecades.line(for: three, dateName: "September 23", voice: .bee, sealed: false), "The 1940s (Boomers) lead September 23 with 2 of 3 buzzes.")
+        XCTAssertEqual(HiveDecades.standing(for: three).teams, [HiveDecades.Team(decade: 1940, buzzes: 2, generation: "Boomers"), HiveDecades.Team(decade: 1860, buzzes: 1)])
         let tie = day([story("a", mary.headline, support: 1), story("b", bruce.headline, support: 1), news])
-        XCTAssertEqual(HiveDecades.line(for: tie, dateName: "September 23", voice: .bee, sealed: false), "The 1860s and 1940s are level on September 23, 1 buzz each.")
+        XCTAssertEqual(HiveDecades.line(for: tie, dateName: "September 23", voice: .bee, sealed: false), "The 1860s and 1940s (Boomers) are level on September 23, 1 buzz each.")
         XCTAssertEqual(HiveDecades.standing(for: tie).leaders, [1860, 1940])
-        XCTAssertEqual(HiveDecades.line(for: tie, dateName: "September 23", voice: .plain, sealed: true), "The 1860s and 1940s were level on September 23, 1 tap each.")
+        XCTAssertEqual(HiveDecades.line(for: tie, dateName: "September 23", voice: .plain, sealed: true), "The 1860s and 1940s (Boomers) were level on September 23, 1 tap each.")
     }
 
     func testTheLiveBoardsAsTheyStood() {
@@ -78,7 +78,24 @@ final class HiveDecadesTests: XCTestCase {
             story("b", "Bruce Springsteen, American rock singer (born 1949), born 1949", support: 1),
             story("c", "Major news outlets banned by Trump will have their day in court", kind: nil, support: 1, status: .pool),
         ])
-        XCTAssertEqual(HiveDecades.line(for: s23, dateName: "September 23", voice: .bee, sealed: false), "The 1860s, 1940s and 2020s are level on September 23, 1 buzz each.")
+        XCTAssertEqual(HiveDecades.line(for: s23, dateName: "September 23", voice: .bee, sealed: false), "The 1860s, 1940s (Boomers) and 2020s are level on September 23, 1 buzz each.")
+    }
+
+    func testAGenerationIsNamedForPeopleOnlyWhenTheyAreAllOne() {
+        XCTAssertEqual(HiveDecades.generation(of: 1949), "Boomers")
+        XCTAssertEqual(HiveDecades.generation(of: 1945), "Silent Generation")
+        XCTAssertEqual(HiveDecades.generation(of: 1965), "Gen X")
+        XCTAssertEqual(HiveDecades.generation(of: 1996), "Millennials")
+        XCTAssertEqual(HiveDecades.generation(of: 1997), "Gen Z")
+        XCTAssertEqual(HiveDecades.generation(of: 2013), "Gen Alpha")
+        XCTAssertNil(HiveDecades.generation(of: 1869))
+        XCTAssertNil(HiveDecades.born(of: story("a", "1977: Star Wars was the number one film at the box office", kind: "film")))
+        let bruce = story("a", "Bruce Springsteen, American rock singer (born 1949), born 1949", support: 1)
+        let film = story("b", "1949: The Third Man was the number one film at the box office", kind: "film", support: 1)
+        let silent = story("c", "Somebody Else, singer, born 1943", support: 1)
+        XCTAssertEqual(HiveDecades.line(for: day([bruce]), dateName: "September 23", voice: .bee, sealed: false), "The 1940s (Boomers) lead September 23 with the only buzz so far.")
+        XCTAssertEqual(HiveDecades.line(for: day([bruce, film]), dateName: "September 23", voice: .bee, sealed: false), "The 1940s lead September 23 with all 2 buzzes so far.")
+        XCTAssertEqual(HiveDecades.line(for: day([bruce, silent]), dateName: "September 23", voice: .bee, sealed: false), "The 1940s lead September 23 with all 2 buzzes so far.")
     }
 
     func testAFalseStoryCountsForNoTeamAndAStoryWithNoYearForNone() {

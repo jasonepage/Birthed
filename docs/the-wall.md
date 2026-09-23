@@ -2982,3 +2982,19 @@ are plain underlined text on their own row, things to read. All within the
 theme's tokens; nothing new is pink and nothing is a colour that is not
 honey or cream.
 
+**The generation, named for people, Nathan's call the same morning.** He
+asked whether the teams should be generations, Boomers and Gen X and Gen
+Z, and colour coded. A generation is true of a person and of nobody else:
+Springsteen, born 1949, is a Boomer; "1977: Star Wars" is not Gen X, it is
+a film that came out while Gen X was being born; the news is nobody's.
+Half a board is events, songs and news. And colouring tiles by generation
+would reverse the one look of September 22 and fight the tier stripe. So
+the line names the generation in brackets when the leading decade's
+buzzed people all fall in one, "The 1940s (Boomers) lead September 23
+with 2 of 3 buzzes.", and stays a decade when its buzzes are on events or
+its people straddle two generations. The boundaries are the Pew Research
+Center's for the Silent Generation through Gen Z, with the Lost, the
+Greatest and Gen Alpha either side; `GENERATIONS` in `web/src/decades.ts`
+and `HiveDecades.generations` on iOS. No new colour. Typhoid Mary, born
+1869, is before every named generation and stays "the 1860s".
+

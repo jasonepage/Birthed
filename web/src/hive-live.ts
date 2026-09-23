@@ -32,7 +32,7 @@ import {
 } from "./wall.js";
 import { HIVE_CROWN_JS, crownMark, rawBoost } from "./crown.js";
 import { REFILLS_ON, dayRefills, nextRefillWords } from "./refills.js";
-import { HIVE_DECADES_JS, decadeOf } from "./decades.js";
+import { HIVE_DECADES_JS, bornOf, decadeOf } from "./decades.js";
 
 function escapeHtml(value: string): string {
   return value
@@ -79,6 +79,8 @@ export interface LiveStory {
   name: string;
   /** The decade team it counts for, or null. docs/the-wall.md section 30. */
   decade: number | null;
+  /** A person's birth year, for naming the generation; null otherwise. */
+  born: number | null;
   outlet: string;
   tier: WallStory["tier"];
   status: WallStory["status"];
@@ -125,6 +127,7 @@ export function liveStories(day: WallDay, scores: Map<string, number> = new Map(
     headline: s.headline,
     name: crownName(s),
     decade: decadeOf(s),
+    born: bornOf(s),
     outlet: s.outlet,
     tier: s.tier,
     status: s.status,
@@ -757,7 +760,7 @@ export const HIVE_LIVE_JS = `
     if (typeof HiveDecades === "undefined") return;
     var box = document.getElementById("wdecades"); if (!box) return;
     var rows = [];
-    for (var i = 0; i < stories.length; i++) { var s = stories[i]; if (s.status !== "false") rows.push({ decade: s.decade, support: s.support }); }
+    for (var i = 0; i < stories.length; i++) { var s = stories[i]; if (s.status !== "false") rows.push({ decade: s.decade, support: s.support, born: s.born }); }
     var st = HiveDecades.standing(rows);
     var line = HiveDecades.line(st, D.name, voice, sealed);
     if (!line) { box.hidden = true; return; }

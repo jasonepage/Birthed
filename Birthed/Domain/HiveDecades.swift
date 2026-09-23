@@ -14,6 +14,36 @@ enum HiveDecades {
     struct Team: Equatable {
         let decade: Int
         let buzzes: Int
+        /// The generation named on the line when the decade's buzzed people
+        /// are all one: "Boomers" for a 1940s led by Springsteen. Nil when
+        /// the buzzes are on events, songs or news, which belong to no
+        /// generation, or when its people straddle two. Nathan's call,
+        /// September 23, 2026: people get a generation, everything else
+        /// stays a decade.
+        var generation: String? = nil
+    }
+
+    /// The Pew Research Center's boundaries for Silent through Generation
+    /// Z, and the common ones either side. The website's GENERATIONS.
+    static let generations: [(name: String, from: Int, to: Int)] = [
+        ("Lost Generation", 1883, 1900),
+        ("Greatest Generation", 1901, 1927),
+        ("Silent Generation", 1928, 1945),
+        ("Boomers", 1946, 1964),
+        ("Gen X", 1965, 1980),
+        ("Millennials", 1981, 1996),
+        ("Gen Z", 1997, 2012),
+        ("Gen Alpha", 2013, 2024),
+    ]
+
+    static func generation(of born: Int?) -> String? {
+        guard let born else { return nil }
+        return generations.first { born >= $0.from && born <= $0.to }?.name
+    }
+
+    /// A person's birth year, for the generation; nil for anything that is not a person.
+    static func born(of story: WallStory) -> Int? {
+        story.subjectKind == "person" ? year(of: story) : nil
     }
 
     struct Standing: Equatable {
@@ -46,19 +76,35 @@ enum HiveDecades {
     /// not stamped false, by its decade, counting its buzzes.
     static func standing(for day: WallDay) -> Standing {
         var by: [Int: Int] = [:]
+        var gens: [Int: Set<String>] = [:]
         var total = 0
         for story in day.stories where story.status != .shownFalse && story.support >= 1 {
             guard let decade = decade(of: story) else { continue }
             by[decade, default: 0] += story.support
             total += story.support
+            // Every buzzed person's generation, and "" for a buzzed story
+            // that is not a person, which belongs to none.
+            gens[decade, default: []].insert(generation(of: born(of: story)) ?? "")
         }
-        let teams = by.map { Team(decade: $0.key, buzzes: $0.value) }
+        let teams = by.map { decade, buzzes -> Team in
+            let seen = gens[decade] ?? []
+            let one = seen.count == 1 ? seen.first : nil
+            return Team(decade: decade, buzzes: buzzes, generation: one == "" ? nil : one)
+        }
             .sorted { a, b in a.buzzes != b.buzzes ? a.buzzes > b.buzzes : a.decade < b.decade }
         let top = teams.first?.buzzes ?? 0
         return Standing(teams: teams, total: total, leaders: teams.filter { $0.buzzes == top }.map(\.decade))
     }
 
     static func name(_ decade: Int) -> String { "\(decade)s" }
+
+    private static func named(_ team: Team) -> String {
+        name(team.decade) + (team.generation.map { " (\($0))" } ?? "")
+    }
+
+    private static func team(in s: Standing, _ decade: Int) -> Team {
+        s.teams.first { $0.decade == decade } ?? Team(decade: decade, buzzes: 0)
+    }
 
     private static func units(_ n: Int, _ voice: HiveVoice) -> String {
         n == 1 ? "1 \(voice.one)" : "\(n) \(voice.many)"
@@ -82,9 +128,9 @@ enum HiveDecades {
             } else {
                 with = "\(top) of \(units(s.total, voice))"
             }
-            return "The \(name(s.leaders[0]))\(sealed ? " led " : " lead ")\(dateName) with \(with)."
+            return "The \(named(team(in: s, s.leaders[0])))\(sealed ? " led " : " lead ")\(dateName) with \(with)."
         }
-        return "The \(list(s.leaders.map(name)))\(sealed ? " were level on " : " are level on ")\(dateName), \(units(top, voice)) each."
+        return "The \(list(s.leaders.map { named(team(in: s, $0)) }))\(sealed ? " were level on " : " are level on ")\(dateName), \(units(top, voice)) each."
     }
 
     static func line(for day: WallDay, dateName: String, voice: HiveVoice, sealed: Bool) -> String {
