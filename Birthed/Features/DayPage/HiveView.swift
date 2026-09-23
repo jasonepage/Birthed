@@ -67,6 +67,7 @@ struct HiveView: View {
                     quietHeading(day, phase: phase)
                 }
                 HiveBoard(day: day, date: date, ageLines: ageLines, onOpen: { selected = $0 })
+                crownList(day, phase: phase)
                 if !day.onHive.isEmpty {
                     underTheBoard(phase: phase)
                     // No key on a one tier board, the same as the website:
@@ -201,6 +202,49 @@ struct HiveView: View {
             }
             Spacer(minLength: 8)
             fullScreenLink
+        }
+    }
+
+    /// The crown, docs/the-wall.md section 30: every time it changed hands
+    /// today, oldest first, each with the Eastern time of the buzz that moved
+    /// it. An open board nobody has buzzed says the first buzz takes it. A
+    /// sealed board with no buzzes shows nothing, and a date that has not
+    /// opened shows nothing. It is a fact about tiles: two stories and a time
+    /// of day, and no person anywhere in it.
+    @ViewBuilder
+    private func crownList(_ day: WallDay, phase: WallDay.Phase) -> some View {
+        let crown = HiveCrown.crown(for: day)
+        if phase == .live || (phase == .closed && !crown.changes.isEmpty) {
+            let names = Dictionary(uniqueKeysWithValues: day.stories.map { ($0.id, HiveCrown.name(for: $0)) })
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Image(systemName: "crown.fill")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(palette.accent)
+                        .accessibilityHidden(true)
+                    Text(HiveCopy.crown)
+                        .font(.footnote.weight(.bold))
+                        .foregroundStyle(palette.type)
+                    Text(HiveCopy.crownSub(phase: phase, voice: voice))
+                        .font(.footnote)
+                        .foregroundStyle(palette.type.opacity(0.6))
+                }
+                if crown.changes.isEmpty {
+                    Text(HiveCrown.none(voice: voice))
+                        .font(.footnote)
+                        .foregroundStyle(palette.type.opacity(0.6))
+                } else {
+                    ForEach(Array(crown.changes.enumerated()), id: \.offset) { _, change in
+                        Text(HiveCrown.line(change, nameOf: { names[$0] ?? "a story in the feed" }))
+                            .font(.footnote)
+                            .foregroundStyle(palette.type.opacity(0.8))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 4)
+            .accessibilityElement(children: .combine)
         }
     }
 
@@ -925,6 +969,8 @@ private struct HiveBoard: View {
         let hottest = Double(tiles.map(\.support).max() ?? 0)
         let phase = day.phase(now: wall.now)
         let voice = wall.voice
+        // The crown from the day's buzz rows, docs/the-wall.md section 30.
+        let crown = HiveCrown.crown(for: day)
         GeometryReader { geometry in
             let side = geometry.size.width
             ZStack(alignment: .topLeading) {
@@ -948,6 +994,7 @@ private struct HiveBoard: View {
                                  ageLine: HiveFeed.ageLine(for: story, lines: ageLines),
                                  heat: hottest > 0 ? Double(story.support) / hottest : 0,
                                  picture: story.pictureKey.flatMap { wall.pictures[$0]?.url },
+                                 crowned: story.id == crown.holder,
                                  onOpen: { onOpen(story) },
                                  onBuzz: { Task { await cast(story) } },
                                  onUndo: { Task { await takeBack(story) } })
@@ -1037,6 +1084,9 @@ private struct HiveTile: View {
     let heat: Double
     /// The event's lead picture, when the project holds one.
     let picture: URL?
+    /// Wears the crown: the most buzzed story on the hive, held on a tie.
+    /// docs/the-wall.md section 30.
+    var crowned: Bool = false
     let onOpen: () -> Void
     let onBuzz: () -> Void
     let onUndo: () -> Void
@@ -1076,6 +1126,21 @@ private struct HiveTile: View {
             }
             words
                 .padding(5)
+            if crowned {
+                // The website's .wcrownmark: pinned to the top right corner
+                // on every size of tile, because a crown only the big tiles
+                // could wear would be missing on the day a small tile takes it.
+                HStack {
+                    Spacer(minLength: 0)
+                    Image(systemName: "crown.fill")
+                        .font(.system(size: WallBoard.size(of: rect) == .tiny ? 7 : 10, weight: .bold))
+                        .foregroundStyle(HivePalette.cellMark)
+                        .shadow(color: .black.opacity(0.7), radius: 1, y: 1)
+                        .padding(3)
+                        .accessibilityLabel(HiveCopy.wearsTheCrown)
+                }
+                .allowsHitTesting(false)
+            }
             if story.status == .shownFalse {
                 VStack {
                     Spacer(minLength: 0)
@@ -1092,8 +1157,8 @@ private struct HiveTile: View {
         .clipShape(shape)
         .opacity(story.status == .shownFalse ? 0.55 : 1)
         .overlay {
-            shape.strokeBorder(buzzed ? HivePalette.cellMark : HivePalette.cellEdge,
-                               lineWidth: buzzed ? 1.5 : 0.75)
+            shape.strokeBorder(buzzed || crowned ? HivePalette.cellMark : HivePalette.cellEdge,
+                               lineWidth: buzzed || crowned ? 1.5 : 0.75)
         }
         .shadow(color: HivePalette.heat.opacity(0.30 * heat), radius: 6 * heat)
         .accessibilityElement(children: .contain)
@@ -1289,6 +1354,7 @@ private struct HiveTile: View {
         if buzzed { line += " \(voice.mark)." }
         if undoable { line += " \(HiveCopy.undoWindow)" }
         if story.status == .shownFalse { line += " \(HiveCopy.stung): later shown false." }
+        if crowned { line += " \(HiveCopy.wearsTheCrown)" }
         return line
     }
 }

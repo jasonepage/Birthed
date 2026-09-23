@@ -113,9 +113,13 @@ final class HiveTests: XCTestCase {
             HiveCopy.undo, HiveCopy.undoWindow,
             HiveCopy.undone(voice: .bee), HiveCopy.undone(voice: .plain),
             HiveCopy.tooLate(voice: .bee), HiveCopy.tooLate(voice: .plain),
+            HiveCopy.crown, HiveCopy.wearsTheCrown,
+            HiveCrown.none(voice: .bee), HiveCrown.none(voice: .plain),
+            HiveCrown.back("Typhoid Mary"),
         ]
         for phase in [WallDay.Phase.notYetOpen, .submissionsOnly, .live, .closed] {
             for voice in [HiveVoice.bee, .plain] {
+                sentences.append(HiveCopy.crownSub(phase: phase, voice: voice))
                 sentences.append(HiveCopy.allowance(2, allowance: 3, phase: phase, voice: voice))
                 sentences.append(HiveCopy.quietLede(dateName: dateName, phase: phase, voice: voice))
                 sentences.append(HiveCopy.feedNote(dateName: dateName, phase: phase, voice: voice))

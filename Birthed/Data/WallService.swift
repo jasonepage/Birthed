@@ -372,7 +372,15 @@ final class WallService {
             + "wall_sources(id,story_id,url,outlet,owner,headline,quotation,verified_at,added_at,is_primary_doc,wall_checks(source_id,checked_at,kind,passed,http_status,detail))"
         guard let storyRows = await rows("wall_stories?select=\(select)&wall_date=eq.\(wallDate.key)&order=submitted_at.asc,id.asc&wall_sources.order=added_at.asc&wall_sources.wall_checks.order=checked_at.asc")
         else { return nil }
-        return WallRows.day(dayRow, stories: storyRows.compactMap(WallRows.story))
+        guard var day = WallRows.day(dayRow, stories: storyRows.compactMap(WallRows.story)) else { return nil }
+        // The day's buzzes, for the crown, docs/the-wall.md section 30. The
+        // same four columns the website reads and never the booster, which
+        // this role cannot select. A failed read is a day with no crown, not
+        // a failed day: the board draws without it.
+        if let boostRows = await rows("wall_boosts?select=id,story_id,units,cast_at&wall_date=eq.\(wallDate.key)&order=cast_at.asc,id.asc") {
+            day.boosts = boostRows.compactMap(WallRows.boost)
+        }
+        return day
     }
 
     private func readUnitsLeft(_ wallDate: WallDate) async -> Int? {

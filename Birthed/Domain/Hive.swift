@@ -504,6 +504,19 @@ enum HiveCopy {
     /// the website's live hive asks.
     static let question = "What will still matter?"
 
+    /// The crown, docs/the-wall.md section 30: the heading over the list of
+    /// every change of hands, and the line under it saying what the list is.
+    static let crown = "The crown"
+
+    static func crownSub(phase: WallDay.Phase, voice: HiveVoice) -> String {
+        phase == .closed
+            ? "The most \(voice.past) story wore it. Every time it changed hands before the seal:"
+            : "The most \(voice.past) story wears it. Every time it changes hands today:"
+    }
+
+    /// The crown mark's spoken label.
+    static let wearsTheCrown = "Wears the crown."
+
     /// What the feed under the hive is, said once.
     static func feedNote(dateName: String, phase: WallDay.Phase, voice: HiveVoice) -> String {
         let what = "Everything with a birthday on \(dateName): the day's news, and what happened,"

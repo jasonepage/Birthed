@@ -253,6 +253,12 @@ struct WallDay: Equatable {
     let closedAt: Date?
     let stories: [WallStory]
 
+    /// The day's buzz rows in the order they were cast, without the booster,
+    /// which the role cannot select. The crown and every change of hands are
+    /// replayed from these, docs/the-wall.md section 30. Empty on a day read
+    /// by a caller that did not ask for them, which is no crown.
+    var boosts: [WallBoost] = []
+
     var onHive: [WallStory] { stories.filter(\.isOnHive) }
     var inPool: [WallStory] { stories.filter { $0.status == .pool } }
     var overflow: [WallStory] { stories.filter { $0.status == .overflow } }

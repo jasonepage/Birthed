@@ -2814,6 +2814,15 @@ was not counted twice when the socket echoed it, an undo handed it back, a
 three unit buzz passed everything, bent rows counted for nothing, and a
 reconnect re-read the log. Web tests: 414. Not run against the live project.
 
-**Not yet.** The iOS port (`HiveCopy`, `WallBoard`) follows in its own
-commit. The comb page does not mark the holder's cell.
+**The iOS port, the same day.** `Birthed/Domain/HiveCrown.swift` is the
+app's copy of the rule, `WallDay.boosts` carries the rows, `WallService`
+reads them with the website's four columns, the holder's tile draws the
+crown in its corner with the honey edge, and the list sits under the board
+in the day page. `HiveCrownTests` asserts the sentences the website's tests
+printed, so the two cannot drift apart without a failure. Not compiled and
+not run: neither shell in the session had a Swift toolchain. Jason builds.
+The app has no live socket, so the crown moves on the next load rather than
+as a buzz lands, which is how the app's board already behaves.
+
+**Not yet.** The comb page does not mark the holder's cell.
 
