@@ -55,11 +55,13 @@ Deno.serve(async (request: Request) => {
   }
   if (!allowed) return json({ error: "not allowed" }, 403);
 
-  let limit = 3;
+  // Two batches a call, about forty seconds: the gateway cuts a function off
+  // near two minutes and eight batches hit it on the first run.
+  let limit = 2;
   let date: string | null = null;
   try {
     const body = await request.json();
-    if (Number.isInteger(body?.limit)) limit = Math.max(1, Math.min(6, body.limit));
+    if (Number.isInteger(body?.limit)) limit = Math.max(1, Math.min(2, body.limit));
     if (typeof body?.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.date)) date = body.date;
   } catch {
     // An empty body is the defaults.
