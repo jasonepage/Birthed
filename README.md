@@ -7,9 +7,7 @@
 <p align="center"><b>Every date has a hive.</b></p>
 
 <p align="center">
-  <!-- Once .github/workflows/checks.yml is on main, put the checks badge back here:
   <a href="https://github.com/jasonepage/Birthed/actions/workflows/checks.yml"><img alt="checks" src="https://github.com/jasonepage/Birthed/actions/workflows/checks.yml/badge.svg"></a>
-  -->
   <a href="LICENSE"><img alt="license: AGPL 3.0" src="https://img.shields.io/badge/license-AGPL%203.0-8A6D3B"></a>
   <img alt="iOS 17 and later" src="https://img.shields.io/badge/iOS-17%2B-2A2233">
   <img alt="Swift 6 and SwiftUI" src="https://img.shields.io/badge/Swift%206-SwiftUI-EF5680">
@@ -30,12 +28,31 @@
 
 ---
 
-Every calendar date has a page. It shows what happened on that date, who was
-born on it, what was number one, and the day's news, all in one pool. On the
-date itself, anyone who shows up gets three buzzes to spend on what they think
-will still matter. At midnight the hive seals, and it can never be edited.
-Next year the same date opens a new one, and the old one stays readable.
+**Every calendar date gets a public board of what happened on it, who was born
+on it, what was number one and the day's news. On the date, anyone gets three
+buzzes for what will still matter in ten years. At midnight Eastern the board
+seals for good.**
 
+<table>
+  <tr>
+    <td width="50%" valign="top"><img src="docs/readme/date-page.png" alt="The September 22 page on birthed.app: the date, the question What mattered about September 22, and the hive, with its biggest tiles about Gerald Ford and Joseph Smith"></td>
+    <td width="50%" valign="top"><img src="docs/readme/hive-phone.png" alt="A hive on a phone, with tiles sized by how many buzzes each story got"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>A date page on birthed.app, the hive leading it</sub></td>
+    <td align="center"><sub>The same kind of board on a phone</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top"><img src="docs/readme/hive-share.png" alt="The share picture for the September 10 hive"></td>
+    <td width="50%" valign="top"><img src="docs/readme/app-card.png" alt="The iPhone app's card for September 4: the number one song the week you were born, We Belong Together by Mariah Carey, and a lit candle"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>The picture a hive shares</sub></td>
+    <td align="center"><sub>The card the iPhone app shares</sub></td>
+  </tr>
+</table>
+
+Next year the same date opens a new hive, and the sealed one stays readable.
 Birthed is a website at [birthed.app](https://birthed.app) and an iPhone app
 in beta on [TestFlight](https://testflight.apple.com/join/hzm6Mhhm), Apple's
 free app for trying apps before they are on the store. The date is the thing,
@@ -52,6 +69,31 @@ service or third party code of any kind.
 > iPhone app is different and says so: it sends a month, a day and an optional
 > year to a silent anonymous account. The [privacy page](https://birthed.app/privacy/)
 > has the whole account, and it is edited in the same commit as the code.
+
+## Try it in five minutes
+
+No account and no keys for the tests: the website's 440 tests run against a
+mocked project and the worker's against fixtures.
+
+```
+cd web && npm install && npm test
+cd ../worker && npm ci && npm test
+swift test        # the iOS domain, from a terminal, no Xcode
+```
+
+To run the website itself you need one value, the project's publishable key,
+which is safe to ship and is the same key every live hive page already carries.
+It is in the Supabase dashboard under Project Settings, API Keys, or copy it
+out of the page source of any open hive on birthed.app. Then:
+
+```
+cd web && SUPABASE_ANON_KEY=... npm run site && npm run serve
+```
+
+That bakes all 366 date pages from the live, read only data and serves them
+on port 10000. Buzzing from a local copy still goes to the live hive, which
+is the one thing the site writes. The iPhone app needs `Birthed/Config/Secrets.swift`
+with the same key; `CLAUDE.md` section 9 shows the two lines.
 
 ## Status, plainly
 
@@ -106,27 +148,6 @@ before changing anything.
   how many there are.
 - It does not show a notification for a famous person's birthday. A
   notification is a promise that there is something to do.
-
-## What it looks like
-
-<table>
-  <tr>
-    <td width="50%" valign="top"><img src="docs/readme/date-page.png" alt="The September 22 page on birthed.app: the date, the question What mattered about September 22, and the hive, with its biggest tiles about Gerald Ford and Joseph Smith"></td>
-    <td width="50%" valign="top"><img src="docs/readme/hive-phone.png" alt="A hive on a phone, with tiles sized by how many buzzes each story got"></td>
-  </tr>
-  <tr>
-    <td align="center"><sub>A date page on birthed.app, the hive leading it</sub></td>
-    <td align="center"><sub>The same kind of board on a phone</sub></td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top"><img src="docs/readme/hive-share.png" alt="The share picture for the September 10 hive"></td>
-    <td width="50%" valign="top"><img src="docs/readme/app-card.png" alt="The iPhone app's card for September 4: the number one song the week you were born, We Belong Together by Mariah Carey, and a lit candle"></td>
-  </tr>
-  <tr>
-    <td align="center"><sub>The picture a hive shares</sub></td>
-    <td align="center"><sub>The card the iPhone app shares</sub></td>
-  </tr>
-</table>
 
 ## How it fits together
 
