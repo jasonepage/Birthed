@@ -66,15 +66,25 @@ test("tomorrow's wall has submissions and no boosts, and the busy day is the cro
   assert.ok(tomorrow.stories.every((s) => s.status === "pool"));
 
   // The fixture holds 74 distinct articles and a date may carry each once.
-  // What the busy day proves is that a crowded board holds a readable number
-  // of tiles and no more, that what qualified and found no room is overflow
-  // rather than lost, and that the unsupported ones stay in the pool.
+  // Until September 22, 2026 the board held twelve, so the busy day filled
+  // it and spilled over. Since the mural (docs/the-wall.md section 27) it
+  // holds sixty, and a sixty story day no longer fills it: what the busy day
+  // proves now is that nothing is lost. Every story somebody backed is on
+  // the board or waiting as overflow, the board holds no more than it may,
+  // and a story nobody backed stays in the pool. This assertion was left at
+  // the twelve tile numbers by the mural commit and failed from then on,
+  // unseen because the test took seventeen minutes (see cutBands).
   const busy = days.find((d) => d.date === "2026-09-05")!;
   const quiet = days.find((d) => d.date === "2026-09-04")!;
   assert.ok(busy.stories.length > quiet.stories.length * 3);
-  const placed = busy.stories.filter((s) => s.status === "placed").length;
-  assert.ok(placed <= MAX_PLACED && placed >= MAX_PLACED - 3, `${placed} placed`);
-  assert.ok(busy.stories.some((s) => s.status === "overflow"));
+  const placed = busy.stories.filter((s) => s.status === "placed");
+  const overflow = busy.stories.filter((s) => s.status === "overflow");
+  assert.ok(placed.length <= MAX_PLACED, `${placed.length} placed`);
+  assert.ok(placed.length >= 8, `${placed.length} placed`);
+  for (const s of busy.stories.filter((x) => x.support >= 1 && x.status === "pool")) {
+    assert.fail(`a backed story was lost to the pool: ${s.id}`);
+  }
+  assert.ok(placed.length + overflow.length === busy.stories.filter((s) => s.status !== "pool").length);
   assert.ok(busy.stories.some((s) => s.status === "pool"));
 });
 

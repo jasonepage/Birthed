@@ -604,59 +604,129 @@ export function proportional(weights: number[], total: number, min: number): num
 
 /**
  * Every way to cut a sorted list of n tiles into consecutive bands of at
- * most MAX_PER_BAND, at most MAX_BANDS bands. Small: twelve tiles give a few
- * dozen.
+ * most MAX_PER_BAND, at most MAX_BANDS bands. Only used while that number
+ * is small, EXHAUSTIVE_UP_TO tiles; past it the count runs to millions.
  */
 function partitions(n: number): number[][] {
   const out: number[][] = [];
   const walk = (left: number, sofar: number[]): void => {
     if (left === 0) { out.push(sofar); return; }
     if (sofar.length >= MAX_BANDS) return;
+    if (left > (MAX_BANDS - sofar.length) * MAX_PER_BAND) return;
     for (let k = Math.min(MAX_PER_BAND, left); k >= 1; k -= 1) walk(left - k, [...sofar, k]);
   };
   walk(n, []);
   return out;
 }
 
+/**
+ * Up to this many tiles every partition is tried. Past it the board is cut
+ * from a short list of candidates, one per band count, each the best by a
+ * quick estimate (bestByBandCount). Found September 24, 2026: since the
+ * mural (sixty tiles, two module minimum) the exhaustive search took ten
+ * seconds for a board of thirty six tiles, which froze the live hive on
+ * every buzz and made the worker's seed test run for seventeen minutes.
+ * Twelve tiles, the old board, is still searched exhaustively and comes
+ * out exactly as it did.
+ */
+export const EXHAUSTIVE_UP_TO = 14;
+
+/**
+ * For each band count, the partition with the lowest estimated cost, by
+ * dynamic programming. The estimate lays each band at its exact share of
+ * the board's height and each tile at its exact share of the band, so what
+ * is left to score is the shape, and the two minimums as a penalty. The real
+ * cost of each candidate is then worked out by `layout`, so the estimate
+ * only chooses which few partitions are tried.
+ */
+function bestByBandCount(areas: number[]): number[][] {
+  const n = areas.length;
+  const total = areas.reduce((x, y) => x + y, 0) || 1;
+  const bandCost = (i: number, j: number): number => {
+    let sum = 0;
+    for (let t = i; t < j; t += 1) sum += areas[t]!;
+    const h = (sum / total) * BOARD_MODULES;
+    let cost = 0;
+    for (let t = i; t < j; t += 1) {
+      const w = (areas[t]! / sum) * BOARD_MODULES;
+      cost += 0.25 * Math.abs(w / Math.max(h, 0.001) - WIDTH_PREFERENCE);
+      if (w < MIN_W) cost += (MIN_W - w) * 4;
+    }
+    if (h < MIN_H) cost += (MIN_H - h) * 4 * (j - i);
+    return cost;
+  };
+  // best[b][i]: the cheapest way to lay the first i tiles in b bands.
+  const best: number[][] = Array.from({ length: MAX_BANDS + 1 }, () => new Array<number>(n + 1).fill(Infinity));
+  const from: number[][] = Array.from({ length: MAX_BANDS + 1 }, () => new Array<number>(n + 1).fill(-1));
+  best[0]![0] = 0;
+  for (let b = 1; b <= MAX_BANDS; b += 1) {
+    for (let i = 1; i <= n; i += 1) {
+      for (let k = 1; k <= Math.min(MAX_PER_BAND, i); k += 1) {
+        const prior = best[b - 1]![i - k]!;
+        if (prior === Infinity) continue;
+        const c = prior + bandCost(i - k, i);
+        if (c < best[b]![i]!) { best[b]![i] = c; from[b]![i] = k; }
+      }
+    }
+  }
+  const out: number[][] = [];
+  for (let b = 1; b <= MAX_BANDS; b += 1) {
+    if (best[b]![n] === Infinity) continue;
+    const bands: number[] = [];
+    let i = n;
+    for (let c = b; c >= 1; c -= 1) { const k = from[c]![i]!; bands.unshift(k); i -= k; }
+    out.push(bands);
+  }
+  return out;
+}
+
 interface Cut { rects: Rect[]; cost: number }
+
+/** One partition laid on the board, with its real cost. */
+function layout(areas: number[], bands: number[]): Cut {
+  let at = 0;
+  const bandAreas = bands.map((k) => { const a = areas.slice(at, at + k).reduce((x, y) => x + y, 0); at += k; return a; });
+  const heights = proportional(bandAreas, BOARD_MODULES, MIN_H);
+  const rects: Rect[] = [];
+  let cost = 0;
+  let my = 0;
+  at = 0;
+  bands.forEach((k, b) => {
+    const h = heights[b]!;
+    const tiles = areas.slice(at, at + k);
+    const widths = proportional(tiles, BOARD_MODULES, MIN_W);
+    let mx = 0;
+    tiles.forEach((target, i) => {
+      const w = widths[i]!;
+      rects.push({ mx, my, w, h });
+      // Distance from the share it was owed, plus a little for a shape a
+      // headline reads badly in, so a square beats a ribbon when both fit.
+      cost += Math.abs(w * h - target) + 0.25 * Math.abs(w / h - WIDTH_PREFERENCE);
+      mx += w;
+    });
+    at += k;
+    my += h;
+  });
+  return { rects, cost };
+}
 
 /**
  * Lays `areas` (sorted largest first, summing to the board) into bands and
- * returns the rectangles in the same order, choosing among every partition
- * the one whose tiles land nearest their areas. Band heights are shares of
- * the board's height by the area in each band, never under MIN_H; widths in
- * a band are shares of the board's width by tile area, never under MIN_W.
- * Every band is exactly the board wide and the bands are exactly the board
- * tall, so the board is full.
+ * returns the rectangles in the same order, choosing the partition whose
+ * tiles land nearest their areas: among every partition up to
+ * EXHAUSTIVE_UP_TO tiles, among one candidate per band count past it. Band
+ * heights are shares of the board's height by the area in each band, never
+ * under MIN_H; widths in a band are shares of the board's width by tile
+ * area, never under MIN_W. Every band is exactly the board wide and the
+ * bands are exactly the board tall, so the board is full.
  */
 export function cutBands(areas: number[]): Rect[] {
   if (areas.length === 0) return [];
+  const candidates = areas.length <= EXHAUSTIVE_UP_TO ? partitions(areas.length) : bestByBandCount(areas);
   let best: Cut | null = null;
-  for (const bands of partitions(areas.length)) {
-    let at = 0;
-    const bandAreas = bands.map((k) => { const a = areas.slice(at, at + k).reduce((x, y) => x + y, 0); at += k; return a; });
-    const heights = proportional(bandAreas, BOARD_MODULES, MIN_H);
-    const rects: Rect[] = [];
-    let cost = 0;
-    let my = 0;
-    at = 0;
-    bands.forEach((k, b) => {
-      const h = heights[b]!;
-      const tiles = areas.slice(at, at + k);
-      const widths = proportional(tiles, BOARD_MODULES, MIN_W);
-      let mx = 0;
-      tiles.forEach((target, i) => {
-        const w = widths[i]!;
-        rects.push({ mx, my, w, h });
-        // Distance from the share it was owed, plus a little for a shape a
-        // headline reads badly in, so a square beats a ribbon when both fit.
-        cost += Math.abs(w * h - target) + 0.25 * Math.abs(w / h - WIDTH_PREFERENCE);
-        mx += w;
-      });
-      at += k;
-      my += h;
-    });
-    if (best === null || cost < best.cost) best = { rects, cost };
+  for (const bands of candidates) {
+    const cut = layout(areas, bands);
+    if (best === null || cut.cost < best.cost) best = cut;
   }
   return best!.rects;
 }

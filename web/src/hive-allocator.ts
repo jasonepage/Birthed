@@ -157,44 +157,95 @@ var HiveAllocator = (function () {
     var walk = function (left, sofar) {
       if (left === 0) { out.push(sofar); return; }
       if (sofar.length >= MAX_BANDS) return;
+      if (left > (MAX_BANDS - sofar.length) * MAX_PER_BAND) return;
       for (var k = Math.min(MAX_PER_BAND, left); k >= 1; k -= 1) walk(left - k, sofar.concat([k]));
     };
     walk(n, []);
     return out;
   }
 
+  // Past this many tiles, one candidate per band count by a quick estimate,
+  // not every partition: the worker's EXHAUSTIVE_UP_TO and bestByBandCount.
+  var EXHAUSTIVE_UP_TO = 14;
+  function bestByBandCount(areas) {
+    var n = areas.length;
+    var total = areas.reduce(function (x, y) { return x + y; }, 0) || 1;
+    var bandCost = function (i, j) {
+      var sum = 0, t;
+      for (t = i; t < j; t += 1) sum += areas[t];
+      var h = (sum / total) * BOARD_MODULES;
+      var cost = 0;
+      for (t = i; t < j; t += 1) {
+        var w = (areas[t] / sum) * BOARD_MODULES;
+        cost += 0.25 * Math.abs(w / Math.max(h, 0.001) - WIDTH_PREFERENCE);
+        if (w < MIN_W) cost += (MIN_W - w) * 4;
+      }
+      if (h < MIN_H) cost += (MIN_H - h) * 4 * (j - i);
+      return cost;
+    };
+    var best = [], from = [], b, i, k;
+    for (b = 0; b <= MAX_BANDS; b += 1) {
+      best.push([]); from.push([]);
+      for (i = 0; i <= n; i += 1) { best[b].push(Infinity); from[b].push(-1); }
+    }
+    best[0][0] = 0;
+    for (b = 1; b <= MAX_BANDS; b += 1) {
+      for (i = 1; i <= n; i += 1) {
+        for (k = 1; k <= Math.min(MAX_PER_BAND, i); k += 1) {
+          var prior = best[b - 1][i - k];
+          if (prior === Infinity) continue;
+          var c = prior + bandCost(i - k, i);
+          if (c < best[b][i]) { best[b][i] = c; from[b][i] = k; }
+        }
+      }
+    }
+    var out = [];
+    for (b = 1; b <= MAX_BANDS; b += 1) {
+      if (best[b][n] === Infinity) continue;
+      var bands = [];
+      i = n;
+      for (var cnt = b; cnt >= 1; cnt -= 1) { k = from[cnt][i]; bands.unshift(k); i -= k; }
+      out.push(bands);
+    }
+    return out;
+  }
+
+  function layout(areas, bands) {
+    var at = 0;
+    var bandAreas = bands.map(function (k) {
+      var a = areas.slice(at, at + k).reduce(function (x, y) { return x + y; }, 0);
+      at += k;
+      return a;
+    });
+    var heights = proportional(bandAreas, BOARD_MODULES, MIN_H);
+    var rects = [];
+    var cost = 0;
+    var my = 0;
+    at = 0;
+    bands.forEach(function (k, b) {
+      var h = heights[b];
+      var tiles = areas.slice(at, at + k);
+      var widths = proportional(tiles, BOARD_MODULES, MIN_W);
+      var mx = 0;
+      tiles.forEach(function (target, i) {
+        var w = widths[i];
+        rects.push({ mx: mx, my: my, w: w, h: h });
+        cost += Math.abs(w * h - target) + 0.25 * Math.abs(w / h - WIDTH_PREFERENCE);
+        mx += w;
+      });
+      at += k;
+      my += h;
+    });
+    return { rects: rects, cost: cost };
+  }
+
   function cutBands(areas) {
     if (areas.length === 0) return [];
+    var candidates = areas.length <= EXHAUSTIVE_UP_TO ? partitions(areas.length) : bestByBandCount(areas);
     var best = null;
-    var all = partitions(areas.length);
-    for (var p = 0; p < all.length; p++) {
-      var bands = all[p];
-      var at = 0;
-      var bandAreas = bands.map(function (k) {
-        var a = areas.slice(at, at + k).reduce(function (x, y) { return x + y; }, 0);
-        at += k;
-        return a;
-      });
-      var heights = proportional(bandAreas, BOARD_MODULES, MIN_H);
-      var rects = [];
-      var cost = 0;
-      var my = 0;
-      at = 0;
-      bands.forEach(function (k, b) {
-        var h = heights[b];
-        var tiles = areas.slice(at, at + k);
-        var widths = proportional(tiles, BOARD_MODULES, MIN_W);
-        var mx = 0;
-        tiles.forEach(function (target, i) {
-          var w = widths[i];
-          rects.push({ mx: mx, my: my, w: w, h: h });
-          cost += Math.abs(w * h - target) + 0.25 * Math.abs(w / h - WIDTH_PREFERENCE);
-          mx += w;
-        });
-        at += k;
-        my += h;
-      });
-      if (best === null || cost < best.cost) best = { rects: rects, cost: cost };
+    for (var p = 0; p < candidates.length; p++) {
+      var cut = layout(areas, candidates[p]);
+      if (best === null || cut.cost < best.cost) best = cut;
     }
     return best.rects;
   }
