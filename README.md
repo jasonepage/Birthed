@@ -72,8 +72,10 @@ service or third party code of any kind.
 
 ## Try it in five minutes
 
-No account and no keys for the tests: the website's 440 tests run against a
-mocked project and the worker's against fixtures.
+No account and no keys for the tests: the website's tests run against a
+mocked project, the worker's against fixtures, and the iOS domain from a
+terminal. The same three run on every push in
+[`.github/workflows/checks.yml`](.github/workflows/checks.yml), the badge above.
 
 ```
 cd web && npm install && npm test
@@ -125,8 +127,9 @@ before changing anything.
   year high.
 - **"Claimed" is still the only tier in practice.** Nothing adds a second
   source to a story yet, so the three shades of honey on the board are one.
-- **The iPhone app has not been compiled in every session that changed it.**
-  `CLAUDE.md` says which rules have a test that has not been run.
+- **The iPhone app's screens are compiled only in Xcode.** Its domain, where
+  nearly all the rules live, is compiled and tested on every push by the
+  checks workflow; the SwiftUI views are not.
 - **A migration in this repository can be newer than the live database.**
   `docs/going-public.md` lists the ones that are.
 - **The reward catalog this started as is still here, unused.** It is built in
@@ -188,10 +191,53 @@ and the migrations after it.
 - The same calendar date opens a new hive the following year. The old ones
   remain.
 
+The drama, added September 23, 2026 (`docs/the-wall.md` section 30), is all
+facts about tiles and never about a person:
+
+- **The crown.** The most buzzed story wears one, held on a tie, and a list
+  under the board keeps every change of hands: "3:12 pm Eastern: Bruce
+  Springsteen took the crown from Typhoid Mary." Nothing records a takeover;
+  `web/src/crown.ts` replays the buzz rows in the order they were cast.
+- **Pick between two.** `/<date>/pick/` shows two stories and one question,
+  which will people still care about in ten years. One tap is one buzz and
+  the next pair comes up. It runs with no script.
+- **Decade teams.** "The 1940s (Boomers) lead September 23 with 2 of 3
+  buzzes." Counted by buzzes; a generation is named only when the decade's
+  buzzed people all belong to one.
+- **Refills, written and not on the live database yet.** The three buzzes
+  arrive at midnight, 8 am and 4 pm Eastern instead of all at midnight.
+  Migration `20260923010000_buzzes_that_refill` holds it.
+
 The worker's tick, `worker/src/wall/tick.ts`, runs every fifteen minutes. It
 files the date's imported history as stories, reads the public news feeds
 listed in `worker/src/wall/news.ts`, checks every cited source, and writes a
 snapshot of the board.
+
+## Code worth reading
+
+If you came for the engineering rather than the product, these are the parts
+that took the most thought, each small enough to read in one sitting.
+
+- **An immutable vote ledger in Postgres.** `wall_boosts` refuses every update
+  and delete from a trigger, including the service role's, with one narrow
+  thirty second exception that checks the row itself rather than trusting a
+  session flag. `supabase/migrations/20260911010000_thirty_seconds_to_take_it_back.sql`.
+- **One allocator, two languages, held together by a test.** The board is cut
+  in TypeScript by the worker and in plain JavaScript in the browser, and
+  `worker/test/wall-allocator-web.test.ts` runs both on four hundred generated
+  boards and fails on any difference. `worker/src/wall/allocator.ts`.
+- **A live page with no framework and no library.** The full screen hive
+  speaks Supabase Realtime's Phoenix protocol by hand, reconciles after a
+  reconnect instead of polling, and counts the reader's own buzz once when it
+  arrives twice. `web/src/hive-live.ts`.
+- **Dates that are never `Date`s.** A birthday is two integers, February 29
+  is resolved at read time, and a notification is scheduled from calendar
+  components with no time zone so it survives a flight.
+  `Birthed/Domain/BirthdayCalendar.swift` and its tests.
+- **A quotation check that refuses to guess.** Every source's quotation is
+  matched against the fetched page by exact string; a page too big to read is
+  unreadable, never truncated, because a match against half a page asserts
+  something it cannot know. `worker/src/wall/page.ts` and `worker/src/wall/check.ts`.
 
 ## What happens to a reader's birthday
 
