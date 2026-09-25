@@ -112,8 +112,10 @@ one; the same FAQ asks people not to delete and repost.
 Posted after the crown or this or that is live (`docs/the-wall.md` section 30),
 on a weekday between 8 and 10 am Eastern.
 
-- [ ] The crown or this or that is live.
-- [ ] The board is above the birthday picker on the date page.
+- [x] The crown or this or that is live. Both are, checked on the live site
+      September 24, 2026, with decade teams as well.
+- [x] The board is above the birthday picker on the date page. Checked the
+      same day.
 
 Title:
 
@@ -123,11 +125,14 @@ Link: https://birthed.app/ (the site, never the repository)
 
 First comment, posted right after:
 
-    Hi HN, I'm Jason. Every calendar date on Birthed gets a board. It holds
-    everything tied to that date: history, people born, the number one song,
-    and today's news. You get three buzzes a day. Each one grows a tile. At
-    midnight Eastern the board locks for good, and next year the same date
-    gets a fresh board beside it.
+    Hi HN, I'm Jason. I built this on my own with a lot of help from Claude,
+    which is why it shows up as co-author on most of the commits.
+
+    Every calendar date on Birthed gets a board. It holds everything tied to
+    that date: history, people born, the number one song, and today's news.
+    You get three buzzes a day. Each one grows a tile. At midnight Eastern at
+    the end of the next day the board locks for good, and next year the same
+    date gets a fresh board beside it.
 
     The idea: Wikipedia records what happened. I want a record of what people
     thought would matter, made on the day, that nobody can edit later. In a
@@ -142,4 +147,68 @@ First comment, posted right after:
     One question: did you understand what to do in the first ten seconds?
 
 Update the first comment to name whichever of the new mechanics shipped.
+
+## How it works, for the comments
+
+Seven answers for when somebody asks how it works. Checked against the code on
+September 24, 2026; the file behind each is in brackets and is not part of the
+answer. If the code changes, check them again before pasting.
+
+    1. Voting works without JavaScript. A buzz is a plain web form. The
+       server records it and sends you back to the page. Your buzzes left
+       and your "you buzzed this" marks are drawn with CSS made for your
+       request. The date pages, where you vote, run no script at all. A few
+       extras do: the live full screen board and the Share buttons.
+       [web/src/wall.ts wallMarks, web/src/serve.ts POST /boost]
+
+    2. Sealed means sealed, and the database enforces it. A Postgres
+       trigger refuses any change to a buzz once it is cast. The one
+       exception is a 30 second undo, and it only works on a day that has
+       not sealed. Nothing on the site or its interface can change a sealed
+       day. I could only do it by removing the trigger, and that change
+       would show in the public migrations folder.
+       [supabase/migrations/20260911010000_thirty_seconds_to_take_it_back.sql]
+
+    3. How the board sizes tiles. The board is a 16 by 16 grid. A buzzed
+       tile's size is its share of the day's buzzes. Until people buzz, a
+       score decides what goes up, with limits so it stays varied: at most
+       8 news tiles, at most 3 from any one outlet, and at most 10 of any
+       one kind of history. One buzz beats all of those limits.
+       [worker/src/wall/allocator.ts]
+
+    4. Ranking famous people. About 25,000 people come from Wikidata. On
+       each date they are ranked by how many Wikimedia sites have a page on
+       them (mostly Wikipedia languages), times the square root of their
+       monthly English Wikipedia views. On December 16 that puts Beethoven
+       and Jane Austen first and Theo James fifth. On May 7, MrBeast still
+       makes fifth, behind Tagore and Tchaikovsky.
+       [supabase/migrations/20260922000000_the_world_score.sql]
+
+    5. Guardrails on the Gemini facts. Gemini does the research in one call
+       with search on, and the formatting in a second call with search off.
+       When both were one call, the model skipped searching and made up
+       links that looked real. A run that did no searches is thrown away. A
+       fact is shown only if the page it cites loads, and then a separate
+       call to the same model scores it from 1 to 10 on whether somebody
+       would tell a friend. Only 7 and up are published.
+       [supabase/functions/find-facts/index.ts, supabase/functions/_shared/editor.ts]
+
+    6. The same story from several outlets is one row. In the list under
+       the board, if the BBC, NPR and Al Jazeera file the same story, it
+       shows once, as "bbc.com with aljazeera.com and npr.org", ranked by
+       how many outlets carried it. Two headlines count as the same story
+       when they share two uncommon words. Once somebody buzzes a copy, that
+       copy keeps its own row, so no buzz is ever hidden.
+       [web/src/agree.ts]
+
+    7. The stack. 366 date pages built ahead of time, served by a small
+       Node server with no npm packages at runtime. The board on each page
+       is read from Postgres on Supabase on every visit. A worker runs every
+       15 minutes to pull news and update the boards.
+       [web/package.json, web/src/serve.ts, render.yaml]
+
+Known gap: the people import last ran September 6, 2026, so nobody born
+before 1600 is on the site yet and Einstein is missing from March 14. Nathan
+chose to leave it for now. If somebody asks, say so plainly: the fix is
+written and the import has not been run again.
 
