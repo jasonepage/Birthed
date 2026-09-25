@@ -336,6 +336,16 @@ export async function fetchPeopleBornOn(
     const precision = Number(binding.precision?.value ?? "0");
     const sitelinks = Number(binding.sitelinks?.value ?? "0");
 
+    // A death before the birth is a bad value in Wikidata, not a person.
+    // Found September 25, 2026: Roger Sessions carries a second birth date
+    // of 1986-12-29 beside his real 1896-12-28, died 1985, and the row broke
+    // the table's death_year check, which failed the whole upsert and lost
+    // December 29 for everybody. Dropping the one row keeps the date.
+    if (birthYear !== null && deathYear !== null && deathYear < birthYear) {
+      console.warn(`  skipped ${name} (${qid}): died ${deathYear}, before the birth year ${birthYear}`);
+      continue;
+    }
+
     // No recorded death is not the same as alive. Wikidata is missing plenty
     // of death dates for people born in the 1800s.
     const isLiving =
