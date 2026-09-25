@@ -607,6 +607,29 @@ was the only page that looked designed, so every page looks like it now.
   receipt. A reader suggestion is new data from readers, so the privacy page
   changes in the same commit as the form.
 
+### The song in your head, decided September 25, 2026, not built
+
+- **A daily prompt on today's hive: "what song is in your head today?"**
+  Answers become tiles on today's hive and seal at midnight with everything
+  else. Nathan's call, from a critique of the live September 25 hive, which
+  read as a history quiz with six buzzes on it.
+- **An answer is a real song picked from a search, never typed text.** A
+  sealed hive cannot be edited, so free text would keep the first slur, spam
+  link or phone number forever. The search is the iTunes Search API the
+  site already uses for covers, so one song is one tile however it is spelled.
+- **One answer a day, free, separate from the three buzzes.** Other people
+  buzz answers like any other tile.
+- **The write goes through `wall-write` and consumes its App Attest grant**
+  (section 6), and the privacy page changes in the same commit as the form.
+- **Hierarchy, not deletion.** The today layer (news and answers) leads the
+  page; the Wikipedia history stays underneath as the catalog and the search
+  plan.
+- **Order:** after the people import rerun and the daily views and redeploy
+  job.
+- **Recently dead people stay in "Big right now", labelled.** The row
+  already says "died 2025". Nathan's call: it is true that people are
+  looking them up.
+
 ### The editor on the hive, decided September 22, 2026
 
 Nathan's call, the night of the Hacker News post. The unbuzzed board was
