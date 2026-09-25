@@ -60,14 +60,10 @@ function config() {
   return { url, key };
 }
 
-async function fetchDay(month: number, day: number, url: string, key: string, facesOnDisk: ReadonlySet<string> = new Set()): Promise<DayPage> {
-  const query = new URLSearchParams({
-    select: "wikidata_qid,name,birth_year,death_year,short_description,monthly_views,image_file",
-    birth_month: `eq.${month}`,
-    birth_day: `eq.${day}`,
-    order: "world_score.desc",
-    limit: String(PER_PAGE),
-  });
+/** How many people the "Big right now" list is read with. More than it shows, so leaving out the five legends it may share names with still leaves it full. */
+const NOW_FETCHED = 10;
+
+async function fetchPeople(query: URLSearchParams, month: number, day: number, url: string, key: string, facesOnDisk: ReadonlySet<string>): Promise<Person[]> {
   const response = await fetch(`${url}/rest/v1/notable_people?${query}`, {
     headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: "application/json" },
   });
@@ -75,7 +71,7 @@ async function fetchDay(month: number, day: number, url: string, key: string, fa
     throw new Error(`${month}/${day} failed with ${response.status}`);
   }
   const rows = (await response.json()) as Row[];
-  const people: Person[] = rows.map((row) => ({
+  return rows.map((row) => ({
     qid: row.wikidata_qid,
     name: row.name,
     birthYear: row.birth_year,
@@ -86,7 +82,31 @@ async function fetchDay(month: number, day: number, url: string, key: string, fa
     // the folder says npm run faces fetched it.
     hasImage: row.image_file !== null && facesOnDisk.has(`${faceName(row.wikidata_qid)}.jpg`),
   }));
-  return { month, day, people };
+}
+
+async function fetchDay(month: number, day: number, url: string, key: string, facesOnDisk: ReadonlySet<string> = new Set()): Promise<DayPage> {
+  const select = "wikidata_qid,name,birth_year,death_year,short_description,monthly_views,image_file";
+  const people = await fetchPeople(new URLSearchParams({
+    select,
+    birth_month: `eq.${month}`,
+    birth_day: `eq.${day}`,
+    order: "world_score.desc",
+    limit: String(PER_PAGE),
+  }), month, day, url, key, facesOnDisk);
+  // Attention alone, for "Big right now". notability_score is where the adult
+  // content and violent notoriety screens write their nought, so asking for
+  // it above nought keeps everybody they caught off this list too. Ordering
+  // by monthly_views with no floor would have put them straight back, which
+  // is the September 6 mistake the world score was partly built to undo.
+  const now = await fetchPeople(new URLSearchParams({
+    select,
+    birth_month: `eq.${month}`,
+    birth_day: `eq.${day}`,
+    notability_score: "gt.0",
+    order: "monthly_views.desc.nullslast",
+    limit: String(NOW_FETCHED),
+  }), month, day, url, key, facesOnDisk);
+  return { month, day, people, now };
 }
 
 async function inBatches<T>(items: T[], size: number, work: (item: T) => Promise<void>): Promise<void> {

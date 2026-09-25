@@ -645,6 +645,19 @@ ol.covers li:target .y a { color: ${ACCENT}; }
   to   { opacity: 1; transform: none; }
 }
 p.credit { color: ${QUIET}; font-size: 13px; margin: 14px 0 0; }
+/* Born on this date, as two lists. See bornLists. */
+.bornlists { margin: 28px 0 0; }
+.bornlists .bcols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 28px; }
+.bornlists h3 { font-family: var(--sans); font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--honey); margin: 10px 0 6px; }
+.bornlists ol { list-style: none; margin: 0; padding: 0; }
+/* Block, not the row layout list items get elsewhere on the page, so a long
+   description sits under the name instead of squeezing it onto two lines. */
+.bornlists li { display: block; padding: 9px 12px; margin: 0 0 8px; }
+.bornlists li a { color: var(--cream); font-size: 16px; font-weight: 600; text-decoration: none; }
+.bornlists li a:hover, .bornlists li a:focus-visible { text-decoration: underline; }
+.bornlists .bmeta { display: block; color: ${QUIET}; font-size: 13px; margin-top: 2px; }
+.bornlists p.bnote { color: ${QUIET}; font-size: 12.5px; margin: 6px 0 0; }
+@media (max-width: 560px) { .bornlists .bcols { grid-template-columns: minmax(0, 1fr); } }
 p.datenote { color: ${QUIET}; font-size: 12.5px; margin: 7px 0 0; font-style: italic; }
 /* The rest of the wall, shut.
    Sixty-odd covers is a long scroll to get past on the way to the people, and
@@ -1954,6 +1967,53 @@ ${rows}
 </ul>`;
 }
 
+/** How many names each of the two lists shows. Five a side fits one screen on a phone. */
+export const BORN_SHOWN = 5;
+
+/**
+ * Who was born on this date, as two short lists side by side.
+ *
+ * "Big right now" is attention alone: the most read on English Wikipedia last
+ * month, which is where Clavicular leads December 17. "Legends" is the world
+ * score, which is where Beethoven leads December 16. Nathan's call, September
+ * 25, 2026, and the reason is the one in DayPage.now: each ordering is right
+ * about something the other gets wrong, and one list has to pick.
+ *
+ * Nobody is in both, and a legend keeps their place. On December 16 Jane
+ * Austen and Beethoven are also among the five most read, and taking them
+ * out of Legends to list them under attention would have put Beethoven under
+ * "Big right now" on his own birthday. So Legends is drawn first, and Big
+ * right now is the most read people who are not already there. The screens
+ * still hold: the build asks for the attention list with the adult and
+ * violence screens applied, so nobody they caught can lead either list.
+ */
+export function bornLists(page: DayPage, name: string): string {
+  const legends = page.people.slice(0, BORN_SHOWN);
+  const taken = new Set(legends.map((p) => p.qid));
+  const now = (page.now ?? []).filter((p) => p.monthlyViews > 0 && !taken.has(p.qid)).slice(0, BORN_SHOWN);
+  if (now.length === 0 && legends.length === 0) return "";
+  const row = (p: Person): string => {
+    const said = p.description ? tidyDescription(p.description) : "";
+    const years = p.birthYear === null ? "" : p.deathYear ? `born ${p.birthYear}, died ${p.deathYear}` : `born ${p.birthYear}`;
+    const meta = [years, said].filter((part) => part !== "").join(", ");
+    return `<li><a href="https://www.wikidata.org/wiki/${escapeHtml(p.qid)}" rel="nofollow noopener">${escapeHtml(p.name)}</a>${meta ? `<span class="bmeta">${escapeHtml(meta)}</span>` : ""}</li>`;
+  };
+  const column = (title: string, people: Person[], note: string): string => people.length === 0 ? "" : `<div class="bcol">
+<h3>${title}</h3>
+<ol>
+${people.map(row).join("\n")}
+</ol>
+<p class="bnote">${note}</p>
+</div>`;
+  return `<section class="bornlists" aria-labelledby="bornlists-h">
+<h2 id="bornlists-h" class="wsub">Born on ${escapeHtml(name)}</h2>
+<div class="bcols">
+${column("Big right now", now, "The most read on English Wikipedia last month, after the legends.")}
+${column("Legends", legends, "Written about in the most languages, weighted by readers.")}
+</div>
+</section>`;
+}
+
 export function historyRows(rows: TimelineRow[], people: Person[], songs: SongOfTheYear[] = [], name: string = ""): string {
   const events = rows.map((row) => `<li id="r-${row.kind}-${escapeHtml(row.id)}" class="hist">
 <span class="fyr">${row.year === null ? "" : row.year}</span>
@@ -2555,6 +2615,7 @@ ${wallSection(wall, name, Date.now(), {
     date: { month: page.month, day: page.day },
     history: historyRows([...picked, ...rest], page.people, songs, name),
   })}
+${bornLists(page, name)}
 ${renderBirthdayModal()}
 ${songs.length > 0 ? `<p class="credit">Chart positions are from the ${escapeHtml(CHART_NAME)}, compiled by Wikipedia and released under Creative Commons Attribution ShareAlike. ${songs.some((song) => song.hasArtwork) ? "Cover art comes from the iTunes Search API. " : ""}Birthed is not affiliated with Billboard, Wikipedia or Apple.</p>` : ""}
 ${feedCredits(timeline, name, searched, timeline.length - searched - curatedCount, curatedCount)}

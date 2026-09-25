@@ -582,6 +582,31 @@ was the only page that looked designed, so every page looks like it now.
   reach birthed.app or the project. A data change still needs a manual
   deploy; a style change under `web/**` deploys on push.
 
+### Two lists of people, decided September 25, 2026
+
+- **A date page shows who was born on it as two lists: "Big right now" and
+  "Legends".** Nathan's call. The world score in the entry above put
+  Beethoven first on December 16, and by the same arithmetic sank
+  Clavicular, the most read person born on December 17 at about 230,000
+  English views a month against Pope Francis's 110,000, to 35th, because he
+  has nine languages. Each ordering is right about something the other gets
+  wrong, so the page keeps both. `bornLists` in `render.ts`, five a side.
+- **Legends is drawn first and keeps its place; Big right now is the most
+  read people who are not already in it.** The other way round put
+  Beethoven under "Big right now" on his own birthday.
+- **Big right now is `monthly_views` with `notability_score` above nought**,
+  so the adult content and violence screens still hold. Controversial but
+  not screened people rank by attention like anybody else: Nathan's call,
+  made knowing what Clavicular's article says.
+- **`monthly_views` is only as fresh as the last import**, which was
+  September 6, 2026 when this was written. "Right now" means last month as
+  of that run until the views are refreshed on a schedule. Not built.
+- **Next, decided the same day and not built:** hand-picked creators who
+  have no Wikipedia article, added by Nathan or Jason and suggested by
+  readers for approval, each with the creator's own birthday post as the
+  receipt. A reader suggestion is new data from readers, so the privacy page
+  changes in the same commit as the form.
+
 ### The editor on the hive, decided September 22, 2026
 
 Nathan's call, the night of the Hacker News post. The unbuzzed board was

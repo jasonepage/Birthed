@@ -1807,3 +1807,31 @@ test("the stylesheet is sent without its comments, and nothing in it depends on 
   assert.ok(style.includes(".wcomb {"), "and the rules are all still there");
   assert.equal(stripCss('a { content: "x"; } /* why */\n\n\n  b { color: red; }'), 'a { content: "x"; } \nb { color: red; }');
 });
+
+test("born on a date is two lists, legends keep their place, and nobody is in both", () => {
+  const person = (qid: string, name: string, views: number) => ({ qid, name, birthYear: 1990, deathYear: null, description: "a person", monthlyViews: views });
+  const legends = ["Beethoven", "Austen", "Clarke", "Dick", "Mead", "Coward"].map((n, i) => person(`L${i}`, n, 100 - i));
+  const now = [person("N0", "Theo James", 900), legends[0]!, person("N1", "Billy Gibbons", 800), legends[1]!, person("N2", "Krysten Ritter", 700), person("N3", "Quiet", 0)];
+  const html = renderDayPage({ month: 12, day: 16, people: legends, now });
+  const at = html.indexOf('class="bornlists"');
+  assert.ok(at > 0, "the section is on the page");
+  assert.ok(html.indexOf("<!--wall:start-->") < at, "and it comes after the hive");
+  const section = html.slice(at, html.indexOf("</section>", at));
+  const hot = section.slice(section.indexOf("Big right now"), section.indexOf("Legends"));
+  const old = section.slice(section.indexOf("Legends"));
+  assert.ok(old.includes("Beethoven") && old.includes("Austen"), "a legend stays a legend");
+  assert.ok(!hot.includes("Beethoven") && !hot.includes("Austen"), "and is not repeated under attention");
+  assert.ok(hot.includes("Theo James") && hot.includes("Billy Gibbons") && hot.includes("Krysten Ritter"));
+  assert.ok(!hot.includes("Quiet"), "nobody with no views leads on attention");
+  assert.ok(!old.includes("Coward"), "five a side");
+});
+
+test("a page built before the attention list existed shows the legends alone", () => {
+  const html = renderDayPage(page);
+  const at = html.indexOf('class="bornlists"');
+  assert.ok(at > 0);
+  const section = html.slice(at, html.indexOf("</section>", at));
+  assert.ok(!section.includes("Big right now"));
+  assert.ok(section.includes("Anton Bruckner"));
+  assert.ok(!section.includes("<script>"), "names are escaped");
+});

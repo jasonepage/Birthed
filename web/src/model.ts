@@ -25,7 +25,17 @@ export interface Person {
 export interface DayPage {
   month: number;
   day: number;
+  /** Everybody the page carries, legends first: ordered by world_score. */
   people: Person[];
+  /**
+   * The same date's people ordered by attention alone, most read first: the
+   * "Big right now" list. Nathan's call, September 25, 2026. The world score
+   * put Beethoven first on his own birthday and, by the same arithmetic,
+   * sank Clavicular, the most read person born on December 17, to 35th. Two
+   * lists keep both answers instead of choosing one. Absent on a page built
+   * before it existed, which renders the legends alone.
+   */
+  now?: Person[];
 }
 
 export const MONTHS = [
