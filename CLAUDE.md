@@ -607,6 +607,33 @@ was the only page that looked designed, so every page looks like it now.
   receipt. A reader suggestion is new data from readers, so the privacy page
   changes in the same commit as the form.
 
+### The sealed picture, built September 25, 2026
+
+- **Every sealed hive gets one 1080 by 1080 picture**: the date, the total
+  buzzes, the crown and up to four more of the most buzzed stories.
+  `web/src/recap.ts` is pure and tested; `web/src/recap-job.ts` renders it
+  with Playwright and stores it. Nathan's call. Generation and storage only:
+  nothing posts it anywhere.
+- **Sealed only, refused otherwise.** `isSealed` reads the same close the
+  hive reads, and `sealedRecap` answers null before it. Running the job
+  early does nothing, never something wrong.
+- **Stored once, never replaced**, at
+  `<SUPABASE_URL>/storage/v1/object/public/sealed/<yyyy-mm-dd>.png`. The job
+  skips a date already stored and uploads with `x-upsert: false`, because the
+  day can never change and neither should its picture.
+- **Run by `.github/workflows/sealed-recap.yml`** twenty minutes after
+  midnight Eastern in both summer and winter time, plus a noon catch up,
+  over every date sealed in the last three days. Needs the repository
+  secrets `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY`, and migration
+  `20260925000000_sealed_pictures` for the bucket. Neither was in place when
+  this was written.
+- **The songs have a slot.** `sealedRecap` takes the song answers as a list
+  and the picture draws "Stuck in everyone's head" when it is not empty,
+  with two stories under the crown instead of four so the square fits. The
+  prompt passes that list in when it ships; nothing else changes.
+- **It reads the wall tables only**, never `notable_people` or the view
+  counts.
+
 ### The song in your head, decided September 25, 2026, not built
 
 - **A daily prompt on today's hive: "what song is in your head today?"**

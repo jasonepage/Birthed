@@ -16,7 +16,8 @@
     "serve": "npm run build && node dist/src/serve.js",
     "covers": "npm run build && node --env-file-if-exists=.env dist/src/download-covers.js",
     "faces": "npm run build && node --env-file-if-exists=.env dist/src/download-faces.js",
-    "anniversaries": "npm run build && node --env-file-if-exists=.env dist/src/import-anniversaries.js"
+    "anniversaries": "npm run build && node --env-file-if-exists=.env dist/src/import-anniversaries.js",
+    "recap": "npm run build && node --env-file-if-exists=.env dist/src/recap-job.js"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

@@ -1,0 +1,43 @@
+# The picture of each sealed hive. CLAUDE.md, "The sealed picture".
+#
+# A date seals at midnight Eastern at the end of the next day, which is 04:00
+# UTC in summer time and 05:00 UTC in winter. This runs twenty minutes after
+# both, and again at noon as a catch up. Every run is safe: a date already
+# stored is skipped, and a date that has not sealed is refused.
+#
+# Needs two repository secrets: SUPABASE_ANON_KEY (the publishable key) and
+# SUPABASE_SERVICE_ROLE_KEY (for the one upload). It posts nothing anywhere.
+name: sealed-recap
+
+on:
+  schedule:
+    - cron: "20 4 * * *"
+    - cron: "20 5 * * *"
+    - cron: "0 12 * * *"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "One date, yyyy-mm-dd. Empty for every date sealed in the last three days."
+        required: false
+
+jobs:
+  recap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+        working-directory: web
+      - run: npx playwright install --with-deps chromium
+        working-directory: web
+      # The date goes in through the environment, never pasted into the
+      # command, and the job ignores anything that is not yyyy-mm-dd.
+      - run: npm run recap -- $RECAP_DATE
+        working-directory: web
+        env:
+          RECAP_DATE: ${{ github.event.inputs.date }}
+          SUPABASE_URL: https://lunqqhjwqrpbujwxwdzk.supabase.co
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
