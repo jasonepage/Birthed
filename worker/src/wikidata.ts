@@ -65,9 +65,99 @@ export function dateLiterals(month: number, day: number, from: number, to: numbe
   return literals;
 }
 
+/** Wikidata's items for the two calendars a date can be recorded in. */
+export const GREGORIAN = "http://www.wikidata.org/entity/Q1985727";
+export const JULIAN = "http://www.wikidata.org/entity/Q1985786";
+
+/**
+ * The day the Gregorian calendar began, as year, month and day. Before it,
+ * a birthday is the date as written in the Julian calendar, which is how
+ * Wikipedia, every reference book and every other birthday site gives it:
+ * Leonardo da Vinci on April 15, 1452, Michelangelo on March 6, 1475. From
+ * it on, a birthday is the Gregorian date, which is also what those sources
+ * give: George Washington on February 22, Tchaikovsky on May 7, both of
+ * them recorded in Julian and remembered in Gregorian.
+ *
+ * The countries that changed late (Britain in 1752, Russia in 1918) are
+ * treated as if they changed in 1582. That is the convention, not the
+ * history, and it is the one readers check against. The known cost is Isaac
+ * Newton, whom most sources give as December 25, 1642 in the old style: this
+ * rule files him on January 4, 1643.
+ */
+const CUTOVER: readonly [number, number, number] = [1582, 10, 15];
+
+function beforeCutover(year: number, month: number, day: number): boolean {
+  const [y, m, d] = CUTOVER;
+  return year !== y ? year < y : month !== m ? month < m : day < d;
+}
+
+function isJulianLeapYear(year: number): boolean {
+  return year % 4 === 0;
+}
+
+/**
+ * The Gregorian date of a Julian one, through the Julian day number.
+ *
+ * Needed because the query service answers every date in Gregorian whatever
+ * calendar it was recorded in, so Leonardo's April 15, 1452 is stored there
+ * as April 24. To find him on April 15 the query has to ask for April 24 and
+ * say it wants a date recorded in Julian.
+ */
+export function julianToGregorian(year: number, month: number, day: number): [number, number, number] {
+  const a = Math.floor((14 - month) / 12);
+  const y = year + 4800 - a;
+  const m = month + 12 * a - 3;
+  const jdn = day + Math.floor((153 * m + 2) / 5) + 365 * y + Math.floor(y / 4) - 32083;
+  const b0 = jdn + 32044;
+  const b = Math.floor((4 * b0 + 3) / 146097);
+  const c = b0 - Math.floor((146097 * b) / 4);
+  const d = Math.floor((4 * c + 3) / 1461);
+  const e = c - Math.floor((1461 * d) / 4);
+  const mm = Math.floor((5 * e + 2) / 153);
+  return [
+    100 * b + d - 4800 + Math.floor(mm / 10),
+    mm + 3 - 12 * Math.floor(mm / 10),
+    e - Math.floor((153 * mm + 2) / 5) + 1,
+  ];
+}
+
+/**
+ * The rows of the query's VALUES block: the date to match as the query
+ * service stores it, the calendar it must have been recorded in, and the
+ * year the birthday was actually in.
+ *
+ * From the cutover on, one row a year with the calendar left open, because
+ * a Julian record of a date after 1582 is remembered by its Gregorian date
+ * and the query service already stores it that way. Before the cutover, two
+ * rows a year: the date recorded in Gregorian as written, and the Julian
+ * date converted to how the query service stores it. The written year is
+ * carried separately because a late December Julian date can land in the
+ * next Gregorian year, and the birth year is the one that was written.
+ */
+export function dateBindings(month: number, day: number, from: number, to: number): string[] {
+  const rows: string[] = [];
+  const literal = (y: number, m: number, d: number): string =>
+    `"${pad(y, 4)}-${pad(m, 2)}-${pad(d, 2)}T00:00:00Z"^^xsd:dateTime`;
+  for (let year = from; year <= to; year++) {
+    if (!beforeCutover(year, month, day)) {
+      if (month === 2 && day === 29 && !isLeapYear(year)) continue;
+      rows.push(`(${literal(year, month, day)} UNDEF ${year})`);
+      continue;
+    }
+    if (!(month === 2 && day === 29 && !isLeapYear(year))) {
+      rows.push(`(${literal(year, month, day)} <${GREGORIAN}> ${year})`);
+    }
+    if (!(month === 2 && day === 29 && !isJulianLeapYear(year))) {
+      const [gy, gm, gd] = julianToGregorian(year, month, day);
+      rows.push(`(${literal(gy, gm, gd)} <${JULIAN}> ${year})`);
+    }
+  }
+  return rows;
+}
+
 export function buildQuery(month: number, day: number, options: QueryOptions): string {
-  const values = dateLiterals(month, day, options.yearFrom, options.yearTo)
-    .map((literal) => `    ${literal}`)
+  const values = dateBindings(month, day, options.yearFrom, options.yearTo)
+    .map((row) => `    ${row}`)
     .join("\n");
 
   // An English Wikipedia article is required, not preferred. Pageviews are
@@ -91,8 +181,8 @@ export function buildQuery(month: number, day: number, options: QueryOptions): s
   // selectCandidates sorts what it needs itself, and nothing between here and
   // there depends on the order they arrive in. The query service is a
   // volunteer-funded shared resource and this backfill is 366 queries.
-  return `SELECT ?person ?personLabel ?personDescription ?dob ?dod ?sitelinks ?precision ?article ?hasSocial WHERE {
-  VALUES ?dob {
+  return `SELECT ?person ?personLabel ?personDescription ?dob ?writtenYear ?dod ?sitelinks ?precision ?article ?hasSocial WHERE {
+  VALUES (?dob ?cal ?writtenYear) {
 ${values}
   }
   ?person wdt:P569 ?dob .
@@ -103,6 +193,7 @@ ${values}
   ?person p:P569/psv:P569 ?dobNode .
   ?dobNode wikibase:timeValue ?dob .
   ?dobNode wikibase:timePrecision ?precision .
+  ?dobNode wikibase:timeCalendarModel ?cal .
   FILTER(?precision >= 11)
   OPTIONAL { ?person wdt:P570 ?dod . }
   BIND(EXISTS {
@@ -237,7 +328,10 @@ export async function fetchPeopleBornOn(
     if (name === "") continue;
     if (name !== label) fellBackToArticleTitle += 1;
 
-    const birthYear = yearFromLiteral(binding.dob?.value);
+    // The year the birthday was written in, which before 1582 is not always
+    // the year of the Gregorian date the query matched. See dateBindings.
+    const written = Number(binding.writtenYear?.value ?? "NaN");
+    const birthYear = Number.isInteger(written) ? written : yearFromLiteral(binding.dob?.value);
     const deathYear = yearFromLiteral(binding.dod?.value);
     const precision = Number(binding.precision?.value ?? "0");
     const sitelinks = Number(binding.sitelinks?.value ?? "0");
