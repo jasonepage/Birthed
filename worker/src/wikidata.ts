@@ -22,6 +22,8 @@
 //    handling in fetchPeopleBornOn, which is where that cost us Beyonce.
 
 const ENDPOINT = "https://query.wikidata.org/sparql";
+/** The shortest span of years a timed out query is still split into halves. */
+const MIN_SPLIT_YEARS = 20;
 
 export interface WikidataPerson {
   qid: string;
@@ -269,8 +271,27 @@ export async function fetchPeopleBornOn(
     body: new URLSearchParams({ query }).toString(),
   });
 
-  // 429 is rate limiting, 5xx includes the 504 the query service returns when
-  // a date takes too long. Both are worth another go.
+  // A 504 is the query service giving up on a query that took too long, and
+  // asking the same query again gets the same answer. January 1 does it every
+  // time: Wikidata files a birth known only to the year as January 1 of that
+  // year, so the January 1 literals match every year-only birth there is and
+  // the precision filter throws them away only afterwards. Found September 25,
+  // 2026, when January 1 failed three runs in a row. So a timeout splits the
+  // years in half and asks for each half, down to a span too small to split.
+  if (response.status === 504 && options.yearTo - options.yearFrom >= MIN_SPLIT_YEARS) {
+    const middle = Math.floor((options.yearFrom + options.yearTo) / 2);
+    console.warn(`  timed out on ${options.yearFrom} to ${options.yearTo}, asking for each half`);
+    const merged = new Map<string, WikidataPerson>();
+    for (const half of [{ ...options, yearTo: middle }, { ...options, yearFrom: middle + 1 }]) {
+      for (const person of await fetchPeopleBornOn(month, day, half)) {
+        if (!merged.has(person.qid)) merged.set(person.qid, person);
+      }
+    }
+    return [...merged.values()];
+  }
+
+  // 429 is rate limiting, 5xx includes a 504 on a span too small to split.
+  // Both are worth another go.
   if (response.status === 429 || response.status >= 500) {
     if (attempt >= 4) {
       throw new Error(`Wikidata gave up after ${attempt} attempts (${response.status}).`);
