@@ -1,3 +1,12 @@
+-- **Apply after 20261003000000_the_song_in_your_head.sql, never before.**
+-- Edited on October 3, 2026, while still unapplied, so that applying it later
+-- keeps what that file added to the four functions below: an answer row is
+-- one free unit on its own date and never one of the day's three, the web
+-- buzz refuses a hidden story, and the standing says which story this browser
+-- answered with. Every function here reads wall_boosts.answer, which that file
+-- creates, so applied first it fails rather than quietly dropping the change.
+-- docs/the-wall.md section 31.
+--
 -- Buzzes that refill through the day. docs/the-wall.md section 30, decided
 -- September 23, 2026; the times confirmed by Nathan the same day.
 --
@@ -108,6 +117,7 @@ declare
   allowance integer;
   auth_by   text;
   jwt_role  text;
+  is_answer boolean;
 begin
   select * into story from wall_stories where id = new.story_id;
   if story.id is null then
@@ -121,18 +131,32 @@ begin
   end if;
 
   cast_on := (new.cast_at at time zone 'America/New_York')::date;
-  -- The units that have arrived by this instant, not the day's total.
-  allowance := wall_boost_allowance(new.cast_at, story.wall_date);
 
-  select coalesce(sum(units), 0) into already
-    from wall_boosts
-   where booster_id = new.booster_id
-     and wall_date = story.wall_date
-     and (cast_at at time zone 'America/New_York')::date = cast_on;
+  -- An answer is one free unit on its own date, outside the budget.
+  -- 20261003000000_the_song_in_your_head.sql.
+  is_answer := coalesce(nullif(current_setting('wall.boost_answer', true), '') = 'answer', false);
+  if is_answer then
+    if cast_on <> story.wall_date then
+      raise exception 'wall_boosts: an answer is taken on its own date only, not on %', cast_on;
+    end if;
+    if new.units <> 1 then
+      raise exception 'wall_boosts: an answer is one unit';
+    end if;
+  else
+    -- The units that have arrived by this instant, not the day's total.
+    allowance := wall_boost_allowance(new.cast_at, story.wall_date);
 
-  if already + new.units > allowance then
-    raise exception 'wall_boosts: % units on % from % would exceed the budget of % for that day so far (already %)',
-      new.units, story.wall_date, cast_on, allowance, already;
+    select coalesce(sum(units), 0) into already
+      from wall_boosts
+     where booster_id = new.booster_id
+       and wall_date = story.wall_date
+       and (cast_at at time zone 'America/New_York')::date = cast_on
+       and not answer;
+
+    if already + new.units > allowance then
+      raise exception 'wall_boosts: % units on % from % would exceed the budget of % for that day so far (already %)',
+        new.units, story.wall_date, cast_on, allowance, already;
+    end if;
   end if;
 
   auth_by := nullif(current_setting('wall.boost_auth', true), '');
@@ -153,6 +177,7 @@ begin
   new.tier_at_cast     := story.tier;
   new.support_before   := story.support;
   new.authenticated_by := auth_by;
+  new.answer           := is_answer;
   return new;
 end;
 $$;
@@ -188,7 +213,8 @@ begin
     from wall_boosts
    where booster_id = uid
      and wall_date = wall_date_in
-     and (cast_at at time zone 'America/New_York')::date = today_e;
+     and (cast_at at time zone 'America/New_York')::date = today_e
+     and not answer;
   return greatest(0, allowance - spent);
 end;
 $$;
@@ -218,6 +244,7 @@ declare
   spent       integer := 0;
   backed      jsonb := '[]'::jsonb;
   anniversary jsonb := '[]'::jsonb;
+  answered    uuid;
 begin
   allowance := wall_boost_budget(today_e, wall_date_in);
   arrived := wall_boost_allowance(now(), wall_date_in);
@@ -234,11 +261,17 @@ begin
       from wall_boosts
      where booster_id = booster
        and wall_date = wall_date_in
-       and (cast_at at time zone 'America/New_York')::date = today_e;
+       and (cast_at at time zone 'America/New_York')::date = today_e
+       and not answer;
     select coalesce(jsonb_agg(story_id order by cast_at), '[]'::jsonb) into backed
       from wall_boosts
      where booster_id = booster
        and wall_date = wall_date_in;
+    select story_id into answered
+      from wall_boosts
+     where booster_id = booster
+       and wall_date = wall_date_in
+       and answer;
 
     select coalesce(jsonb_agg(row order by (row ->> 'wall_date') desc), '[]'::jsonb)
       into anniversary
@@ -251,6 +284,7 @@ begin
           from wall_boosts b
           join wall_stories s on s.id = b.story_id
          where b.booster_id = booster
+           and s.hidden_at is null
            and extract(month from b.wall_date) = extract(month from wall_date_in)
            and extract(day from b.wall_date) = extract(day from wall_date_in)
            and extract(year from b.wall_date) < extract(year from wall_date_in)
@@ -263,7 +297,8 @@ begin
     'left', greatest(0, arrived - spent),
     'next_at', next_at,
     'backed', backed,
-    'anniversary', anniversary
+    'anniversary', anniversary,
+    'answered', answered
   );
 end;
 $$;
@@ -301,7 +336,7 @@ begin
   booster := wall_web_booster_id(voter_token_in);
 
   select * into story from wall_stories where id = story_id_in;
-  if story.id is null then
+  if story.id is null or story.hidden_at is not null then
     return jsonb_build_object('result', 'no_story');
   end if;
   select * into day from wall_days where wall_date = story.wall_date;
@@ -331,7 +366,8 @@ begin
     from wall_boosts
    where booster_id = booster
      and wall_date = story.wall_date
-     and (cast_at at time zone 'America/New_York')::date = today_e;
+     and (cast_at at time zone 'America/New_York')::date = today_e
+     and not answer;
   if spent >= allowance then
     return jsonb_build_object('result', 'spent', 'support', story.support)
       || wall_web_standing(story.wall_date, voter_token_in);

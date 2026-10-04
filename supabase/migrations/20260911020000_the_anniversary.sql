@@ -1,3 +1,11 @@
+-- **Apply after 20261003000000_the_song_in_your_head.sql, never before.**
+-- Edited on October 3, 2026, while still unapplied, so that applying it later
+-- keeps what that file added to this function: an answer row is not one of
+-- the day's three, and the standing says which story this browser answered
+-- with. It reads wall_boosts.answer, which that file creates, so applied
+-- first it fails rather than quietly dropping the change. docs/the-wall.md
+-- section 31.
+--
 -- The anniversary. docs/the-wall.md section 15 designed it and this is it on
 -- the website: what you backed a year ago today, shown to you and to nobody
 -- else, never as a number.
@@ -35,6 +43,7 @@ declare
   spent       integer := 0;
   backed      jsonb := '[]'::jsonb;
   anniversary jsonb := '[]'::jsonb;
+  answered    uuid;
 begin
   allowance := wall_boost_budget(today_e, wall_date_in);
   select * into day from wall_days where wall_date = wall_date_in;
@@ -47,11 +56,17 @@ begin
       from wall_boosts
      where booster_id = booster
        and wall_date = wall_date_in
-       and (cast_at at time zone 'America/New_York')::date = today_e;
+       and (cast_at at time zone 'America/New_York')::date = today_e
+       and not answer;
     select coalesce(jsonb_agg(story_id order by cast_at), '[]'::jsonb) into backed
       from wall_boosts
      where booster_id = booster
        and wall_date = wall_date_in;
+    select story_id into answered
+      from wall_boosts
+     where booster_id = booster
+       and wall_date = wall_date_in
+       and answer;
 
     -- The same month and day, in an earlier year. Compared as month and day
     -- rather than by subtracting a year, because subtracting a year from
@@ -72,6 +87,7 @@ begin
           from wall_boosts b
           join wall_stories s on s.id = b.story_id
          where b.booster_id = booster
+           and s.hidden_at is null
            and extract(month from b.wall_date) = extract(month from wall_date_in)
            and extract(day from b.wall_date) = extract(day from wall_date_in)
            and extract(year from b.wall_date) < extract(year from wall_date_in)
@@ -83,7 +99,8 @@ begin
     'allowance', allowance,
     'left', greatest(0, allowance - spent),
     'backed', backed,
-    'anniversary', anniversary
+    'anniversary', anniversary,
+    'answered', answered
   );
 end;
 $$;

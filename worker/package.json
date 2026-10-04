@@ -33,6 +33,7 @@
     "wall:pictures": "npm run build && node dist/src/wall/story-pictures.js"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@types/node": "^22.0.0",
     "typescript": "^5.6.0"
   }
