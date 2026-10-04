@@ -340,6 +340,11 @@ details.offpage > summary { cursor: pointer; font-size: 13px; color: #9C9490; pa
   <div id="q-card" hidden></div>
   <p class="note" id="q-note"></p>
 
+  <h3 class="dh">Songs in heads</h3>
+  <p class="lede" id="songs-lede">Loading.</p>
+  <div class="rows" id="songs"></div>
+  <p class="note" id="songs-note"></p>
+
   <h3 class="dh">Weakest dates</h3>
   <p class="lede" id="weak-lede">Ranked by decayed points, the estimate only. Reader answers replace it once a date is opened.</p>
   <div class="weak" id="weak"></div>
@@ -1920,6 +1925,7 @@ ${POINTS_JS}
           .catch(function () { /* the panel still works, the audit column is null */ });
         drawChips();
         loadQueue();
+        loadSongs();
         // Reach and the editors' picks are loaded once and used by every date
         // and by the ranking, so the ranking waits for them.
         Promise.all([loadReach(), loadSelected()]).then(rankYear);
@@ -1936,6 +1942,48 @@ ${POINTS_JS}
     token = null;
     show("signin", true);
     note("signin-note", "That sign in has run out, or the account cannot curate. Ask for another.");
+  }
+
+  /**
+   * The song in your head, docs/the-wall.md section 31. Every song on the
+   * open dates, with how many heads it is in, and a Hide that takes it off
+   * the board, the hive and every reader before the seal. All songs are
+   * allowed; this is for the one that should not stay. The reason is kept
+   * with it, and the answers and buzzes stay in the ledger like everything.
+   */
+  function loadSongs() {
+    return rest("rpc/wall_songs_for_curator", { method: "POST", body: {} }).then(function (rows) {
+      rows = rows || [];
+      el("songs-lede").textContent = rows.length === 0
+        ? "No songs on the open dates yet."
+        : rows.length + (rows.length === 1 ? " song" : " songs") + " on the open dates. Hide takes one off the board, the hive and every reader. Only before the seal.";
+      el("songs").innerHTML = rows.map(function (r) {
+        var heads = r.heads + (r.heads === 1 ? " head" : " heads");
+        return '<div class="row"><span class="yr">' + esc(String(r.wall_date).slice(5)) + "</span><div>" +
+          '<p class="tx">' + esc(r.headline) + (r.explicit ? ' <span class="tagpill">explicit</span>' : "") + "</p>" +
+          '<p class="meta">In ' + heads + " &middot; " + r.support + (r.support === 1 ? " buzz" : " buzzes") +
+          (r.hidden_at ? ' &middot; <span class="st st-rejected">hidden</span> ' + esc(r.hidden_note || "") : "") + "</p></div>" +
+          '<div class="btns">' + (r.hidden_at ? "" :
+            '<input type="text" maxlength="200" placeholder="Why, a few words" data-why="' + esc(r.story_id) + '"> ' +
+            '<button class="act" data-hide-song="' + esc(r.story_id) + '">Hide</button>') + "</div></div>";
+      }).join("");
+      Array.prototype.forEach.call(el("songs").querySelectorAll("[data-hide-song]"), function (b) {
+        b.addEventListener("click", function () {
+          var id = b.dataset.hideSong;
+          var why = el("songs").querySelector('[data-why="' + id + '"]').value.trim();
+          if (!why) { note("songs-note", "Say why first, in a few words. It is kept with the song.", "bad"); return; }
+          b.disabled = true;
+          rest("rpc/wall_hide_song", { method: "POST", body: { story_id_in: id, note_in: why } })
+            .then(function (r) {
+              note("songs-note", r && r.result === "hidden" ? "Hidden. It is off the site and the app now." : r && r.result === "closed" ? "That hive has sealed, so the song stays." : "Not hidden: " + (r && r.result), r && r.result === "hidden" ? "good" : "bad");
+              return loadSongs();
+            })
+            .catch(function (e) { note("songs-note", e.message, "bad"); b.disabled = false; });
+        });
+      });
+    }).catch(function (e) {
+      el("songs-lede").textContent = "The songs could not be read. Before the song migration is applied that is expected. " + e.message;
+    });
   }
 
   start();
