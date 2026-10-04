@@ -634,25 +634,47 @@ was the only page that looked designed, so every page looks like it now.
 - **It reads the wall tables only**, never `notable_people` or the view
   counts.
 
-### The song in your head, decided September 25, 2026, not built
+### The song in your head, decided September 25, 2026, built October 3, 2026
 
-- **A daily prompt on today's hive: "what song is in your head today?"**
-  Answers become tiles on today's hive and seal at midnight with everything
-  else. Nathan's call, from a critique of the live September 25 hive, which
-  read as a history quiz with six buzzes on it.
-- **An answer is a real song picked from a search, never typed text.** A
-  sealed hive cannot be edited, so free text would keep the first slur, spam
-  link or phone number forever. The search is the iTunes Search API the
-  site already uses for covers, so one song is one tile however it is spelled.
-- **One answer a day, free, separate from the three buzzes.** Other people
-  buzz answers like any other tile.
-- **The write goes through `wall-write` and consumes its App Attest grant**
-  (section 6), and the privacy page changes in the same commit as the form.
-- **Hierarchy, not deletion.** The today layer (news and answers) leads the
-  page; the Wikipedia history stays underneath as the catalog and the search
-  plan.
-- **Order:** after the people import rerun and the daily views and redeploy
-  job.
+`docs/the-wall.md` section 31 is the whole of it. The short form:
+
+- **The lead of today's date page: "What song is in your head today?"**
+  Above the hive, which stays where it was. Nathan's call on September 25,
+  from a critique of the live hive, which read as a history quiz with six
+  buzzes on it. Jason moved it to the front of the queue on October 3, ahead
+  of the people import rerun and the daily views job it was waiting behind.
+- **An answer is a real song picked from Apple's search, never typed text.**
+  The database reads the track from Apple itself (`wall_song_lookup`), so a
+  hand made post cannot put its own words on a tile, and a sealed hive keeps
+  nothing a person typed. The phrase searched for is never stored.
+- **One answer a day per browser, free, and each answer is a free buzz on its
+  song**, Jason's call: a `wall_boosts` row with `answer = true`, outside the
+  three a day. The crown, the pie, the decade line and the live hive count it
+  with no new rule. A song can take most of a quiet day's hive, and Jason
+  chose it knowing that.
+- **One tile per song however it is spelled**: keyed by Apple's artist number
+  and the folded title, so the single, the album version and the clean
+  version are one story.
+- **The web writes it the way it buzzes**, the token cookie and the per
+  address limit in `serve.ts`, recorded as `web_token`. The September 25
+  entry said the write would go through `wall-write` and App Attest; that is
+  the app's path, and the app does not answer yet.
+- **Covers come through `/cover/<track>.jpg` on this site**, fetched from
+  Apple's image host by the server, so no reader's browser asks Apple for
+  anything.
+- **The empty board shows examples marked "Example"**, this date's own past
+  number ones, gone at the first real answer, and **a chart strip labelled as
+  Apple Music's United States chart**, never sealed.
+- **A curator can hide a song before the seal**, `wall_hide_song` and
+  `wall_stories.hidden_at`; the read policy refuses a hidden story to every
+  reader and the worker skips it.
+- **Today's date page runs one script, named by its hash**, for search as you
+  type. Everything works without it. The privacy page changed in the same
+  commit.
+- **Turning it on:** apply `20261003000000_the_song_in_your_head.sql`, then
+  push. The anniversary migration of September 11 and the refill migration of
+  September 23, both still unapplied, now go after it, and each says so in its
+  header and fails if applied first.
 - **Recently dead people stay in "Big right now", labelled.** The row
   already says "died 2025". Nathan's call: it is true that people are
   looking them up.

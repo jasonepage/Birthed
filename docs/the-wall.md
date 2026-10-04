@@ -2998,3 +2998,180 @@ Greatest and Gen Alpha either side; `GENERATIONS` in `web/src/decades.ts`
 and `HiveDecades.generations` on iOS. No new colour. Typhoid Mary, born
 1869, is before every named generation and stays "the 1860s".
 
+## 31. The song in your head, October 3, 2026
+
+**Why.** From the first buzz on September 9 to October 3 the live table held
+77 buzzes from 24 boosters, and 3 of them buzzed on a second day. Today's
+hive routinely sits at nought, and "what will matter in ten years" asks a
+stranger to judge forty tiles they did not pick. A plan written with Muse,
+Meta's model, and approved by Jason the same night: lead the date page with
+one small question anybody can answer in two seconds, and let the hive sit
+under it. CLAUDE.md recorded the idea as decided and not built on September
+25; this section is the build. That entry said it waited for the people
+import rerun and the daily views job. Jason moved it to the front on October
+3.
+
+**The question.** "What song is in your head today?" One a day, the same
+words every day, at the top of today's date page, above the hive. The hive
+stays exactly where it was, under it.
+
+**An answer is a real song, never typed text.** The reader types into a
+search box, the server asks Apple's search for songs, and the reader taps
+one. What is stored is Apple's track: its title, its artist and its release
+date as Apple gives them, read again by the database from Apple itself
+(`wall_song_lookup`), so a hand made post cannot put words of its own on a
+tile. A sealed hive keeps its tiles forever, which is why free text was
+never an option. The phrase the reader typed travels in a post body and is
+never stored, logged or put in an address, the same rule as the typed field
+in section 15.
+
+**One answer a day, free.** One per browser token per date, by a unique index
+on `wall_boosts` (`wall_boosts_one_answer_a_day`). It does not spend any of
+the three buzzes.
+
+**Each answer is a free buzz on its song, Jason's call.** The answer is one
+row in `wall_boosts` on the song's story, with `answer = true`, and the budget
+trigger leaves it out of the day's three. So a song's support counts the
+heads it is in, and the crown, the pie, the decade line and the live hive
+all count an answer with no new rule anywhere. "In 3 heads" on the board is
+the number of answer rows; the buzz count beside it is the story's support,
+heads included. What this costs, said to Jason before he chose it: on a quiet
+day the songs can take most of the hive. On September 23 the whole hive had
+3 buzzes; ten answers that day would have held ten of thirteen, and the
+first answer of any day takes the crown. If that turns out wrong, a share
+cap on answer stories in the allocator is the fix, and the `answer` column
+means no history has to be rewritten to make it.
+
+**One tile per song, however it is spelled.** Apple files the same song
+under several track numbers: the single, the album, the deluxe album, the
+clean version. So a story is keyed by Apple's artist number and the title
+folded: lower case, anything in brackets dropped, a " - Remastered" style
+tail dropped, spaces and punctuation dropped. That key is the story's
+`url_key`, `answer:<artist id>:<folded title>`, and the existing unique index
+on `(wall_date, url_key)` is what makes a second "Espresso" join the first.
+The same track number always folds to the same key because the track is
+looked up once and kept in `wall_songs`. The search box folds the same way
+and shows one row per song, the oldest release of it, so the year on the
+tile is the song's and not a compilation's wherever Apple has the original.
+`songKey` in `web/src/song-prompt.ts` and `wall_song_key` in the migration
+are the two copies, and a test holds them to the same answers.
+
+**Somebody who already buzzed a song and then answers with it** is told so
+and nothing is recorded: one story takes one buzz from one browser, the rule
+section 14 set, and an answer is a buzz.
+
+**Thirty seconds to take it back**, through `wall_forget_boost`, unchanged:
+the answer is a buzz row, so the same window, the same seal check and the
+same trigger apply, and taking it back frees the answer for another song.
+
+**When.** Answers are taken on the date itself, midnight to midnight Eastern.
+The song's tile keeps taking buzzes for as long as the hive does, the date
+and the day after, and seals with it. Yesterday's page shows yesterday's
+songs with their buzz buttons and says answers closed at midnight; a sealed
+date shows its songs as they sealed; tomorrow's page shows nothing yet.
+
+**On the hive.** A song answer is a story of kind `answer`, its headline
+`2024: "Espresso" by Sabrina Carpenter`, with Apple's release year in front
+the way every dated row on the hive carries its year. That leading year is
+what the web's `yearOf` and the app's `HiveDecades.year` both already read, so
+an answer joins its decade team on both with no change to either.
+Outlet Apple Music, one imported source pointing at Apple's page for the
+track, marked as the thing itself, so its tier is seen directly. The kind's
+word on a tile is "Stuck in someone's head today", and its mark is a pair of
+headphones. Answer stories are not repeated in the feed under the hive or on
+the comb, because the board above is their list. The app is unchanged: it
+reads a story's kind as plain text, so a song is an ordinary tile there with
+its headline, it takes buzzes, and the app cannot answer yet.
+
+**Covers, without a reader's browser ever asking Apple.** `GET /cover/<track>.jpg`
+on this site: the server finds the artwork address for a track it has seen
+(a search, the chart, or `wall_songs`), checks it is Apple's image host,
+fetches it at 300 pixels, caps it at 400 kilobytes, keeps a few hundred in
+memory and answers with a day's cache. The image policy is unchanged:
+this origin and the project. Known limit: if Apple ever drops an artwork,
+that cover goes blank, sealed or not; copying covers into the bucket is the
+follow-up if it ever happens.
+
+**Search, and Apple's limit.** Apple's own page says its search allows about
+20 calls a minute, and every reader's search comes from this one server. So
+a phrase is answered from memory for ten minutes, the server makes at most
+18 calls to Apple a minute and says "busy for a moment" past that, and each
+address gets its own limit before any of it. Enough at this traffic; the
+first thing to revisit if the page takes off.
+
+**The empty board.** Never an empty box. With no answers yet the board says
+"Be the first", and up to three example songs sit on it, each marked
+"Example": this date's own number one songs from earlier years, read from the
+song stories the hive already files, with the year they were number one.
+They have no buzz button and nobody's name, and the moment the first real
+answer lands they are gone, because the board draws examples only while it
+has no answers. Examples are drawn only on the open date.
+
+**The chart beside it.** Apple Music's daily top songs chart for the United
+States, the top five, read by the server from Apple's public chart feed at
+most once an hour, with the covers through `/cover/`. A page never waits for
+it: the read happens behind the page, so the first page after the hour turns
+shows the last chart, and a chart more than six hours old is dropped rather
+than shown. Labelled as chart data
+and not answers, and named for what it is: the United States, not the world.
+It is not stored and not sealed; it is there on the open date so the page
+has life while answers accumulate, and it leaves with the day.
+
+**A curator can hide a song before the seal.** All songs are allowed,
+explicit ones marked with an E. `wall_hide_song`, checked against `is_admin()`,
+sets `wall_stories.hidden_at`, and the read policy on `wall_stories` now
+refuses a hidden story to every reader, so it leaves the site and the app at
+once with no change to either. The worker skips it, and the private record
+at /yours/, which reads past the policy, was changed to leave it out too. The
+answer and buzz rows stay in the ledger, as everything does. Refused once the hive has sealed,
+the same line every other change stops at. The curation panel lists the open
+dates' songs with a Hide button.
+
+**The sealed picture.** `sealedRecap` already had the slot. The songs passed
+in are the date's answer stories ranked by heads, the count is heads, and
+the picture draws "Stuck in everyone's head" when there is at least one.
+
+**The page runs a script, on one page.** Search as you type needs one, and
+the date pages ran none. Today's date page, while it takes answers, now
+runs one script, named by its hash in the header the way the share script
+is (`SONG_SCRIPT_SOURCE`), so the page can run that script and no other even
+if an escape were ever missed. It only searches as the reader types, through
+`POST /song/search` on this origin. Picking a song is a plain form post, and
+everything works with scripts off: the search box posts, the server answers
+with the matches, and the reader taps one.
+
+**What is recorded, and what is not.** For an answer: the scrambled browser
+token, the song, the date and the time, in the same row a buzz writes. Not
+the phrase typed, not a name, not anything about the reader. The privacy
+page says so in the same commit.
+
+**Order of turning it on.** Apply `20261003000000_the_song_in_your_head.sql`,
+then push. Pushed first, the site hides the question and the board (the
+answer read fails and the page carries on as it was), and the worker carries
+on as it was. The refill migration of September 23 is still not applied; it
+was edited to keep answers out of the budget and now has to be applied after
+this one, which its header says.
+
+**What was tested, and what was not.** The migration was not run on the live
+project: a run inside a transaction that rolls back was started on October 3,
+2026 and cancelled before it ran, and the project was read afterwards and had
+none of it. It was tested instead in memory on PGlite, on top of the live
+project's wall tables and functions copied that day with pg_get_functiondef,
+Apple standing in as a table of canned answers:
+`worker/test/song-migration.test.ts`, eight tests, covering one story per song
+across track numbers, one answer a day, the answer outside the three buzzes,
+the refusals, the hide, the grants, the seal, and the two older unapplied
+files applied after it and before it. The title folding was checked on the
+live project with a read only query, and `web/test/song-prompt.test.ts` holds
+the page's copy to what it printed. The website has twenty nine new tests in
+`song-prompt.test.ts` and `song-serve.test.ts`, the worker three in
+`wall-check.test.ts`, and the board was looked at in Chromium at 390 and 1280
+pixels wide from fixtures. **Not tested:** the database asking the real Apple,
+which only happens on the live project; the curation panel's Hide in a signed
+in browser; and the app drawing a song tile, since neither shell has a Swift
+toolchain.
+
+**Left as it was, on purpose.** The hive's own typed field, "What mattered
+about October 3?", is still under the hive's heading, so today's page has two
+boxes to type in. Taking one away is a call about the page, not about the
+song, and was not made here.
