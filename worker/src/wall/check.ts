@@ -268,6 +268,10 @@ export function settle(
       // page is not a source that waited long enough, it is no source. So a
       // story that never verifies never leaves the pool. Section 12.
       if (!its.some((s) => s.verified)) continue;
+      // A song nobody holds any more, every answer taken back inside its
+      // thirty seconds, waits in the pool: a song is on the hive because it
+      // is in somebody's head. docs/the-wall.md section 31.
+      if (story.subject_kind === "answer" && story.support < 1) continue;
       if (!eligibleForWall({ support: story.support, submittedAt: story.submitted_at, submittedBy: story.submitted_by }, its, now)) continue;
       touch(story.id).placed_at = now;
       input.push({ id: story.id, tier, support: story.support, priority: story.priority, score: scoreOf(story), placedAt: now, anchor: null,
@@ -400,6 +404,23 @@ export async function scoresFor(db: Db, wallDate: string, log: (line: string) =>
   }
 }
 
+/**
+ * The stories a curator hid on a date, docs/the-wall.md section 31. Read on
+ * their own rather than as a filter on the day's read, because the worker
+ * reads with the service role, which the read policy that hides them from
+ * readers does not bind, and because the column does not exist until the
+ * song migration is applied: a read that fails is "nothing hidden", so the
+ * worker carries on exactly as it did whichever goes live first.
+ */
+export async function hiddenOn(db: Db, wallDate: string, log: (line: string) => void = () => {}): Promise<Set<string>> {
+  try {
+    return new Set((await rows<{ id: string }>(db, `wall_stories?select=id&wall_date=eq.${wallDate}&hidden_at=not.is.null`)).map((r) => r.id));
+  } catch (error: unknown) {
+    log(`wall check ${wallDate}: hidden stories could not be read, so none are skipped this run: ${error instanceof Error ? error.message.slice(0, 120) : error}`);
+    return new Set();
+  }
+}
+
 export async function run(db: Db, options: { now?: Date; date?: string; dry?: boolean; log?: (line: string) => void } = {}): Promise<RunReport> {
   const now = options.now ?? new Date();
   const at = now.toISOString();
@@ -422,8 +443,10 @@ export async function run(db: Db, options: { now?: Date; date?: string; dry?: bo
   const owners = await rows<OwnerRow>(db, "wall_outlet_owners?select=domain,owner");
 
   for (const day of days) {
-    const stories = await rows<StoryRow>(db,
-      `wall_stories?select=id,wall_date,submitted_at,submitted_by,status,tier,support,priority,subject_kind,subject_id,outlet,placed_at,anchor_mx,anchor_my,w_modules,h_modules&wall_date=eq.${day.wall_date}&order=submitted_at.asc,id.asc`);
+    const hidden = await hiddenOn(db, day.wall_date, log);
+    const stories = (await rows<StoryRow>(db,
+      `wall_stories?select=id,wall_date,submitted_at,submitted_by,status,tier,support,priority,subject_kind,subject_id,outlet,placed_at,anchor_mx,anchor_my,w_modules,h_modules&wall_date=eq.${day.wall_date}&order=submitted_at.asc,id.asc`))
+      .filter((s) => !hidden.has(s.id));
     const live = stories.filter((s) => s.status !== "false");
     const sources: SourceRow[] = [];
     for (const ids of chunk(live.map((s) => s.id), 80)) {

@@ -2,7 +2,7 @@ import { strict as assert } from "node:assert";
 import { test } from "node:test";
 
 import { CLAIMED_CEILING } from "../src/wall/allocator.js";
-import { checkSource, settle, type DayRow, type SourceRow, type StoryRow } from "../src/wall/check.js";
+import { checkSource, hiddenOn, settle, type DayRow, type SourceRow, type StoryRow } from "../src/wall/check.js";
 import type { Fetched } from "../src/wall/page.js";
 import { HOLD_MS } from "../src/wall/pool.js";
 
@@ -288,4 +288,45 @@ test("the snapshot carries the scores the board was cut with, by story, and only
     source("s3", "c", "https://www.npr.org/z"),
   ], OWNERS, NOW, scores);
   assert.deepEqual(settled.snapshot?.board.scores, { a: 99, b: 29 });
+});
+
+// ---------------------------------------------------------------------------
+// The song in your head, docs/the-wall.md section 31
+// ---------------------------------------------------------------------------
+
+test("a song answer is placed on the tick after its first answer, seen directly, like any backed story", () => {
+  // Filed by wall_answer_song with no submitter, one imported source at
+  // Apple marked as the thing itself, and the answer's own free buzz.
+  const settled = settle(DAY, [story("song", { submitted_by: null, submitted_at: JUST_NOW, support: 1, subject_kind: "answer", subject_id: "1738363970", outlet: "Apple Music" })], [
+    source("s1", "song", "https://music.apple.com/us/album/espresso/1738363766?i=1738363970", { is_primary_doc: true, imported: true }),
+  ], OWNERS, NOW);
+  const u = settled.stories.find((x) => x.id === "song");
+  assert.equal(u?.tier, "seen_direct");
+  assert.equal(u?.status, "placed", "an answer does not wait out the twelve hour hold: the song is the thing itself");
+});
+
+test("a song every answer was taken back from waits in the pool rather than taking a tile", () => {
+  const settled = settle(DAY, [story("song", { submitted_by: null, submitted_at: JUST_NOW, support: 0, subject_kind: "answer", subject_id: "1738363970", outlet: "Apple Music" })], [
+    source("s1", "song", "https://music.apple.com/us/album/espresso/1738363766?i=1738363970", { is_primary_doc: true, imported: true }),
+  ], OWNERS, NOW);
+  const u = settled.stories.find((x) => x.id === "song");
+  assert.equal(u?.status, undefined, "nothing placed");
+  assert.equal(u?.placed_at, undefined);
+  assert.equal(settled.snapshot, null, "and nothing else on the date, so no board");
+});
+
+test("the hidden stories are read on their own, and a read that fails hides nothing", async () => {
+  const realFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = (async () => new Response(JSON.stringify([{ id: "h1" }]), { status: 200, headers: { "Content-Type": "application/json" } })) as typeof fetch;
+    assert.deepEqual([...await hiddenOn({ url: "https://project.example", key: "k" }, "2026-10-03")], ["h1"]);
+    // Before the song migration the column does not exist and PostgREST
+    // answers 400. The worker carries on as it did.
+    const said: string[] = [];
+    globalThis.fetch = (async () => new Response('{"message":"column wall_stories.hidden_at does not exist"}', { status: 400 })) as typeof fetch;
+    assert.deepEqual([...await hiddenOn({ url: "https://project.example", key: "k" }, "2026-10-03", (line) => said.push(line))], []);
+    assert.match(said[0] ?? "", /none are skipped this run/);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
 });
