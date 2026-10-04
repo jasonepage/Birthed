@@ -26,6 +26,13 @@ export interface WallBoost {
   storyId: string;
   units: number;
   castAt: string;
+  /**
+   * The buzz an answer to "What song is in your head today?" gives its song,
+   * docs/the-wall.md section 31. A buzz like any other to the crown; the
+   * board above the hive counts these as heads. Absent on a row read before
+   * the column existed, which is a buzz.
+   */
+  answer?: boolean;
 }
 
 /** One change of hands. `from` is null for the first crown of the day. */
@@ -188,7 +195,8 @@ export function boostFrom(row: unknown): WallBoost | null {
   const r = row as RawBoost;
   const id = Number(r.id);
   if (!Number.isFinite(id)) return null;
-  return { id, storyId: r.story_id, units: r.units, castAt: r.cast_at };
+  const answer = (row as { answer?: unknown }).answer === true;
+  return answer ? { id, storyId: r.story_id, units: r.units, castAt: r.cast_at, answer } : { id, storyId: r.story_id, units: r.units, castAt: r.cast_at };
 }
 
 /** The crown as a mark on a tile. Our own drawing, one stroke weight, never an emoji. */

@@ -13,7 +13,7 @@
 import { cp, mkdir, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DayPage, Person, everyDate, slug } from "./model.js";
-import { fetchWall, newestByDate, storyPath, wallKey } from "./wall.js";
+import { answerPictures, fetchWall, newestByDate, storyPath, wallKey } from "./wall.js";
 import { coverageByDay, fetchChartWeeks, songsForDate, withDownloadedCovers } from "./songs.js";
 import { buildSeed, factsByDay, factsForDate, fetchFacts, pickHighlights } from "./facts.js";
 import { faceName, isReady, picturesFor, renderCalendarPage, renderDayPage, renderNotFound, renderRobots, renderSitemap, renderHivePage, renderCombPage, renderStoryPage } from "./render.js";
@@ -256,7 +256,12 @@ async function main(): Promise<void> {
       ...happened.map((event) => `historical_event:${event.id}`),
       ...(wallToday?.stories ?? []).map((story) => pictureKeyOf(story)),
     ]);
-    const eventPics = [...keys].flatMap((k) => { const p = stored.get(k); return p === undefined ? [] : [p]; });
+    // The song covers too, docs/the-wall.md section 31: served from this
+    // site at /cover/<track>.jpg, so a sealed board keeps drawing them.
+    const eventPics = [
+      ...[...keys].flatMap((k) => { const p = stored.get(k); return p === undefined ? [] : [p]; }),
+      ...(wallToday === undefined ? [] : answerPictures(wallToday)),
+    ];
     picturesByKey.set(wallKey(date.month, date.day), [...picturesFor(songs, page.people, facesOnDisk), ...eventPics]);
     const curated = culturalForDate(cultureFor, date.month, date.day);
     if (isReady(page, found)) ready.push(date);

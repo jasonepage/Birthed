@@ -7,6 +7,7 @@ import { test } from "node:test";
 import { ageMark, cardFor, openDates, pictureFor, redirectFor, resolvePath, securityFor, songMark, start, todaySlug, todayStylesheet, yearMarks, yoursMark } from "../src/serve.js";
 import { personalName } from "../src/share.js";
 import { SHARE_SCRIPT_SOURCE, shareBlock } from "../src/share-button.js";
+import { SONG_SCRIPT, SONG_SCRIPT_SOURCE } from "../src/song-prompt.js";
 import { monthName } from "../src/model.js";
 
 const ROOT = resolve("out");
@@ -1322,7 +1323,7 @@ test("the numbers page is never stored by anybody", async (t) => {
 // The live hive. docs/the-wall.md section 21.
 // ---------------------------------------------------------------------------
 
-import { jsonAnswer, liveHiveDates, liveHivePathFor } from "../src/serve.js";
+import { jsonAnswer, liveHiveDates, liveHivePathFor, songPathFor } from "../src/serve.js";
 
 test("only the live hive path runs a script and opens a socket to the project; a sealed hive, tomorrow's and every date page do not", () => {
   // Four in the afternoon Eastern on September 11: the 10th and the 11th
@@ -1347,12 +1348,27 @@ test("only the live hive path runs a script and opens a socket to the project; a
   assert.match(hive, /form-action 'self'/, "the buzz form still posts without the script");
   assert.match(hive, /img-src 'self' https:\/\/[a-z0-9]+\.supabase\.co;/, "pictures from here and the project, as everywhere");
   assert.equal(securityFor("/september-10/hive/", now)["Content-Security-Policy"], hive, "yesterday's hive is live too");
-  for (const path of ["/september-11/", "/september-12/hive/", "/march-3/hive/", "/", "/calendar/"]) {
+  for (const path of ["/september-10/", "/september-12/", "/september-12/hive/", "/march-3/hive/", "/", "/calendar/", "/september-11/comb/"]) {
     const policy = securityFor(path, now)["Content-Security-Policy"] ?? "";
     assert.ok(!policy.includes("script-src"), `${path} must run nothing`);
     assert.ok(!policy.includes("connect-src"), `${path} must reach nothing`);
     assert.match(policy, /font-src 'self'/, `${path} loads the font from here, like every page since September 22, 2026`);
   }
+  // Today's date page, since October 3, 2026, docs/the-wall.md section 31:
+  // the song search and nothing else, named by its hash, reaching this
+  // origin alone. No socket, no project, no inline script of any other kind.
+  const today = securityFor("/september-11/", now)["Content-Security-Policy"] ?? "";
+  assert.ok(today.includes(`script-src ${SONG_SCRIPT_SOURCE};`), "today's date page may run the song search");
+  assert.ok(!today.includes("'unsafe-inline'; connect") && !/script-src[^;]*unsafe-inline/.test(today), "and no other script");
+  assert.match(today, /connect-src 'self';/, "the search goes to this origin and nowhere else");
+  assert.ok(!/connect-src[^;]*supabase/.test(today), "no socket to the project");
+  assert.match(today, /form-action 'self'/, "the pick still posts without the script");
+  assert.deepEqual(songPathFor("/september-11/", now), { month: 9, day: 11, wallDate: "2026-09-11" });
+  assert.equal(songPathFor("/september-10/", now), null, "yesterday's answers have closed");
+  assert.equal(songPathFor("/september-11/hive/", now), null, "the hive is not the date page");
+  // The hour after Eastern midnight: the 12th asks, the 11th does not.
+  assert.deepEqual(songPathFor("/september-12/", midnight)?.wallDate, "2026-09-12");
+  assert.equal(songPathFor("/september-11/", midnight), null);
   // The word a buzz is answered with, as the page's script is told it.
   assert.deepEqual(jsonAnswer("kept", { result: "kept", support: 4, left: 2, allowance: 3, backed: ["11111111-1111-1111-1111-111111111111", "nope"], boost_id: 77, booster: "secret" }),
     { result: "kept", support: 4, left: 2, allowance: 3, backed: ["11111111-1111-1111-1111-111111111111"], boost_id: 77 });
@@ -1431,11 +1447,16 @@ test("an open date's full screen hive is served live with the script, its data a
   assert.equal(data.stories[0]!.support, 12);
   assert.equal(calls.filter((c) => c.url.includes("wall_snapshots")).length, 1);
 
-  // The date page beside it: no script, no data, the plain header.
+  // The date page beside it: none of the hive's script, none of its data.
+  // Since October 3, 2026 today's date page runs one script, the song
+  // search, named by its hash, docs/the-wall.md section 31, and nothing else.
   const day = await realFetch(`${base}/${liveSlug}/`);
-  assert.ok(!(day.headers.get("content-security-policy") ?? "").includes("script-src"));
+  const dayPolicy = day.headers.get("content-security-policy") ?? "";
+  assert.ok(dayPolicy.includes(`script-src ${SONG_SCRIPT_SOURCE};`), dayPolicy);
+  assert.ok(!/connect-src[^;]*supabase/.test(dayPolicy), "and it opens no socket");
   const dayPage = await day.text();
-  assert.ok(!dayPage.includes("<script"), "the date page runs nothing");
+  assert.equal((dayPage.match(/<script/g) ?? []).length, 1, "one script on the date page");
+  assert.ok(dayPage.includes(`<script>${SONG_SCRIPT}</script>`), "and it is the song search, byte for byte the one the header names");
   assert.ok(!dayPage.includes("HiveAllocator"));
   assert.ok(dayPage.includes("Fresh headline from the live read"), "and still shows the live wall");
 

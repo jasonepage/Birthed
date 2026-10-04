@@ -27,15 +27,14 @@ export const RECAP_BELOW_CROWN = 4;
 export const RECAP_BELOW_WITH_SONGS = 2;
 
 /**
- * A song somebody said was stuck in their head, once the daily prompt
- * ships. CLAUDE.md, "The song in your head". Always empty until then, and an
- * empty list draws nothing, so the picture is exactly what it would be
- * without the field.
+ * A song somebody said was stuck in their head. docs/the-wall.md section 31;
+ * recapSongs in song-prompt.ts makes the list. An empty list draws nothing,
+ * so a day nobody answered is exactly the picture it was before the songs.
  */
 export interface RecapSong {
   title: string;
   artist: string;
-  /** How many people named it, or buzzed it, whichever the prompt settles on. */
+  /** How many people named it: its heads, the answers, not the buzzes. */
   count: number;
 }
 

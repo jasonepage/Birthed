@@ -38,6 +38,10 @@ import { beeSvg } from "./mascot.js";
 import { boostFrom, crownLine, crownMark, crownOf, crownSaid, noCrownYet, type Crown, type WallBoost } from "./crown.js";
 import { REFILLS_ON, arrivedBy, nextRefillWords } from "./refills.js";
 import { decadeLine, decadeOf, decadeStanding } from "./decades.js";
+import {
+  CHART_SHOWN, SONG_QUERY_MAX, SONG_QUESTION, SONG_SENTENCES, SONG_SCRIPT, boardSongs, coverPath, exampleSongs, songsFrom,
+  type Answered, type ChartSong, type Found, type SongInfo, type SongWord,
+} from "./song-prompt.js";
 
 export type { Crown, CrownChange, WallBoost } from "./crown.js";
 
@@ -146,6 +150,18 @@ export interface WallDay {
    * day built by a fixture that predates the crown; treated as none.
    */
   boosts?: WallBoost[];
+  /**
+   * The songs the day's answers name, by Apple track number, from
+   * wall_songs. docs/the-wall.md section 31. Absent on a day built by a
+   * fixture or read before the song migration, which draws no songs.
+   */
+  songs?: Map<string, SongInfo>;
+  /**
+   * True when the read could tell which buzzes are answers, which is when
+   * the song migration has been applied. The question is drawn only then,
+   * so a site pushed before the migration carries on exactly as it was.
+   */
+  answers?: boolean;
 }
 
 /** "9-9" for a month and day, the same key shape the rest of the build uses. */
@@ -223,9 +239,21 @@ export async function fetchWall(url: string, key: string): Promise<WallDay[]> {
   const outcomes = await rows<OutcomeRow>(url, key,
     "wall_outcomes?select=story_id,anniversary,outcome,note,recorded_at&order=anniversary.asc,id.asc");
   // The columns the role may select, and not one more: booster_id is not
-  // granted and is never asked for. docs/the-wall.md section 30.
-  const boosts = await rows<unknown>(url, key,
-    "wall_boosts?select=id,story_id,wall_date,units,cast_at&order=cast_at.asc,id.asc");
+  // granted and is never asked for. docs/the-wall.md section 30. The answer
+  // column since October 3, 2026, section 31; before the song migration it
+  // is not there, the read is refused, and the build reads as it did and
+  // draws no songs.
+  let answers = true;
+  let boosts: unknown[];
+  try {
+    boosts = await rows<unknown>(url, key, "wall_boosts?select=id,story_id,wall_date,units,cast_at,answer&order=cast_at.asc,id.asc");
+  } catch {
+    answers = false;
+    boosts = await rows<unknown>(url, key, "wall_boosts?select=id,story_id,wall_date,units,cast_at&order=cast_at.asc,id.asc");
+  }
+  const songs = answers
+    ? songsFrom(await rows<unknown>(url, key, "wall_songs?select=track_id,title,artist,album,released,explicit,artwork_url&order=track_id.asc"))
+    : new Map<string, SongInfo>();
   const boostsByDate = new Map<string, WallBoost[]>();
   for (const raw of boosts) {
     const b = boostFrom(raw);
@@ -279,6 +307,7 @@ export async function fetchWall(url: string, key: string): Promise<WallDay[]> {
     opensAt: d.opens_at, liveAt: d.live_at, closesAt: d.closes_at, closedAt: d.closed_at,
     stories: storiesByDate.get(d.wall_date) ?? [],
     boosts: boostsByDate.get(d.wall_date) ?? [],
+    songs, answers,
   }));
 }
 
@@ -376,6 +405,22 @@ export function picturedSubjects(day: Pick<WallDay, "stories">): Set<string> {
   return out;
 }
 
+/**
+ * The covers of the day's song tiles, docs/the-wall.md section 31: served
+ * from this site at /cover/<track>.jpg, which fetches Apple's artwork on
+ * the server, so a song tile draws its cover by the same picture rule every
+ * other tile uses and no reader's browser asks Apple for anything.
+ */
+export function answerPictures(day: Pick<WallDay, "stories">): Picture[] {
+  const out: Picture[] = [];
+  for (const s of day.stories) {
+    if (s.subjectKind !== "answer" || s.subjectId === null) continue;
+    const path = coverPath(s.subjectId);
+    if (path !== null) out.push({ subject: `answer:${s.subjectId}`, path });
+  }
+  return out;
+}
+
 /** How many feed rows are shown before the fold. A dozen is a screen on a phone and a sample of every kind. */
 export const FEED_SHOWN = 12;
 
@@ -462,19 +507,47 @@ export async function fetchWallDay(url: string, key: string, wallDate: string, t
     const stories = (await storiesResponse.json()) as EmbeddedStoryRow[];
 
     // The day's buzzes, for the crown. The same columns the live page is
-    // sent over Realtime, and never the booster.
-    const boostsResponse = await fetch(
-      `${url}/rest/v1/wall_boosts?select=id,story_id,units,cast_at&wall_date=eq.${wallDate}&order=cast_at.asc,id.asc`,
+    // sent over Realtime, and never the booster. The answer column since
+    // October 3, 2026, docs/the-wall.md section 31: before the song
+    // migration it is not there, PostgREST answers 400, and the day is read
+    // the way it was, with no songs drawn.
+    let answers = true;
+    let boostsResponse = await fetch(
+      `${url}/rest/v1/wall_boosts?select=id,story_id,units,cast_at,answer&wall_date=eq.${wallDate}&order=cast_at.asc,id.asc`,
       { headers, signal: controller.signal },
     );
+    if (boostsResponse.status === 400) {
+      answers = false;
+      boostsResponse = await fetch(
+        `${url}/rest/v1/wall_boosts?select=id,story_id,units,cast_at&wall_date=eq.${wallDate}&order=cast_at.asc,id.asc`,
+        { headers, signal: controller.signal },
+      );
+    }
     if (!boostsResponse.ok) throw new Error(`wall: wall_boosts answered ${boostsResponse.status}`);
     const boostRows = (await boostsResponse.json()) as unknown;
     const boosts = Array.isArray(boostRows) ? boostRows.map(boostFrom).filter((b): b is WallBoost => b !== null) : [];
 
+    // The songs the day's answers name. One small read, only when there are
+    // any, and a read that fails costs the covers and the album names and
+    // nothing else: the board falls back to the headline.
+    const trackIds = [...new Set(stories.filter((s) => s.subject_kind === "answer" && typeof s.subject_id === "string" && /^\d{1,18}$/.test(s.subject_id)).map((s) => s.subject_id!))];
+    let songs = new Map<string, SongInfo>();
+    if (answers && trackIds.length > 0) {
+      try {
+        const songsResponse = await fetch(
+          `${url}/rest/v1/wall_songs?select=track_id,title,artist,album,released,explicit,artwork_url&track_id=in.(${trackIds.join(",")})`,
+          { headers, signal: controller.signal },
+        );
+        if (songsResponse.ok) songs = songsFrom(await songsResponse.json());
+      } catch {
+        songs = new Map();
+      }
+    }
+
     return {
       wallDate: d.wall_date, ...parts(d.wall_date),
       opensAt: d.opens_at, liveAt: d.live_at, closesAt: d.closes_at, closedAt: d.closed_at,
-      boosts,
+      boosts, songs, answers,
       stories: stories.map((s) => storyFrom(s, (s.wall_sources ?? []).map((src) => ({
         id: src.id, url: src.url, outlet: src.outlet, owner: src.owner, headline: src.headline, quotation: src.quotation,
         verifiedAt: src.verified_at, addedAt: src.added_at,
@@ -854,7 +927,7 @@ export function fitType(w: number, h: number, length: number): { fit: number; li
 
 /** The fields a buzz posts: the story, and the date page to come back to. */
 /** Where a buzz lands the reader afterwards: the date page, the full screen hive, or the story's own receipt. */
-export type TapBack = "day" | "hive" | "receipt" | "comb" | "pick";
+export type TapBack = "day" | "hive" | "receipt" | "comb" | "pick" | "song";
 
 function tapFields(story: WallStory, back: TapBack): string {
   const { month, day } = parts(story.wallDate);
@@ -905,7 +978,7 @@ function undoForm(story: WallStory, voice: Voice, back: TapBack = "day"): string
  * one stroke weight, the same box as the marks in the bar, and never an
  * emoji, which is drawn differently by every phone.
  */
-export type TileKind = "happened" | "born" | "song" | "album" | "film" | "news";
+export type TileKind = "happened" | "born" | "song" | "album" | "film" | "news" | "answer";
 
 export function tileKind(story: Pick<WallStory, "subjectKind">): TileKind {
   if (story.subjectKind === null) return "news";
@@ -913,10 +986,12 @@ export function tileKind(story: Pick<WallStory, "subjectKind">): TileKind {
   if (story.subjectKind === "song") return "song";
   if (story.subjectKind === "album") return "album";
   if (story.subjectKind === "film") return "film";
+  // A song somebody has in their head today, docs/the-wall.md section 31.
+  if (story.subjectKind === "answer") return "answer";
   return "happened";
 }
 
-export const KIND_WORD: Record<TileKind, string> = { happened: "Happened on this date", born: "Born on this date", song: "The number one song", album: "The number one album", film: "The number one film", news: "In the news today" };
+export const KIND_WORD: Record<TileKind, string> = { happened: "Happened on this date", born: "Born on this date", song: "The number one song", album: "The number one album", film: "The number one film", news: "In the news today", answer: "Stuck in someone's head today" };
 
 const KIND_MARK: Record<TileKind, string> = {
   happened: `<circle cx="12" cy="12" r="8.6"/><path d="M12 7.6V12l3.2 2.1"/>`,
@@ -925,6 +1000,8 @@ const KIND_MARK: Record<TileKind, string> = {
   album: `<circle cx="12" cy="12" r="8.6"/><circle cx="12" cy="12" r="2.4"/>`,
   film: `<rect x="3.6" y="6" width="16.8" height="12" rx="1.6"/><path d="M3.6 10.2h16.8M8 6v12M16 6v12"/>`,
   news: `<rect x="3.6" y="5" width="16.8" height="14" rx="2.4"/><path d="M7.2 9.2h5.6M7.2 12.4h9.6M7.2 15.6h9.6"/>`,
+  // Headphones: the song somebody is listening to in their head.
+  answer: `<path d="M4.4 15.6v-3a7.6 7.6 0 0 1 15.2 0v3"/><rect x="3.6" y="14.2" width="4" height="6" rx="1.6"/><rect x="16.4" y="14.2" width="4" height="6" rx="1.6"/>`,
 };
 
 export function kindMark(kind: TileKind): string {
@@ -1323,6 +1400,25 @@ export interface WallOptions {
    * reader's own.
    */
   yours?: boolean;
+
+  /**
+   * The song in your head, docs/the-wall.md section 31: what the request
+   * brings to the board above the hive. Only serve.ts sets this, for the
+   * section it draws at request time.
+   */
+  song?: SongOptions;
+}
+
+/** What one request brings to the song board. */
+export interface SongOptions {
+  /** Apple's chart, for the strip beside the board on the date taking answers. Empty draws no strip. */
+  chart?: ChartSong[];
+  /** What a search without the script found, drawn as the forms the script would have drawn, or why there is nothing. */
+  found?: Found[] | "none" | "busy" | "expired" | null;
+  /** What happened to the pick, the undo or the search that led here. */
+  said?: SongWord | null;
+  /** The song this browser just answered with, for the one request that follows, so the sentence can carry the Undo button. */
+  undo?: string | null;
 }
 
 /** One buzz this browser cast on this day in an earlier year. */
@@ -1942,6 +2038,12 @@ export function crownName(story: Pick<WallStory, "headline" | "subjectKind">): s
     const m = /^\d{4}: (.+) was the number one film/.exec(h);
     if (m !== null) return m[1]!;
   }
+  // A song in somebody's head: its title and artist, the same words a
+  // number one's crown line uses, without the year in front.
+  if (story.subjectKind === "answer") {
+    const m = /^(?:\d{4}: )?(".+" by .+)$/s.exec(h);
+    if (m !== null) return m[1]!;
+  }
   return h;
 }
 
@@ -2001,6 +2103,151 @@ export function decadesBlock(day: WallDay, name: string, voice: Voice, now: numb
   return `<div class="wdecades" id="wdecades"><p class="wdecadeline" id="wdecadeline">${escapeHtml(line)}</p><p class="wdecadeteams" id="wdecadeteams">${teams}</p></div>`;
 }
 
+// ---------------------------------------------------------------------------
+// The song in your head, docs/the-wall.md section 31
+// ---------------------------------------------------------------------------
+
+/**
+ * Today's date page by the Eastern clock, the clock the question runs on.
+ * Not /today/, which follows the site's own clock six hours behind
+ * Coordinated Universal Time and for the first hour after Eastern midnight
+ * still names the date whose answers just closed.
+ */
+function todayPage(now: number): string {
+  const [, m, d] = easternDateOf(now).split("-").map(Number) as [number, number, number];
+  return `/${slug(m, d)}/`;
+}
+
+/** "In 3 heads", "In 1 head". */
+function headsWords(n: number): string {
+  return `In ${n} ${n === 1 ? "head" : "heads"}`;
+}
+
+/** One song on the board, a link to its receipt, its cover, who and when, how many heads and buzzes, and its buzz. */
+function headRow(a: Answered<WallStory>, buzzable: boolean, voice: Voice): string {
+  const href = storyPath(a.story);
+  const cover = a.trackId === null ? null : coverPath(a.trackId);
+  const counts = [a.heads > 0 ? headsWords(a.heads) : "", units(a.story.support, voice)].filter((x) => x !== "").join(" &middot; ");
+  return `<li class="sgrow" id="ws-${a.story.id}">`
+    + `<a class="sgart" href="${href}" tabindex="-1" aria-hidden="true">${cover === null ? "" : `<img src="${cover}" alt="" width="56" height="56" loading="lazy">`}</a>`
+    + `<span class="sgtext"><a class="sgt" href="${href}">${escapeHtml(a.title)}</a>`
+    + `<span class="sga">${escapeHtml(a.artist)}${a.year === null ? "" : ` &middot; ${a.year}`}${a.explicit ? ` <span class="sge" title="Explicit">E</span>` : ""}</span>`
+    + `<span class="sgn">${counts}</span><span class="sgmine">Your song</span></span>`
+    + `<span class="sgdo">${buzzable ? buzzForm(a.story, voice, "song") : ""}${mine(voice)}</span></li>`;
+}
+
+/** The search's songs as plain forms, the same shape the script draws. */
+function songPicks(found: Found[], month: number, d: number): string {
+  return `<ol class="sgpicks">${found.map((f) => {
+    const cover = coverPath(f.id);
+    return `<li><form class="sgpick" method="post" action="/song"><input type="hidden" name="t" value="${f.id}"><input type="hidden" name="m" value="${month}"><input type="hidden" name="d" value="${d}">`
+      + `<button type="submit"><span class="sgart">${cover === null ? "" : `<img src="${cover}" alt="" width="48" height="48" loading="lazy">`}</span>`
+      + `<span class="sgtext"><span class="sgt">${escapeHtml(f.title)}</span><span class="sga">${escapeHtml(f.artist)}${f.year === null ? "" : ` &middot; ${f.year}`}${f.explicit ? ` <span class="sge" title="Explicit">E</span>` : ""}</span></span>`
+      + `<span class="sggo">This one</span></button></form></li>`;
+  }).join("")}</ol>`;
+}
+
+/**
+ * The board above the hive: "What song is in your head today?", the search,
+ * the day's songs, and Apple's chart beside them. docs/the-wall.md section
+ * 31.
+ *
+ * On the date taking answers, today by the Eastern clock, and only in the
+ * section serve.ts draws at request time, it carries the search and the one
+ * script. With no answers yet it says so and shows up to three examples,
+ * each marked "Example", which the first real answer removes, because they
+ * are drawn only while there is none. Yesterday's page shows yesterday's
+ * songs with their buzz buttons and says the question has moved on; a sealed
+ * date shows its songs as they sealed; a date with none shows nothing at
+ * all. Nothing is drawn before the song migration, because the read cannot
+ * tell an answer from a buzz until it is applied.
+ */
+export function songSection(day: WallDay, name: string, now: number, live: boolean, options: SongOptions = {}): string {
+  if (day.answers !== true) return "";
+  const voice = voiceOf(day);
+  const { month, day: d } = parts(day.wallDate);
+  const today = easternDateOf(now) === day.wallDate;
+  const asking = live && today && takingBoosts(day, now);
+  const songs = boardSongs(day.stories, day.boosts, day.songs ?? new Map());
+  if (!asking && songs.length === 0) return "";
+  const buzzable = live && takingBoosts(day, now);
+  const closed = !takingBoosts(day, now);
+
+  const said = options.said ?? null;
+  const undoForm = said === "kept" && options.undo !== null && options.undo !== undefined && /^[0-9a-f-]{36}$/.test(options.undo)
+    ? `<form class="wundo" method="post" action="/song/undo"><input type="hidden" name="s" value="${options.undo}"><input type="hidden" name="m" value="${month}"><input type="hidden" name="d" value="${d}"><button type="submit">Undo</button></form><span class="wundonote">Thirty seconds, for a song you did not mean.</span>`
+    : "";
+  const saidLine = said === null ? "" : `<div class="sgsaid" role="status"><p>${escapeHtml(SONG_SENTENCES[said])}</p>${undoForm === "" ? "" : `<div class="wundoline">${undoForm}</div>`}</div>`;
+
+  const found = options.found ?? null;
+  const results = found === null
+    ? ""
+    : found === "none"
+      ? `<p class="sgnote">Nothing found. Try the title and the artist.</p>`
+      : found === "busy"
+        ? `<p class="sgnote">${escapeHtml(SONG_SENTENCES.busy)}</p>`
+        : found === "expired"
+          ? `<p class="sgnote">That search has gone stale. Search again.</p>`
+          : found.length === 0 ? `<p class="sgnote">Nothing found. Try the title and the artist.</p>` : songPicks(found, month, d);
+
+  const head = asking
+    ? `<h2 class="sgq" id="sghead">${escapeHtml(SONG_QUESTION)}</h2>
+<p class="sghint">Pick the real song. It goes on today's board and counts as one buzz for it on the hive, free. One a day, and it seals at midnight Eastern.</p>`
+    : `<h2 class="sgq sgqpast" id="sghead">Stuck in heads on ${escapeHtml(longDate(day))}</h2>
+<p class="sghint">${closed
+      ? `Sealed with the hive. Permanent.`
+      : `Answers for ${escapeHtml(name)} closed at midnight Eastern. The songs still take ${voice.many} until the hive seals. <a href="${todayPage(now)}">Today's question</a>`}</p>`;
+
+  const ask = asking
+    ? `<form class="sgask" id="sgask" method="post" action="/song/search" role="search">
+<label class="sr" for="sgq">Search for the song</label>
+<div class="sgaskrow"><input class="input" id="sgq" name="q" type="search" maxlength="${SONG_QUERY_MAX}" placeholder="A song or an artist" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search"><input type="hidden" name="m" value="${month}"><input type="hidden" name="d" value="${d}"><button type="submit">Search</button></div>
+</form>
+<div class="sgresults" id="sgresults" aria-live="polite">${results}</div>
+<p class="sgdone">You answered today. Your song is marked on the board. A new question opens at midnight Eastern.</p>`
+    : "";
+
+  // The empty board is never an empty box: a line that asks, and up to three
+  // examples, each marked as one, from the date's own number ones.
+  const examples = asking && songs.length === 0 ? exampleSongs(day.stories) : [];
+  const board = songs.length > 0
+    ? `<ol class="sgboard" aria-label="Songs in heads ${today ? "today" : `on ${escapeHtml(name)}`}">
+${songs.map((a) => headRow(a, buzzable, voice)).join("\n")}
+</ol>`
+    : asking
+      ? `<div class="sgempty"><p class="sgfirst"><b>Be the first.</b> Nobody has answered today yet. Your song starts the board.</p>${examples.length === 0 ? "" : `
+<ol class="sgboard sgexamples" aria-label="Examples, not answers">
+${examples.map((x) => `<li class="sgrow sgexample"><span class="sgart sgyear" aria-hidden="true">${x.year}</span><span class="sgtext"><span class="sgt">${escapeHtml(x.title)}</span><span class="sga">${escapeHtml(x.artist)}</span><span class="sgn"><span class="sgtag">Example</span> Number one on this date in ${x.year}</span></span></li>`).join("\n")}
+</ol>`}</div>`
+      : "";
+
+  const boardHead = songs.length > 0
+    ? `<p class="sgboardhead"><b>${today && asking ? "In heads today" : "In heads"}</b> <span>${songs.length} ${songs.length === 1 ? "song" : "songs"}</span></p>`
+    : "";
+
+  const chart = asking ? (options.chart ?? []).slice(0, CHART_SHOWN) : [];
+  const strip = chart.length === 0 ? "" : `<aside class="sgchart" aria-labelledby="sgcharthead">
+<p class="sgkicker">Chart data</p>
+<h3 class="sgcharthead" id="sgcharthead">Top songs in the United States today</h3>
+<ol class="sgchartlist">
+${chart.map((c, i) => {
+    const cover = coverPath(c.id);
+    return `<li><span class="sgrank">${i + 1}</span><span class="sgart">${cover === null ? "" : `<img src="${cover}" alt="" width="40" height="40" loading="lazy">`}</span><span class="sgtext"><span class="sgt">${escapeHtml(c.title)}</span><span class="sga">${escapeHtml(c.artist)}${c.explicit ? ` <span class="sge" title="Explicit">E</span>` : ""}</span></span></li>`;
+  }).join("\n")}
+</ol>
+<p class="sgchartnote">From Apple Music's daily chart for the United States. Not answers from people here.</p>
+</aside>`;
+
+  return `<section class="sg${strip === "" ? "" : " sgwith"}" id="song" aria-labelledby="sghead">
+<div class="sgmain">
+${head}
+${saidLine}${ask}
+${boardHead}${board}
+</div>
+${strip}${asking ? `<script>${SONG_SCRIPT}</script>` : ""}
+</section>`;
+}
+
 function wallBody(day: WallDay | null, name: string, now: number, options: WallOptions): string {
   const history = options.history ?? "";
   if (day === null) {
@@ -2019,8 +2266,10 @@ ${HISTORY_START}${history}${HISTORY_END}
   // The feed: everything in the pool, most backed first, then the date's own
   // history ahead of the feeds, then arrival. All of it, no fold: a reddit
   // reads its feed and so does this. Decided September 10, 2026.
+  // The songs in people's heads are the board above the hive, docs/the-wall.md
+  // section 31, so they are not rows in the feed or cells on the comb too.
   const inPool = day.stories
-    .filter((s) => s.status === "pool" || s.status === "overflow")
+    .filter((s) => (s.status === "pool" || s.status === "overflow") && s.subjectKind !== "answer")
     .sort((a, b) => b.support - a.support || b.priority - a.priority || a.submittedAt.localeCompare(b.submittedAt) || a.id.localeCompare(b.id));
   // The number ones are their own strip under the feed rather than sixty
   // rows in it: a wall of covers is how the date page already shows them,
@@ -2196,7 +2445,10 @@ ${shown.map((s) => listRow(s, live, voice, agreed.alsoIn.get(s.id) ?? null, "day
   // The hive is the hero: the name, one line saying what the hive is, one
   // sentence, the field and the count right above the board, and the board.
   // Everything that explains sits under it. Decided September 10, 2026.
-  return `<section class="wall" aria-labelledby="wallhead">
+  // The song in your head leads the page, docs/the-wall.md section 31. The
+  // hive is exactly where it was, under it.
+  const song = songSection(day, name, now, live, options.song ?? {});
+  return `${song}<section class="wall" aria-labelledby="wallhead">
 <p class="whead">${beeSvg()}<span class="section" id="wallhead">The hive for ${escapeHtml(longDate(day))}</span> <span class="wstate">${stateLine(day, now)}</span></p>
 ${lede === "" ? "" : `<p class="wlede">${lede}</p>`}
 ${live ? askForm(day, name, voice) : ""}${countLine(day, now, voice, live)}${foundBlock(options.found ?? [], day, live, voice)}${afterwords(voice, name, options.undo ?? null, "day", false, took)}
@@ -2233,7 +2485,7 @@ ${card}
  * one reader's alone. The identifiers come out of our own database and are
  * used inside a selector, so anything not shaped like a uuid is dropped.
  */
-export function wallMarks(standing: { left: number; allowance: number; backed: string[] }, day: WallDay, now: number): string {
+export function wallMarks(standing: { left: number; allowance: number; backed: string[]; answered?: string | null }, day: WallDay, now: number): string {
   const rules: string[] = [];
   if (takingBoosts(day, now)) {
     const sentence = tapsLeftSentence(standing.left, standing.allowance, voiceOf(day), nextRefillWords(now, day.wallDate, standing.allowance));
@@ -2244,6 +2496,16 @@ export function wallMarks(standing: { left: number; allowance: number; backed: s
     // The mark takes a line, so the headline gives one up rather than
     // showing the top of a line it cannot finish.
     rules.push(`#w-${id} .wmine{display:block}#w-${id} .wmeta .wmine{display:inline}#w-${id} .wh{-webkit-line-clamp:calc(var(--lines, 3) - 1)}#w-${id}{outline:3px solid var(--wink, var(--on-honey));outline-offset:-3px}`);
+    // The same mark on the song board above the hive, section 31, where the
+    // button gives way to it: one song takes one buzz from one browser.
+    rules.push(`#ws-${id} .wmine{display:inline}#ws-${id} .wbuzz{display:none}`);
+  }
+  // The song this browser answered with today: the search is put away, a
+  // line says why, and the song is marked as theirs. Generated text and a
+  // uuid from our own database, never a title, which is a source's words.
+  const answered = standing.answered;
+  if (typeof answered === "string" && /^[0-9a-f-]{36}$/.test(answered)) {
+    rules.push(`.sgask,.sgresults,.sghint{display:none}.sgdone{display:block}#ws-${answered} .sgmine{display:inline}#ws-${answered} .wmine{display:none}#ws-${answered}{border-color:var(--honey)}`);
   }
   if (rules.length === 0) return "";
   return `<style>${rules.join("")}</style>`;
@@ -2344,16 +2606,21 @@ ${every}
 </ul></details></td></tr>`;
 }
 
-function sourceBlock(source: WallSource, index: number): string {
+function sourceBlock(source: WallSource, index: number, answer: boolean = false): string {
   // The runs, worked out once: the note below explains folding and there is
   // no sense explaining a folding that did not happen. A source checked twice
   // in two different ways has two rows and no run, and used to carry the
   // note anyway.
   const runs = checkRuns(source.checks);
   const folded = runs.some((run) => run.checks.length > 1);
-  const verified = source.verifiedAt === null
-    ? `<p class="wnote">The quotation has not yet been found on the page.</p>`
-    : `<p class="wnote">Marked as found on the page, exactly, ${escapeHtml(eastern(source.verifiedAt))}. The check history below is the evidence.</p>`;
+  const verified = answer
+    // A song answer's source is Apple's own record of the track, read by the
+    // database from Apple when the song was picked. docs/the-wall.md
+    // section 31. Nothing was matched on a page, so nothing says it was.
+    ? `<p class="wnote">Apple's record of this track, read from Apple when it was picked${source.verifiedAt === null ? "" : `, ${escapeHtml(eastern(source.verifiedAt))}`}. Not checked again.</p>`
+    : source.verifiedAt === null
+      ? `<p class="wnote">The quotation has not yet been found on the page.</p>`
+      : `<p class="wnote">Marked as found on the page, exactly, ${escapeHtml(eastern(source.verifiedAt))}. The check history below is the evidence.</p>`;
   const history = source.checks.length === 0
     ? `<p class="wnote">No checks run yet.</p>`
     : `<div class="wscroll"><table class="wchecks">
@@ -2442,8 +2709,10 @@ ${falseNote}
 ${shareBlock({ url: `https://birthed.app/${slug(month, d)}/wall/${story.id}/`, title: story.headline, lead: "Send this story:" })}
 ${creditBlock(options.credit ?? null)}
 <h2 class="section">Sources</h2>
-<p class="wnote">The wording on the hive is the source's, never a person's. A check confirms a link resolves and that the page contains the quotation, by exact match. Nothing here decides what is true.</p>
-${story.sources.map(sourceBlock).join("\n")}
+${story.subjectKind === "answer"
+    ? `<p class="wnote">Somebody picked this song from Apple's catalogue as the song in their head on ${escapeHtml(longDate(day))}. The title, the artist and the year are Apple's, read from Apple when it was picked. Nobody typed them.</p>`
+    : `<p class="wnote">The wording on the hive is the source's, never a person's. A check confirms a link resolves and that the page contains the quotation, by exact match. Nothing here decides what is true.</p>`}
+${story.sources.map((source, i) => sourceBlock(source, i, story.subjectKind === "answer")).join("\n")}
 ${relatedBlock(story, day, voice)}`;
 }
 
@@ -2814,7 +3083,7 @@ export const WALL_STYLE = `
 }
 .wtile:target { outline: 3px solid var(--honey-lite) !important; outline-offset: -3px; }
 .wlist li:target, .wsongs li:target { position: relative; }
-.day:has(.wtile:target, .wlist li:target, .wsongs li:target, .wreceiptbuzz:target) #wkept { display: block; }
+.day:has(.wtile:target, .wlist li:target, .wsongs li:target, .wreceiptbuzz:target, .sgrow:target) #wkept { display: block; }
 @keyframes wpop {
   0% { transform: scale(.92); box-shadow: 0 0 0 0 rgba(255, 217, 138, .95), 0 0 0 rgba(255, 217, 138, 0); }
   55% { transform: scale(1.04); }
@@ -3156,4 +3425,76 @@ export const WALL_STYLE = `
 .wevery > summary { cursor: pointer; color: var(--dimmer); }
 .wevery > ul { margin: 6px 0 0; padding: 0 0 0 16px; list-style: disc; color: var(--dimmer); }
 .wevery > ul > li { display: list-item; background: none; border-radius: 0; padding: 1px 0; font-size: 12px; }
+/* The song in your head, docs/the-wall.md section 31. The lead of today's
+   date page, above the hive: the question, the search, the songs people
+   named, and Apple's chart beside them on a wide screen and under them on a
+   phone. Tokens only; the one warm glow is the ember token's own colour. */
+.sg { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; margin: 8px 0 24px; padding: 18px 16px 16px; border-radius: 18px; border: 1px solid var(--line-strong); background: radial-gradient(120% 140% at 0% 0%, rgba(255, 138, 61, .13), transparent 55%), var(--cell); }
+@media (min-width: 900px) { .sg.sgwith { grid-template-columns: minmax(0, 1fr) 250px; gap: 22px; padding: 22px 22px 20px; } }
+.sgmain { min-width: 0; }
+.sgq { margin: 0 0 6px; font-family: var(--serif); font-optical-sizing: auto; font-weight: 800; font-size: clamp(27px, 6.4vw, 40px); line-height: 1.06; letter-spacing: -.01em; color: var(--cream); text-wrap: balance; }
+.sgqpast { font-size: clamp(21px, 4.6vw, 27px); }
+.sghint { margin: 0 0 14px; color: var(--dim); font-size: 15px; line-height: 1.45; max-width: 60ch; text-wrap: pretty; }
+.sghint a { color: var(--honey-lite); }
+.sgask { margin: 0 0 10px; }
+.sgaskrow { display: flex; gap: 8px; align-items: stretch; }
+.sgask .input { flex: 1; min-width: 0; padding: 13px 15px; border-radius: 14px; font-size: 17px; }
+.sgask button { flex: none; margin: 0; padding: 0 20px; border: 0; border-radius: 14px; cursor: pointer; background: linear-gradient(180deg, var(--honey-lite), var(--honey)); color: var(--on-honey); font: inherit; font-size: 16px; font-weight: 800; }
+.sgask button:hover, .sggo:hover { filter: brightness(1.08); }
+.sgask button:focus-visible, .sgpick button:focus-visible { outline: 2px solid var(--honey-lite); outline-offset: 2px; }
+.sgresults { margin: 0 0 14px; }
+.sgresults:empty { display: none; }
+.sgnote { margin: 4px 0 0; color: var(--dim); font-size: 14px; }
+.sgpicks, .sgboard, .sgchartlist { margin: 0; padding: 0; list-style: none; }
+.sgpicks { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.sgpick { margin: 0; }
+.sgpick button { display: flex; align-items: center; gap: 12px; width: 100%; margin: 0; padding: 7px 10px 7px 7px; border: 1px solid var(--line); border-radius: 12px; background: var(--cell-2); color: var(--cream); font: inherit; text-align: left; cursor: pointer; }
+.sgpick button:hover { border-color: var(--honey); }
+.sggo { flex: none; margin-left: auto; padding: 5px 12px; border-radius: 999px; background: var(--honey); color: var(--on-honey); font-size: 13px; font-weight: 800; white-space: nowrap; }
+.sgart { flex: none; display: block; width: 56px; height: 56px; border-radius: 8px; overflow: hidden; background: var(--cell-2); box-shadow: inset 0 0 0 1px var(--line); }
+.sgpick .sgart { width: 48px; height: 48px; }
+.sgart img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.sgtext { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.sgt { overflow: hidden; font-family: var(--serif); font-size: 17px; font-weight: 700; line-height: 1.2; color: var(--cream); text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
+a.sgt:hover { text-decoration: underline; text-decoration-color: rgba(255, 243, 224, .45); }
+.sga { overflow: hidden; color: var(--cream-2); font-size: 14px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.sge { display: inline-block; padding: 0 4px; border-radius: 3px; background: var(--dimmer); color: var(--bg); font-size: 10px; font-weight: 800; line-height: 1.5; vertical-align: 1px; }
+.sgn { margin-top: 2px; color: var(--dim); font-size: 13px; }
+.sgmine { display: none; margin-top: 3px; color: var(--honey-lite); font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.sgdo { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.sgdo .wbuzz button { padding: 4px 14px; font-size: 14px; }
+.sgdo .wmine { color: var(--honey-lite); font-size: 12px; }
+.sgboardhead { margin: 4px 0 8px; color: var(--dim); font-size: 13px; }
+.sgboardhead b { margin-right: 6px; font-family: var(--serif); font-size: 16px; color: var(--cream); }
+.sgboard { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.sgrow { scroll-margin-top: 84px; display: flex; align-items: center; gap: 12px; min-width: 0; padding: 8px 10px 8px 8px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg); }
+.sgrow:target { border-color: var(--ember); }
+.sgexample { border-style: dashed; opacity: .8; }
+.sgyear { display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 17px; font-weight: 800; color: var(--honey-lite); }
+.sgtag { display: inline-block; margin-right: 6px; padding: 0 7px; border: 1px solid var(--line-strong); border-radius: 999px; color: var(--cream-2); font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.sgfirst { margin: 0 0 10px; padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--cell-2); color: var(--cream-2); font-size: 15px; }
+.sgfirst b { color: var(--honey-lite); }
+.sgdone { display: none; margin: 0 0 12px; color: var(--cream-2); font-size: 15px; }
+/* The sentence after a pick already says it; the standing line would say it twice. */
+.sgmain:has(.sgsaid) .sgdone { display: none; }
+#song { scroll-margin-top: 72px; }
+.sgsaid { margin: 0 0 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--cell-2); color: var(--cream-2); font-size: 14px; line-height: 1.5; }
+.sgsaid p { margin: 0; }
+.sgsaid .wundoline { margin-top: 8px; }
+.sgchart { align-self: start; min-width: 0; padding: 14px 14px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg); }
+.sgkicker { margin: 0; color: var(--dimmer); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.sgcharthead { margin: 2px 0 10px; font-family: var(--serif); font-size: 16px; font-weight: 800; color: var(--cream); }
+.sgchartlist { display: grid; gap: 8px; }
+.sgchartlist li { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 0; border-radius: 0; background: none; }
+.sgpicks > li { display: block; padding: 0; border-radius: 0; background: none; }
+.sgchartlist .sgart { width: 40px; height: 40px; border-radius: 6px; }
+.sgchartlist .sgt { font-size: 14px; }
+.sgchartlist .sga { color: var(--dim); font-size: 12px; }
+.sgrank { flex: none; width: 14px; color: var(--dimmer); font-size: 12px; font-weight: 800; text-align: right; }
+.sgchartnote { margin: 10px 0 0; color: var(--dimmer); font-size: 12px; line-height: 1.4; }
+/* On a phone the chart runs sideways under the board, one swipe for five. */
+@media (max-width: 899px) {
+  .sgchartlist { grid-auto-columns: minmax(170px, 72%); grid-auto-flow: column; overflow-x: auto; padding-bottom: 4px; scroll-snap-type: x mandatory; }
+  .sgchartlist li { scroll-snap-align: start; }
+}
 `;

@@ -229,7 +229,7 @@ export function liveHiveSection(day: WallDay, name: string, now: number, options
   const month = day.month;
   const d = day.day;
   const kinds: Record<string, string> = {};
-  for (const kind of ["happened", "born", "song", "album", "film", "news"] as TileKind[]) kinds[kind] = kindMark(kind);
+  for (const kind of ["happened", "born", "song", "album", "film", "news", "answer"] as TileKind[]) kinds[kind] = kindMark(kind);
   const kindWords: Record<string, string> = { ...KIND_WORD };
   const data = {
     date: day.wallDate, month, day: d, name,
