@@ -25,6 +25,8 @@ export const RECAP_SIDE = 1080;
 export const RECAP_BELOW_CROWN = 4;
 /** Under the crown when the songs are drawn too, so the square never runs past its foot. */
 export const RECAP_BELOW_WITH_SONGS = 2;
+/** Each list's rows when the songs and the suggestions are both drawn, and nothing else under the crown. */
+export const RECAP_EACH_WHEN_BOTH = 2;
 
 /**
  * A song somebody said was stuck in their head. docs/the-wall.md section 31;
@@ -43,6 +45,17 @@ export interface RecapLine {
   buzzes: number;
 }
 
+/**
+ * Something a reader suggested for the day, docs/the-wall.md section 32;
+ * recapSuggestions in suggest.ts makes the list. An empty list draws
+ * nothing, so a day nobody suggested anything on is the picture it was.
+ */
+export interface RecapSuggestion {
+  name: string;
+  /** Its buzzes, the suggester's own free one among them. */
+  count: number;
+}
+
 export interface SealedRecap {
   wallDate: string;
   year: number;
@@ -52,6 +65,7 @@ export interface SealedRecap {
   crown: RecapLine | null;
   below: RecapLine[];
   songs: RecapSong[];
+  suggestions: RecapSuggestion[];
 }
 
 /** A date has sealed when its close has passed. The same close the hive reads. */
@@ -67,16 +81,23 @@ export function isSealed(day: Pick<WallDay, "closesAt" | "closedAt">, now: numbe
  * false; a story nobody buzzed is not on the picture, because the picture
  * is of what people chose.
  */
-export function sealedRecap(day: WallDay, now: number, songs: RecapSong[] = []): SealedRecap | null {
+export function sealedRecap(day: WallDay, now: number, songs: RecapSong[] = [], suggestions: RecapSuggestion[] = []): SealedRecap | null {
   if (!isSealed(day, now)) return null;
   const boosts = day.boosts ?? [];
   const totalBuzzes = boosts.reduce((sum, b) => sum + b.units, 0);
   const crown = crownFor(day);
   const holder = crown.holder === null ? undefined : day.stories.find((s) => s.id === crown.holder);
+  // The square has room for four rows under the crown. The songs and the
+  // suggestions each take a list of their own when there are any, and a
+  // story in one of those lists is not named a second time in the rows above
+  // them. Section 32.
+  const both = songs.length > 0 && suggestions.length > 0;
+  const room = both ? 0 : songs.length > 0 || suggestions.length > 0 ? RECAP_BELOW_WITH_SONGS : RECAP_BELOW_CROWN;
   const below = day.stories
     .filter((s) => s.support > 0 && s.status !== "false" && s.id !== crown.holder)
+    .filter((s) => !(suggestions.length > 0 && s.subjectKind === "suggestion"))
     .sort((a, b) => b.support - a.support || (b.interest ?? 0) - (a.interest ?? 0) || a.id.localeCompare(b.id))
-    .slice(0, songs.length > 0 ? RECAP_BELOW_WITH_SONGS : RECAP_BELOW_CROWN)
+    .slice(0, room)
     .map((s) => ({ name: crownName(s), buzzes: s.support }));
   return {
     wallDate: day.wallDate,
@@ -86,7 +107,8 @@ export function sealedRecap(day: WallDay, now: number, songs: RecapSong[] = []):
     totalBuzzes,
     crown: holder === undefined ? null : { name: crownName(holder), buzzes: crown.count },
     below,
-    songs: [...songs].sort((a, b) => b.count - a.count).slice(0, 3),
+    songs: [...songs].sort((a, b) => b.count - a.count).slice(0, both ? RECAP_EACH_WHEN_BOTH : 3),
+    suggestions: [...suggestions].sort((a, b) => b.count - a.count).slice(0, both ? RECAP_EACH_WHEN_BOTH : 3),
   };
 }
 
@@ -116,6 +138,9 @@ ${recap.below.map((line) => `<li><span class="name">${escapeHtml(line.name)}</sp
 </ol>`;
   const songs = recap.songs.length === 0 ? "" : `<div class="songs"><p class="kicker">Stuck in everyone's head</p><ol>
 ${recap.songs.map((s) => `<li><span class="name">&ldquo;${escapeHtml(s.title)}&rdquo; ${escapeHtml(s.artist)}</span><span class="n">${s.count}</span></li>`).join("\n")}
+</ol></div>`;
+  const suggested = (recap.suggestions ?? []).length === 0 ? "" : `<div class="songs"><p class="kicker">Suggested by readers</p><ol>
+${recap.suggestions.map((s) => `<li><span class="name">${escapeHtml(s.name)}</span><span class="n">${s.count}</span></li>`).join("\n")}
 </ol></div>`;
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(name)}, sealed</title>
@@ -152,6 +177,7 @@ li .n { color: ${HONEY}; font-weight: 700; flex: none; }
 ${crown}
 ${below}
 ${songs}
+${suggested}
 <p class="foot"><span>${escapeHtml(address)}</span><span>No edits, ever.</span></p>
 </body></html>`;
 }

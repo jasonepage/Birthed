@@ -15,7 +15,7 @@ import {
   SONG_QUESTION, SONG_SCRIPT, SONG_SCRIPT_SOURCE, artAt, boardSongs, collapse, coverPath, exampleSongs, headsBy,
   parseChart, parseSearch, recapSongs, songKey, songsFrom, type Found, type SongInfo,
 } from "../src/song-prompt.js";
-import { answerPictures, crownName, KIND_WORD, songSection, tileKind, wallMarks, wallSection, type WallDay, type WallStory } from "../src/wall.js";
+import { answerPictures, combPreview, crownName, KIND_WORD, songSection, tileKind, wallMarks, wallSection, type WallDay, type WallStory } from "../src/wall.js";
 import { createHash } from "node:crypto";
 
 const ESPRESSO = "aaaaaaaa-0000-4000-8000-000000000001";
@@ -335,12 +335,19 @@ test("on the hive a song is its own kind, named by its title and artist, with it
   assert.deepEqual(answerPictures(day([s, story(NEWS, "news", { subjectKind: null, subjectId: null })], [])), [{ subject: "answer:1738363970", path: "/cover/1738363970.jpg" }]);
 });
 
-test("songs are the board above the hive, not rows in the feed under it", () => {
-  const html = wallSection(day([story(ESPRESSO, '2024: "Espresso" by Sabrina Carpenter', { support: 1 }), story(NEWS, "A headline from the news", { subjectKind: null, subjectId: null })], [answer(1, ESPRESSO, "t")]), "October 3", NOW, { interactive: true });
-  const feed = html.slice(html.indexOf('id="feedhead"'));
-  assert.ok(feed.includes("A headline from the news"));
-  assert.ok(!feed.includes("Espresso"), "the song is not in the feed");
-  assert.ok(html.indexOf('id="song"') < html.indexOf('class="wall"'), "and the board leads the page, above the hive");
+test("songs are the board above the hive and nowhere else in the game, and the comb leaves them out", () => {
+  // The feed under the hive is gone, docs/the-wall.md section 32; what is
+  // left to hold is that a song answer is drawn once, on its own board.
+  const d = day([story(ESPRESSO, '2024: "Espresso" by Sabrina Carpenter', { support: 1 }), story(NEWS, "A headline from the news", { subjectKind: null, subjectId: null })], [answer(1, ESPRESSO, "t")]);
+  const html = wallSection(d, "October 3", NOW, { interactive: true });
+  assert.ok(html.indexOf('id="song"') < html.indexOf('class="wall"'), "the board leads the page, above the hive");
+  assert.equal(html.split(`id="ws-${ESPRESSO}"`).length, 2, "one row for the song");
+  const hive = html.slice(html.indexOf('<section class="wall"'));
+  assert.ok(!hive.includes("Espresso"), "and the hive's own section does not draw it again while it is off the board");
+  assert.ok(!html.includes('id="feedhead"'), "there is no feed to draw it in");
+  const comb = combPreview(d, "October 3", NOW, true);
+  assert.ok(comb.includes("A headline from the news"), "the comb preview carries the news that is off the board");
+  assert.ok(!comb.includes("Espresso"), "and not the song");
 });
 
 test("the search script is the one the header names, draws with DOM calls only, and posts to this origin alone", () => {

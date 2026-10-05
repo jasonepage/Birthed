@@ -32,7 +32,7 @@ import { extname, join, normalize, resolve, sep } from "node:path";
 import { everyDate, monthName, slug } from "./model.js";
 import { ASK_SLOTS, FIRST_CHART_YEAR, TODAY, renderCardPage, renderMePanel, renderRecord, renderStoryPage, withMe } from "./render.js";
 import { SHARE_SCRIPT_SOURCE } from "./share-button.js";
-import { ASK_MAX, answerPictures, type SongOptions, easternDateOf, easternMidnight, emptyWallDay, fetchWallDay, hiveDaysNav, openWallDates, pictureRules, picturedSubjects, combPictured, replaceWall, combPath, hivePath, takingBoosts, wallKey, wallMarks, wallSection, withChecks, type Anniversary, type RecordRow, type TapBack, type WallDay } from "./wall.js";
+import { ASK_MAX, answerPictures, type SongOptions, type SuggestOptions, easternDateOf, easternMidnight, emptyWallDay, fetchWallDay, hiveDaysNav, openWallDates, pictureRules, picturedSubjects, combPictured, combPreview, keptAt, museumKey, replaceComb, replaceWall, combPath, hivePath, takingBoosts, wallKey, wallMarks, wallSection, withChecks, type Anniversary, type RecordRow, type TapBack, type WallDay, type WallStory } from "./wall.js";
 import { fetchSnapshotScores, liveHiveSection, type Standing } from "./hive-live.js";
 import { pickFor, pickIndexFrom, pickPath, renderPickPage, PICK_MAX } from "./pick.js";
 import { answer as findAnswer } from "./find.js";
@@ -40,6 +40,7 @@ import { fetchPictureFor, fetchPicturesFor, type StoredPicture } from "./stored-
 import { personalName } from "./share.js";
 import { SONG_QUERY_MAX, SONG_SCRIPT_SOURCE, SONG_WORDS, type Found, type SongWord } from "./song-prompt.js";
 import { chartNow, coverFor, foundById, searchSongs } from "./song-apple.js";
+import { SUGGEST_QUERY_MAX, SUGGEST_SCRIPT_SOURCE, SUGGEST_WORDS, hereFor, searchTopics, suggestionName, tileFor, topicsById, type SuggestWord, type Topic } from "./suggest.js";
 
 
 const TYPES: Record<string, string> = {
@@ -229,16 +230,17 @@ export function songPathFor(requestPath: string, now: number = Date.now()): { mo
 }
 
 export function securityFor(requestPath: string, now: number = Date.now()): Record<string, string> {
-  // Today's date page, while it asks the song question: the search script
-  // and nothing else, named by its hash, and requests to this origin alone,
-  // which is where the search goes. Pictures still come from here and the
-  // project; the covers are served from here.
+  // Today's date page, while it asks the song question and takes
+  // suggestions: the two search scripts and nothing else, each named by its
+  // hash, and requests to this origin alone, which is where both searches
+  // go. Pictures still come from here and the project; the covers are served
+  // from here. docs/the-wall.md sections 31 and 32.
   if (songPathFor(requestPath, now) !== null) {
     return {
       ...SECURITY,
       "Content-Security-Policy":
         `default-src 'none'; img-src 'self' ${projectBase()}; style-src 'unsafe-inline' 'self'; font-src 'self'; media-src 'self'; ` +
-        `script-src ${SONG_SCRIPT_SOURCE}; connect-src 'self'; ` +
+        `script-src ${SONG_SCRIPT_SOURCE} ${SUGGEST_SCRIPT_SOURCE}; connect-src 'self'; ` +
         "base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
     };
   }
@@ -719,7 +721,14 @@ function readBody(request: IncomingMessage): Promise<string> {
 // ---------------------------------------------------------------------------
 
 export interface Tap {
+  /** The story, or "" for a tap from the museum, which names its row by key instead. */
   storyId: string;
+  /**
+   * A museum row's key, "person:Q937", for a tap from the museum, which is
+   * baked and never knew the story's identifier. The server finds the story
+   * on the open hive by it. Null for every other tap. Section 32.
+   */
+  key: string | null;
   month: number;
   day: number;
   /** Where the reader is sent back to: the date page, the full screen hive, the story's receipt, the comb, or the pick page. */
@@ -737,10 +746,17 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
  */
 export function readTap(body: string): Tap | null {
   const form = new URLSearchParams(body);
-  const storyId = (form.get("s") ?? "").trim().toLowerCase();
+  let storyId = (form.get("s") ?? "").trim().toLowerCase();
+  let key: string | null = null;
   const month = Number(form.get("m"));
   const day = Number(form.get("d"));
-  if (!UUID.test(storyId)) return null;
+  if (!UUID.test(storyId)) {
+    // A museum button names its row, not its story.
+    const k = (form.get("k") ?? "").trim();
+    if (!/^[a-z_]+:[A-Za-z0-9-]{1,40}$/.test(k)) return null;
+    storyId = "";
+    key = k;
+  }
   if (!Number.isInteger(month) || month < 1 || month > 12) return null;
   if (!Number.isInteger(day) || day < 1 || day > 31) return null;
   const v = form.get("v");
@@ -749,7 +765,7 @@ export function readTap(body: string): Tap | null {
   // top of the list rather than refused: the index is a place to come back
   // to and nothing the database is told.
   const pick = Number.isInteger(p) && p >= 0 && p <= PICK_MAX ? p : 0;
-  return { storyId, month, day, back: v === "hive" || v === "receipt" || v === "comb" || v === "pick" || v === "song" ? v : "day", pick };
+  return { storyId, key, month, day, back: v === "hive" || v === "receipt" || v === "comb" || v === "pick" || v === "song" || v === "museum" || v === "suggest" ? v : "day", pick };
 }
 
 /**
@@ -764,16 +780,18 @@ export type Tapped =
   // ride the same query string as a tap's word, for the same reason: it is
   // what permits the one fresh wall read on the way back, so the reader lands
   // on the count that moved rather than the one everybody else saw.
-  | "undone" | "too_late";
+  | "undone" | "too_late"
+  // A museum row whose story is not on the open hive, section 32.
+  | "absent";
 
 const TAPPED = new Set<string>([
-  "kept", "already", "spent", "not_yet", "closed", "false", "bad", "failed", "undone", "too_late",
+  "kept", "already", "spent", "not_yet", "closed", "false", "bad", "failed", "undone", "too_late", "absent",
 ]);
 
 const TAP_FRAGMENT: Record<Tapped, string> = {
   kept: "wkept", already: "walready", spent: "wspent", not_yet: "wnotyet",
   closed: "wclosed", false: "wfalse", bad: "wfailed", failed: "wfailed",
-  undone: "wundone", too_late: "wtoolate",
+  undone: "wundone", too_late: "wtoolate", absent: "wabsent",
 };
 
 // ---------------------------------------------------------------------------
@@ -842,6 +860,77 @@ async function answerSong(track: string, token: string): Promise<{ said: SongWor
     const storyId = typeof answer?.story_id === "string" && UUID.test(answer.story_id) ? answer.story_id : null;
     if (result === "bad_token") return { said: "bad", storyId: null };
     return { said: SONG_WORDS.has(result) ? result as SongWord : "failed", storyId };
+  } catch {
+    return { said: "failed", storyId: null };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Suggestions on the page. docs/the-wall.md section 32.
+// ---------------------------------------------------------------------------
+
+/** A posted suggestion: an English Wikipedia article number and the date page to come back to. */
+export interface SuggestPick {
+  page: number;
+  month: number;
+  day: number;
+}
+
+/** A posted suggestion, or null. Checked here so a malformed post is a 400; the database reads the article from Wikipedia again. */
+export function readSuggestPick(body: string): SuggestPick | null {
+  const form = new URLSearchParams(body);
+  const page = (form.get("p") ?? "").trim();
+  const month = Number(form.get("m"));
+  const day = Number(form.get("d"));
+  if (!/^\d{1,15}$/.test(page) || Number(page) < 1) return null;
+  if (!Number.isInteger(month) || month < 1 || month > 12) return null;
+  if (!Number.isInteger(day) || day < 1 || day > 31) return null;
+  return { page: Number(page), month, day };
+}
+
+/** The word a redirect says a suggestion, an undo or a search came back with, or null. Bounded like a tap's word: it permits one fresh read. */
+export function suggestedFrom(query: string | undefined): SuggestWord | null {
+  if (query === undefined || query === "") return null;
+  const value = new URLSearchParams(query).get("suggested");
+  return value !== null && SUGGEST_WORDS.has(value) ? value as SuggestWord : null;
+}
+
+/**
+ * What a search without the script found on Wikipedia, from the redirect:
+ * the articles, in order, or why there are none. Numbers only, never a
+ * phrase. Articles this process no longer remembers are "expired".
+ */
+export function topicsFrom(query: string | undefined, lookup: (ids: number[]) => Topic[] = topicsById): Topic[] | "none" | "busy" | "expired" | null {
+  if (query === undefined || query === "") return null;
+  const value = new URLSearchParams(query).get("topics");
+  if (value === null) return null;
+  if (value === "none" || value === "busy") return value;
+  const ids = value.split(",").map((id) => id.trim());
+  if (ids.length === 0 || ids.length > 10 || !ids.every((id) => /^\d{1,15}$/.test(id))) return null;
+  const found = lookup(ids.map(Number));
+  return found.length === 0 ? "expired" : found;
+}
+
+/**
+ * Ask the database for one suggestion. It decides everything: whether today
+ * is open, whether this browser has suggested, whether Wikipedia has the
+ * article, and whether the thing is already a tile. A word this server does
+ * not know is our failure.
+ */
+async function suggestTopic(page: number, token: string): Promise<{ said: SuggestWord; storyId: string | null }> {
+  const key = process.env.SUPABASE_ANON_KEY;
+  if (!key) return { said: "failed", storyId: null };
+  try {
+    const response = await fetch(`${projectBase()}/rest/v1/rpc/wall_suggest_topic`, {
+      method: "POST",
+      headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ page_id_in: page, voter_token_in: token }),
+    });
+    if (!response.ok) return { said: "failed", storyId: null };
+    const answer = (await response.json()) as Record<string, unknown>;
+    const result = typeof answer?.result === "string" ? answer.result : "";
+    const storyId = typeof answer?.story_id === "string" && UUID.test(answer.story_id) ? answer.story_id : null;
+    return { said: SUGGEST_WORDS.has(result) ? result as SuggestWord : "failed", storyId };
   } catch {
     return { said: "failed", storyId: null };
   }
@@ -1007,7 +1096,7 @@ async function forgetWebBoost(storyId: string, token: string): Promise<{ said: T
  * it backed. Null on any failure, which costs the reader their marks and
  * the count for one page view and nothing else.
  */
-async function wallStanding(wallDate: string, token: string | null): Promise<{ left: number; allowance: number; backed: string[]; anniversary: Anniversary[]; answered: string | null } | null> {
+async function wallStanding(wallDate: string, token: string | null): Promise<{ left: number; allowance: number; backed: string[]; anniversary: Anniversary[]; answered: string | null; suggested: string | null } | null> {
   const key = process.env.SUPABASE_ANON_KEY;
   if (!key) return null;
   try {
@@ -1022,7 +1111,7 @@ async function wallStanding(wallDate: string, token: string | null): Promise<{ l
       body: JSON.stringify({ wall_date_in: wallDate, voter_token_in: token }),
     });
     if (!response.ok) return null;
-    const answer = (await response.json()) as { left?: unknown; allowance?: unknown; backed?: unknown; anniversary?: unknown; answered?: unknown };
+    const answer = (await response.json()) as { left?: unknown; allowance?: unknown; backed?: unknown; anniversary?: unknown; answered?: unknown; suggested?: unknown };
     if (typeof answer?.left !== "number" || typeof answer?.allowance !== "number" || !Array.isArray(answer?.backed)) return null;
     // The anniversary is newer than some deployed copies of the function, so
     // its absence is an empty list and never a failed read: a reader whose
@@ -1044,6 +1133,9 @@ async function wallStanding(wallDate: string, token: string | null): Promise<{ l
       // The song this browser answered with on the date, docs/the-wall.md
       // section 31. Absent before the song migration, which is no answer.
       answered: typeof answer.answered === "string" && UUID.test(answer.answered) ? answer.answered : null,
+      // What it suggested on the date, section 32. Absent before the
+      // suggestions migration, which is no suggestion.
+      suggested: typeof answer.suggested === "string" && UUID.test(answer.suggested) ? answer.suggested : null,
     };
   } catch {
     return null;
@@ -1119,7 +1211,8 @@ async function handle(
   // is still refused. The allow header names the truth per path rather than
   // advertising POST across a site where it means nothing.
   const posts = path === "/year" || path === "/boost" || path === "/unboost"
-    || path === "/find" || path === "/song" || path === "/song/search" || path === "/song/undo";
+    || path === "/find" || path === "/song" || path === "/song/search" || path === "/song/undo"
+    || path === "/suggest" || path === "/suggest/search" || path === "/suggest/undo";
   if (method !== "GET" && method !== "HEAD" && !(method === "POST" && posts)) {
     response.writeHead(405, {
       Allow: posts ? "POST" : "GET, HEAD",
@@ -1196,6 +1289,25 @@ async function handle(
       response.end("No.\n");
       return;
     }
+    // A tap from the museum names its row by key, section 32: the story is
+    // found on the open hive by the same key, from the cached read, and a row
+    // whose story is not on the hive spends nothing and says so.
+    const onDatePage = tap.back === "day" || tap.back === "song" || tap.back === "suggest" || tap.back === "museum";
+    const read = tap.key !== null || onDatePage ? await liveWall(tap.month, tap.day, Date.now(), false, false) : null;
+    if (tap.key !== null) {
+      const story = read?.day.stories.find((s) => museumKey(s) === tap!.key) ?? null;
+      if (story === null) {
+        response.writeHead(303, {
+          Location: `/${slug(tap.month, tap.day)}/?tapped=absent#wabsent`,
+          "Cache-Control": "no-store",
+          "Set-Cookie": `${TOKEN_COOKIE}=${token}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax; Secure`,
+          ...SECURITY,
+        });
+        response.end();
+        return;
+      }
+      tap = { ...tap, storyId: story.id };
+    }
     const { said, answer } = await castWebBoostAnswer(tap.storyId, token);
     // The live hive's script asks for the answer as JSON and draws it
     // itself, docs/the-wall.md section 21. Same tap, same token, same
@@ -1230,7 +1342,25 @@ async function handle(
     // board to show for it.
     // A buzz from the song board lands on its row there, docs/the-wall.md
     // section 31, and the :has rule shows the sentence the way a tile does.
-    const fragment = said === "kept" ? `${tap.back === "song" ? "ws" : "w"}-${tap.storyId}` : TAP_FRAGMENT[said];
+    // On the date page keptAt decides, section 32: a buzz from the board
+    // lands on the board, one from the suggestion list or the museum on its
+    // row there, the year for a number one, and a story the page does not
+    // draw lands on the sentence itself. A story too new for the cached read
+    // lands where the button it came from said.
+    const counted = said === "kept" && onDatePage ? read?.day.stories.find((s) => s.id === tap!.storyId) ?? null : null;
+    let fragment = said !== "kept"
+      ? TAP_FRAGMENT[said]
+      : counted !== null && read !== null
+        ? keptAt(counted, tap.back, read.day)
+        : `${tap.back === "song" ? "ws" : tap.back === "suggest" ? "wt" : "w"}-${tap.storyId}`;
+    // A museum row is baked, and the build bakes thirty people and the facts
+    // it had, while the worker files every person and facts arrive after the
+    // deploy. A row the page does not carry lands on the sentence instead.
+    if (said === "kept" && /^(m-|\d{4}$)/.test(fragment)) {
+      const baked = await fileFor(join(root, slug(tap.month, tap.day)));
+      const page = baked === null ? "" : await readFile(baked, "utf8").catch(() => "");
+      if (!page.includes(`id="${fragment}"`)) fragment = "wkept";
+    }
     // A buzz that counted also names its story in the query string, because
     // the fragment above never reaches this server on the way back and the
     // Undo button has to know what it is undoing. Only for a buzz that
@@ -1270,7 +1400,7 @@ async function handle(
     } catch {
       tap = null;
     }
-    if (tap === null || token === null || !underLimit(address)) {
+    if (tap === null || tap.storyId === "" || token === null || !underLimit(address)) {
       response.writeHead(400, { "Content-Type": "text/plain; charset=utf-8", ...SECURITY });
       response.end("No.\n");
       return;
@@ -1394,7 +1524,7 @@ async function handle(
     } catch {
       tap = null;
     }
-    if (tap === null || token === null || !underLimit(address)) {
+    if (tap === null || tap.storyId === "" || token === null || !underLimit(address)) {
       response.writeHead(400, { "Content-Type": "text/plain; charset=utf-8", ...SECURITY });
       response.end("No.\n");
       return;
@@ -1403,6 +1533,128 @@ async function handle(
     const word: SongWord = said === "undone" || said === "too_late" || said === "closed" ? said : "failed";
     response.writeHead(303, {
       Location: `/${slug(tap.month, tap.day)}/?sang=${word}#song`,
+      "Cache-Control": "no-store",
+      ...SECURITY,
+    });
+    response.end();
+    return;
+  }
+
+  // Suggestions on the page, docs/the-wall.md section 32. Three posts, the
+  // shape of the song's three.
+  //
+  // A search. The phrase travels in the post body and nowhere else, held to
+  // the box's length, and the address is limited before anything is asked,
+  // on its own count so typing never spends the limit a buzz needs. First the
+  // stories already filed for the date are matched in memory, from the
+  // cached read, so a reader is pointed at a tile that is there; then
+  // Wikipedia is asked for articles. The script asks for JSON. Without it the
+  // reader is sent back with numbers and identifiers only, never the phrase.
+  if (method === "POST" && path === "/suggest/search") {
+    const address = String(request.headers["x-forwarded-for"] ?? "").split(",")[0]?.trim()
+      || request.socket.remoteAddress || "unknown";
+    let form: URLSearchParams;
+    try {
+      form = new URLSearchParams(await readBody(request));
+    } catch {
+      form = new URLSearchParams();
+    }
+    const q = (form.get("q") ?? "").trim();
+    const month = Number(form.get("m"));
+    const day = Number(form.get("d"));
+    const dated = Number.isInteger(month) && Number.isInteger(day) && month >= 1 && month <= 12 && day >= 1 && day <= 31;
+    if (q.length > SUGGEST_QUERY_MAX || !dated || !underLimit(`suggest:${address}`)) {
+      response.writeHead(400, { "Content-Type": "text/plain; charset=utf-8", ...SECURITY });
+      response.end("No.\n");
+      return;
+    }
+    const live = await liveWall(month, day, Date.now(), false, false);
+    const stories = (live?.day.stories ?? []).filter((s) => s.status !== "false");
+    const here = q.length >= 2 ? hereFor(q, stories) : [];
+    const searched = await searchTopics(q);
+    // One thing once: an article whose tile is already in the list above it
+    // is not offered a second time below.
+    const hereIds = new Set(here.map((s) => s.id));
+    const topics = searched === "busy" ? "busy" : searched.filter((t) => !hereIds.has(tileFor(t, stories)?.id ?? ""));
+    if (wantsJson(request)) {
+      response.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...SECURITY });
+      response.end(JSON.stringify({
+        // A suggestion goes by its article's title, with where it came from
+        // in place of the outlet, the way its row in the list reads.
+        here: here.map((s) => s.subjectKind === "suggestion"
+          ? { id: s.id, headline: suggestionName(s), outlet: "Suggested today" }
+          : { id: s.id, headline: s.headline, outlet: s.outlet }),
+        results: topics === "busy" ? [] : topics.map((t) => ({ pageId: t.pageId, title: t.title, description: t.description, tile: tileFor(t, stories)?.id ?? null })),
+        ...(topics === "busy" ? { busy: true } : {}),
+      }));
+      return;
+    }
+    const found = here.length === 0 ? "" : `&found=${here.map((s) => s.id).join(",")}`;
+    const said = topics === "busy" ? "busy" : topics.length === 0 ? "none" : topics.map((t) => t.pageId).join(",");
+    response.writeHead(303, { Location: `/${slug(month, day)}/?topics=${said}${found}#suggest`, "Cache-Control": "no-store", ...SECURITY });
+    response.end();
+    return;
+  }
+
+  // The suggestion. The shape of /boost: the token cookie is the identity, a
+  // reader with none gets one here, the address is limited before the
+  // database is touched, and the database decides in one word, reading the
+  // article from Wikipedia itself so nothing posted here can put words on a
+  // tile, and pointing at the tile already there rather than making a second.
+  if (method === "POST" && path === "/suggest") {
+    const address = String(request.headers["x-forwarded-for"] ?? "").split(",")[0]?.trim()
+      || request.socket.remoteAddress || "unknown";
+    const token = tokenFromCookie(request.headers.cookie) ?? newToken();
+    let pick: SuggestPick | null = null;
+    try {
+      pick = readSuggestPick(await readBody(request));
+    } catch {
+      pick = null;
+    }
+    if (pick === null || !underLimit(address)) {
+      response.writeHead(400, { "Content-Type": "text/plain; charset=utf-8", ...SECURITY });
+      response.end("No.\n");
+      return;
+    }
+    const { said, storyId } = await suggestTopic(pick.page, token);
+    const on = storyId !== null && (said === "kept" || said === "exists" || said === "suggested") ? `&on=${storyId}` : "";
+    const fragment = said === "kept" && storyId !== null ? `wt-${storyId}` : "suggest";
+    // The database files a suggestion on today by the Eastern clock, whatever
+    // page it came from, so the reader is sent to today's page: a box loaded
+    // before midnight and used after it lands where the suggestion did.
+    const [, todayMonth, todayDay] = easternDateOf(Date.now()).split("-").map(Number) as [number, number, number];
+    response.writeHead(303, {
+      Location: `/${slug(todayMonth, todayDay)}/?suggested=${said}${on}#${fragment}`,
+      "Cache-Control": "no-store",
+      "Set-Cookie": `${TOKEN_COOKIE}=${token}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax; Secure`,
+      ...SECURITY,
+    });
+    response.end();
+    return;
+  }
+
+  // Taking a suggestion back, inside thirty seconds. A suggestion is a buzz
+  // row, so wall_forget_boost is the whole of it, unchanged. The story stays
+  // filed with nobody behind it, and the worker leaves it off the board.
+  if (method === "POST" && path === "/suggest/undo") {
+    const address = String(request.headers["x-forwarded-for"] ?? "").split(",")[0]?.trim()
+      || request.socket.remoteAddress || "unknown";
+    const token = tokenFromCookie(request.headers.cookie);
+    let tap: Tap | null = null;
+    try {
+      tap = readTap(await readBody(request));
+    } catch {
+      tap = null;
+    }
+    if (tap === null || tap.storyId === "" || token === null || !underLimit(address)) {
+      response.writeHead(400, { "Content-Type": "text/plain; charset=utf-8", ...SECURITY });
+      response.end("No.\n");
+      return;
+    }
+    const { said } = await forgetWebBoost(tap.storyId, token);
+    const word: SuggestWord = said === "undone" || said === "too_late" || said === "closed" ? said : "failed";
+    response.writeHead(303, {
+      Location: `/${slug(tap.month, tap.day)}/?suggested=${word}#suggest`,
       "Cache-Control": "no-store",
       ...SECURITY,
     });
@@ -1457,8 +1709,8 @@ async function handle(
         : found.kind === "miss"
           ? `${where}#wmiss`
           : found.kind === "one"
-            ? `${where}?found=${found.match.story.id}#wfound`
-            : `${where}?found=${found.matches.map((m) => m.story.id).join(",")}#wfound`;
+            ? `${where}?found=${found.match.story.id}#suggest`
+            : `${where}?found=${found.matches.map((m) => m.story.id).join(",")}#suggest`;
     }
     response.writeHead(303, {
       Location: location,
@@ -1777,7 +2029,11 @@ async function handle(
     // sees their song on the board the moment they land.
     const sang = readable ? sangFrom(query) : null;
     const sought = readable ? soughtFrom(query) : null;
-    const fresh = (tapped !== null || sang !== null) && underLimit(
+    // Suggestions on the page, section 32: the word after a suggestion, an
+    // undo or a search, and the articles a search without the script found.
+    const suggested = readable ? suggestedFrom(query) : null;
+    const topics = readable ? topicsFrom(query) : null;
+    const fresh = (tapped !== null || sang !== null || suggested !== null) && underLimit(
       String(request.headers["x-forwarded-for"] ?? "").split(",")[0]?.trim() || request.socket.remoteAddress || "unknown",
     );
     // The one request that follows a find. It carries the identifiers the
@@ -1788,7 +2044,7 @@ async function handle(
     // The story a buzz just counted for, so the sentence that says it
     // counted can carry the Undo button for the one request that follows.
     const undoOn = readable && tapped === "kept" ? tappedOnFrom(query) : null;
-    const marked = token === null && tapped === null && found === null && born === null && sang === null && sought === null ? null : dateFor(path);
+    const marked = token === null && tapped === null && found === null && born === null && sang === null && sought === null && suggested === null && topics === null ? null : dateFor(path);
     if (marked !== null) {
       const now = Date.now();
       // The reader's own buzzes are read before the section rather than after
@@ -1805,6 +2061,9 @@ async function handle(
       // The Undo for an answer only for the browser whose own standing says
       // it answered with that story, the rule the pick page uses for a buzz.
       const songOn = sang === "kept" ? tappedOnFrom(query) : null;
+      // The story a suggestion's word is about, and the Undo only for the
+      // browser whose own standing says it suggested that story.
+      const suggestOn = suggested !== null ? tappedOnFrom(query) : null;
       const wall = await liveWall(
         marked.month, marked.day, now, fresh, marked.hive, found, undoOn, standing?.anniversary ?? [], standing,
         // The way to this reader's own record, drawn for a browser carrying
@@ -1812,6 +2071,7 @@ async function handle(
         token !== null,
         marked.comb,
         { said: sang, found: sought, undo: songOn !== null && standing?.answered === songOn ? songOn : null },
+        { said: suggested, on: suggestOn, topics, undo: suggested === "kept" && suggestOn !== null && standing?.suggested === suggestOn ? suggestOn : null },
       );
       let marks = "";
       // The reader's own taps and count, for a browser that has a token and
@@ -1858,7 +2118,7 @@ async function handle(
       // link to this browser's own record is on the page for a reader who
       // carries one, and a page carrying it is one reader's own like the
       // marks and is never stored.
-      if (marks !== "" || anniversary || tapped !== null || found !== null || born !== null || token !== null || sang !== null || sought !== null) {
+      if (marks !== "" || anniversary || tapped !== null || found !== null || born !== null || token !== null || sang !== null || sought !== null || suggested !== null || topics !== null) {
         let html: string | null = null;
         try {
           html = await readFile(file, "utf8");
@@ -1873,7 +2133,7 @@ async function handle(
             "Cache-Control": "no-store",
             ...securityFor(path),
           });
-          response.end(method === "HEAD" ? undefined : withMe(withWall(html, wall?.section ?? null), mePanel) + marks + (tapped === "kept" ? BUZZ_SOUND : ""));
+          response.end(method === "HEAD" ? undefined : withMe(withWall(html, wall?.section ?? null, wall?.comb ?? null), mePanel) + marks + (tapped === "kept" ? KEPT_SAID + BUZZ_SOUND : ""));
           return;
         }
       }
@@ -1883,7 +2143,8 @@ async function handle(
     // is streamed exactly as built, below.
     const open = readable ? dateFor(path) : null;
     if (open !== null) {
-      const wall = (await liveWall(open.month, open.day, Date.now(), false, open.hive, null, null, [], null, false, open.comb))?.section ?? null;
+      const live = await liveWall(open.month, open.day, Date.now(), false, open.hive, null, null, [], null, false, open.comb);
+      const wall = live?.section ?? null;
       if (wall !== null) {
         let html: string | null = null;
         try {
@@ -1902,7 +2163,7 @@ async function handle(
             Vary: "Cookie",
             ...securityFor(path),
           });
-          response.end(method === "HEAD" ? undefined : withWall(html, wall));
+          response.end(method === "HEAD" ? undefined : withWall(html, wall, live?.comb ?? null));
           return;
         }
       }
@@ -1961,6 +2222,14 @@ async function handle(
  * the same buzz from its script, where every browser allows it.
  */
 export const BUZZ_SOUND = `<audio class="wbuzzsound" src="/buzz.wav" autoplay preload="auto"></audio>`;
+
+/**
+ * The sentence that says a buzz counted, shown on the page that follows it
+ * whatever the fragment names. The fragment shows it by landing on the
+ * story, and a story the page does not draw, which the feed used to draw and
+ * the museum may not, would leave it hidden. docs/the-wall.md section 32.
+ */
+export const KEPT_SAID = `<style>#wkept{display:block}</style>`;
 
 export function yoursMark(dateSlug: string, year: number | null): string {
   if (year === null) return "";
@@ -2172,7 +2441,9 @@ async function liveWall(
   comb: boolean = false,
   /** What this request brings to the song board, docs/the-wall.md section 31. */
   song: SongOptions = {},
-): Promise<{ section: string; day: WallDay } | null> {
+  /** What this request brings to the suggestion box, section 32: the word, the story it is about, the Undo, and the articles a search found. */
+  suggest: { said?: SuggestWord | null; on?: string | null; undo?: string | null; topics?: Topic[] | "none" | "busy" | "expired" | null } = {},
+): Promise<{ section: string; comb: string | null; day: WallDay } | null> {
   const key = process.env.SUPABASE_ANON_KEY;
   if (!key) return null;
   const wallDate = openWallDates(now).get(wallKey(month, day));
@@ -2222,6 +2493,7 @@ async function liveWall(
     }
     return {
       section: pictureRules([...pictures, ...answerPictures(wall)]) + hiveDaysNav(month, day, now) + liveHiveSection(wall, `${monthName(month)} ${day}`, now, { project: projectBase(), key, standing, scores, anniversary, yours }),
+      comb: null,
       day: wall,
     };
   }
@@ -2229,9 +2501,17 @@ async function liveWall(
   // the order the matcher gave them. One that is not on the date is dropped
   // rather than refused: the wall may have moved since the find.
   const read = wall;
-  const stories = found === null
-    ? undefined
-    : found.map((id) => read.stories.find((s) => s.id === id)).filter((s): s is NonNullable<typeof s> => s !== undefined);
+  // What a search or the old typed field found already on the date, and the
+  // articles a search found on Wikipedia, for the suggestion box. Section 32.
+  const here = found === null
+    ? []
+    : found.map((id) => read.stories.find((s) => s.id === id)).filter((s): s is WallStory => s !== undefined);
+  const topics = suggest.topics ?? null;
+  const suggestFound: SuggestOptions["found"] = found === null && topics === null
+    ? null
+    : here.length === 0 && (topics === "none" || topics === "busy" || topics === "expired")
+      ? topics
+      : { here, topics: Array.isArray(topics) ? topics : [] };
   // The story a buzz just counted for, resolved against this wall. One that
   // is not on the date is dropped rather than refused, the way a find's is:
   // the button is a convenience and its absence costs the reader the window,
@@ -2248,16 +2528,24 @@ async function liveWall(
   // asking the question, as last read: the page never waits on Apple.
   const asking = !hive && !comb && easternDateOf(now) === wallDate && takingBoosts(wall, now);
   const chart = asking ? chartNow(now) : [];
+  const name = `${monthName(month)} ${day}`;
   return {
-    section: pictureRules(shown) + (hive ? hiveDaysNav(month, day, now) : "") + wallSection(wall, `${monthName(month)} ${day}`, now, { interactive: true, hive, comb, date: { month, day }, found: stories, undo, anniversary, yours, song: { ...song, chart } }),
+    section: pictureRules(shown) + (hive ? hiveDaysNav(month, day, now) : "") + wallSection(wall, name, now, {
+      interactive: true, hive, comb, date: { month, day }, undo, anniversary, yours, song: { ...song, chart },
+      suggest: { found: suggestFound, said: suggest.said ?? null, on: suggest.on ?? null, undo: suggest.undo ?? null },
+    }),
+    // The comb's handful in the museum, from the same read, on the date page
+    // alone. Section 32.
+    comb: hive || comb ? null : combPreview(wall, name, now, true),
     day: wall,
   };
 }
 
-/** The page with the fresh wall in it, or the page as it was. */
-export function withWall(html: string, section: string | null): string {
+/** The page with the fresh wall in it, and the fresh comb preview, or the page as it was. */
+export function withWall(html: string, section: string | null, comb: string | null = null): string {
   if (section === null) return html;
-  return replaceWall(html, section) ?? html;
+  const walled = replaceWall(html, section) ?? html;
+  return comb === null ? walled : replaceComb(walled, comb);
 }
 
 /** For tests: forget every fresh wall. */

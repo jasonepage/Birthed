@@ -5,7 +5,7 @@ import { DayPage, Person, monthName, neighbours, slug, everyDate } from "./model
 import { SHARE_STYLE, shareBlock } from "./share-button.js";
 import { MASCOT_STYLE } from "./mascot.js";
 import { THEME } from "./theme.js";
-import { WALL_STYLE, combPath, hivePath, pictureRules, recordStanding, storyBody, wallSection, type Picture, type RecordRow, type ReceiptOptions, type WallDay, type WallStory } from "./wall.js";
+import { COMB_END, COMB_START, WALL_STYLE, combPath, combPreview, hivePath, pictureRules, recordStanding, storyBody, voiceFor, wallSection, type Picture, type RecordRow, type ReceiptOptions, type Voice, type WallDay, type WallStory } from "./wall.js";
 import { CHART_NAME, coverName, SongOfTheYear } from "./songs.js";
 import { calendar } from "./calendar.js";
 import { type CulturalEvent, textOf } from "./culture.js";
@@ -646,9 +646,8 @@ ol.covers li:target .y a { color: ${ACCENT}; }
 }
 p.credit { color: ${QUIET}; font-size: 13px; margin: 14px 0 0; }
 /* Born on this date, as two lists. See bornLists. */
-.bornlists { margin: 28px 0 0; }
 .bornlists .bcols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 28px; }
-.bornlists h3 { font-family: var(--sans); font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--honey); margin: 10px 0 6px; }
+.bornlists h4 { font-family: var(--sans); font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--honey); margin: 10px 0 6px; }
 .bornlists ol { list-style: none; margin: 0; padding: 0; }
 /* Block, not the row layout list items get elsewhere on the page, so a long
    description sits under the name instead of squeezing it onto two lines. */
@@ -658,6 +657,45 @@ p.credit { color: ${QUIET}; font-size: 13px; margin: 14px 0 0; }
 .bornlists .bmeta { display: block; color: ${QUIET}; font-size: 13px; margin-top: 2px; }
 .bornlists p.bnote { color: ${QUIET}; font-size: 12.5px; margin: 6px 0 0; }
 @media (max-width: 560px) { .bornlists .bcols { grid-template-columns: minmax(0, 1fr); } }
+/* The museum, docs/the-wall.md section 32: the record of the date under the
+   game, every section folded, quieter than the hive on purpose. Tokens only. */
+.museum { margin: 48px 0 0; padding: 24px 0 0; border-top: 1px solid var(--line); }
+.mkick { margin: 0; color: var(--dimmer); font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.mtitle { margin: 4px 0 6px; font-family: var(--serif); font-optical-sizing: auto; font-size: clamp(22px, 5vw, 28px); font-weight: 800; line-height: 1.1; color: var(--cream); }
+.museum > .mnote { margin: 0 0 14px; color: var(--dim); font-size: 14px; line-height: 1.45; }
+.mlive { display: none; }
+.mgroup { margin: 8px 0; border: 1px solid var(--line); border-radius: 14px; background: var(--cell); }
+.mgroup > summary { list-style: none; cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; padding: 13px 44px 13px 16px; position: relative; }
+.mgroup > summary::-webkit-details-marker { display: none; }
+.mgroup > summary::after { content: "+"; position: absolute; right: 16px; top: 11px; color: var(--honey); font-size: 20px; font-weight: 700; }
+.mgroup[open] > summary::after { content: "\\2212"; }
+.mgroup > summary:hover .mhead { color: var(--honey-lite); }
+.mhead { margin: 0; font-family: var(--serif); font-size: 18px; font-weight: 800; color: var(--cream); }
+.mcount { min-width: 0; color: var(--dim); font-size: 13px; }
+.mgroup[open] { padding: 0 14px 14px; }
+.mgroup[open] > summary { margin: 0 -14px; }
+.mgroup .wnote { margin: 0 0 10px; }
+.mrest { font-family: var(--sans); font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--honey); margin: 18px 0 8px; }
+.mlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.mrow { scroll-margin-top: 84px; }
+.wlist li.mrow, .bornlists li.mrow, .mpeople li.mrow { display: flex; gap: 12px; align-items: flex-start; }
+.mwho { flex: 1; min-width: 0; }
+.mrow .fbody { flex: 1; min-width: 0; }
+.wlist li.mrow.hist { flex-wrap: wrap; }
+.wlist li.mrow.hist[data-y]::before { flex-basis: 100%; }
+.mdo { flex: none; display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 8px; align-items: center; margin-left: auto; }
+.mon, .mbuzz, .mmine { display: none; }
+.mon { color: var(--dim); font-size: 12px; }
+.mn { color: var(--honey); font-size: 12px; font-weight: 700; }
+.mn:empty { display: none; }
+.mmine { color: var(--honey-lite); font-size: 12px; font-weight: 800; }
+.mbuzz { margin: 0; padding: 3px 11px; border: 0; border-radius: 999px; cursor: pointer; background: linear-gradient(180deg, var(--honey-lite), var(--honey)); color: var(--on-honey); font: inherit; font-size: 12px; font-weight: 800; line-height: 1.4; }
+.mbuzz:hover { filter: brightness(1.12); }
+.mbuzz:focus-visible { outline: 2px solid var(--honey-lite); outline-offset: 2px; }
+.mpeople li { padding: 9px 12px; border-radius: 12px; background: var(--bg); }
+.mpeople li a { color: var(--cream); font-size: 15px; font-weight: 600; text-decoration: none; }
+.mpeople .bmeta { display: block; color: var(--dim); font-size: 13px; margin-top: 2px; }
+.msong .mdo { width: 100%; justify-content: center; margin: 4px 0 0; }
 p.datenote { color: ${QUIET}; font-size: 12.5px; margin: 7px 0 0; font-style: italic; }
 /* The rest of the wall, shut.
    Sixty-odd covers is a long scroll to get past on the way to the people, and
@@ -1937,105 +1975,181 @@ export function faceName(qid: string): string {
   return qid.replace(/[^A-Za-z0-9]/g, "");
 }
 
+// ---------------------------------------------------------------------------
+// The museum. docs/the-wall.md section 32, decided October 5, 2026.
+// ---------------------------------------------------------------------------
+
 /**
- * The date's history as plain rows: what happened, who was born, what came
- * out. No buttons. On a date with a hive the worker files each of these as a
- * wall story and the feed under the hive draws them with the one button, so
- * these rows are for the date that has no hive yet, under its promise, and
- * for a hive the worker has not filed yet. The same shape as a feed row, on
- * purpose, because to a reader they are the same thing: something with a
- * birthday today.
+ * The key a museum row shares with the story the worker filed for it, or
+ * null when it is not shaped like one. museumKey in wall.ts makes the same
+ * key from the story, so a baked button can name a story it never knew.
  */
-/**
- * The number ones as a strip of covers, baked, with no buttons: the stand in
- * for the strip the wall draws from the song stories, on a date the worker
- * has not filed yet. Same shape, same classes, so the picture rules find
- * the covers by data-subject either way. Every year is its own address,
- * "/september-5/#1990", because "number one song on September 5 1990" is a
- * thing people type and the answer is on this page.
- */
-export function songStrip(songs: SongOfTheYear[], name: string): string {
-  if (songs.length === 0) return "";
-  const rows = songs.map((song) => `<li id="${song.year}" data-subject="song:${escapeHtml(song.chartDate)}">
-<a class="wart" href="#${song.year}" title="${escapeHtml(song.song)} by ${escapeHtml(song.artist)}"><span class="wyr">${song.year}</span></a>
-<span class="wsongt">&quot;${escapeHtml(song.song)}&quot; by ${escapeHtml(song.artist)}</span>
-</li>`).join("\n");
-  return `<h3 class="wsub small">The number one song on ${escapeHtml(name)}, every year</h3>
-<p class="wnote">The week's number one on this date, ${songs[songs.length - 1]?.year} to ${songs[0]?.year}. When the hive opens, every one of these takes buzzes too.</p>
-<ul class="wsongs">
-${rows}
-</ul>`;
+export function museumKeyFor(kind: string, id: string | number): string | null {
+  const key = `${kind}:${id}`;
+  return /^[a-z_]+:[A-Za-z0-9-]{1,40}$/.test(key) ? key : null;
 }
 
-/** How many names each of the two lists shows. Five a side fits one screen on a phone. */
+/**
+ * The one form every museum button posts through. A row carries one small
+ * button that names its row and no form of its own, so the hundred and fifty
+ * rows of the museum cost a few kilobytes rather than fifty. Posts like any
+ * buzz; serve.ts finds the story by the button's key.
+ */
+function museumForm(month: number, day: number): string {
+  return `<form id="mbz" method="post" action="/boost"><input type="hidden" name="m" value="${month}"><input type="hidden" name="d" value="${day}"><input type="hidden" name="v" value="museum"></form>`;
+}
+
+/**
+ * The end of a museum row: whether it is on the hive, how many buzzes it
+ * has, its button and this browser's mark. All four are off in the baked
+ * page, because a baked page cannot know whether its date is open; the live
+ * section turns them on with a style block (museumMarks in wall.ts).
+ */
+function museumDo(key: string, label: string, voice: Voice): string {
+  return `<span class="mdo"><span class="mon">On the hive</span><span class="mn"></span>`
+    + `<button class="mbuzz" type="submit" form="mbz" name="k" value="${key}" aria-label="${escapeHtml(`${voice.button}: ${label}`)}">${voice.button}</button>`
+    + `<span class="mmine">You ${voice.past} this</span></span>`;
+}
+
+/** "31 things, 1582 to 2024". */
+function spanOf(count: number, one: string, many: string, years: number[]): string {
+  const said = `${count} ${count === 1 ? one : many}`;
+  if (years.length === 0) return said;
+  const from = Math.min(...years);
+  const to = Math.max(...years);
+  return from === to ? `${said}, ${from}` : `${said}, ${from} to ${to}`;
+}
+
+/** What happened on the date, every year: the date's own history, the found facts and the culture rows, as one list. */
+export function historyGroup(rows: TimelineRow[], name: string, voice: Voice): string {
+  if (rows.length === 0) return "";
+  const items = rows.map((row) => {
+    const key = museumKeyFor(row.kind, row.id);
+    const text = row.leadLine ?? row.text;
+    // data-y is the year the row happened, for the reader's own age above it
+    // (ageMark in serve.ts), the way the feed's dated rows carried it.
+    return `<li class="mrow hist" id="m-${row.kind}-${escapeHtml(String(row.id))}"${row.year === null ? "" : ` data-y="${row.year}"`}${key === null ? "" : ` data-k="${key}"`}>
+<span class="fyr">${row.year === null ? "" : row.year}</span>
+<span class="fbody">${row.sourceUrl
+      ? `<a href="${escapeHtml(row.sourceUrl)}" rel="nofollow noopener">${escapeHtml(text)}</a>`
+      : `<span class="ftext">${escapeHtml(text)}</span>`}
+<span class="wmeta">${row.sourceUrl ? escapeHtml(hostOf(row.sourceUrl)) : ""}${whenOf(row.dateKind) ? ` ${escapeHtml(whenOf(row.dateKind) ?? "")}` : ""}</span>
+</span>${key === null ? "" : museumDo(key, text, voice)}
+</li>`;
+  }).join("\n");
+  const years = rows.map((r) => r.year).filter((y): y is number => y !== null);
+  return `<details class="mgroup" id="history">
+<summary><h3 class="mhead">${escapeHtml(name)} in history</h3><span class="mcount">${spanOf(rows.length, "thing", "things", years)}</span></summary>
+<ul class="wlist hist mlist">
+${items}
+</ul>
+</details>`;
+}
+
+/** How many names each of the two short lists shows. Five a side fits one screen on a phone. */
 export const BORN_SHOWN = 5;
 
 /**
- * Who was born on this date, as two short lists side by side.
- *
- * "Big right now" is attention alone: the most read on English Wikipedia last
- * month, which is where Clavicular leads December 17. "Legends" is the world
- * score, which is where Beethoven leads December 16. Nathan's call, September
- * 25, 2026, and the reason is the one in DayPage.now: each ordering is right
- * about something the other gets wrong, and one list has to pick.
- *
- * Nobody is in both, and a legend keeps their place. On December 16 Jane
- * Austen and Beethoven are also among the five most read, and taking them
- * out of Legends to list them under attention would have put Beethoven under
- * "Big right now" on his own birthday. So Legends is drawn first, and Big
- * right now is the most read people who are not already there. The screens
- * still hold: the build asks for the attention list with the adult and
- * violence screens applied, so nobody they caught can lead either list.
+ * Who was born on the date: "Big right now" and "Legends" first, then
+ * everybody else the page carries. Nathan's call, September 25, 2026, for the
+ * two lists, and the reason is the one in DayPage.now: each ordering is right
+ * about something the other gets wrong. Nobody is in two places, and a
+ * legend keeps their place: Legends is drawn first, Big right now is the
+ * most read people who are not already in it, and the rest is everybody
+ * left, in world score order. The screens still hold, because the build asks
+ * for both lists with the adult and violence screens applied.
  */
-export function bornLists(page: DayPage, name: string): string {
+export function bornGroup(page: DayPage, name: string, voice: Voice): string {
   const legends = page.people.slice(0, BORN_SHOWN);
   const taken = new Set(legends.map((p) => p.qid));
   const now = (page.now ?? []).filter((p) => p.monthlyViews > 0 && !taken.has(p.qid)).slice(0, BORN_SHOWN);
+  for (const p of now) taken.add(p.qid);
+  const rest = page.people.filter((p) => !taken.has(p.qid));
   if (now.length === 0 && legends.length === 0) return "";
-  const row = (p: Person): string => {
+  const meta = (p: Person): string => {
     const said = p.description ? tidyDescription(p.description) : "";
     const years = p.birthYear === null ? "" : p.deathYear ? `born ${p.birthYear}, died ${p.deathYear}` : `born ${p.birthYear}`;
-    const meta = [years, said].filter((part) => part !== "").join(", ");
-    return `<li><a href="https://www.wikidata.org/wiki/${escapeHtml(p.qid)}" rel="nofollow noopener">${escapeHtml(p.name)}</a>${meta ? `<span class="bmeta">${escapeHtml(meta)}</span>` : ""}</li>`;
+    return [years, said].filter((part) => part !== "").join(", ");
+  };
+  const row = (p: Person): string => {
+    const key = museumKeyFor("person", p.qid);
+    const m = meta(p);
+    return `<li class="mrow" id="m-person-${escapeHtml(p.qid)}"${key === null ? "" : ` data-k="${key}"`}><span class="mwho"><a href="https://www.wikidata.org/wiki/${escapeHtml(p.qid)}" rel="nofollow noopener">${escapeHtml(p.name)}</a>${m ? `<span class="bmeta">${escapeHtml(m)}</span>` : ""}</span>${key === null ? "" : museumDo(key, p.name, voice)}</li>`;
   };
   const column = (title: string, people: Person[], note: string): string => people.length === 0 ? "" : `<div class="bcol">
-<h3>${title}</h3>
+<h4>${title}</h4>
 <ol>
 ${people.map(row).join("\n")}
 </ol>
 <p class="bnote">${note}</p>
 </div>`;
-  return `<section class="bornlists" aria-labelledby="bornlists-h">
-<h2 id="bornlists-h" class="wsub">Born on ${escapeHtml(name)}</h2>
+  const named = [...legends, ...now].slice(0, 2).map((p) => p.name);
+  const count = legends.length + now.length + rest.length;
+  const summary = named.length === 0
+    ? `${count} ${count === 1 ? "person" : "people"}`
+    : count > named.length ? `${named.join(", ")} and ${count - named.length} more` : named.join(" and ");
+  return `<details class="mgroup bornlists" id="born">
+<summary><h3 class="mhead">Born on ${escapeHtml(name)}</h3><span class="mcount">${escapeHtml(summary)}</span></summary>
 <div class="bcols">
 ${column("Big right now", now, "The most read on English Wikipedia last month, after the legends.")}
 ${column("Legends", legends, "Written about in the most languages, weighted by readers.")}
-</div>
-</section>`;
+</div>${rest.length === 0 ? "" : `
+<h4 class="mrest">Everyone else born on ${escapeHtml(name)}</h4>
+<ol class="mlist mpeople">
+${rest.map(row).join("\n")}
+</ol>`}
+</details>`;
 }
 
-export function historyRows(rows: TimelineRow[], people: Person[], songs: SongOfTheYear[] = [], name: string = ""): string {
-  const events = rows.map((row) => `<li id="r-${row.kind}-${escapeHtml(row.id)}" class="hist">
-<span class="fyr">${row.year === null ? "" : row.year}</span>
-<span class="fbody">${row.sourceUrl
-    ? `<a href="${escapeHtml(row.sourceUrl)}" rel="nofollow noopener">${escapeHtml(row.leadLine ?? row.text)}</a>`
-    : `<span class="ftext">${escapeHtml(row.leadLine ?? row.text)}</span>`}
-<span class="wmeta">${row.sourceUrl ? escapeHtml(hostOf(row.sourceUrl)) : ""}${whenOf(row.dateKind) ? ` ${escapeHtml(whenOf(row.dateKind) ?? "")}` : ""}</span>
-</span>
-</li>`);
-  const born = people.map((person) => `<li id="r-person-${escapeHtml(person.qid)}" class="hist">
-<span class="fyr">${person.birthYear ?? ""}</span>
-<span class="fbody"><a href="https://www.wikidata.org/wiki/${escapeHtml(person.qid)}" rel="nofollow noopener">${escapeHtml(person.name)}</a>
-<span class="wmeta">born today${person.description && tidyDescription(person.description) ? `, ${escapeHtml(tidyDescription(person.description))}` : ""}${person.deathYear ? `, died ${person.deathYear}` : ""}</span>
-</span>
-</li>`);
-  const all = [...events, ...born];
-  const strip = songStrip(songs, name);
-  if (all.length === 0) return strip;
-  return `<ul class="wlist hist">
-${all.join("\n")}
+/**
+ * The number one song on the date in every year, as a strip of covers. Every
+ * year is its own address, "/september-5/#1990", because "number one song on
+ * September 5 1990" is a thing people type and the answer is on this page.
+ */
+export function numberOnesGroup(songs: SongOfTheYear[], name: string, voice: Voice): string {
+  if (songs.length === 0) return "";
+  const rows = songs.map((song) => {
+    const key = museumKeyFor("song", song.chartDate);
+    const label = `"${song.song}" by ${song.artist}`;
+    return `<li class="mrow msong" id="${song.year}" data-subject="song:${escapeHtml(song.chartDate)}"${key === null ? "" : ` data-k="${key}"`}>
+<a class="wart" href="#${song.year}" title="${escapeHtml(song.song)} by ${escapeHtml(song.artist)}"><span class="wyr">${song.year}</span></a>
+<span class="wsongt">&quot;${escapeHtml(song.song)}&quot; by ${escapeHtml(song.artist)}</span>${key === null ? "" : museumDo(key, label, voice)}
+</li>`;
+  }).join("\n");
+  const years = songs.map((s) => s.year);
+  return `<details class="mgroup" id="number-ones">
+<summary><h3 class="mhead">Number ones by year</h3><span class="mcount">${spanOf(songs.length, "song", "songs", years)}</span></summary>
+<p class="wnote">The number one song on ${escapeHtml(name)} in every year, ${Math.min(...years)} to ${Math.max(...years)}.</p>
+<ul class="wsongs">
+${rows}
 </ul>
-${strip}`;
+</details>`;
+}
+
+/**
+ * The museum: everything with a birthday on the date, every year, under the
+ * game. docs/the-wall.md section 32. All of it is in the page, which is the
+ * search plan, and all of it is folded, so it never competes with the hive.
+ * Its buttons are baked switched off and the live section switches them on
+ * while the date is taking buzzes, when a buzz here counts the same as one on
+ * the hive. The comb sits last, as a handful of cells and the way in.
+ */
+export function museumSection(page: DayPage, name: string, rows: TimelineRow[], songs: SongOfTheYear[], comb: string): string {
+  const voice = voiceFor(page.month, page.day);
+  const history = historyGroup(rows, name, voice);
+  const born = bornGroup(page, name, voice);
+  const ones = numberOnesGroup(songs, name, voice);
+  if (history === "" && born === "" && ones === "" && comb === `${COMB_START}${COMB_END}`) return comb;
+  return `<section class="museum" id="museum" aria-labelledby="museum-h">
+<p class="mkick">The archive</p>
+<h2 class="mtitle" id="museum-h">${escapeHtml(name)}, every year</h2>
+<p class="mnote">What happened, who was born and what was number one. <span class="mlive">While this date's hive is open, a ${voice.one} here counts the same as one on the hive.</span></p>
+${museumForm(page.month, page.day)}
+${history}
+${born}
+${ones}
+${comb}
+</section>`;
 }
 
 /**
@@ -2609,13 +2723,10 @@ ${siteBar(`<span class="barnav">
 </span>
 `)}
 <h1>${name}</h1>
-${meMarker()}
 ${pictureRules([...picturesFor(songs, page.people), ...morePictures])}
-${wallSection(wall, name, Date.now(), {
-    date: { month: page.month, day: page.day },
-    history: historyRows([...picked, ...rest], page.people, songs, name),
-  })}
-${bornLists(page, name)}
+${wallSection(wall, name, Date.now(), { date: { month: page.month, day: page.day } })}
+${meMarker()}
+${museumSection(page, name, [...picked, ...rest], songs, combPreview(wall, name, Date.now(), false))}
 ${renderBirthdayModal()}
 ${songs.length > 0 ? `<p class="credit">Chart positions are from the ${escapeHtml(CHART_NAME)}, compiled by Wikipedia and released under Creative Commons Attribution ShareAlike. ${songs.some((song) => song.hasArtwork) ? "Cover art comes from the iTunes Search API. " : ""}Birthed is not affiliated with Billboard, Wikipedia or Apple.</p>` : ""}
 ${feedCredits(timeline, name, searched, timeline.length - searched - curatedCount, curatedCount)}

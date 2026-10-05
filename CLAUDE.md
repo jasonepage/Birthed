@@ -679,6 +679,53 @@ was the only page that looked designed, so every page looks like it now.
   already says "died 2025". Nathan's call: it is true that people are
   looking them up.
 
+### One game, and the museum under it, decided October 5, 2026
+
+`docs/the-wall.md` section 32 is the whole of it. The short form:
+
+- **The date page is one game, and the record of the date is under it.**
+  Jason's brief: five things at the same volume read as bloated, and the hive
+  is the product. First: the song in your head, the hive with what is left to
+  spend and when it seals, the board, the crown, "What else mattered today?",
+  and Pick between two. On a phone the first screen is the game and nothing
+  else.
+- **The museum is everything with a birthday on the date, folded:** history,
+  Born on (Big right now and Legends, then everybody else), Number ones by
+  year, and the comb. All of it is baked into the page outside the swapped
+  section, so the search inventory is whole. Closed details, never hidden.
+- **A museum row buzzes the same.** Its button names the row by a key shared
+  with the worker's story ("person:Q937"), baked switched off, and switched
+  on by a style block in the live section (`museumMarks`). `/boost` finds the
+  story by the key; a row not filed yet spends nothing and says so.
+- **Cut:** "Today's feed"; the comb card, now six cells and "Open the comb";
+  the decade teams on the date page (the full screen hive keeps them); and
+  the typed field, replaced by the suggestion box.
+- **Nothing twice.** History, people and number ones are the museum's alone
+  (`MUSEUM_KINDS`); songs are the song board's; suggestions are their list's.
+  The board shows whatever is winning. A buzz lands where its story is drawn
+  (`keptAt`).
+- **The board is today, plus anything buzzed**, Jason's call: unbuzzed, only
+  the day's news takes a tile, and history waits in the museum until somebody
+  buzzes it. Changed in the worker and its web copy together, so the app and
+  the full screen hive match. Nothing sealed is re-cut.
+- **Suggestions, without the app.** Search Wikipedia, pick a real article,
+  never typed text; the database reads the article itself
+  (`wall_topic_lookup`). One per browser per day. A free buzz, Jason's call.
+  The guard is a website buzz's, the cookie and the per address ceiling it
+  shares with `/boost`, Jason's call: on the web the buzz has no phone check.
+  If it is already a tile, the page and the database both point at the tile:
+  buzz it instead. It lands at once in "Suggested today" and in the sealed
+  picture. The database caps new suggestions for the whole site at twenty a
+  minute and three hundred a day, because the function is the anonymous
+  role's to call and a fresh token passes every per browser rule. The
+  privacy page changed in the same commit.
+- **Turning it on:** apply `20261005000000_suggestions_on_the_page.sql`, then
+  push, then redeploy the worker. The anniversary and refill migrations go
+  after it. Not run on the live project when this was written, so the
+  database has not yet asked the real Wikipedia.
+- **The song migration, `20261003000000_the_song_in_your_head.sql`, was
+  applied on October 4, 2026**, and the song prompt is live.
+
 ### The editor on the hive, decided September 22, 2026
 
 Nathan's call, the night of the Hacker News post. The unbuzzed board was

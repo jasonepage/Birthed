@@ -102,12 +102,17 @@ test("the block: nothing before the date, nothing with no buzzes, the line and t
   ];
   assert.equal(decadesBlock(day(stories), "September 23", BEE, Date.parse("2026-09-22T20:00:00Z")), "");
   assert.equal(decadesBlock(day(stories.map((s) => ({ ...s, support: 0 }))), "September 23", BEE, NOW), "");
-  const html = wallSection(day(stories), "September 23", NOW, { interactive: true, date: { month: 9, day: 23 } });
+  // The teams left the date page on October 5, 2026, docs/the-wall.md
+  // section 32: one scoreboard there is the crown. The full screen hive keeps them.
+  const page = wallSection(day(stories), "September 23", NOW, { interactive: true, date: { month: 9, day: 23 } });
+  assert.ok(!page.includes('id="wdecades"') && !page.includes("wdecadeline"), "not on the date page");
+  assert.ok(page.includes('id="wcrown"'), "the crown is");
+  const html = wallSection(day(stories), "September 23", NOW, { interactive: true, hive: true, date: { month: 9, day: 23 } });
   assert.ok(html.includes('<p class="wdecadeline" id="wdecadeline">The 1940s (Boomers) lead September 23 with 3 of 7 buzzes.</p>'));
   assert.ok(html.includes('<span class="wdecade">1940s <b>3</b></span> <span class="wdecade">1950s <b>2</b></span> <span class="wdecade">1860s <b>1</b></span>'));
   assert.ok(!html.includes("2020s <b>"), "only the top three");
   // A four way tie shows all four, because the line names all four.
-  const four = wallSection(day(stories.map((s) => ({ ...s, support: 1 }))), "September 23", NOW, { interactive: true, date: { month: 9, day: 23 } });
+  const four = wallSection(day(stories.map((s) => ({ ...s, support: 1 }))), "September 23", NOW, { interactive: true, hive: true, date: { month: 9, day: 23 } });
   assert.ok(four.includes("The 1860s, 1940s (Boomers), 1950s and 2020s are level on September 23, 1 buzz each."));
   assert.ok(four.includes("2020s <b>1</b>"));
   assert.ok(html.indexOf('id="wdecades"') < html.indexOf('id="wcrown"'), "the teams line sits above the crown list");

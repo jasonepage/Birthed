@@ -3175,3 +3175,178 @@ toolchain.
 about October 3?", is still under the hive's heading, so today's page has two
 boxes to type in. Taking one away is a call about the page, not about the
 song, and was not made here.
+
+## 32. One game, and the museum under it, October 5, 2026
+
+**Why.** Jason's brief, October 5, 2026: the date page showed five things at
+the same volume (the song prompt, the hive, "Today's feed", the comb at 618
+cells, the leaderboards, the birthday lookup) and read as bloated. The hive
+is the product: every day, everyone decides what mattered, and at midnight
+it is sealed forever. Everything else serves it or goes. A search engine
+reads the markup and a person reads the screen, so the page is split in two:
+the game first, and the record of the date under it.
+
+**The game, first.** On today's date page, in this order: the song in your
+head (section 31); the hive for the date, with what is left to spend and when
+it seals; the board; the crown; "What else mattered today?", which is what
+readers suggested and the box to suggest one more; and the ways on, Pick
+between two and the full screen hive. On a phone 390 pixels wide the first
+screen is the song prompt and nothing else, and the museum starts about 2,500
+pixels down. On a screen 1280 pixels wide the first screen is the song
+prompt and the top of the hive.
+
+**The museum, under it.** "October 5, every year", under a kicker that says
+"The archive". Four groups, each a closed details element: "October 5 in
+history" (the found facts, Wikipedia's events and the culture rows, one list,
+in the order the page always used), "Born on October 5" (Big right now and
+Legends, five a side, then everybody else the page carries), "Number ones by
+year", and the comb. All of it is in the baked page, outside the part the
+server swaps, so a crawler reads every row whether or not the date is open.
+Closed is how it is shown, not what is in the page: nothing is hidden and
+nothing is left out. This is the search plan, and it is the same inventory
+as before.
+
+**A buzz in the museum counts the same.** Every row carries a small Buzz
+button that names its row by a key, "person:Q937", "historical_event:4242",
+"song:1990-10-06", which is the same key the story the worker files for that
+thing carries (`museumKeyFor` in `render.ts`, `museumKey` in `wall.ts`). One
+form serves them all, so a hundred and fifty rows cost a few kilobytes of
+buttons rather than fifty of forms. The buttons are baked switched off,
+because a baked page cannot know whether its date is open. The live section,
+on a date taking buzzes, carries one style block (`museumMarks`) that
+switches them on, adds each row's count and an "On the hive" mark where the
+story has a tile, and this browser's own marks find the row by the same key.
+Every word in that block is generated, so nothing a source wrote is inside a
+style rule. `POST /boost` with a key finds the story on the open hive from
+the cached read. A row whose story the worker has not filed yet spends
+nothing and says so: "That one is not on this hive yet."
+
+**Cut.** "Today's feed" is gone. It was the board's own stories in a second
+outfit. The comb, 618 cells on a busy date, is a handful on the date page:
+six cells of the day's news that is not on the board, ranked the way the comb
+ranks, and "Open the comb", which leads to the comb's own page, unchanged.
+The decade teams left the date page: one scoreboard there is the crown, and
+the full screen hive keeps the teams. The typed field of section 15, "What
+mattered about October 5?", is replaced by the suggestion box, which does
+what it did, finding what is already filed, and also takes the miss, so the
+two boxes section 31 left on the page are one box and the song's. `/find`
+still answers, for a page served before this, and sends the reader to the
+box.
+
+**The museum keeps the reader's age.** A dated history row carries its year
+as `data-y`, so a reader who has given a birthday sees "You were 11" above
+it, as the feed's rows did.
+
+**Nothing twice.** Each kind has one place on the date page. History, people
+and number ones are the museum's (`MUSEUM_KINDS`), so the comb preview leaves
+them out. Song answers are the song board's, and suggestions are the
+suggestion list's. The board shows whatever is winning, of any kind, because
+the board is the scoreboard and not a list. A buzz that counted lands where
+its story is drawn (`keptAt`): the tile when the buzz came from the board,
+the song row, the suggestion row, the museum row (the year, for a number
+one), the comb cell, or, for a story drawn nowhere on the page, the sentence
+that says it counted. A museum row is baked and the worker files more than
+the build bakes (every person, and facts found after the deploy), so a buzz
+on a row the page does not carry lands on the sentence too, and the page
+that follows a buzz shows the sentence whatever the fragment found.
+
+**The board is today, plus anything buzzed.** Jason's call. Unbuzzed, only
+today's own kind takes a tile: the day's news, up to the news quota. A song
+answer or a suggestion arrives with its free buzz. History, people and number
+ones wait in the museum until somebody buzzes one, and then it competes like
+anything else. `qualifies` in `worker/src/wall/allocator.ts` and its copy in
+`web/src/hive-allocator.ts`, held together by the four hundred generated
+boards. The worker changed, not only the page, so the app and the full screen
+hive show the same board. A sealed board is never re-cut: this changes open
+hives from the first tick after the worker redeploys, and changes nothing
+that has sealed.
+
+**Suggestions.** "What else mattered today?", on today's date page, under the
+board.
+
+- **Search, never typed text.** The reader types, the server asks
+  Wikipedia's prefix search (English Wikipedia, articles only), and the reader
+  picks an article. A page of several meanings, a list and anything outside
+  the articles are never offered. The database reads the article from
+  Wikipedia itself (`wall_topic_lookup`) and keeps its title, Wikipedia's
+  short description and the first sentence of its introduction in
+  `wall_topics`, so a hand made post cannot put words of its own on a hive
+  kept forever. The phrase is never stored, logged or put in an address. The
+  tile's headline is the title and the description, the outlet is Wikipedia,
+  and it is claimed until something reports it.
+- **One thing, one tile.** Before anything new is offered, the box looks at
+  what is already filed for the date with the find matcher and lists it
+  first: "Already on today's hive. Buzz it instead." An article that is
+  already a tile, by its Wikidata item (a person born on the date, something
+  already suggested) or by its own address, is offered as "Already here. Buzz
+  it", never as a new suggestion, and never twice in one answer. The database
+  checks again, and once more for an event whose line is about the article,
+  which the page cannot see, and answers "exists" with that tile, which the
+  page then draws under the sentence with its buzz.
+- **One suggestion per browser per day**, by a unique index,
+  `wall_boosts_one_suggestion_a_day`. The browser's own standing puts the box
+  away and marks its suggestion, the way the song box does.
+- **A suggestion is a free buzz on what it suggests**, Jason's call, outside
+  the day's three, so it can reach the board as soon as it is made: a
+  `wall_boosts` row with `suggested = true`.
+- **The guard is a website buzz's**, Jason's call: the token cookie and the
+  per address ceiling in `serve.ts`, and the ceiling is the one `/boost` uses,
+  so suggesting cannot be used to go around it. The brief asked for "the same
+  one-time phone check the buzz button uses". On the web the buzz button has
+  no phone check; this is the check it has. App Attest is the app's path, and
+  the app cannot suggest yet.
+- **It lands at once** in "Suggested today", with its buzz button, on the
+  fresh read the redirect allows, before the worker's next tick. Thirty
+  seconds to take it back through `wall_forget_boost`, unchanged. A
+  suggestion taken back stays filed with nobody behind it, and is off the
+  list, off the board and out of the picture. It is not pointed at as a tile
+  already there, because it is drawn nowhere: the next browser to suggest
+  the same thing takes it up with its own free buzz, so taking one back never
+  blocks the thing for the rest of the day.
+- **A ceiling for the whole site**, in the database, before Wikipedia is
+  asked: at most twenty new suggestions a minute and three hundred a day,
+  across everybody, answered "crowded" and "full". `wall_suggest_topic` is
+  the anonymous role's to call, like every web write, so a script with a
+  fresh token for every call passes the one a day rule and the website's per
+  address limit both; this bounds what it can file. The numbers are far
+  above anything seen so far and are there to be raised.
+- **Never a dead box.** With nothing suggested: "Be the first to suggest
+  one." Yesterday's page shows yesterday's suggestions with their buttons
+  until the seal; a sealed date shows them as they sealed.
+- **In the sealed picture**, "Suggested by readers", most buzzed first, by
+  the article's title. With the songs as well, each list gives two rows and
+  the crown stands alone above them, so the square still fits.
+- **A curator can hide one** before the seal, `wall_hide_song`, and the panel
+  lists the open dates' suggestions.
+- **The second script** on today's date page, search as you type, named by
+  its hash (`SUGGEST_SCRIPT_SOURCE`). Everything works without it.
+- **What is recorded**: the scrambled browser token, the article, the date
+  and the time, in the row a buzz writes. The privacy page says so in the
+  same commit.
+
+**Turning it on.** Apply `20261005000000_suggestions_on_the_page.sql`, then
+push. Pushed first, the read of the new column fails, the page falls back to
+the song era's read, and the box is not drawn, because the read cannot tell a
+suggestion's buzz from any other. The museum and the cuts do not depend on
+it. The worker's rule takes effect when the worker redeploys. The anniversary
+migration of September 11 and the refill migration of September 23 go after
+this file, and each says so.
+
+**What was tested, and what was not.** The migration in memory on PGlite, on
+top of the live wall functions copied on October 3 and the song migration:
+`worker/test/suggest-migration.test.ts`. The website's tests cover the box,
+the dedupe against tiles, one a day, the guard, the undo, the museum being in
+the page, nothing drawn twice, and the order of the game on the page
+(`suggest.test.ts`, `suggest-serve.test.ts`, `render.test.ts`,
+`wall.test.ts`). The page was looked at in Chromium at 390 and 1280 pixels
+wide from fixtures. **Not tested:** the migration on the live project, and
+so the database asking the real Wikipedia; the curation panel's Hide in a
+signed in browser; and the app, which draws a suggestion as a plain tile
+with its headline and no kind word or mark of its own, since neither shell
+has a Swift toolchain. **Known limits:** the decade teams count a suggestion
+as having no year. A tile keeps Wikipedia's short description as it read at
+the moment of the suggestion, so a description vandalised on Wikipedia in
+that moment is kept on a sealed tile, and the curator's Hide before the seal
+is the remedy. The song answer has the same direct call as a suggestion and
+no site wide ceiling yet. On a phone exactly 390 pixels wide the site bar is
+one pixel wider than the screen, which it was before this.

@@ -33,6 +33,12 @@ export interface WallBoost {
    * the column existed, which is a buzz.
    */
   answer?: boolean;
+  /**
+   * The buzz a suggestion gives what it suggests, docs/the-wall.md section
+   * 32. A buzz like any other to the crown. Absent on a row read before the
+   * column existed, which is a buzz.
+   */
+  suggested?: boolean;
 }
 
 /** One change of hands. `from` is null for the first crown of the day. */
@@ -196,7 +202,11 @@ export function boostFrom(row: unknown): WallBoost | null {
   const id = Number(r.id);
   if (!Number.isFinite(id)) return null;
   const answer = (row as { answer?: unknown }).answer === true;
-  return answer ? { id, storyId: r.story_id, units: r.units, castAt: r.cast_at, answer } : { id, storyId: r.story_id, units: r.units, castAt: r.cast_at };
+  const suggested = (row as { suggested?: unknown }).suggested === true;
+  const boost: WallBoost = { id, storyId: r.story_id, units: r.units, castAt: r.cast_at };
+  if (answer) boost.answer = true;
+  if (suggested) boost.suggested = true;
+  return boost;
 }
 
 /** The crown as a mark on a tile. Our own drawing, one stroke weight, never an emoji. */

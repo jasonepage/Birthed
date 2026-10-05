@@ -8,6 +8,7 @@ import { ageMark, cardFor, openDates, pictureFor, redirectFor, resolvePath, secu
 import { personalName } from "../src/share.js";
 import { SHARE_SCRIPT_SOURCE, shareBlock } from "../src/share-button.js";
 import { SONG_SCRIPT, SONG_SCRIPT_SOURCE } from "../src/song-prompt.js";
+import { SUGGEST_SCRIPT, SUGGEST_SCRIPT_SOURCE } from "../src/suggest.js";
 import { monthName } from "../src/model.js";
 
 const ROOT = resolve("out");
@@ -483,8 +484,23 @@ import { readTap, receiptFor, tappedFrom } from "../src/serve.js";
 
 test("a posted tap is a story and a date, and nothing else gets through", () => {
   assert.deepEqual(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9"), {
-    storyId: "11111111-1111-1111-1111-111111111111", month: 9, day: 9, back: "day", pick: 0,
+    storyId: "11111111-1111-1111-1111-111111111111", key: null, month: 9, day: 9, back: "day", pick: 0,
   });
+  // A museum button names its row by key, docs/the-wall.md section 32, and
+  // the story is found on the open hive by the same key.
+  assert.deepEqual(readTap("k=person:Q937&m=9&d=9&v=museum"), {
+    storyId: "", key: "person:Q937", month: 9, day: 9, back: "museum", pick: 0,
+  });
+  assert.equal(readTap("k=song:1990-09-08&m=9&d=9&v=museum")!.key, "song:1990-09-08");
+  // A story named by its identifier wins over a key in the same post.
+  assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&k=person:Q937&m=9&d=9")!.key, null);
+  // A key that could break out of the selector it is matched with is refused.
+  assert.equal(readTap(`k=person:Q1"]{x}&m=9&d=9`), null);
+  assert.equal(readTap("k=Person:Q1&m=9&d=9"), null);
+  assert.equal(readTap("k=person&m=9&d=9"), null);
+  assert.equal(readTap("k=person:Q937&m=13&d=9"), null);
+  assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=suggest")!.back, "suggest");
+  assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=song")!.back, "song");
   assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=hive")!.back, "hive");
   // The pick page's own field. Out of range, or absent, is the top of the list.
   assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=pick&p=4")!.back, "pick");
@@ -1358,7 +1374,8 @@ test("only the live hive path runs a script and opens a socket to the project; a
   // the song search and nothing else, named by its hash, reaching this
   // origin alone. No socket, no project, no inline script of any other kind.
   const today = securityFor("/september-11/", now)["Content-Security-Policy"] ?? "";
-  assert.ok(today.includes(`script-src ${SONG_SCRIPT_SOURCE};`), "today's date page may run the song search");
+  // And since October 5, section 32, the suggestion box's search, the same way.
+  assert.ok(today.includes(`script-src ${SONG_SCRIPT_SOURCE} ${SUGGEST_SCRIPT_SOURCE};`), "today's date page may run the song search and the suggestion search");
   assert.ok(!today.includes("'unsafe-inline'; connect") && !/script-src[^;]*unsafe-inline/.test(today), "and no other script");
   assert.match(today, /connect-src 'self';/, "the search goes to this origin and nowhere else");
   assert.ok(!/connect-src[^;]*supabase/.test(today), "no socket to the project");
@@ -1452,11 +1469,13 @@ test("an open date's full screen hive is served live with the script, its data a
   // search, named by its hash, docs/the-wall.md section 31, and nothing else.
   const day = await realFetch(`${base}/${liveSlug}/`);
   const dayPolicy = day.headers.get("content-security-policy") ?? "";
-  assert.ok(dayPolicy.includes(`script-src ${SONG_SCRIPT_SOURCE};`), dayPolicy);
+  // And since October 5, the suggestion box's search, section 32.
+  assert.ok(dayPolicy.includes(`script-src ${SONG_SCRIPT_SOURCE} ${SUGGEST_SCRIPT_SOURCE};`), dayPolicy);
   assert.ok(!/connect-src[^;]*supabase/.test(dayPolicy), "and it opens no socket");
   const dayPage = await day.text();
-  assert.equal((dayPage.match(/<script/g) ?? []).length, 1, "one script on the date page");
-  assert.ok(dayPage.includes(`<script>${SONG_SCRIPT}</script>`), "and it is the song search, byte for byte the one the header names");
+  assert.equal((dayPage.match(/<script/g) ?? []).length, 2, "two scripts on the date page");
+  assert.ok(dayPage.includes(`<script>${SONG_SCRIPT}</script>`), "the song search, byte for byte the one the header names");
+  assert.ok(dayPage.includes(`<script>${SUGGEST_SCRIPT}</script>`), "and the suggestion search, byte for byte the other");
   assert.ok(!dayPage.includes("HiveAllocator"));
   assert.ok(dayPage.includes("Fresh headline from the live read"), "and still shows the live wall");
 

@@ -38,6 +38,7 @@ import { beeSvg } from "./mascot.js";
 import { boostFrom, crownLine, crownMark, crownOf, crownSaid, noCrownYet, type Crown, type WallBoost } from "./crown.js";
 import { REFILLS_ON, arrivedBy, nextRefillWords } from "./refills.js";
 import { decadeLine, decadeOf, decadeStanding } from "./decades.js";
+import { SUGGEST_QUERY_MAX, SUGGEST_QUESTION, SUGGEST_SCRIPT, suggestionName, tileFor, type SuggestWord, type Topic } from "./suggest.js";
 import {
   CHART_SHOWN, SONG_QUERY_MAX, SONG_QUESTION, SONG_SENTENCES, SONG_SCRIPT, boardSongs, coverPath, exampleSongs, songsFrom,
   type Answered, type ChartSong, type Found, type SongInfo, type SongWord,
@@ -162,6 +163,13 @@ export interface WallDay {
    * so a site pushed before the migration carries on exactly as it was.
    */
   answers?: boolean;
+  /**
+   * True when the read could tell which buzzes are suggestions, which is when
+   * the suggestions migration has been applied. docs/the-wall.md section 32.
+   * The box is drawn only then, so a site pushed before the migration shows
+   * no box rather than one that cannot work.
+   */
+  suggestions?: boolean;
 }
 
 /** "9-9" for a month and day, the same key shape the rest of the build uses. */
@@ -243,13 +251,22 @@ export async function fetchWall(url: string, key: string): Promise<WallDay[]> {
   // column since October 3, 2026, section 31; before the song migration it
   // is not there, the read is refused, and the build reads as it did and
   // draws no songs.
+  // The suggested column since October 5, 2026, section 32, read the same
+  // way: before that migration the read with it is refused, and the one
+  // without it is the song era's.
   let answers = true;
+  let suggestions = true;
   let boosts: unknown[];
   try {
-    boosts = await rows<unknown>(url, key, "wall_boosts?select=id,story_id,wall_date,units,cast_at,answer&order=cast_at.asc,id.asc");
+    boosts = await rows<unknown>(url, key, "wall_boosts?select=id,story_id,wall_date,units,cast_at,answer,suggested&order=cast_at.asc,id.asc");
   } catch {
-    answers = false;
-    boosts = await rows<unknown>(url, key, "wall_boosts?select=id,story_id,wall_date,units,cast_at&order=cast_at.asc,id.asc");
+    suggestions = false;
+    try {
+      boosts = await rows<unknown>(url, key, "wall_boosts?select=id,story_id,wall_date,units,cast_at,answer&order=cast_at.asc,id.asc");
+    } catch {
+      answers = false;
+      boosts = await rows<unknown>(url, key, "wall_boosts?select=id,story_id,wall_date,units,cast_at&order=cast_at.asc,id.asc");
+    }
   }
   const songs = answers
     ? songsFrom(await rows<unknown>(url, key, "wall_songs?select=track_id,title,artist,album,released,explicit,artwork_url&order=track_id.asc"))
@@ -307,7 +324,7 @@ export async function fetchWall(url: string, key: string): Promise<WallDay[]> {
     opensAt: d.opens_at, liveAt: d.live_at, closesAt: d.closes_at, closedAt: d.closed_at,
     stories: storiesByDate.get(d.wall_date) ?? [],
     boosts: boostsByDate.get(d.wall_date) ?? [],
-    songs, answers,
+    songs, answers, suggestions,
   }));
 }
 
@@ -421,9 +438,6 @@ export function answerPictures(day: Pick<WallDay, "stories">): Picture[] {
   return out;
 }
 
-/** How many feed rows are shown before the fold. A dozen is a screen on a phone and a sample of every kind. */
-export const FEED_SHOWN = 12;
-
 /**
  * The feed in the order a reader can use. Pure.
  *
@@ -511,11 +525,20 @@ export async function fetchWallDay(url: string, key: string, wallDate: string, t
     // October 3, 2026, docs/the-wall.md section 31: before the song
     // migration it is not there, PostgREST answers 400, and the day is read
     // the way it was, with no songs drawn.
+    // The suggested column since October 5, 2026, section 32, the same way.
     let answers = true;
+    let suggestions = true;
     let boostsResponse = await fetch(
-      `${url}/rest/v1/wall_boosts?select=id,story_id,units,cast_at,answer&wall_date=eq.${wallDate}&order=cast_at.asc,id.asc`,
+      `${url}/rest/v1/wall_boosts?select=id,story_id,units,cast_at,answer,suggested&wall_date=eq.${wallDate}&order=cast_at.asc,id.asc`,
       { headers, signal: controller.signal },
     );
+    if (boostsResponse.status === 400) {
+      suggestions = false;
+      boostsResponse = await fetch(
+        `${url}/rest/v1/wall_boosts?select=id,story_id,units,cast_at,answer&wall_date=eq.${wallDate}&order=cast_at.asc,id.asc`,
+        { headers, signal: controller.signal },
+      );
+    }
     if (boostsResponse.status === 400) {
       answers = false;
       boostsResponse = await fetch(
@@ -547,7 +570,7 @@ export async function fetchWallDay(url: string, key: string, wallDate: string, t
     return {
       wallDate: d.wall_date, ...parts(d.wall_date),
       opensAt: d.opens_at, liveAt: d.live_at, closesAt: d.closes_at, closedAt: d.closed_at,
-      boosts, songs, answers,
+      boosts, songs, answers, suggestions,
       stories: stories.map((s) => storyFrom(s, (s.wall_sources ?? []).map((src) => ({
         id: src.id, url: src.url, outlet: src.outlet, owner: src.owner, headline: src.headline, quotation: src.quotation,
         verifiedAt: src.verified_at, addedAt: src.added_at,
@@ -927,7 +950,7 @@ export function fitType(w: number, h: number, length: number): { fit: number; li
 
 /** The fields a buzz posts: the story, and the date page to come back to. */
 /** Where a buzz lands the reader afterwards: the date page, the full screen hive, or the story's own receipt. */
-export type TapBack = "day" | "hive" | "receipt" | "comb" | "pick" | "song";
+export type TapBack = "day" | "hive" | "receipt" | "comb" | "pick" | "song" | "museum" | "suggest";
 
 function tapFields(story: WallStory, back: TapBack): string {
   const { month, day } = parts(story.wallDate);
@@ -978,7 +1001,7 @@ function undoForm(story: WallStory, voice: Voice, back: TapBack = "day"): string
  * one stroke weight, the same box as the marks in the bar, and never an
  * emoji, which is drawn differently by every phone.
  */
-export type TileKind = "happened" | "born" | "song" | "album" | "film" | "news" | "answer";
+export type TileKind = "happened" | "born" | "song" | "album" | "film" | "news" | "answer" | "suggestion";
 
 export function tileKind(story: Pick<WallStory, "subjectKind">): TileKind {
   if (story.subjectKind === null) return "news";
@@ -988,10 +1011,12 @@ export function tileKind(story: Pick<WallStory, "subjectKind">): TileKind {
   if (story.subjectKind === "film") return "film";
   // A song somebody has in their head today, docs/the-wall.md section 31.
   if (story.subjectKind === "answer") return "answer";
+  // Something a reader suggested today, section 32.
+  if (story.subjectKind === "suggestion") return "suggestion";
   return "happened";
 }
 
-export const KIND_WORD: Record<TileKind, string> = { happened: "Happened on this date", born: "Born on this date", song: "The number one song", album: "The number one album", film: "The number one film", news: "In the news today", answer: "Stuck in someone's head today" };
+export const KIND_WORD: Record<TileKind, string> = { happened: "Happened on this date", born: "Born on this date", song: "The number one song", album: "The number one album", film: "The number one film", news: "In the news today", answer: "Stuck in someone's head today", suggestion: "Suggested today" };
 
 const KIND_MARK: Record<TileKind, string> = {
   happened: `<circle cx="12" cy="12" r="8.6"/><path d="M12 7.6V12l3.2 2.1"/>`,
@@ -1002,6 +1027,8 @@ const KIND_MARK: Record<TileKind, string> = {
   news: `<rect x="3.6" y="5" width="16.8" height="14" rx="2.4"/><path d="M7.2 9.2h5.6M7.2 12.4h9.6M7.2 15.6h9.6"/>`,
   // Headphones: the song somebody is listening to in their head.
   answer: `<path d="M4.4 15.6v-3a7.6 7.6 0 0 1 15.2 0v3"/><rect x="3.6" y="14.2" width="4" height="6" rx="1.6"/><rect x="16.4" y="14.2" width="4" height="6" rx="1.6"/>`,
+  // A raised hand: somebody put this here today.
+  suggestion: `<path d="M8.6 12.4V5.8a1.5 1.5 0 0 1 3 0v5.4M11.6 10.6V4.4a1.5 1.5 0 0 1 3 0v6.2M14.6 11V6a1.5 1.5 0 0 1 3 0v8.2c0 3.7-2.6 6.4-6.1 6.4-2.4 0-4-1.1-5.3-3.1l-2-3.2a1.5 1.5 0 0 1 2.5-1.6l1 1.4"/>`,
 };
 
 export function kindMark(kind: TileKind): string {
@@ -1196,32 +1223,11 @@ export function liveTile(story: WallStory, live: boolean, voice: Voice, index: n
     + `${mine(voice)}${footer(story, takes, voice, true)}${stamp}${crowned ? crownMark() : ""}</div></div>`;
 }
 
-/** One row in the list under the board. The headline opens the receipt; the button spends a unit while the date takes them. */
 /** "bbc.com and npr.org", "bbc.com, npr.org and theguardian.com". */
 export function andList(names: readonly string[]): string {
   if (names.length === 0) return "";
   if (names.length === 1) return names[0]!;
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]!}`;
-}
-
-/**
- * One row of the feed.
- *
- * `alsoIn` is the other desks that carried the same story, which the feed
- * works out by counting rather than by asking anybody. Naming them is the
- * point: this site already argues that the colour on a tile is how well a
- * story is sourced, and four desks on one line is that argument in the feed.
- * docs/the-wall.md section 28.
- */
-function listRow(story: WallStory, live: boolean, voice: Voice, alsoIn: readonly string[] | null = null, back: TapBack = "day", crowned: boolean = false): string {
-  const count = units(story.support, voice);
-  const also = alsoIn === null || alsoIn.length === 0 ? "" : ` <span class="walso">with ${escapeHtml(andList([...alsoIn]))}</span>`;
-  const meta = `<span class="wmeta">${escapeHtml(story.outlet)}${also}${rowChip(story.tier)}${count === "" ? "" : ` ${count}`}${mine(voice)}</span>`;
-  const control = live && story.status !== "false" ? ` ${buzzForm(story, voice, back)}` : "";
-  // A story can wear the crown from the feed: a buzz on a pooled story
-  // counts the same, and its tile waits for the tick. The mark goes where
-  // the story is.
-  return `<li id="w-${story.id}"${subjectAttr(story)}${yearAttr(story.headline)}${crowned ? ` class="wcrowned"` : ""}>${crowned ? crownMark() : ""}<a href="${storyPath(story)}">${escapeHtml(story.headline)}</a> ${meta}${control}</li>`;
 }
 
 /**
@@ -1345,20 +1351,13 @@ export interface WallOptions {
    */
   date?: { month: number; day: number };
   /**
-   * The date's history rows, already rendered, drawn without buttons under
-   * the promise on a date with no wall, and standing in for the feed on a
-   * wall the worker has not filed anything for yet. Baked by build.ts and
-   * lifted back out of the baked page by serve.ts for the live section.
+   * What one request brings to the suggestion box, docs/the-wall.md section
+   * 32: what a search without the script found, and the word after a
+   * suggestion, an undo or a search. Only serve.ts sets this, for the
+   * section it draws at request time. What the old typed field found by
+   * /find arrives here too, as tiles already on the date.
    */
-  history?: string;
-  /**
-   * What the typed field found, best first, drawn as the confirmation under
-   * the field. Only serve.ts sets this, on the one request that follows a
-   * post to /find, and only on a date page: the reader sees the story, its
-   * outlet and its tier, and the buzz is a second post through /boost
-   * unchanged. Nothing is spent by finding.
-   */
-  found?: WallStory[];
+  suggest?: SuggestOptions;
   /**
    * The story a buzz just counted for, on the one request that follows it,
    * so the sentence saying it counted can carry the Undo button. Null on
@@ -1407,6 +1406,18 @@ export interface WallOptions {
    * section it draws at request time.
    */
   song?: SongOptions;
+}
+
+/** What one request brings to the suggestion box. */
+export interface SuggestOptions {
+  /** What a search without the script found: tiles already on the date and articles from Wikipedia, or why there is nothing. */
+  found?: { here: WallStory[]; topics: Topic[] } | "none" | "busy" | "expired" | null;
+  /** What happened to the suggestion, the undo or the search that led here. */
+  said?: SuggestWord | null;
+  /** The story the word is about: the reader's own new tile after kept, the tile already there after exists. */
+  on?: string | null;
+  /** The story this browser just suggested, for the Undo, only when its own standing says so. */
+  undo?: string | null;
 }
 
 /** What one request brings to the song board. */
@@ -1662,7 +1673,8 @@ export function afterwords(voice: Voice, name: string, undo: WallStory | null = 
 <p class="wsaid" id="wclosed">This hive has sealed and is permanent now. That ${v.one} arrived after midnight and was not counted.</p>
 <p class="wsaid" id="wfalse">That story was later shown false. It keeps its place on the hive and takes no ${v.many}.</p>
 <p class="wsaid" id="wfailed">That did not save, and it was this end rather than yours. The date is fine. Try it again.</p>${rallied}
-<p class="wsaid" id="wmiss">Nothing filed for ${escapeHtml(name)} says that. Nothing was spent. Adding a story takes a link and happens in the app: <a href="/about/">get Birthed</a> and add it there, and it is filed for the date.</p>
+<p class="wsaid" id="wabsent">That one is not on this hive yet, so there was nothing to ${v.one}. Nothing was spent.</p>
+<p class="wsaid" id="wmiss">Nothing filed for ${escapeHtml(name)} says that. Nothing was spent. On today's hive you can suggest it: search for it in the box under the board.</p>
 <p class="wsaid" id="wblank">Those words are too common to search on. Try a name, a place or what happened. Nothing was spent.</p>
 <p class="wsaid" id="wnofind">The hive could not be searched just now: either it has sealed, or this end could not reach it. Nothing was spent. Try it again.</p>
 </div>`;
@@ -1688,55 +1700,6 @@ export const HOW_TO = "Buzz what people will still care about in ten years. Each
 
 /** The most a reader may type into the field. The input says so and the server holds it to the same. */
 export const ASK_MAX = 120;
-
-/**
- * The typed field. Ask what mattered about the date and find the story the
- * reader means among what is filed for it, rather than handing them a feed
- * of two hundred headlines to shop. A plain form, like the buzz: it posts
- * the phrase to /find, the server matches it against the date's stories in
- * memory and sends the reader back here with what it found, and nothing is
- * spent until they confirm through /boost. Drawn only in the live section,
- * for the same reason the buzz forms are, so a baked page never carries it.
- */
-function askForm(day: WallDay, name: string, voice: Voice): string {
-  const { month, day: d } = parts(day.wallDate);
-  return `<form class="wask" id="ask" method="post" action="/find">
-<label class="wasklabel" for="askq">What mattered about ${escapeHtml(name)}?</label>
-<div class="waskrow"><input class="input" id="askq" name="q" type="text" maxlength="${ASK_MAX}" placeholder="A name, a place, a few words" autocomplete="off"><input type="hidden" name="m" value="${month}"><input type="hidden" name="d" value="${d}"><button type="submit">Find</button></div>
-</form>`;
-}
-
-/**
- * The confirmation, drawn under the field on the one request after a post
- * to /find. The confirmation is not optional: a buzz is scarce, permanent
- * and irreversible, and a silent wrong match spends it on something the
- * reader did not mean. So the story, its outlet and its tier are shown
- * back, the button is the same form every tile carries, and "Not this one"
- * is the field again. A story shown false is still the story the reader
- * meant, so it is shown and it takes no buzz, the same as on a tile.
- */
-function foundBlock(found: WallStory[], day: WallDay, live: boolean, voice: Voice): string {
-  if (found.length === 0) return "";
-  const { month, day: d } = parts(day.wallDate);
-  const heading = found.length === 1 ? "Is this the one?" : "A few stories say that. Which one did you mean?";
-  const rows = found.map((s) => {
-    const count = units(s.support, voice);
-    const meta = `<span class="wmeta">${escapeHtml(s.outlet)}${rowChip(s.tier)}${count === "" ? "" : ` ${count}`}</span>`;
-    const control = s.status === "false"
-      ? ` <span class="wmeta">Later shown false. Takes no ${voice.many}.</span>`
-      : live ? ` ${buzzForm(s, voice)}` : "";
-    // Its own id prefix, because the same story is drawn once more on the
-    // hive or in the feed, and one id on a page names one element.
-    return `<li id="f-${s.id}"><a href="${storyPath(s)}">${escapeHtml(s.headline)}</a> ${meta}${control}</li>`;
-  }).join("\n");
-  return `<div class="wsaid wfound" id="wfound">
-<p class="wfoundhead">${heading}</p>
-<ul class="wlist">
-${rows}
-</ul>
-<p class="wnote">Spend one ${voice.one} on this? You get thirty seconds to take it back, and after that it stands. <a href="/${slug(month, d)}/#ask">Not this one</a></p>
-</div>`;
-}
 
 /**
  * How long ago, in words. "one year ago today", "two years ago today".
@@ -1843,43 +1806,17 @@ function combPattern(id: string): string {
 }
 
 /**
- * The way from the date page to the rest of its feed and its number ones.
- * Hana's walkthrough and the page weight, September 22, 2026: the rows past
- * the first dozen were 418 kilobytes folded into every date page and the
- * song covers another 51. They are one card now, and the card says what is
- * behind it, by kind, so it reads as a place to go rather than a list
- * somebody hid.
- */
-export function combCard(rest: WallStory[], songs: WallStory[], month: number, d: number, name: string, voice: Voice = BEE, sealed: boolean = false): string {
-  const inside = [...rest, ...songs];
-  const groups = combGroups(inside);
-  const counts = groups.map((g) => `<span><b>${g.stories.length}</b> ${escapeHtml(g.short)}</span>`).join("");
-  const cells = inside.length === 1 ? "1 more cell" : `${inside.length} more cells`;
-  const say = sealed
-    ? `Everything else with a birthday on ${escapeHtml(name)}, and the number one in every year, kept as the hive sealed.`
-    : `Everything else with a birthday on ${escapeHtml(name)}, and the number one in every year. Every one still takes a ${voice.one}.`;
-  return `<a class="wcomb" href="${combPath(month, d)}">
-${combPattern(`hex-${slug(month, d)}`)}
-<span class="wcombkick">${beeSvg()}The comb</span>
-<span class="wcombhead">${cells} in the comb</span>
-<span class="wcombsay">${say}</span>
-<span class="wcombcounts">${counts}</span>
-<span class="wcombgo">Open the comb <span aria-hidden="true">&rarr;</span></span>
-</a>`;
-}
-
-/**
  * One cell of the comb: a small card rather than a row, so the page reads as
  * a comb and not as a list. A cell can carry a picture, drawn from the same
  * --pic rule the tiles use and shown only when pictureRules says there is
  * one. A backed cell is wide and breathes, the way a hive tile grows. Every
  * seventh is wide too, so the rhythm is not a spreadsheet's.
  */
-function combCell(story: WallStory, live: boolean, voice: Voice, alsoIn: readonly string[] | null, index: number, heat: number = 0): string {
+function combCell(story: WallStory, live: boolean, voice: Voice, alsoIn: readonly string[] | null, index: number, heat: number = 0, back: TapBack = "comb"): string {
   const kind = tileKind(story);
   const count = units(story.support, voice);
   const also = alsoIn === null || alsoIn.length === 0 ? "" : ` <span class="walso">with ${escapeHtml(andList([...alsoIn]))}</span>`;
-  const control = live && story.status !== "false" ? buzzForm(story, voice, "comb") : "";
+  const control = live && story.status !== "false" ? buzzForm(story, voice, back) : "";
   // Every cell is the same hexagon; a comb has one cell. What varies is the
   // glow, --heat, the cell's share of the most buzzed cell of its kind, the
   // same number the live board lights its tiles by.
@@ -2020,8 +1957,11 @@ export function crownFor(day: Pick<WallDay, "stories" | "boosts">): Crown {
  * are and their years, which is three clauses too many for it. Anything
  * this cannot read stays the headline, cut at a word by the replay.
  */
-export function crownName(story: Pick<WallStory, "headline" | "subjectKind">): string {
+export function crownName(story: Pick<WallStory, "headline" | "subjectKind"> & { url?: string }): string {
   const h = story.headline;
+  // A suggestion goes by its article's title, read off its own address,
+  // without the description the headline carries after it. Section 32.
+  if (story.subjectKind === "suggestion" && story.url !== undefined) return suggestionName({ url: story.url, headline: h });
   if (story.subjectKind === "person") {
     const m = /^(.+?), .*\bborn \d{3,4}/.exec(h);
     if (m !== null) return m[1]!;
@@ -2248,44 +2188,302 @@ ${strip}${asking ? `<script>${SONG_SCRIPT}</script>` : ""}
 </section>`;
 }
 
+/** The sentence for each word a suggestion, an undo or a search comes back with. */
+export const SUGGEST_SENTENCES: Record<SuggestWord, string> = {
+  kept: "That is on today's hive now, with your free buzz on it. Anybody can buzz it until the hive seals.",
+  exists: "That is already on today's hive, so nothing new was made and your suggestion for today is still yours. Buzz it instead.",
+  suggested: "You have already suggested something today. It is one a day, and yours is marked in the list.",
+  hidden: "A curator took that off today's hive. Try something else.",
+  not_yet: "Today's hive has not opened yet. It opens at midnight Eastern.",
+  closed: "That hive has sealed and is permanent now. A new one opens every midnight Eastern.",
+  no_topic: "That article cannot be a tile: it is a list, a page of several meanings, or it is gone. Try a more exact name.",
+  busy: "Wikipedia did not answer just now. Nothing was spent. Try again in a few seconds.",
+  crowded: "A lot is being suggested at once. Nothing was spent. Try again in a minute.",
+  full: "Today's hive has taken all the suggestions it can hold today. Buzz one of them instead.",
+  bad_token: "That did not save, and it was this end rather than yours. Try it again.",
+  failed: "That did not save, and it was this end rather than yours. Try it again.",
+  undone: "Taken back. Your suggestion for today is free again.",
+  too_late: "That one stands. A suggestion can be taken back for thirty seconds after it is made, and only by the browser that made it.",
+};
+
+/** A suggestion's title and Wikipedia's description, split back apart for a row. */
+function suggestionParts(story: WallStory): { title: string; about: string | null } {
+  const title = suggestionName(story);
+  const rest = story.headline.startsWith(`${title}: `) ? story.headline.slice(title.length + 2).trim() : "";
+  return { title, about: rest === "" ? null : rest };
+}
+
+/** One suggestion in the list: its title, Wikipedia's description, its buzzes and its buzz. */
+function suggestRow(story: WallStory, buzzable: boolean, voice: Voice): string {
+  const { title, about } = suggestionParts(story);
+  const count = units(story.support, voice);
+  const meta = [about === null ? "" : escapeHtml(about), count].filter((x) => x !== "").join(" &middot; ");
+  return `<li class="tgrow" id="wt-${story.id}">`
+    + `<span class="tgtext"><a class="tgt" href="${storyPath(story)}">${escapeHtml(title)}</a>`
+    + `${meta === "" ? "" : `<span class="tga">${meta}</span>`}<span class="tgmine">You suggested this</span></span>`
+    + `<span class="tgdo">${buzzable && story.status !== "false" ? buzzForm(story, voice, "suggest") : ""}${mine(voice)}</span></li>`;
+}
+
+/** What a search without the script found, as the same rows the script draws. */
+function suggestPicks(found: { here: WallStory[]; topics: Topic[] }, stories: readonly WallStory[], month: number, d: number, voice: Voice, buzzable: boolean): string {
+  const here = found.here.filter((s) => s.status !== "false");
+  // A suggestion goes by its article's title, the way its row in the list reads.
+  const hereRow = (s: WallStory): string => s.subjectKind === "suggestion"
+    ? `<span class="tgtext"><a class="tgt" href="${storyPath(s)}">${escapeHtml(suggestionName(s))}</a><span class="tga">Suggested today</span></span>`
+    : `<span class="tgtext"><a class="tgt" href="${storyPath(s)}">${escapeHtml(s.headline)}</a><span class="tga">${escapeHtml(s.outlet)}</span></span>`;
+  const hereRows = here.length === 0 ? "" : `<p class="tglabel">Already on today's hive. ${voice.imperative} it instead</p>
+<ol class="tgpicks">${here.map((s) => `<li class="tgfound">${hereRow(s)}${buzzable ? buzzForm(s, voice, "suggest") : ""}</li>`).join("")}</ol>`;
+  // One thing once: an article whose tile is already listed above is not offered again.
+  const hereIds = new Set(here.map((s) => s.id));
+  const topics = found.topics.filter((t) => !hereIds.has(tileFor(t, stories)?.id ?? ""));
+  const topicRows = topics.length === 0 ? "" : `<p class="tglabel">${here.length === 0 ? "From Wikipedia" : "Or something new, from Wikipedia"}</p>
+<ol class="tgpicks">${topics.map((t) => {
+    const tile = tileFor(t, stories);
+    const control = tile !== null
+      ? (buzzable ? `<form class="tgpick" method="post" action="/boost"><input type="hidden" name="s" value="${tile.id}"><input type="hidden" name="m" value="${month}"><input type="hidden" name="d" value="${d}"><input type="hidden" name="v" value="suggest"><button type="submit" class="wbuzz">Already here. ${voice.button} it</button></form>` : "")
+      : `<form class="tgpick" method="post" action="/suggest"><input type="hidden" name="p" value="${t.pageId}"><input type="hidden" name="m" value="${month}"><input type="hidden" name="d" value="${d}"><button type="submit" class="tggo">Suggest this</button></form>`;
+    return `<li class="tgfound"><span class="tgtext"><span class="tgt">${escapeHtml(t.title)}</span>${t.description === null ? "" : `<span class="tga">${escapeHtml(t.description)}</span>`}</span>${control}</li>`;
+  }).join("")}</ol>`;
+  if (hereRows === "" && topicRows === "") return `<p class="tgnote">Nothing found. Try a name, a place or what happened.</p>`;
+  return hereRows + topicRows;
+}
+
+/**
+ * "Suggested today": what readers put on the hive, the box that lets anybody
+ * add one more, and what a search found. docs/the-wall.md section 32.
+ *
+ * On the date taking suggestions, today by the Eastern clock, and only in the
+ * section serve.ts draws at request time, it carries the box and the second
+ * script. With nothing suggested yet it says so and asks, so it is never a
+ * dead box. Yesterday's page shows yesterday's suggestions with their buzz
+ * buttons and says the box has moved on; a sealed date shows its suggestions
+ * as they sealed. Nothing is drawn before the suggestions migration, because
+ * the read cannot tell a suggestion's buzz from any other until then.
+ */
+export function suggestSection(day: WallDay, name: string, now: number, live: boolean, options: SuggestOptions = {}): string {
+  if (day.suggestions !== true) return "";
+  const voice = voiceOf(day);
+  const { month, day: d } = parts(day.wallDate);
+  const today = easternDateOf(now) === day.wallDate;
+  const open = takingBoosts(day, now);
+  const asking = live && today && open;
+  const buzzable = live && open;
+  // A suggestion taken back inside its thirty seconds stays filed with
+  // nobody behind it; it is not listed, the way the worker leaves it off
+  // the board and the picture leaves it out.
+  const list = day.stories
+    .filter((s) => s.subjectKind === "suggestion" && s.support > 0)
+    .sort((a, b) => b.support - a.support || a.submittedAt.localeCompare(b.submittedAt) || a.id.localeCompare(b.id));
+  if (!asking && list.length === 0) return "";
+
+  const said = options.said ?? null;
+  const onStory = options.on === null || options.on === undefined ? null : day.stories.find((s) => s.id === options.on) ?? null;
+  const undo = said === "kept" && options.undo !== null && options.undo !== undefined && /^[0-9a-f-]{36}$/.test(options.undo)
+    ? `<div class="wundoline"><form class="wundo" method="post" action="/suggest/undo"><input type="hidden" name="s" value="${options.undo}"><input type="hidden" name="m" value="${month}"><input type="hidden" name="d" value="${d}"><button type="submit">Undo</button></form><span class="wundonote">Thirty seconds, for a suggestion you did not mean.</span></div>`
+    : "";
+  // After "exists", the tile that is already there, with its buzz, right
+  // under the sentence that says to buzz it.
+  const there = said === "exists" && onStory !== null
+    ? `<p class="tgthere"><a href="${storyPath(onStory)}">${escapeHtml(onStory.headline)}</a> ${buzzable && onStory.status !== "false" ? buzzForm(onStory, voice, "suggest") : ""}</p>`
+    : "";
+  const saidLine = said === null ? "" : `<div class="tgsaid" role="status"><p>${escapeHtml(SUGGEST_SENTENCES[said])}</p>${there}${undo}</div>`;
+
+  const found = options.found ?? null;
+  const results = found === null
+    ? ""
+    : found === "none"
+      ? `<p class="tgnote">Nothing found. Try a name, a place or what happened.</p>`
+      : found === "busy"
+        ? `<p class="tgnote">${escapeHtml(SUGGEST_SENTENCES.busy)}</p>`
+        : found === "expired"
+          ? `<p class="tgnote">That search has gone stale. Search again.</p>`
+          : suggestPicks(found, day.stories, month, d, voice, buzzable);
+
+  const head = asking
+    ? `<h3 class="tgq" id="tghead">${escapeHtml(SUGGEST_QUESTION)}</h3>`
+    : `<h3 class="tgq tgqpast" id="tghead">Suggested on ${escapeHtml(longDate(day))}</h3>
+<p class="tghint">${open
+      ? `Suggestions for ${escapeHtml(name)} closed at midnight Eastern. These still take ${voice.many} until the hive seals. <a href="${todayPage(now)}">Today's hive</a>`
+      : `Sealed with the hive. Permanent.`}</p>`;
+
+  const ask = asking
+    ? `<form class="tgask" id="tgask" method="post" action="/suggest/search" role="search">
+<label class="sr" for="tgq">Search for something that mattered today</label>
+<div class="tgaskrow"><input class="input" id="tgq" name="q" type="search" maxlength="${SUGGEST_QUERY_MAX}" placeholder="A person, an event, a place" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search"><input type="hidden" name="m" value="${month}"><input type="hidden" name="d" value="${d}"><button type="submit">Search</button></div>
+<p class="tghint">Anything with a Wikipedia article. It goes on the hive with your free buzz. One a day.</p>
+</form>
+<div class="tgresults" id="tgresults" aria-live="polite">${results}</div>
+<p class="tgdone">You suggested today's. It is marked in the list. A new box opens at midnight Eastern.</p>`
+    : "";
+
+  const rows = list.length > 0
+    ? `<p class="tglisthead"><b>${today && asking ? "Suggested today" : "Suggested"}</b> <span>${list.length} ${list.length === 1 ? "suggestion" : "suggestions"}</span></p>
+<ol class="tglist">
+${list.map((s) => suggestRow(s, buzzable, voice)).join("\n")}
+</ol>`
+    : asking
+      ? `<p class="tgfirst"><b>Be the first to suggest one.</b> Nothing has been suggested today. What should be on this hive that is not?</p>`
+      : "";
+
+  return `<div class="tg" id="suggest" aria-labelledby="tghead">
+${head}
+${saidLine}${rows}
+${ask}${asking ? `<script>${SUGGEST_SCRIPT}</script>` : ""}
+</div>`;
+}
+
+// ---------------------------------------------------------------------------
+// The museum's live parts: the comb preview and the shared marks
+// ---------------------------------------------------------------------------
+
+/** The comments the comb preview is swapped in between, inside the museum. */
+export const COMB_START = "<!--comb:start-->";
+export const COMB_END = "<!--comb:end-->";
+
+/** How many cells the comb preview shows. A handful, then the way in. */
+export const COMB_PREVIEW = 6;
+
+/**
+ * The kinds the museum lists itself, every year, from the build. The comb
+ * preview leaves them out so nothing on the page is shown twice.
+ */
+export const MUSEUM_KINDS: ReadonlySet<string> = new Set(["historical_event", "birth_fact", "cultural_event", "person", "song"]);
+
+/**
+ * The key a museum row and its story share: "person:Q937". The museum is
+ * baked and knows the subjects; the story is filed by the worker and knows
+ * the same subject, so a button on a baked row can name the story without
+ * knowing its identifier. Shaped so it is safe inside an attribute selector.
+ */
+export function museumKey(story: Pick<WallStory, "subjectKind" | "subjectId">): string | null {
+  if (story.subjectKind === null || story.subjectId === null || !MUSEUM_KINDS.has(story.subjectKind)) return null;
+  const key = `${story.subjectKind}:${story.subjectId}`;
+  return /^[a-z_]+:[A-Za-z0-9-]{1,40}$/.test(key) ? key : null;
+}
+
+/** The address a museum row answers to, for a buzz on it to land on: the year for a number one, the row otherwise. */
+export function museumAnchor(story: Pick<WallStory, "subjectKind" | "subjectId" | "headline">): string | null {
+  const key = museumKey(story);
+  if (key === null) return null;
+  if (story.subjectKind === "song") return songParts(story.headline)?.year ?? null;
+  return `m-${key.replace(":", "-")}`;
+}
+
+/**
+ * The comb, collapsed: a handful of cells and the way in. Everything filed
+ * for the date that is not on the hive and not one of the museum's own
+ * lists, which is the day's news that did not make the board and the number
+ * one albums and films, most buzzed first. Swapped in between the comb
+ * markers on an open date, baked from the newest hive on every other.
+ */
+function combPreviewCells(day: WallDay): { shown: WallStory[]; total: number; alsoIn: Map<string, string[]> } {
+  const waiting = day.stories.filter((s) => (s.status === "pool" || s.status === "overflow") && s.subjectKind !== "answer" && s.subjectKind !== "suggestion");
+  const agreed = agreeOnNews(waiting.filter((s) => s.subjectKind !== "song"));
+  const total = agreed.stories.length + waiting.filter((s) => s.subjectKind === "song").length;
+  const ranked = combRank(agreed.stories.filter((s) => !MUSEUM_KINDS.has(s.subjectKind ?? "")), agreed.alsoIn);
+  return { shown: ranked.slice(0, COMB_PREVIEW), total, alsoIn: agreed.alsoIn };
+}
+
+export function combPreview(day: WallDay | null, name: string, now: number, live: boolean): string {
+  if (day === null) return `${COMB_START}${COMB_END}`;
+  const voice = voiceOf(day);
+  const { month, day: d } = parts(day.wallDate);
+  const open = live && takingBoosts(day, now);
+  const { shown, total, alsoIn } = combPreviewCells(day);
+  if (total === 0) return `${COMB_START}${COMB_END}`;
+  const most = Math.max(1, ...shown.map((s) => s.support));
+  const cells = shown.map((s, i) => combCell(s, open, voice, alsoIn.get(s.id) ?? null, i, s.support / most, "museum")).join("\n");
+  const say = open
+    ? `The day's news that is not on the hive and the number one albums and films. A ${voice.one} here counts the same as one on the hive.`
+    : `Everything else filed for ${escapeHtml(name)}: the news and the number one albums and films.`;
+  return `${COMB_START}<section class="mcomb" id="comb" aria-labelledby="mcomb-h">
+<h3 class="mhead" id="mcomb-h">The comb <span class="mcount">${total === 1 ? "1 cell" : `${total} cells`}</span></h3>
+<p class="mnote">${say}</p>
+${shown.length === 0 ? "" : `<ul class="wlist wcells mcells">
+${cells}
+</ul>`}
+<a class="mcombgo" href="${combPath(month, d)}">Open the comb <span aria-hidden="true">&rarr;</span></a>
+</section>${COMB_END}`;
+}
+
+/**
+ * Where a buzz that counted lands on the date page, section 32: the tile,
+ * row or cell the story is drawn as, or the sentence itself when the story
+ * is drawn nowhere there. The feed used to hold every story under its own
+ * identifier, so a buzz always had somewhere to land. With the feed gone, a
+ * fragment naming a story the page does not draw would scroll nowhere, and
+ * the sentence that says the buzz counted, revealed by the fragment, would
+ * stay hidden. A buzz from the board lands on the board; one from the song
+ * board, the suggestion list or the museum lands on its row there.
+ */
+export function keptAt(story: WallStory, back: TapBack, day: WallDay): string {
+  const onBoard = story.rect !== null && (story.status === "placed" || story.status === "false");
+  const row = story.subjectKind === "answer"
+    ? `ws-${story.id}`
+    : story.subjectKind === "suggestion"
+      ? `wt-${story.id}`
+      : museumAnchor(story) ?? (combPreviewCells(day).shown.some((s) => s.id === story.id) ? `w-${story.id}` : null);
+  if (back === "day") return onBoard ? `w-${story.id}` : row ?? "wkept";
+  return row ?? (onBoard ? `w-${story.id}` : "wkept");
+}
+
+/** The page with the fresh comb preview in it, or the page as it was. */
+export function replaceComb(html: string, section: string): string {
+  const start = html.indexOf(COMB_START);
+  const end = html.indexOf(COMB_END, start);
+  if (start < 0 || end < 0) return html;
+  return html.slice(0, start) + section + html.slice(end + COMB_END.length);
+}
+
+/**
+ * The marks every reader of an open date shares, as a style block: the
+ * museum's buttons switched on, how many buzzes each row has, and which rows
+ * are on the hive. The museum is baked and carries its buttons switched off,
+ * because a baked page cannot know whether its date is open; this, drawn in
+ * the live section, is what turns them on. Every word in it is generated
+ * here and every key is checked by museumKey, so nothing a source wrote is
+ * inside a style rule.
+ */
+export function museumMarks(day: WallDay, now: number): string {
+  if (!takingBoosts(day, now)) return "";
+  const voice = voiceOf(day);
+  const rules: string[] = [".mbuzz{display:inline-flex}.mlive{display:inline}"];
+  for (const s of day.stories) {
+    const key = museumKey(s);
+    if (key === null) continue;
+    const at = `[data-k="${key}"]`;
+    if (s.status === "false") rules.push(`${at} .mbuzz{display:none}`);
+    const count = units(s.support, voice);
+    // The count is drawn by the rule, so the element is still empty to the
+    // baked page's .mn:empty, which this outranks by coming later.
+    if (count !== "") rules.push(`${at} .mn{display:inline}${at} .mn::after{content:"${count}"}`);
+    if (s.status === "placed") rules.push(`${at} .mon{display:inline}`);
+  }
+  return `<style>${rules.join("")}</style>`;
+}
+
+/** The line under the date: open, when it seals and then permanent, with the hours to go on a live page. */
+function liveStateLine(day: WallDay, now: number): string {
+  const closes = day.closedAt ?? day.closesAt;
+  if (!takingBoosts(day, now)) return stateLine(day, now);
+  const key = (word: string): string => `<em class="wkey">${word}</em>`;
+  return `<b>Open.</b> ${key("Seals")} in ${hoursUntil(closes, now)}, at midnight Eastern, then ${key("permanent")}.`;
+}
+
 function wallBody(day: WallDay | null, name: string, now: number, options: WallOptions): string {
-  const history = options.history ?? "";
   if (day === null) {
     if (options.date === undefined || options.hive) return "";
-    return `${promise(name, options.date.month, options.date.day, now)}
-<section class="feed2" aria-labelledby="feedhead">
-<h2 class="section" id="feedhead">Today's feed</h2>
-<p class="wnote">Everything with a birthday on ${escapeHtml(name)}. When its hive opens, every one of these takes buzzes.</p>
-${HISTORY_START}${history}${HISTORY_END}
-</section>`;
+    return promise(name, options.date.month, options.date.day, now);
   }
   const live = options.interactive === true && takingBoosts(day, now);
   const hive = options.hive === true;
   const voice = voiceOf(day);
   const onWall = day.stories.filter((s) => s.rect !== null && (s.status === "placed" || s.status === "false"));
-  // The feed: everything in the pool, most backed first, then the date's own
-  // history ahead of the feeds, then arrival. All of it, no fold: a reddit
-  // reads its feed and so does this. Decided September 10, 2026.
-  // The songs in people's heads are the board above the hive, docs/the-wall.md
-  // section 31, so they are not rows in the feed or cells on the comb too.
   const inPool = day.stories
-    .filter((s) => (s.status === "pool" || s.status === "overflow") && s.subjectKind !== "answer")
+    .filter((s) => (s.status === "pool" || s.status === "overflow") && s.subjectKind !== "answer" && s.subjectKind !== "suggestion")
     .sort((a, b) => b.support - a.support || b.priority - a.priority || a.submittedAt.localeCompare(b.submittedAt) || a.id.localeCompare(b.id));
-  // The number ones are their own strip under the feed rather than sixty
-  // rows in it: a wall of covers is how the date page already shows them,
-  // and a cover with a year on it says more in less room than the sentence
-  // does. Same pool, same button, same one buzz. Newest year first, the
-  // most backed ahead of that.
-  // A number one that made the board stays in the strip too, marked as on
-  // the hive, so the years run unbroken. Hana's walkthrough, September 22,
-  // 2026: with 1980 on the board the strip jumped from 1981 to 1979 and read
-  // as missing data.
   const songs = [...inPool, ...onWall].filter((s) => s.subjectKind === "song")
     .sort((a, b) => b.support - a.support || (songParts(b.headline)?.year ?? "").localeCompare(songParts(a.headline)?.year ?? ""));
-  // One row per story rather than one per desk, most agreed first. The same
-  // verdict filed by four newspapers was four rows with four buttons, which
-  // split the buzzes four ways and made the wall disagree with itself about
-  // what one story was. docs/the-wall.md section 28.
   const agreed = agreeOnNews(inPool.filter((s) => s.subjectKind !== "song"));
   const waiting = takeTurns(agreed.stories);
   const view = viewportFor(onWall.map((s) => s.rect!));
@@ -2300,61 +2498,39 @@ ${HISTORY_START}${history}${HISTORY_END}
   // The hive, always drawn, even empty: an empty hive with the hour it opens
   // is a promise, and a missing section was a page that looked like nothing
   // was ever going to happen here.
-  // An empty board is still a board: a faint grid of the modules nothing
-  // has filled yet, and one line set large saying why. Three reasons, three
-  // lines; the small line under each is the same sentence as before.
   const empty = onWall.length === 0
     ? `<p class="wnothing">${notYet
       ? `<b>Opens at midnight Eastern</b><span>That is ${hoursUntil(day.liveAt, now)} from now. What people ${voice.past} lands here.</span>`
       : closed
         ? `<b>Nothing reached the hive</b><span>Nothing reached the hive before it sealed.</span>`
-        : `<b>Nothing on the hive yet</b><span>What people ${voice.past} lands here.</span>`}</p>`
+        : `<b>Nothing on the hive yet</b><span>The day's news and what people ${voice.past} land here. Suggest something below, or ${voice.one} anything in the museum.</span>`}</p>`
     : "";
   const hindsight = closed ? hindsightLine(day) : null;
   const board = `<div class="wboard${onWall.length === 0 ? " wblank" : ""}${closed ? " wsealed" : ""}" role="list" aria-label="The hive, ${onWall.length} stories" style="--side:${view.side}">
 ${tiles}${empty}
 </div>${hindsight === null ? "" : `
-<p class="whindsight">${escapeHtml(hindsight)} <span class="whindsightsay">The board is as it sealed. The marks are what happened since.</span></p>`}
-${decadesBlock(day, name, voice, now)}
-${crownBlock(day, crown, voice, now)}`;
+<p class="whindsight">${escapeHtml(hindsight)} <span class="whindsightsay">The board is as it sealed. The marks are what happened since.</span></p>`}`;
 
   const full = onWall.length > 0 && !hive
     ? `<a class="wfull wview" href="${hivePath(month, d)}">Open the hive full screen</a>`
     : "";
 
-  /**
-   * The way to get the picture, and it is a link and nothing else.
-   *
-   * No script on this page, because the date pages run none. No download
-   * attribute either: it forces a save without ever showing the thing, and
-   * somebody who is going to put this in a message wants to look at it
-   * first. Since September 22, 2026 it opens the card page, /<date>/card/,
-   * which shows the picture and carries the share control, the one place
-   * a script is allowed to help send it (share-button.ts).
-   *
-   * Two labels, one shown. The address never carries a year and the page is
-   * shared, so which label is right is not known when this is baked: a
-   * reader who has told the site their year gets their own version at the
-   * same address, and `yoursMark` in serve.ts swaps the words on the open
-   * dates. The same trick as the count and the marks, and safe for the same
-   * reason, which is that every word in it is generated here.
-   */
   const save = SAVE_PICTURE && onWall.length > 0
     ? `<p class="wsave"><a href="/${slug(month, d)}/card/"><span class="wsaveall">Save this picture</span><span class="wsavemine">Save your version</span></a></p>`
     : "";
 
-  // The three chips and one clause. What each tier means is on the About
-  // page and on every receipt; the legend's job here is only to say the
-  // colours mean something. So it is drawn only when they do: a board whose
-  // tiles are all one tier has one colour, and a key to three colours on it
-  // explains a difference nobody can see. September 22, 2026.
+  // The three chips and one clause, only when the colours differ. September 22, 2026.
   const legend = !tiersDiffer(onWall) ? "" : `<p class="wlegend"><span class="wchip w-seen_direct" title="${escapeHtml(tierMeaning("seen_direct"))}">Seen directly</span> <span class="wchip w-reported" title="${escapeHtml(tierMeaning("reported"))}">Reported</span> <span class="wchip w-claimed" title="${escapeHtml(tierMeaning("claimed"))}">Claimed</span> <span class="wlegendsay">Colour is how well a story is sourced, not whether it is true.</span></p>`;
 
   if (hive) {
+    // The full screen hive keeps the decade teams, which left the date page
+    // on October 5, 2026: one scoreboard there is the crown. Section 32.
     return `<section class="wall whive" aria-labelledby="wallhead">
 <h2 class="section" id="wallhead">${escapeHtml(longDate(day))}</h2>
 ${countLine(day, now, voice, live)}${afterwords(voice, name, options.undo ?? null, "hive", false, took)}
-${board}${closed ? `
+${board}
+${decadesBlock(day, name, voice, now)}
+${crownBlock(day, crown, voice, now)}${closed ? `
 <p class="wnote wunder whivesealed">${escapeHtml(sealedLine(day, onWall, voice))}</p>` : ""}
 ${legend}
 ${save}
@@ -2367,103 +2543,34 @@ ${yoursLine(options.yours, voice)}
     return combBody(day, name, now, waiting, songs, agreed.alsoIn, live, closed, voice, options);
   }
 
-  // Under the hive, one feed: everything with a birthday on the date that is
-  // not on the hive, with one button each. Before the worker has filed
-  // anything for the date, the baked history stands in, so tomorrow's page
-  // is not a countdown and nothing else.
-  const unfiled = day.stories.length === 0;
-  // A dozen rows, then the rest behind one line. A reader who wants the
-  // whole day opens it once; a reader with three buzzes to spend does not
-  // scroll a hundred and fifty rows to find one worth spending on.
-  //
-  // The rest is not folded into this page any more. It was, behind a
-  // details element, and on September 22, 2026 that was 617 rows and 418
-  // kilobytes of a date page nobody had opened. It lives on the comb now,
-  // and the card below the dozen says what is in it.
-  const shown = waiting.slice(0, FEED_SHOWN);
-  const feedList = waiting.length > 0
-    ? `<ul class="wlist">
-${shown.map((s) => listRow(s, live, voice, agreed.alsoIn.get(s.id) ?? null, "day", s.id === crown.holder)).join("\n")}
-</ul>`
-    : unfiled && history !== ""
-      ? ""
-      : `<p class="wnote wnofeed">Everything filed for ${escapeHtml(name)} is on the hive.</p>`;
-  const stood = unfiled ? history : "";
-  const feedNote = live
-    ? `A ${voice.one} here counts the same as one on the hive.`
-    : closed
-      ? "The hive has sealed, so the feed takes no more."
-      : `When the hive opens, every one of these takes ${voice.many}.`;
-
-  // No sentence at all above the board, Nathan on September 22, 2026. The
-  // line above it already says the hive is open and when it seals, the line
-  // under it says what a buzz does, and the board itself is between them.
-  // This was the third telling and it pushed the board down a line on a
-  // phone. The earlier call on September 10 cut it everywhere but here; this
-  // finishes that.
-  //
-  // One line is back, September 23, 2026, and it is not the third telling:
-  // nothing else on the page now says what to do or what a buzz does, and a
-  // stranger was handed forty tiles with no instruction at all. It says the
-  // job and the effect in two short sentences and names no number, because
-  // the count right under it already does, and the number is one on the day
-  // after a date. Only where a buzz can be spent. docs/the-wall.md section 30.
+  // The date page's game, docs/the-wall.md section 32, decided October 5,
+  // 2026: one thing in the first screen and the record of the date under it.
+  // The song in your head leads; then the hive for today, with what is left
+  // to spend and when it seals, the board, the crown, what readers suggested
+  // and the box to suggest one more, and the way to pick between two. The
+  // feed that used to sit under the board is gone: it was the board's own
+  // stories in a second outfit. Everything with a birthday on the date is in
+  // the museum below, baked, and a buzz there counts the same.
   const lede = live ? HOW_TO : "";
-  // One line under the board, and a link for anybody who wants the rest.
-  // Nathan, September 10, 2026: three paragraphs of explanation under the
-  // board was a wall of text, and the people who need it are on the About
-  // page anyway.
-  // Nathan, September 22, 2026: "A buzz makes its story bigger" between two
-  // buttons, and a third button on its own line under them, was three
-  // awkward buttons and a fragment. The sentence is gone, the About page
-  // says it, and the three ways on from the board are one row of matching
-  // pills: the full screen hive, how it works, and, for a browser that has
-  // buzzed something, everything it has buzzed. A sealed date keeps its one
-  // line above the row, because that line is a fact about this board.
   const under = closed
     ? `<p class="wnote wunder">${escapeHtml(sealedLine(day, onWall, voice))} Every story is a link to its source.</p>`
     : "";
-  // Pick between two, docs/the-wall.md section 30: the way in for a
-  // stranger, only while a buzz can be spent.
-  // Three looks that mean three things, Nathan on September 23, 2026, when a
-  // fourth pill made a row of four that all looked alike: filled honey for
-  // the one thing to do, an outline for another view of the same board, and
-  // plain text for things to read.
   const pick = live ? `<a class="wdo" href="/${slug(month, d)}/pick/">Pick between two</a>` : "";
-  // Two rows on purpose: the pills, then the reading. Four in one row wrapped
-  // one link onto a line of its own, which read as an accident.
   const ways = `<p class="wways">${pick}${full}</p><p class="wways wwaysread"><a class="wread" href="/about/">How the hive works</a>${options.yours === true ? `<a class="wread" href="/yours/">Everything you have ${voice.past}</a>` : ""}</p>`;
 
-  // The number ones went to the comb with the rest, September 22, 2026:
-  // sixty covers and sixty forms were 51 kilobytes of a date page. The card
-  // counts them with everything else behind it.
-  const folded = waiting.slice(FEED_SHOWN);
-  const card = folded.length === 0 && songs.length === 0
-    ? ""
-    : combCard(folded, songs, month, d, name, voice, closed);
-
-  // The hive is the hero: the name, one line saying what the hive is, one
-  // sentence, the field and the count right above the board, and the board.
-  // Everything that explains sits under it. Decided September 10, 2026.
-  // The song in your head leads the page, docs/the-wall.md section 31. The
-  // hive is exactly where it was, under it.
   const song = songSection(day, name, now, live, options.song ?? {});
+  const suggest = suggestSection(day, name, now, live, options.suggest ?? {});
   return `${song}<section class="wall" aria-labelledby="wallhead">
-<p class="whead">${beeSvg()}<span class="section" id="wallhead">The hive for ${escapeHtml(longDate(day))}</span> <span class="wstate">${stateLine(day, now)}</span></p>
+<p class="whead">${beeSvg()}<span class="section" id="wallhead">The hive for ${escapeHtml(longDate(day))}</span> <span class="wstate">${options.interactive === true ? liveStateLine(day, now) : stateLine(day, now)}</span></p>
 ${lede === "" ? "" : `<p class="wlede">${lede}</p>`}
-${live ? askForm(day, name, voice) : ""}${countLine(day, now, voice, live)}${foundBlock(options.found ?? [], day, live, voice)}${afterwords(voice, name, options.undo ?? null, "day", false, took)}
+${countLine(day, now, voice, live)}${afterwords(voice, name, options.undo ?? null, "day", false, took)}
 ${board}
+${crownBlock(day, crown, voice, now)}
 <div class="wafter">${onWall.length > 0 ? legend : ""}${save}</div>
+${suggest}
 ${under}${ways}
 </section>
-${anniversaryBlock(options.anniversary ?? [], day, voice)}
-<section class="feed2" aria-labelledby="feedhead">
-<h2 class="section" id="feedhead">Today's feed</h2>
-<p class="wnote">Everything with a birthday on ${escapeHtml(name)}, today's and every year's. ${feedNote}</p>
-${feedList}
-${HISTORY_START}${stood}${HISTORY_END}
-${card}
-</section>`;
+${anniversaryBlock(options.anniversary ?? [], day, voice)}${live ? museumMarks(day, now) : ""}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -2485,7 +2592,7 @@ ${card}
  * one reader's alone. The identifiers come out of our own database and are
  * used inside a selector, so anything not shaped like a uuid is dropped.
  */
-export function wallMarks(standing: { left: number; allowance: number; backed: string[]; answered?: string | null }, day: WallDay, now: number): string {
+export function wallMarks(standing: { left: number; allowance: number; backed: string[]; answered?: string | null; suggested?: string | null }, day: WallDay, now: number): string {
   const rules: string[] = [];
   if (takingBoosts(day, now)) {
     const sentence = tapsLeftSentence(standing.left, standing.allowance, voiceOf(day), nextRefillWords(now, day.wallDate, standing.allowance));
@@ -2499,6 +2606,13 @@ export function wallMarks(standing: { left: number; allowance: number; backed: s
     // The same mark on the song board above the hive, section 31, where the
     // button gives way to it: one song takes one buzz from one browser.
     rules.push(`#ws-${id} .wmine{display:inline}#ws-${id} .wbuzz{display:none}`);
+    // And in the suggestion list, section 32.
+    rules.push(`#wt-${id} .wmine{display:inline}#wt-${id} .wbuzz{display:none}`);
+    // And on the story's row in the museum, found by its key rather than its
+    // identifier, because the museum is baked and never knew the identifier.
+    const story = day.stories.find((s) => s.id === id);
+    const key = story === undefined ? null : museumKey(story);
+    if (key !== null) rules.push(`[data-k="${key}"] .mmine{display:inline}[data-k="${key}"] .mbuzz{display:none}`);
   }
   // The song this browser answered with today: the search is put away, a
   // line says why, and the song is marked as theirs. Generated text and a
@@ -2506,6 +2620,12 @@ export function wallMarks(standing: { left: number; allowance: number; backed: s
   const answered = standing.answered;
   if (typeof answered === "string" && /^[0-9a-f-]{36}$/.test(answered)) {
     rules.push(`.sgask,.sgresults,.sghint{display:none}.sgdone{display:block}#ws-${answered} .sgmine{display:inline}#ws-${answered} .wmine{display:none}#ws-${answered}{border-color:var(--honey)}`);
+  }
+  // What this browser suggested today, section 32: the box is put away, a
+  // line says why, and the suggestion is marked as theirs. The same shape.
+  const suggested = standing.suggested;
+  if (typeof suggested === "string" && /^[0-9a-f-]{36}$/.test(suggested)) {
+    rules.push(`.tgask,.tgresults{display:none}.tgdone{display:block}#wt-${suggested} .tgmine{display:inline}#wt-${suggested} .wmine{display:none}#wt-${suggested}{border-color:var(--honey)}`);
   }
   if (rules.length === 0) return "";
   return `<style>${rules.join("")}</style>`;
@@ -2840,33 +2960,18 @@ export const WALL_STYLE = `
 .wsavemine { display: none; }
 .whive .wsave { max-width: 60ch; margin: 8px auto 0; }
 .walso { opacity: .85; }
-/* The comb card. Honey on the page's dark, a honeycomb drawn faintly behind
-   the words and fading out to the right, and the counts set as a row of
-   small cells. The whole card is the link. */
-.wcomb {
-  position: relative; display: grid; gap: 6px; margin: 14px 0 0; padding: 20px 20px 18px; overflow: hidden;
-  border-radius: 16px; text-decoration: none; color: var(--cream);
-  background: linear-gradient(135deg, #2A1F0E 0%, var(--cell) 70%);
-  box-shadow: inset 0 0 0 1px rgba(244, 183, 64, .35);
-  transition: box-shadow 160ms ease, transform 160ms ease;
-}
-.wcomb:hover { box-shadow: inset 0 0 0 1px rgba(255, 217, 138, .8); }
-.wcomb:active { transform: scale(.995); }
 .wcombhex { position: absolute; inset: 0; width: 100%; height: 100%; color: var(--honey); opacity: .22; pointer-events: none;
   -webkit-mask-image: linear-gradient(90deg, rgba(0,0,0,.15) 0%, #000 55%, #000 100%); mask-image: linear-gradient(90deg, rgba(0,0,0,.15) 0%, #000 55%, #000 100%); }
-.wcomb > span, .wcombtop > :not(svg) { position: relative; }
+.wcombtop > :not(svg) { position: relative; }
 .wcombkick { margin: 0; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--honey-lite); }
-.wcombhead { font-family: var(--serif); font-weight: 800; font-size: 24px; line-height: 1.15; }
 .wcombsay { font-size: 14px; line-height: 1.45; color: var(--cream-2); max-width: 52ch; }
-.wcombcounts, .wcombjump { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 0; }
-.wcombcounts span, .wcombjump a {
+.wcombjump { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 0; }
+.wcombjump a {
   font-size: 13px; color: #EFE0B8; padding: 4px 10px; border-radius: 8px;
   background: rgba(244, 183, 64, .12); box-shadow: inset 0 0 0 1px rgba(244, 183, 64, .28); text-decoration: none;
 }
-.wcombcounts b, .wcombjump b { color: var(--honey-lite); font-weight: 800; margin-right: 3px; }
+.wcombjump b { color: var(--honey-lite); font-weight: 800; margin-right: 3px; }
 .wcombjump a:hover { background: rgba(244, 183, 64, .22); }
-.wcombgo { justify-self: start; margin-top: 8px; font-size: 14px; font-weight: 800; color: var(--on-honey); background: var(--honey); padding: 8px 16px; border-radius: 999px; }
-.wcomb:hover .wcombgo { background: var(--honey-lite); }
 /* The comb's own page: the same honey panel as a heading, then the kinds. */
 .wcombtop { position: relative; overflow: hidden; margin: 8px 0 0; padding: 22px 20px 18px; border-radius: 18px;
   background: linear-gradient(135deg, #2A1F0E 0%, var(--cell) 70%); box-shadow: inset 0 0 0 1px rgba(244, 183, 64, .35); }
@@ -3002,16 +3107,6 @@ export const WALL_STYLE = `
 .wsongs .wonhive { font-weight: 700; color: var(--honey-lite); text-decoration: none; border-bottom: 1px solid var(--line-strong); }
 .wsongs .wonhive:hover { border-color: var(--honey-lite); }
 .whivesealed { max-width: 60ch; margin: 10px auto 0; text-align: center; }
-.feed2 { margin: 30px 0 0; }
-.feed2 h2.section { margin-bottom: 2px; }
-.feed2 > .wnote { margin: 0 0 12px; max-width: 60ch; }
-.feed2 .wlist + .wlist { margin-top: 8px; }
-.wmore { margin: 22px 0 0; border-top: 1px solid var(--line); padding-top: 4px; }
-.wmore > summary { cursor: pointer; list-style: none; padding: 10px 0; font-size: 15px; font-weight: 600; color: var(--cream-2); }
-.wmore > summary::-webkit-details-marker { display: none; }
-.wmore > summary::before { content: "+"; display: inline-block; width: 20px; color: var(--dim); }
-.wmore[open] > summary::before { content: "\\2212"; }
-.wmore > summary:hover { color: var(--honey-lite); }
 /* The full screen page: the hive as big as the window allows, and little else. */
 .wreceiptbuzz { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 10px 0 0; }
 /* The mark's outline is for a tile; on the receipt the words are enough. */
@@ -3075,7 +3170,7 @@ export const WALL_STYLE = `
    third of the way down the window with room for them beneath it. */
 .wall:not(.whive) { display: flex; flex-direction: column; }
 .wall:not(.whive) > * { order: 0; }
-.wall:not(.whive) > .wunder, .wall:not(.whive) > .wafter, .wall:not(.whive) > .wways { order: 2; }
+.wall:not(.whive) > .wunder, .wall:not(.whive) > .wafter, .wall:not(.whive) > .tg, .wall:not(.whive) > .wways { order: 2; }
 .day:has(.wtile:target) .wall > .wsaids { order: 1; margin: 12px 0 0; }
 .wtile:target, .wlist li:target, .wsongs li:target {
   z-index: 3; scroll-margin-top: 34vh;
@@ -3083,7 +3178,10 @@ export const WALL_STYLE = `
 }
 .wtile:target { outline: 3px solid var(--honey-lite) !important; outline-offset: -3px; }
 .wlist li:target, .wsongs li:target { position: relative; }
-.day:has(.wtile:target, .wlist li:target, .wsongs li:target, .wreceiptbuzz:target, .sgrow:target) #wkept { display: block; }
+.day:has(.wtile:target, .wlist li:target, .wsongs li:target, .wreceiptbuzz:target, .sgrow:target, .tgrow:target, .mrow:target) #wkept { display: block; }
+/* After a suggestion the box says what happened in its own words; the buzz's
+   sentence by the board would be a second confirmation of the same thing. */
+.day:has(.tg > div.tgsaid) #wkept { display: none; }
 @keyframes wpop {
   0% { transform: scale(.92); box-shadow: 0 0 0 0 rgba(255, 217, 138, .95), 0 0 0 rgba(255, 217, 138, 0); }
   55% { transform: scale(1.04); }
@@ -3402,24 +3500,6 @@ export const WALL_STYLE = `
 .wlist .wbuzz { margin-left: 6px; }
 .wlist .wbuzz button { font-size: 12px; padding: 2px 9px; }
 .wlist .wmine { margin-left: 6px; }
-/* The typed field, docs/the-wall.md section 15. A form like the buzz, and
-   the confirmation is drawn under it on the one request that follows. */
-.wask { margin: 0 0 12px; }
-.wasklabel { display: block; margin: 0 0 8px; font-family: var(--serif); font-weight: 800; font-size: 19px; color: var(--cream); }
-.waskrow { display: flex; gap: 8px; align-items: stretch; }
-.wask .input { flex: 1; min-width: 0; padding: 11px 14px; border-radius: 12px; }
-.wask button {
-  flex: none; margin: 0; padding: 0 18px; border: 0; border-radius: 12px; cursor: pointer;
-  background: var(--honey); color: var(--on-honey); font: inherit; font-weight: 800;
-}
-.wask button:hover { filter: brightness(1.1); }
-.wask button:focus-visible { outline: 2px solid var(--honey-lite); outline-offset: 2px; }
-.wask .wnote { margin: 8px 0 0; }
-.wsaid.wfound { display: block; }
-.wfoundhead { margin: 0 0 8px; font-family: var(--serif); font-weight: 800; font-size: 19px; }
-.wfound .wlist { margin: 0 0 10px; }
-.wfound .wnote { margin: 0; }
-.wfound .wnote a { color: var(--dim); }
 /* A run of identical checks, folded. The details element is the fold. */
 .wevery { margin: 6px 0 0; }
 .wevery > summary { cursor: pointer; color: var(--dimmer); }
@@ -3497,4 +3577,56 @@ a.sgt:hover { text-decoration: underline; text-decoration-color: rgba(255, 243, 
   .sgchartlist { grid-auto-columns: minmax(170px, 72%); grid-auto-flow: column; overflow-x: auto; padding-bottom: 4px; scroll-snap-type: x mandatory; }
   .sgchartlist li { scroll-snap-align: start; }
 }
+/* Suggested today and the box, docs/the-wall.md section 32: under the
+   crown, inside the hive, the same shapes as the song board. Tokens only. */
+.tg { margin: 18px 0 4px; padding: 16px 14px 14px; border: 1px solid var(--line-strong); border-radius: 16px; background: var(--cell); }
+#suggest { scroll-margin-top: 72px; }
+.tgq { margin: 0 0 4px; font-family: var(--serif); font-optical-sizing: auto; font-weight: 800; font-size: clamp(21px, 4.6vw, 27px); line-height: 1.1; color: var(--cream); text-wrap: balance; }
+.tghint { margin: 6px 0 0; color: var(--dim); font-size: 14px; line-height: 1.45; text-wrap: pretty; }
+.tghint a { color: var(--honey-lite); }
+.tglisthead { margin: 10px 0 8px; color: var(--dim); font-size: 13px; }
+.tglisthead b { margin-right: 6px; font-family: var(--serif); font-size: 16px; color: var(--cream); }
+.tglist, .tgpicks { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.tgrow, .tgfound { scroll-margin-top: 84px; display: flex; align-items: center; gap: 10px; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); }
+.tgrow:target { border-color: var(--ember); }
+.tgtext { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.tgt { overflow: hidden; font-family: var(--serif); font-size: 16px; font-weight: 700; line-height: 1.25; color: var(--cream); text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
+a.tgt:hover { text-decoration: underline; text-decoration-color: rgba(255, 243, 224, .45); }
+.tga { overflow: hidden; color: var(--dim); font-size: 13px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.tgmine { display: none; margin-top: 3px; color: var(--honey-lite); font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.tgdo { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.tgdo .wbuzz button, .tgfound .wbuzz button { padding: 4px 14px; font-size: 14px; }
+.tgdo .wmine { color: var(--honey-lite); font-size: 12px; }
+.tgfirst { margin: 12px 0 0; padding: 12px 14px; border: 1px dashed var(--line-strong); border-radius: 12px; background: var(--cell-2); color: var(--cream-2); font-size: 15px; }
+.tgfirst b { color: var(--honey-lite); }
+.tgask { margin: 12px 0 0; }
+.tgaskrow { display: flex; gap: 8px; align-items: stretch; }
+.tgask .input { flex: 1; min-width: 0; padding: 12px 14px; border-radius: 12px; font-size: 16px; }
+.tgask button { flex: none; margin: 0; padding: 0 18px; border: 0; border-radius: 12px; cursor: pointer; background: linear-gradient(180deg, var(--honey-lite), var(--honey)); color: var(--on-honey); font: inherit; font-size: 15px; font-weight: 800; }
+.tgask button:hover, .tggo:hover { filter: brightness(1.08); }
+.tgask button:focus-visible, .tgpick button:focus-visible { outline: 2px solid var(--honey-lite); outline-offset: 2px; }
+.tgresults { margin: 10px 0 0; }
+.tgresults:empty { display: none; }
+.tglabel { margin: 10px 0 6px; color: var(--cream-2); font-size: 13px; font-weight: 700; }
+.tgnote { margin: 6px 0 0; color: var(--dim); font-size: 14px; }
+.tgpick { flex: none; margin: 0; }
+.tggo { margin: 0; padding: 5px 12px; border: 0; border-radius: 999px; cursor: pointer; background: var(--honey); color: var(--on-honey); font: inherit; font-size: 13px; font-weight: 800; white-space: nowrap; }
+.tgpick .wbuzz { display: inline; }
+.tgpick button.wbuzz { margin: 0; padding: 4px 12px; border: 0; border-radius: 999px; cursor: pointer; background: linear-gradient(180deg, var(--honey-lite), var(--honey)); color: var(--on-honey); font: inherit; font-size: 13px; font-weight: 800; white-space: nowrap; }
+.tgdone { display: none; margin: 12px 0 0; color: var(--cream-2); font-size: 15px; }
+.tg:has(.tgsaid) .tgdone { display: none; }
+.tgsaid { margin: 10px 0 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--cell-2); color: var(--cream-2); font-size: 14px; line-height: 1.5; }
+.tgsaid p { margin: 0; }
+.tgsaid .wundoline { margin-top: 8px; }
+.tgthere { margin: 8px 0 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.tgthere a { color: var(--cream); font-weight: 700; }
+/* The comb, collapsed, at the foot of the museum: a handful and the way in. */
+/* A container, like each kind on the comb's own page, so the cells take the
+   comb's own count across for the width they have: two on a phone, three
+   on the date page's column. Without it a cell is too small for its
+   headline and shows only the outlet. */
+.mcomb { container-type: inline-size; margin: 10px 0 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--cell); }
+.mcomb .mnote { margin: 4px 0 10px; color: var(--dim); font-size: 14px; }
+.mcombgo { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 7px 14px; border-radius: 999px; background: var(--honey); color: var(--on-honey); font-weight: 800; font-size: 14px; text-decoration: none; }
+.mcombgo:hover { background: var(--honey-lite); }
 `;

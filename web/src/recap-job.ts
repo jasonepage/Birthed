@@ -24,6 +24,7 @@ import { chromium } from "playwright";
 import { recapPath, renderRecap, RECAP_SIDE, sealedRecap } from "./recap.js";
 import { fetchWallDay } from "./wall.js";
 import { recapSongs } from "./song-prompt.js";
+import { recapSuggestions } from "./suggest.js";
 
 const BUCKET = "sealed";
 /** How far back the default run looks, so a missed night is caught up by the next one. */
@@ -83,7 +84,7 @@ async function main(): Promise<void> {
       // The songs people had in their heads that day, by heads, docs/the-wall.md
       // section 31. Empty before the song migration and on a day nobody
       // answered, and an empty list draws the picture exactly as before.
-      const recap = sealedRecap(day, now, recapSongs(day.stories, day.boosts, day.songs ?? new Map()));
+      const recap = sealedRecap(day, now, recapSongs(day.stories, day.boosts, day.songs ?? new Map()), recapSuggestions(day.stories));
       if (recap === null) { console.log(`  ${wallDate}: not sealed yet, refused`); continue; }
       await page.setContent(renderRecap(recap, faces), { waitUntil: "load" });
       // Wait for the inlined font, so the picture is never taken in Georgia.

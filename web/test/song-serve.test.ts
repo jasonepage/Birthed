@@ -11,6 +11,7 @@ import { test } from "node:test";
 import { forgetWalls, readPick, sangFrom, soughtFrom, start } from "../src/serve.js";
 import { forgetApple, rememberArt, searchKey, searchSongs, mayAskApple } from "../src/song-apple.js";
 import { SONG_SCRIPT_SOURCE, type Found } from "../src/song-prompt.js";
+import { SUGGEST_SCRIPT_SOURCE } from "../src/suggest.js";
 import { WALL_END, WALL_START, openWallDates } from "../src/wall.js";
 
 const BAKED = `<html><body><h1>A day</h1>${WALL_START}<section class="wall">baked</section>${WALL_END}<p>feed</p></body></html>`;
@@ -150,7 +151,7 @@ test("today's date page asks the question, a pick lands on the board at once, a 
   // and the one script the header names.
   const first = await realFetch(`${base}/${slug}/`);
   assert.equal(first.status, 200);
-  assert.ok((first.headers.get("content-security-policy") ?? "").includes(`script-src ${SONG_SCRIPT_SOURCE};`));
+  assert.ok((first.headers.get("content-security-policy") ?? "").includes(`script-src ${SONG_SCRIPT_SOURCE} ${SUGGEST_SCRIPT_SOURCE};`));
   const firstPage = await first.text();
   assert.ok(firstPage.includes("What song is in your head today?"));
   assert.ok(firstPage.includes("<b>Be the first.</b>"));

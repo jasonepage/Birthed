@@ -7,7 +7,7 @@ import {
   yearsAgo,
   combRank,
   BEE, PLAIN, PLAIN_DATES, VIEW_MIN, allowanceOn, emptyWallDay, fetchWall, hivePath, newestByDate, storyPath, takingBoosts,
-  tapsLeftSentence, tierLabel, yearAttr, SAVE_PICTURE, tiersDiffer, hiveDaysNav, units, viewportFor, voiceFor, wallMarks, wallSection, pictureRules, songParts, subjectOf, takeTurns, FEED_SHOWN, tileKind, kindMark, WALL_STYLE, sealedLine, picturedSubjects, combPictured, hindsightLine, latestOutcome, outcomeStamp, recordStanding, yoursLine, fitType, tileYear, type WallDay, type WallStory,
+  tapsLeftSentence, tierLabel, yearAttr, SAVE_PICTURE, tiersDiffer, hiveDaysNav, units, viewportFor, voiceFor, wallMarks, wallSection, pictureRules, songParts, subjectOf, takeTurns, tileKind, kindMark, WALL_STYLE, sealedLine, picturedSubjects, combPictured, hindsightLine, latestOutcome, outcomeStamp, recordStanding, yoursLine, fitType, tileYear, type WallDay, type WallStory,
 } from "../src/wall.js";
 import { picturesFor } from "../src/render.js";
 import { SHARE_SCRIPT } from "../src/share-button.js";
@@ -87,22 +87,23 @@ test("a closed wall says it is permanent", () => {
   assert.ok(html.replace(/<[^>]+>/g, "").includes("Sealed at midnight Eastern ending September 10, 2026. Permanent."));
 });
 
-test("the pool and the overflow are the feed under the hive, all of it, backed first, then the date's own history, then arrival", () => {
+test("the pool and the overflow are off the game and in the comb preview, backed first, then the date's own history, then arrival", () => {
   const pooled = story({ id: "aaaaaaaa-0000-0000-0000-000000000001", status: "pool", rect: null, placedAt: null, support: 0, headline: "A pooled story nobody backed" });
   const spilled = story({ id: "aaaaaaaa-0000-0000-0000-000000000002", status: "overflow", rect: null, headline: "A story the hive had no room for" });
   const history = story({ id: "aaaaaaaa-0000-0000-0000-000000000003", status: "pool", rect: null, placedAt: null, support: 0, priority: 3, submittedAt: "2026-09-09T15:00:00Z", headline: "1888: The Football League kicks off" });
-  const html = wallSection(day([story(), pooled, spilled, history]), "September 9");
-  assert.ok(html.includes('<h2 class="section" id="feedhead">Today\'s feed</h2>'));
-  const at = (text: string) => { const i = html.indexOf(text); assert.ok(i > 0, text); return i; };
+  const d = day([story(), pooled, spilled, history]);
+  const html = wallSection(d, "September 9");
+  // "Today's feed" is cut, docs/the-wall.md section 32: it was the board's
+  // own stories in a second outfit. The game draws the board and nothing off it.
+  assert.ok(!html.includes('id="feedhead"') && !html.includes("Today's feed"));
+  for (const s of [pooled, spilled, history]) assert.ok(!html.includes(s.headline), `${s.headline} is not in the game`);
+  assert.equal((html.match(/class="wtile/g) ?? []).length, 1);
+  const comb = combPreview(d, "September 9", LIVE_NOW, false);
+  const at = (text: string) => { const i = comb.indexOf(text); assert.ok(i > 0, text); return i; };
   // Twelve buzzes first, then the date's own history ahead of the feeds even
   // though it arrived later, then the news nobody backed.
   assert.ok(at("A story the hive had no room for") < at("1888: The Football League kicks off"));
   assert.ok(at("1888: The Football League kicks off") < at("A pooled story nobody backed"));
-  // No fold: the whole feed is on the page.
-  assert.ok(!html.includes("<details"), "the feed is not folded");
-  assert.ok(!html.includes("Backed, waiting"));
-  // None of the three is drawn as a tile.
-  assert.equal((html.match(/class="wtile/g) ?? []).length, 1);
 });
 
 test("a story shown false keeps its rectangle and is stamped", () => {
@@ -236,15 +237,21 @@ test("the baked section carries no forms, and the interactive one carries a tap 
   assert.ok(baked.includes('id="wkept"'), "the afterwords are on every page, for a tap refused after a page was served");
 
   const live = wallSection(d, "September 9", LIVE_NOW, { interactive: true });
-  // One control per tile and per row, and it says what it does.
-  assert.equal((live.match(/<form class="wbuzz"/g) ?? []).length, 3);
-  assert.equal((live.match(/>Buzz<\/button>/g) ?? []).length, 3);
+  // One control per tile, and it says what it does. The stories off the
+  // board are not in the game any more, docs/the-wall.md section 32: they
+  // are in the comb preview in the museum, each with its own.
+  assert.equal((live.match(/<form class="wbuzz"/g) ?? []).length, 1);
+  assert.equal((live.match(/>Buzz<\/button>/g) ?? []).length, 1);
   assert.ok(live.includes('action="/boost"'));
   assert.ok(live.includes(`name="s" value="${onWall.id}"`));
   assert.ok(live.includes('name="m" value="9"') && live.includes('name="d" value="9"'));
-  // The headline is the link to the receipt, on the tile and in the list.
+  // The headline is the link to the receipt, on the tile and in the comb.
   assert.ok(live.includes(`<a class="wh" href="${storyPath(onWall)}"`));
-  assert.ok(live.includes(`<li id="w-${pooled.id}" data-subject="story:${pooled.id}"><a href="${storyPath(pooled)}">`));
+  const comb = combPreview(d, "September 9", LIVE_NOW, true);
+  assert.equal((comb.match(/<form class="wbuzz"/g) ?? []).length, 2);
+  assert.ok(comb.includes(`<a class="wch" href="${storyPath(pooled)}">`));
+  assert.ok(comb.includes('name="v" value="museum"'), "a buzz from the museum comes back to the museum");
+  assert.ok(!combPreview(d, "September 9", LIVE_NOW, false).includes("<form"), "the baked comb preview offers no tap");
   // One line above the board since September 23, 2026 (the-wall.md section
   // 30): what to do and what a buzz does, before the board. It names no
   // number, because the count under it does.
@@ -341,60 +348,65 @@ test("a tile is drawn at the height it has, and the headline gets the lines it c
 // One feed, one verb, decided September 10, 2026
 // ---------------------------------------------------------------------------
 
-test("the hive leads the date page, and the imported history is plain rows until the worker files it", () => {
+test("the hive leads the date page, and the museum under it is the one place the date's history is drawn, filed or not", () => {
   const people = [1, 2, 3].map((n) => ({ qid: `Q${n}`, name: `Person ${n}`, birthYear: 1950 + n, deathYear: null, description: "did things", monthlyViews: 100 }));
   // Tomorrow's hive, before the worker has filed a thing for it.
   const empty = emptyWallDay("2026-09-09");
   const html = renderDayPage({ month: 9, day: 9, people }, [], [], [], [], null, new Map(), new Map(), empty);
   const h1 = html.indexOf("<h1>September 9</h1>");
   const wallAt = html.indexOf('class="wall"');
-  const feedAt = html.indexOf('class="feed2"');
-  const personAt = html.indexOf('id="r-person-Q1"');
+  const museumAt = html.indexOf('<section class="museum" id="museum"');
+  const personAt = html.indexOf('id="m-person-Q1"');
   assert.ok(h1 > 0 && h1 < wallAt, "the name, then the hive");
-  assert.ok(wallAt < feedAt, "the hive, then the feed");
-  // The baked history stands in for the feed, without buttons.
-  assert.ok(feedAt < personAt, "the people are in the feed");
+  assert.ok(html.indexOf("<!--wall:end-->") < museumAt, "the hive, then the museum, outside the swapped section so it is always in the page");
+  assert.ok(museumAt < personAt, "the people are in the museum");
+  assert.ok(!html.includes('class="feed2"') && !html.includes("Today's feed"), "the feed is gone");
   assert.ok(!html.includes('action="/remember"'));
-  assert.ok(!html.includes('class="rest"'), "no fold without songs");
   assert.ok(!html.includes("What people remember"));
   assert.ok(!html.includes("Closes tonight"));
-  // Once the worker has filed the date's history as stories, the feed is
-  // the stories and the baked rows are not drawn twice.
+  // Once the worker has filed the date's people as stories, the museum row
+  // is still the one place each is drawn: the story's buzz rides on the row
+  // by its key, and the story is not drawn a second time anywhere else.
   const s = story({ rect: { mx: 3, my: 5, w: 4, h: 3 } });
-  const filed = story({ id: "aaaaaaaa-0000-0000-0000-000000000003", status: "pool", rect: null, placedAt: null, support: 0, priority: 2, headline: "Person 1, did things, born 1951" });
+  const filed = story({ id: "aaaaaaaa-0000-0000-0000-000000000003", status: "pool", rect: null, placedAt: null, support: 0, priority: 2, headline: "Person 1, did things, born 1951", subjectKind: "person", subjectId: "Q1" });
   const later = renderDayPage({ month: 9, day: 9, people }, [], [], [], [], null, new Map(), new Map(), day([s, filed]));
-  assert.ok(later.includes("Person 1, did things, born 1951"));
-  assert.ok(!later.includes('id="r-person-Q1"'), "the baked row is not drawn beside the story it became");
-  // A hive with tiles and an empty pool says so rather than showing the
-  // baked rows as if they were still waiting.
+  assert.equal(later.split('id="m-person-Q1"').length, 2, "the museum row, once");
+  assert.ok(later.includes('data-k="person:Q1"'), "keyed to its story");
+  assert.ok(!later.includes("Person 1, did things, born 1951"), "and the story is not drawn beside the row it is");
+  // A hive with tiles and nothing off the board draws no comb preview.
   const placedOnly = renderDayPage({ month: 9, day: 9, people }, [], [], [], [], null, new Map(), new Map(), day([s]));
-  assert.ok(placedOnly.includes("Everything filed for September 9 is on the hive."));
-  assert.ok(!placedOnly.includes('id="r-person-Q1"'));
+  assert.ok(!placedOnly.includes('id="comb"'));
+  assert.ok(placedOnly.includes('id="m-person-Q1"'), "and the museum is the same museum");
 });
 
 test("a date with no hive yet lists its history under the promise, without buttons", () => {
   const people = [{ qid: "Q1", name: "Person 1", birthYear: 1951, deathYear: null, description: "did things", monthlyViews: 100 }];
   const html = renderDayPage({ month: 9, day: 9, people });
-  assert.ok(html.indexOf('class="wall wpromise"') < html.indexOf('id="r-person-Q1"'));
-  assert.ok(!html.includes('class="wbuzz"') && !html.includes('action="/boost"'), "no buzz buttons on a baked page (the birthday picker form is fine)");
-  assert.ok(html.includes("When its hive opens, every one of these takes buzzes."));
+  assert.ok(html.indexOf('class="wall wpromise"') < html.indexOf('id="m-person-Q1"'));
+  assert.ok(!html.includes('class="wbuzz"'), "no buzz forms on a baked page");
+  // The museum carries one form and its buttons baked switched off; only the
+  // live section, on a date taking buzzes, switches them on.
+  assert.equal((html.match(/action="\/boost"/g) ?? []).length, 1, "the museum's one form");
+  assert.ok(/\.mon, \.mbuzz, \.mmine \{ display: none; \}/.test(html), "its buttons are off in the baked page");
+  assert.ok(html.includes("Everything below takes buzzes then."));
 });
 
 test("the number one songs are one strip, baked under the feed until the worker files them, never drawn twice", () => {
   const songs = [{ year: 2001, chartDate: "2001-09-08", song: "A Song", artist: "A Band" }];
   const html = renderDayPage(PAGE, songs);
-  assert.ok(!html.includes('<details class="rest">'), "the folded section is gone");
-  assert.equal((html.match(/class="wsongs"/g) ?? []).length, 1, "one strip");
-  assert.ok(html.includes('<li id="2001" data-subject="song:2001-09-08">'));
+  assert.equal((html.match(/class="wsongs"/g) ?? []).length, 1, "one strip, in the museum");
+  assert.ok(html.includes('<li class="mrow msong" id="2001" data-subject="song:2001-09-08" data-k="song:2001-09-08">'));
   assert.ok(html.includes("&quot;A Song&quot; by A Band"));
-  assert.ok(!html.includes('class="wbuzz"') && !html.includes('action="/boost"'), "no buzz buttons before the worker has filed the songs (the birthday picker form is fine)");
-  // Once the worker has filed a song story, the strip is the stories and the baked one is not drawn beside it.
+  assert.ok(!html.includes('class="wbuzz"'), "no buzz forms in the baked page");
+  // Once the worker has filed a song story, the museum's strip is still the
+  // one place it is drawn on the date page: the comb preview leaves the
+  // museum's kinds out, docs/the-wall.md section 32.
   const filed = story({ id: "aaaaaaaa-0000-0000-0000-000000000009", status: "pool", rect: null, placedAt: null, support: 0, subjectKind: "song", subjectId: "2001-09-08", headline: "2001: A Song by A Band was the number one song" });
   const later = renderDayPage(PAGE, songs, [], [], [], null, new Map(), new Map(), day([story(), filed]));
-  // Once filed, the songs live on the comb, September 22, 2026, and the
-  // date page carries the card that leads there instead of a second strip.
-  assert.equal((later.match(/class="wsongs"/g) ?? []).length, 0, "no strip on the date page once filed");
-  assert.ok(later.includes('<a class="wcomb" href="/september-9/comb/">'));
+  assert.equal((later.match(/class="wsongs"/g) ?? []).length, 1, "still one strip on the date page once filed");
+  assert.ok(!later.includes("was the number one song"), "and the filed story is not drawn beside it");
+  assert.ok(!combPreview(day([story(), filed]), "September 9", LIVE_NOW, true).includes(filed.id));
+  // The comb's own page still carries every cell, songs included.
   const comb = wallSection(day([story(), filed]), "September 9", Date.now(), { comb: true });
   assert.equal((comb.match(/class="wsongs"/g) ?? []).length, 1, "one strip, on the comb");
   assert.ok(comb.includes('id="2001"'), "the year is still an address");
@@ -459,90 +471,227 @@ test("the full screen page is the hive, its count and its sentences, and a buzz 
 /** The page as a reader sees it: tags gone, entities left alone. Class names
  * and attribute values are markup and are not read by anybody. */
 // ---------------------------------------------------------------------------
-// The typed field. docs/the-wall.md section 15.
+// The suggestion box. docs/the-wall.md section 32. It replaced the typed
+// field of section 15 on October 5, 2026: the field could only find what was
+// already filed, and a miss was a dead end.
 // ---------------------------------------------------------------------------
 
-import { ASK_MAX, HOW_TO, checkRuns, spanWords, type WallCheck } from "../src/wall.js";
+import { HOW_TO, checkRuns, spanWords, keptAt, combPreview, museumMarks, MUSEUM_KINDS, COMB_PREVIEW, type WallCheck } from "../src/wall.js";
+import { SUGGEST_QUERY_MAX, SUGGEST_QUESTION, SUGGEST_SCRIPT, type Topic } from "../src/suggest.js";
 
-test("the typed field is on the live section only, posts a plain form to /find, and spends nothing", () => {
-  const d = day([story({ rect: { mx: 3, my: 5, w: 4, h: 3 } })]);
+/** A day that knows which buzzes were suggestions, the way the read does after the migration. */
+function suggestDay(stories: WallStory[], overrides: Partial<WallDay> = {}): WallDay {
+  return day(stories, { suggestions: true, ...overrides });
+}
+
+function suggestion(overrides: Partial<WallStory> = {}): WallStory {
+  return story({
+    id: "dddddddd-0000-0000-0000-000000000042",
+    headline: "Douglas Adams: English author and humorist",
+    url: "https://en.wikipedia.org/wiki/Douglas_Adams",
+    outlet: "Wikipedia",
+    status: "pool",
+    tier: "claimed",
+    support: 1,
+    rect: null,
+    placedAt: null,
+    subjectKind: "suggestion",
+    subjectId: "Q42",
+    ...overrides,
+  });
+}
+
+test("the suggestion box is on today's live section only, posts a plain form, and is never a dead box", () => {
+  const d = suggestDay([story({ rect: { mx: 3, my: 5, w: 4, h: 3 } })]);
   const baked = wallSection(d, "September 9", LIVE_NOW);
-  assert.ok(!baked.includes('action="/find"'), "a baked page never carries the field");
-  // The three sentences the field answers with are on every page, baked
-  // ones included, for a reader whose find lands on the fallback.
-  for (const id of ["wmiss", "wblank", "wnofind"]) assert.ok(baked.includes(`id="${id}"`), `${id} is on the baked page`);
+  assert.ok(!baked.includes('action="/suggest/search"'), "a baked page never carries the box");
+  assert.ok(!baked.includes('action="/find"'), "the typed field is gone");
+  // The sentences a tap or a stale find comes back to are on every page,
+  // baked ones included, for a reader whose request lands on the fallback.
+  for (const id of ["wmiss", "wblank", "wnofind", "wabsent"]) assert.ok(baked.includes(`id="${id}"`), `${id} is on the baked page`);
 
   const live = wallSection(d, "September 9", LIVE_NOW, { interactive: true });
-  assert.equal((live.match(/<form class="wask"/g) ?? []).length, 1);
-  assert.ok(live.includes('method="post" action="/find"'));
-  assert.ok(live.includes("What mattered about September 9?"));
-  assert.ok(live.includes(`name="q" type="text" maxlength="${ASK_MAX}"`));
+  assert.equal((live.match(/<form class="tgask"/g) ?? []).length, 1);
+  assert.ok(live.includes('method="post" action="/suggest/search"'));
+  assert.ok(live.includes(SUGGEST_QUESTION));
+  assert.ok(live.includes(`name="q" type="search" maxlength="${SUGGEST_QUERY_MAX}"`));
   assert.ok(live.includes('name="m" value="9"') && live.includes('name="d" value="9"'));
-  assert.ok(live.includes(">Find</button>"));
-  // The ways on from the board are one row of pills under it, and the old
-  // fragment between them is gone. Nathan, September 22, 2026.
-  assert.ok(!live.includes("makes its story bigger."), "cut, September 22, 2026");
-  assert.ok(live.indexOf('class="wways"') > live.indexOf('class="wboard'), "the row is under the board");
+  assert.ok(live.includes(">Search</button>"));
+  // Never a dead box: with nothing suggested yet it asks.
+  assert.ok(live.includes("<b>Be the first to suggest one.</b>"));
+  // It is part of the game, inside the hive's own section, under the board
+  // and above the ways on.
+  const section = live.slice(live.indexOf('<section class="wall"'), live.indexOf("</section>", live.indexOf('<section class="wall"')));
+  assert.ok(section.includes('id="suggest"'), "the box is in the hero, not the museum");
+  assert.ok(section.indexOf('id="suggest"') > section.indexOf('class="wboard'));
+  assert.ok(section.indexOf('id="suggest"') < section.indexOf('class="wways"'));
   assert.ok(live.includes('<a class="wread" href="/about/">How the hive works</a>'));
-  assert.ok(!live.includes("Typing spends nothing."), "cut, September 22, 2026");
-  // No script anywhere near it: a form and a button and nothing else.
-  assert.ok(!/<script|onsubmit|oninput/i.test(live));
-  // The miss is the front door to submission rather than a dead end.
-  assert.ok(live.includes('id="wmiss">Nothing filed for September 9 says that.'));
-  // /add/ is where somebody hands you their birthday, not where you get the
-  // app. The About page is the one with the download on it.
-  assert.ok(live.includes('<a href="/about/">get Birthed</a>'));
-  assert.ok(!live.includes('<a href="/add/">'), "get Birthed never points at the birthday hand-off page");
+  // The second script, and it is the one named by its hash.
+  assert.ok(live.includes(`<script>${SUGGEST_SCRIPT}</script>`));
+  // The ways on: pick between two stays in the game.
+  assert.ok(live.includes('href="/september-9/pick/">Pick between two</a>'));
 
-  // After the date seals the field is gone with the buzz forms.
+  // Before the migration the read cannot tell a suggestion from a buzz, so nothing is drawn.
+  assert.ok(!wallSection(day(d.stories), "September 9", LIVE_NOW, { interactive: true }).includes('id="suggest"'));
+  // After the date seals the box is gone, and with nothing suggested so is the list.
   const sealed = wallSection(d, "September 9", Date.parse("2026-09-12T00:00:00Z"), { interactive: true });
-  assert.ok(!sealed.includes('action="/find"'));
-  // And the full screen hive does not carry it: it is the hive and its count and nothing else.
-  assert.ok(!wallSection(d, "September 9", LIVE_NOW, { interactive: true, hive: true }).includes('action="/find"'));
+  assert.ok(!sealed.includes('action="/suggest/search"') && !sealed.includes('id="suggest"'));
+  // Yesterday, still open for buzzes: the box has moved on to today, so no box and no ask.
+  const yesterday = wallSection(d, "September 9", Date.parse("2026-09-10T20:00:00Z"), { interactive: true });
+  assert.ok(!yesterday.includes('action="/suggest/search"'));
+  // The full screen hive is the hive and its count and nothing else.
+  assert.ok(!wallSection(d, "September 9", LIVE_NOW, { interactive: true, hive: true }).includes('id="suggest"'));
 });
 
-test("the confirmation shows the story, its outlet and its tier, and the buzz is the same /boost form, with a way out", () => {
-  const found = story({ id: "aaaaaaaa-0000-0000-0000-000000000001", status: "pool", rect: null, placedAt: null, support: 0 });
-  const other = story({ id: "aaaaaaaa-0000-0000-0000-000000000002", status: "pool", rect: null, placedAt: null, support: 3, headline: "The other one" });
-  const d = day([found, other]);
+test("a suggestion is a row under Suggested today, buzzable at once, and stays after midnight until the seal", () => {
+  const s = suggestion();
+  const d = suggestDay([story({ rect: { mx: 3, my: 5, w: 4, h: 3 } }), s]);
+  const live = wallSection(d, "September 9", LIVE_NOW, { interactive: true });
+  assert.ok(live.includes("<b>Suggested today</b> <span>1 suggestion</span>"));
+  assert.ok(!live.includes("Be the first to suggest one."));
+  const row = live.slice(live.indexOf(`id="wt-${s.id}"`), live.indexOf("</li>", live.indexOf(`id="wt-${s.id}"`)));
+  // The article's own title, Wikipedia's description beside it, the count and the buzz.
+  assert.ok(row.includes(`<a class="tgt" href="${storyPath(s)}">Douglas Adams</a>`));
+  assert.ok(row.includes("English author and humorist"));
+  assert.ok(row.includes("1 buzz"));
+  assert.ok(row.includes('<form class="wbuzz" method="post" action="/boost">'));
+  assert.ok(row.includes(`name="s" value="${s.id}"`) && row.includes('name="v" value="suggest"'));
+  // A suggestion is not drawn twice: not in the comb preview and not in the museum's marks.
+  assert.ok(!combPreview(d, "September 9", LIVE_NOW, true).includes(s.id));
+  // Taken back inside its thirty seconds, nobody stands behind it, so it is not listed.
+  const takenBack = wallSection(suggestDay([{ ...s, support: 0 }]), "September 9", LIVE_NOW, { interactive: true });
+  assert.ok(!takenBack.includes(`id="wt-${s.id}"`) && takenBack.includes("Be the first to suggest one."));
 
-  const none = wallSection(d, "September 9", LIVE_NOW, { interactive: true });
-  assert.ok(!none.includes('id="wfound"'), "no confirmation unless a find said so");
+  // The next day it is still there with its button until the hive seals,
+  // under a heading that says when it was suggested.
+  const later = wallSection(d, "September 9", Date.parse("2026-09-10T20:00:00Z"), { interactive: true });
+  assert.ok(later.includes("Suggested on"));
+  assert.ok(later.includes(`id="wt-${s.id}"`) && later.includes(`name="s" value="${s.id}"`));
+  // Sealed: the list as it sealed, without buttons.
+  const sealed = wallSection(d, "September 9", Date.parse("2026-09-12T00:00:00Z"), { interactive: true });
+  assert.ok(sealed.includes(`id="wt-${s.id}"`));
+  assert.ok(!sealed.slice(sealed.indexOf('id="suggest"')).includes('action="/boost"'));
+  assert.ok(sealed.includes("Sealed with the hive. Permanent."));
+});
 
-  const one = wallSection(d, "September 9", LIVE_NOW, { interactive: true, found: [found] });
-  assert.ok(one.includes('id="wfound"'));
-  assert.ok(one.includes("Is this the one?"));
-  assert.ok(one.includes(`<li id="f-${found.id}"><a href="${storyPath(found)}">Council approves the river crossing after a decade of study</a>`));
-  assert.ok(one.includes("example.org") && one.includes(">Reported<"));
-  // Nothing spent until the reader confirms, and the confirmation is the
-  // existing buzz form, unchanged: the story, the date, /boost.
-  const block = one.slice(one.indexOf('id="wfound"'), one.indexOf("</div>", one.indexOf('id="wfound"')));
-  assert.ok(block.includes('<form class="wbuzz" method="post" action="/boost">'));
-  assert.ok(block.includes(`name="s" value="${found.id}"`));
-  // Thirty seconds, since the undo shipped. A confirmation that told the
-  // reader a buzz could not be taken back and then drew an Undo button under
-  // it was the copy contradicting the product.
-  assert.ok(block.includes("Spend one buzz on this? You get thirty seconds to take it back, and after that it stands."));
-  assert.ok(block.includes('<a href="/september-9/#ask">Not this one</a>'));
-  // The same story is still drawn in the feed under its own id, so the two ids differ.
-  assert.ok(one.includes(`<li id="w-${found.id}" data-subject="story:${found.id}">`));
+test("a search points at a tile already on the date before it offers a new one, and a pick that is already here buzzes it instead", () => {
+  const news = story({ id: "aaaaaaaa-0000-0000-0000-000000000001", status: "pool", rect: null, placedAt: null, support: 3, headline: "Council approves the river crossing after a decade of study" });
+  const s = suggestion();
+  const person = story({ id: "aaaaaaaa-0000-0000-0000-000000000003", status: "pool", rect: null, placedAt: null, support: 0, headline: "Ada Lovelace, mathematician, is born", url: "https://en.wikipedia.org/wiki/Ada_Lovelace", subjectKind: "person", subjectId: "Q7259" });
+  const d = suggestDay([news, s, person]);
+  const topics: Topic[] = [
+    { pageId: 8091, title: "Douglas Adams", description: "English author and humorist", item: "Q42" },
+    { pageId: 19637, title: "Ada Lovelace", description: "English mathematician", item: "Q7259" },
+    { pageId: 1234, title: "River Thames crossing", description: null, item: "Q99" },
+  ];
+  const live = wallSection(d, "September 9", LIVE_NOW, { interactive: true, suggest: { found: { here: [news], topics } } });
+  const box = live.slice(live.indexOf('id="tgresults"'), live.indexOf("</div>", live.indexOf('id="tgresults"')));
+  // What is already filed comes first, with its buzz: buzz it instead.
+  assert.ok(box.indexOf("Already on today's hive. Buzz it instead") < box.indexOf("Or something new, from Wikipedia"));
+  assert.ok(box.includes(`name="s" value="${news.id}"`));
+  // An article that is already a tile, by its Wikidata item, buzzes that tile.
+  const adams = box.slice(box.indexOf(">Douglas Adams<"), box.indexOf("</li>", box.indexOf(">Douglas Adams<")));
+  assert.ok(adams.includes('action="/boost"') && adams.includes(`name="s" value="${s.id}"`) && adams.includes("Already here. Buzz it"));
+  assert.ok(!adams.includes('action="/suggest"'));
+  // A person born on the date is the same thing, so the same answer.
+  const ada = box.slice(box.indexOf(">Ada Lovelace<"), box.indexOf("</li>", box.indexOf(">Ada Lovelace<")));
+  assert.ok(ada.includes(`name="s" value="${person.id}"`) && !ada.includes('action="/suggest"'));
+  // Only the new article is offered as a suggestion, and it posts the article's number, never words.
+  const thames = box.slice(box.indexOf(">River Thames crossing<"), box.indexOf("</li>", box.indexOf(">River Thames crossing<")));
+  assert.ok(thames.includes('action="/suggest"') && thames.includes('name="p" value="1234"') && thames.includes(">Suggest this</button>"));
+  assert.ok(!/name="(q|title|headline)"/.test(thames), "a suggestion carries no typed or quoted words");
 
-  const several = wallSection(d, "September 9", LIVE_NOW, { interactive: true, found: [other, found] });
-  assert.ok(several.includes("A few stories say that. Which one did you mean?"));
-  assert.ok(several.indexOf(`id="f-${other.id}"`) < several.indexOf(`id="f-${found.id}"`), "best first, as the matcher ordered them");
-  assert.ok(several.includes("3 buzzes"));
+  // One thing once: when the phrase already found a tile, the article for it
+  // is not offered again underneath.
+  const once = wallSection(d, "September 9", LIVE_NOW, { interactive: true, suggest: { found: { here: [person, s], topics } } });
+  const onceBox = once.slice(once.indexOf('id="tgresults"'), once.indexOf("</div>", once.indexOf('id="tgresults"')));
+  assert.ok(!onceBox.includes("Already here."), "nothing below repeats a tile above");
+  assert.equal(onceBox.split(">Ada Lovelace<").length - 1, 0, "no second row for the article");
+  assert.equal(onceBox.split(">Ada Lovelace, mathematician, is born<").length - 1, 1, "the person once, as the tile already there");
+  assert.equal(onceBox.split(">Douglas Adams<").length - 1, 1, "and a suggestion above goes by its title, once");
+  assert.ok(onceBox.includes("Suggested today"));
 
-  // A story shown false is still the one the reader meant, so it is shown, and it takes no buzz.
-  const stamped = story({ id: "aaaaaaaa-0000-0000-0000-000000000003", status: "false", falseAt: "2026-09-09T18:00:00Z" });
-  const shown = wallSection(day([stamped]), "September 9", LIVE_NOW, { interactive: true, found: [stamped] });
-  const falseBlock = shown.slice(shown.indexOf('id="wfound"'), shown.indexOf("</div>", shown.indexOf('id="wfound"')));
-  assert.ok(falseBlock.includes("Later shown false. Takes no buzzes."));
-  assert.ok(!falseBlock.includes("<form"));
+  // Nothing found, Wikipedia busy, a stale search: each says so, never a blank.
+  assert.ok(wallSection(d, "September 9", LIVE_NOW, { interactive: true, suggest: { found: "none" } }).includes("Nothing found. Try a name, a place or what happened."));
+  assert.ok(wallSection(d, "September 9", LIVE_NOW, { interactive: true, suggest: { found: "busy" } }).includes("Wikipedia did not answer just now."));
+  assert.ok(wallSection(d, "September 9", LIVE_NOW, { interactive: true, suggest: { found: "expired" } }).includes("That search has gone stale."));
 
-  // September 11 speaks the same voice as every other date now.
-  const plain = wallSection(day([found], { wallDate: "2026-09-11", month: 9, day: 11, liveAt: "2026-09-11T04:00:00Z", closesAt: "2026-09-13T04:00:00Z" }),
-    "September 11", Date.parse("2026-09-11T20:00:00Z"), { interactive: true, found: [{ ...found, wallDate: "2026-09-11" }] });
-  assert.ok(plain.includes("Spend one buzz on this?"));
+  // After the database said it exists, the tile is right under the sentence, with its buzz.
+  const exists = wallSection(d, "September 9", LIVE_NOW, { interactive: true, suggest: { said: "exists", on: person.id } });
+  const said = exists.slice(exists.indexOf('class="tgsaid"'), exists.indexOf("</div>", exists.indexOf('class="tgsaid"')));
+  assert.ok(said.includes("already on today&#39;s hive") && said.includes("Buzz it instead"), said);
+  assert.ok(said.includes(`name="s" value="${person.id}"`));
+});
+
+test("one suggestion a day: the browser's own standing puts the box away and marks its suggestion, and only the maker gets the Undo", () => {
+  const s = suggestion();
+  const d = suggestDay([s]);
+  const live = wallSection(d, "September 9", LIVE_NOW, { interactive: true });
+  // The line that replaces the box is in the page, hidden until the mark shows it.
+  assert.ok(live.includes('<p class="tgdone">You suggested today\'s.'));
+  assert.ok(WALL_STYLE.includes(".tgdone {") && /\.tgdone \{[^}]*display: none/.test(WALL_STYLE));
+  assert.ok(/\.tgmine \{[^}]*display: none/.test(WALL_STYLE));
+
+  const marks = wallMarks({ left: 3, allowance: 3, backed: [s.id], suggested: s.id }, d, LIVE_NOW);
+  assert.ok(marks.includes(".tgask,.tgresults{display:none}.tgdone{display:block}"));
+  assert.ok(marks.includes(`#wt-${s.id} .tgmine{display:inline}`));
+  // Anything not shaped like a uuid never reaches a selector.
+  const forged = wallMarks({ left: 3, allowance: 3, backed: [], suggested: "x}body{display:none" }, d, LIVE_NOW);
+  assert.ok(!forged.includes("tgdone") && !forged.includes("body{"));
+  // A browser that has not suggested keeps the box.
+  assert.ok(!wallMarks({ left: 3, allowance: 3, backed: [] }, d, LIVE_NOW).includes(".tgask"));
+
+  // The Undo is drawn only after "kept" and only for the story named.
+  const kept = wallSection(d, "September 9", LIVE_NOW, { interactive: true, suggest: { said: "kept", on: s.id, undo: s.id } });
+  assert.ok(kept.includes('action="/suggest/undo"') && kept.includes(`name="s" value="${s.id}"`));
+  assert.ok(kept.includes("with your free buzz on it"));
+  assert.ok(!wallSection(d, "September 9", LIVE_NOW, { interactive: true, suggest: { said: "kept", on: s.id, undo: null } }).includes('action="/suggest/undo"'));
+  assert.ok(!wallSection(d, "September 9", LIVE_NOW, { interactive: true, suggest: { said: "kept", on: s.id, undo: "nope" } }).includes('action="/suggest/undo"'));
+  // After a suggestion the box says what happened, and the buzz's own
+  // sentence by the board stays hidden, so it is not said twice.
+  assert.ok(WALL_STYLE.includes(".day:has(.tg > div.tgsaid) #wkept { display: none; }"));
+  // The site wide ceiling's two words.
+  assert.ok(wallSection(d, "September 9", LIVE_NOW, { interactive: true, suggest: { said: "crowded" } }).includes("A lot is being suggested at once."));
+  assert.ok(wallSection(d, "September 9", LIVE_NOW, { interactive: true, suggest: { said: "full" } }).includes("taken all the suggestions it can hold today"));
+  // A second suggestion the same day is refused by the database, and the page says why.
+  assert.ok(wallSection(d, "September 9", LIVE_NOW, { interactive: true, suggest: { said: "suggested" } }).includes("You have already suggested something today. It is one a day"));
+});
+
+test("a buzz that counted lands where the story is drawn on the date page, or on its sentence when it is drawn nowhere", () => {
+  const onBoard = story({ id: "aaaaaaaa-0000-0000-0000-000000000001", rect: { mx: 3, my: 5, w: 4, h: 3 } });
+  const s = suggestion();
+  const answer = story({ id: "aaaaaaaa-0000-0000-0000-000000000002", status: "pool", rect: null, placedAt: null, subjectKind: "answer", subjectId: "123:song" });
+  const event = story({ id: "aaaaaaaa-0000-0000-0000-000000000003", status: "pool", rect: null, placedAt: null, subjectKind: "historical_event", subjectId: "4242" });
+  const newsIds = Array.from({ length: COMB_PREVIEW + 2 }, (_, i) => `bbbbbbbb-0000-0000-0000-00000000000${i}`);
+  const news = newsIds.map((id, i) => story({ id, status: "pool", rect: null, placedAt: null, support: 20 - i, headline: `A different headline number ${i} about the council`, url: `https://www.example.org/${i}`, outlet: `outlet${i}.example` }));
+  const d = suggestDay([onBoard, s, answer, event, ...news]);
+  assert.equal(keptAt(onBoard, "day", d), `w-${onBoard.id}`);
+  assert.equal(keptAt(s, "suggest", d), `wt-${s.id}`);
+  assert.equal(keptAt(answer, "song", d), `ws-${answer.id}`);
+  assert.equal(keptAt(event, "museum", d), "m-historical_event-4242");
+  // A suggestion that made the board, buzzed from the board, lands on the board.
+  const placed = { ...s, status: "placed" as const, rect: { mx: 1, my: 1, w: 2, h: 2 } };
+  assert.equal(keptAt(placed, "day", d), `w-${s.id}`);
+  assert.equal(keptAt(placed, "suggest", d), `wt-${s.id}`);
+  // The news in the comb preview lands on its cell; the news past it is drawn nowhere, so the sentence.
+  assert.equal(keptAt(news[0]!, "museum", d), `w-${news[0]!.id}`);
+  assert.equal(keptAt(news[news.length - 1]!, "suggest", d), "wkept");
+  assert.equal(keptAt(news[news.length - 1]!, "day", d), "wkept");
+});
+
+test("the museum's marks switch its buttons on only while the date is open, and say only generated words", () => {
+  const event = story({ id: "aaaaaaaa-0000-0000-0000-000000000003", status: "placed", support: 4, subjectKind: "historical_event", subjectId: "4242", headline: "x\"}</style><script>alert(1)</script>" });
+  const d = day([event]);
+  const marks = museumMarks(d, LIVE_NOW);
+  assert.ok(marks.startsWith("<style>.mbuzz{display:inline-flex}"));
+  assert.ok(marks.includes('[data-k="historical_event:4242"] .mn::after{content:"4 buzzes"}'));
+  // The count is drawn by a rule, so the element stays empty to the baked
+  // .mn:empty and has to be switched on by name, after it.
+  assert.ok(marks.includes('[data-k="historical_event:4242"] .mn{display:inline}'));
+  assert.ok(marks.includes('[data-k="historical_event:4242"] .mon{display:inline}'));
+  assert.ok(!marks.includes("alert") && !marks.includes("</style><"), "a headline never goes into a style rule");
+  assert.equal(museumMarks(d, Date.parse("2026-09-12T00:00:00Z")), "", "nothing on a sealed date");
+  assert.ok(MUSEUM_KINDS.has("person") && !MUSEUM_KINDS.has("suggestion") && !MUSEUM_KINDS.has("answer"));
 });
 
 // ---------------------------------------------------------------------------
@@ -664,12 +813,12 @@ test("the number ones are a strip of covers on the comb, not sixty rows in the f
   const backed = song("aaaaaaaa-0000-0000-0000-000000000003", 1971, "1971-09-11", 2);
   const news = story({ id: "bbbbbbbb-0000-0000-0000-000000000002", status: "pool", rect: null, placedAt: null });
   const page = wallSection(day([older, newer, backed, news]), "September 9", LIVE, { interactive: true });
-  const feed = page.slice(page.indexOf('<ul class="wlist">'), page.indexOf("</ul>"));
-  assert.ok(feed.includes(`id="w-${news.id}"`));
-  assert.ok(!page.includes('<ul class="wsongs">'), "the covers are on the comb, not the date page");
-  assert.ok(page.includes("3</b> number one songs"), "and the card counts them");
+  assert.ok(!page.includes('<ul class="wsongs">'), "the covers are not in the game; the museum carries them, baked");
+  const preview = combPreview(day([older, newer, backed, news]), "September 9", LIVE, true);
+  assert.ok(preview.includes(`id="w-${news.id}"`));
+  assert.ok(!preview.includes("subject:song") && !preview.includes(`id="w-${older.id}"`), "no song sits in the comb preview");
+  assert.ok(preview.includes("4 cells"), "and it counts them, because the comb behind it carries them");
   const html = wallSection(day([older, newer, backed, news]), "September 9", LIVE, { interactive: true, comb: true });
-  assert.ok(!feed.includes("subject:song") && !feed.includes(`id="w-${older.id}"`), "no song sits in the feed list");
   const strip = html.slice(html.indexOf('<ul class="wsongs">'), html.indexOf("</ul>", html.indexOf('<ul class="wsongs">')));
   const order = [backed.id, newer.id, older.id].map((id) => strip.indexOf(`id="w-${id}"`));
   assert.ok(order[0]! < order[1]! && order[1]! < order[2]!, "most backed first, then newest year");
@@ -748,21 +897,20 @@ test("under the backed stories the kinds take turns, news first, and a kind that
   assert.deepEqual(takeTurns([]), []);
 });
 
-test("the feed shows a dozen rows and sends the rest to the comb, with a card that counts them", () => {
+test("the comb is a handful of cells and the way in, never the six hundred, and leaves the museum's kinds to the museum", () => {
   const stories: WallStory[] = [];
   for (let i = 0; i < 30; i++) stories.push(pooled(`aaaaaaaa-0000-0000-0000-0000000000${String(i).padStart(2, "0")}`, i % 3 === 0 ? null : i % 3 === 1 ? "historical_event" : "person"));
-  const html = wallSection(day(stories), "September 9", LIVE);
-  const open = html.slice(html.indexOf('<ul class="wlist">'), html.indexOf("</ul>"));
-  assert.equal((open.match(/<li /g) ?? []).length, FEED_SHOWN);
-  // The rest is not on the page at all any more, September 22, 2026.
-  assert.equal((html.match(/<li id="w-/g) ?? []).length, FEED_SHOWN, "no folded rows");
-  assert.ok(!html.includes("wmore"));
-  assert.ok(html.includes('<a class="wcomb" href="/september-9/comb/">'));
-  assert.ok(html.includes(`${30 - FEED_SHOWN} more cells in the comb`));
-  assert.ok(html.includes("Open the comb"));
-  assert.ok(html.includes("still takes a buzz"));
-  // A short feed has no comb to go to.
-  assert.ok(!wallSection(day(stories.slice(0, 5)), "September 9", LIVE).includes("wcomb"));
+  const html = combPreview(day(stories), "September 9", LIVE, false);
+  // Collapsed hard, October 5, 2026, docs/the-wall.md section 32.
+  assert.equal((html.match(/<li id="w-/g) ?? []).length, COMB_PREVIEW);
+  assert.ok(!html.includes("<details"), "nothing folded behind the handful either: the rest is on the comb's own page");
+  for (const s of stories.filter((x) => x.subjectKind !== null)) assert.ok(!html.includes(`id="w-${s.id}"`), "history and people are the museum's");
+  assert.ok(html.includes('<a class="mcombgo" href="/september-9/comb/">Open the comb'));
+  assert.ok(html.includes("30 cells"), "it says how many are behind the door");
+  assert.ok(html.startsWith("<!--comb:start-->") && html.endsWith("<!--comb:end-->"), "between the markers the server swaps");
+  // Nothing off the board, no comb.
+  assert.equal(combPreview(day([story()]), "September 9", LIVE, false), "<!--comb:start--><!--comb:end-->");
+  assert.equal(combPreview(null, "September 9", LIVE, false), "<!--comb:start--><!--comb:end-->");
 });
 
 test("the comb carries every row, grouped by kind, and a buzz from it comes back to it", () => {
@@ -1149,14 +1297,14 @@ test("a pictured small tile is the picture and nothing else", () => {
 });
 
 // docs/the-wall.md section 28.
-test("four desks filing one story are one feed row, naming the other three", () => {
+test("four desks filing one story are one comb cell, naming the other three", () => {
   const base = { status: "pool" as const, rect: null, placedAt: null, support: 0, priority: 0 };
   const desks = [
     story({ ...base, id: "cccccccc-0000-0000-0000-000000000001", outlet: "aljazeera.com", headline: "Sri Lanka court convicts 14 over deadly Easter bombings" }),
     story({ ...base, id: "cccccccc-0000-0000-0000-000000000002", outlet: "bbc.com", headline: "Sri Lanka court convicts 15 men over deadly Easter Sunday bombings" }),
     story({ ...base, id: "cccccccc-0000-0000-0000-000000000003", outlet: "npr.org", headline: "Sri Lanka court convicts 15 over deadly 2019 Easter bombings" }),
   ];
-  const html = wallSection(day(desks), "September 9");
+  const html = combPreview(day(desks), "September 9", LIVE_NOW, false);
   assert.equal((html.match(/Sri Lanka court convicts/g) ?? []).length, 1, "one row, not three");
   assert.ok(html.includes("Sri Lanka court convicts 14 over deadly Easter bombings"), "the shortest telling is the row");
   assert.ok(html.includes("with bbc.com and npr.org"), "the other desks are named");
@@ -1165,7 +1313,7 @@ test("four desks filing one story are one feed row, naming the other three", () 
 
 test("a story one desk carried says nothing about other desks", () => {
   const alone = story({ status: "pool", rect: null, placedAt: null, support: 0, priority: 0, outlet: "espn.com", headline: "Early bets for Week 3: Three games to target right away" });
-  const html = wallSection(day([alone]), "September 9");
+  const html = combPreview(day([alone]), "September 9", LIVE_NOW, false);
   assert.ok(html.includes("Early bets for Week 3"));
   assert.ok(!html.includes("walso"));
 });
@@ -1174,15 +1322,15 @@ test("a buzz already spent is never folded into somebody else's row", () => {
   const base = { status: "pool" as const, rect: null, placedAt: null, priority: 0 };
   const backed = story({ ...base, id: "dddddddd-0000-0000-0000-000000000001", support: 2, outlet: "bbc.com", headline: "Sri Lanka court convicts 15 men over deadly Easter Sunday bombings" });
   const other = story({ ...base, id: "dddddddd-0000-0000-0000-000000000002", support: 0, outlet: "npr.org", headline: "Sri Lanka court convicts 15 over deadly 2019 Easter bombings" });
-  const html = wallSection(day([backed, other]), "September 9");
+  const html = combPreview(day([backed, other]), "September 9", LIVE_NOW, false);
   assert.ok(html.includes("Sri Lanka court convicts 15 men over deadly Easter Sunday bombings"), "the backed row keeps its own button");
   assert.equal((html.match(/Sri Lanka court convicts/g) ?? []).length, 2, "both rows are drawn");
 });
 
-test("a feed row says nothing about the lowest tier and names every tier above it", () => {
+test("a comb cell says nothing about the lowest tier and names every tier above it", () => {
   const claimed = story({ id: "aaaaaaaa-0000-0000-0000-00000000c001", status: "pool", rect: null, placedAt: null, support: 0, tier: "claimed", headline: "1975: A claimed row" });
   const reported = story({ id: "aaaaaaaa-0000-0000-0000-00000000c002", status: "pool", rect: null, placedAt: null, support: 0, tier: "reported", headline: "A reported row" });
-  const html = wallSection(day([claimed, reported]), "September 9");
+  const html = combPreview(day([claimed, reported]), "September 9", LIVE_NOW, false);
   const rowOf = (id: string): string => { const i = html.indexOf(`<li id="w-${id}"`); assert.ok(i >= 0, id); return html.slice(i, html.indexOf("</li>", i)); };
   assert.ok(!rowOf(claimed.id).includes("wchip"), "every seeded story is claimed, so the chip said nothing");
   assert.ok(rowOf(reported.id).includes('<span class="wchip w-reported">Reported</span>'));

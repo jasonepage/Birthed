@@ -68,6 +68,31 @@ test("the songs have a place to go once the prompt ships", () => {
   assert.equal(recap.below.length, 2, "two stories under the crown when the songs are drawn, so the square fits");
 });
 
+test("what readers suggested is in the sealed picture, and a suggestion is not listed twice", () => {
+  // docs/the-wall.md section 32: the brief asked for suggestions in the
+  // sealed hive graphic.
+  const suggestedDay = {
+    ...day,
+    stories: [...day.stories, story("s", "Ada Lovelace: English mathematician", 2, { subjectKind: "suggestion", url: "https://en.wikipedia.org/wiki/Ada_Lovelace" })],
+  } as unknown as WallDay;
+  const alone = sealedRecap(suggestedDay, Date.parse(CLOSES), [], [{ name: "Ada Lovelace", count: 2 }, { name: "<b>Bold</b>", count: 5 }])!;
+  assert.deepEqual(alone.suggestions.map((s) => s.name), ["<b>Bold</b>", "Ada Lovelace"], "most buzzed first");
+  assert.ok(!alone.below.some((l) => l.name.includes("Ada Lovelace")), "drawn in its own list, not again under the crown");
+  assert.equal(alone.below.length, 2, "two stories under the crown when one list is drawn, so the square fits");
+  const html = renderRecap(alone);
+  assert.ok(html.includes("Suggested by readers"));
+  assert.ok(html.includes("&lt;b&gt;Bold&lt;/b&gt;") && !html.includes("<b>Bold</b>"), "a title never becomes markup");
+  // With the songs as well, each list gives way so the square still fits.
+  const both = sealedRecap(suggestedDay, Date.parse(CLOSES), [
+    { title: "Espresso", artist: "Sabrina Carpenter", count: 4 }, { title: "Dreams", artist: "Fleetwood Mac", count: 9 }, { title: "Third", artist: "Band", count: 1 },
+  ], [{ name: "Ada Lovelace", count: 2 }, { name: "Bold", count: 5 }, { name: "Third", count: 1 }])!;
+  assert.equal(both.songs.length, 2);
+  assert.equal(both.suggestions.length, 2);
+  assert.equal(both.below.length, 0, "the crown and the two lists");
+  // No suggestions, no section: a day nobody suggested on is the picture it was.
+  assert.ok(!renderRecap(sealedRecap(day, Date.parse(CLOSES))!).includes("Suggested by readers"));
+});
+
 test("a day nobody buzzed still gets a picture, and says so", () => {
   const quiet = { ...day, boosts: [], stories: day.stories.map((s) => ({ ...s, support: 0 })) } as unknown as WallDay;
   const recap = sealedRecap(quiet, Date.parse(CLOSES))!;

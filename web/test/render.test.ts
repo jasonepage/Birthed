@@ -50,13 +50,14 @@ test("the page does not lead with the list of names", () => {
     { id: "t", month: 9, day: 4, fact: "Something sourced happened.", category: "event",
       sourceUrl: "https://example.org/september-4" },
   ]);
-  // One list now: what happened, then who was born. The people are rows in
-  // the same feed, after the events, never the first thing.
-  const people = html.indexOf('id="r-person-');
-  const happened = html.indexOf('id="r-birth_fact-t"');
+  // The museum, docs/the-wall.md section 32: what happened, then who was
+  // born, both under the hive, never the first thing.
+  const people = html.indexOf('id="m-person-');
+  const happened = html.indexOf('id="m-birth_fact-t"');
   assert.ok(people > 0, "the people are still on the page");
   assert.ok(happened > 0, "the timeline is still on the page");
   assert.ok(happened < people, "what happened on the date comes before who was born on it");
+  assert.ok(html.indexOf("<!--wall:end-->") < happened, "and both come after the hive");
 });
 
 test("the lede never claims the list is ranked by attention", () => {
@@ -71,11 +72,13 @@ test("a name from the data cannot inject markup", () => {
   assert.equal(escapeHtml(`<a href="x">&</a>`), "&lt;a href=&quot;x&quot;&gt;&amp;&lt;/a&gt;");
 });
 
-test("the year column carries the birth year and nothing that could wrap", () => {
+test("a person's row says the birth year in words under the name, and no range", () => {
+  // The museum's people are a name and a line under it, section 32, not a
+  // year column: the year column belongs to what happened.
   const html = renderDayPage(page);
-  assert.ok(html.includes('<span class="fyr">1824</span>'));
-  assert.ok(html.includes('<span class="fyr">1982</span>'));
-  assert.ok(!html.includes("1824 to 1896"), "a range in the column pushes every name out of line");
+  assert.ok(html.includes('<span class="bmeta">born 1824, died 1896, Austrian composer</span>'));
+  assert.ok(html.includes('<span class="bmeta">born 1982</span>'));
+  assert.ok(!html.includes("1824 to 1896"), "a range reads as a span of work, not a life");
 });
 
 test("a death year is shown, just not in the aligned column", () => {
@@ -652,7 +655,7 @@ const facts = [
 
 test("a date page carries its found facts and the page each came from", () => {
   const html = renderDayPage(page, [], facts);
-  assert.match(html, /<ul class="wlist hist">/);
+  assert.match(html, /<ul class="wlist hist mlist">/);
   // The date comes off the front and becomes the anchor in the margin. It
   // used to be printed inside every sentence, on a page titled with it.
   assert.ok(html.includes("Ford unveiled the Edsel."));
@@ -678,7 +681,7 @@ test("Wikipedia's own events join the researched ones, newest first", () => {
   // band now names one thing above it, drawn from the same rows, so a raw
   // indexOf over the document answers a question about the tiles instead of a
   // question about the ordering.
-  const feed = html.slice(html.indexOf('<ul class="wlist hist">'));
+  const feed = html.slice(html.indexOf('<ul class="wlist hist mlist">'));
   assert.ok(
     feed.indexOf("Edsel") < feed.indexOf("Kodak"),
     "the list is ordered by year, newest first, not by which source it came from",
@@ -708,7 +711,7 @@ test("a page with no researched facts still has a section when Wikipedia does", 
       description: "George Eastman registers the trademark Kodak." },
   ];
   const html = renderDayPage(page, [], [], events);
-  assert.match(html, /<ul class="wlist hist">/);
+  assert.match(html, /<ul class="wlist hist mlist">/);
   assert.ok(html.includes("George Eastman registers the trademark Kodak."));
   assert.ok(!html.includes("Google's Gemini"), "no Gemini credit when no Gemini rows");
   assert.match(html, /Creative Commons Attribution ShareAlike/);
@@ -728,8 +731,7 @@ test("a description stops repeating the year the row already prints", () => {
   // Wikidata's own data disagreed with itself here: the birth date says 1952
   // and the description said 1951, so the page printed both next to each other.
   assert.ok(!html.includes("1951"), "the prose copy of the years goes, the structured one stays");
-  assert.match(html, /<span class="fyr">1952<\/span>/);
-  assert.ok(html.includes("died 2020"));
+  assert.ok(html.includes("born 1952, died 2020, Indian film actor"));
 });
 
 test("the source host is shown without the www, which nobody reads", () => {
@@ -767,9 +769,12 @@ test("nothing on a date page is written to somebody born that day", () => {
   // also asserting that no CSS comment anywhere on the site contains the word
   // "you". It caught one, and the comment was about dropdown chevrons.
   const html = renderDayPage(page, [], facts);
-  const start = html.indexOf('<ul class="wlist hist">');
-  const section = html.slice(start, html.indexOf("</ul>", start));
-  assert.ok(section.length > 0, "the facts list is on the page to be read");
+  const start = html.indexOf('<ul class="wlist hist mlist">');
+  // The reader's own mark on a row they buzzed, "You buzzed this", is the
+  // page talking to the person holding it, not a fact written to somebody
+  // born that day, so it is left out of what is read here.
+  const section = html.slice(start, html.indexOf("</ul>", start)).replace(/<span class="mmine">[^<]*<\/span>/g, "").replace(/ aria-label="[^"]*"/g, "");
+  assert.ok(start > 0 && section.length > 0, "the facts list is on the page to be read");
   assert.ok(!/\byour?\b/i.test(section), "the facts section must not address a reader");
 });
 
@@ -1016,10 +1021,10 @@ test("every song year is its own address on the date page", () => {
   // The tile carries an animation delay now, so the opening tag no longer
   // ends at the id. Matched without the closing bracket: what this guards is
   // that the year is an address, not what else the tag carries.
-  assert.match(html, /<li id="1990"/);
+  assert.match(html, /<li class="mrow msong" id="1990"/);
   assert.match(html, /<a class="wart" href="#1990"/);
-  assert.match(html, /<li id="1989"/);
-  assert.match(html, /scroll-margin-top/);
+  assert.match(html, /<li class="mrow msong" id="1989"/);
+  assert.match(html, /\.mrow \{ scroll-margin-top/);
 });
 
 // ---------------------------------------------------------------------------
@@ -1225,7 +1230,7 @@ const MONTH_WORDS = [
 ];
 
 
-test("the page carries every event, and none of them is behind a fold", () => {
+test("the page carries every event, folded in the museum, and none of them is left out", () => {
   // The reason this matters is not tidiness. The whole list is what answers a
   // search for any one of these events, so a page that showed six and dropped
   // thirty seven would be a page that stopped answering thirty seven queries.
@@ -1238,10 +1243,14 @@ test("the page carries every event, and none of them is behind a fold", () => {
     sourceUrl: "https://en.wikipedia.org/wiki/September_4",
     description: `the thing that happened in ${1500 + index * 25}`,
   }));
-  // The drawer is gone, decided September 10, 2026: the whole feed is on the
-  // page, the way a reddit reads its feed. Absent is still a different page.
+  // Folded again, October 5, 2026, docs/the-wall.md section 32: the museum
+  // sits under the game and every part of it is closed, so it never competes
+  // with the hive. Closed is a display state; every row is still in the page,
+  // which is what the search plan needs. Absent is still a different page.
   const html = renderDayPage(page, [], [], many);
-  assert.ok(!html.includes("<details class="), "nothing is folded");
+  const history = html.slice(html.indexOf('<details class="mgroup" id="history">'), html.indexOf("</details>", html.indexOf('id="history"')));
+  assert.ok(history.length > 0, "the history is one folded group");
+  assert.ok(history.includes("20 things, 1500 to 1975"), "and its summary counts it");
   for (const event of many) {
     assert.ok(html.includes(event.description), `${event.year} is not on the page at all`);
   }
@@ -1486,7 +1495,7 @@ test("the day's biggest lead the list, and the rest still read newest first", ()
   const big = new Map([["9-8", new Map([[1664, "New Amsterdam was renamed New York in honour of the Duke of York"]])]]);
   const html = renderDayPage({ month: 9, day: 8, people: [] }, [], [], events, [], null, new Map(), big);
 
-  const feed = html.slice(html.indexOf('<ul class="wlist hist">'));
+  const feed = html.slice(html.indexOf('<ul class="wlist hist mlist">'));
   assert.ok(feed.indexOf("New York") < feed.indexOf("resupply"),
     "the selected row leads even though it is the oldest thing here");
 
@@ -1569,9 +1578,12 @@ test("a written lead line leads its date, in the words a person wrote", () => {
 
   // Without a line, Star Trek is 139 characters and out of the window, and the
   // resupply flight leads. With one, it leads, and the row reads the line.
-  const feed = html.slice(html.indexOf('<ul class="wlist hist">'));
-  assert.ok(feed.indexOf('id="r-historical_event-trek"') < feed.indexOf('id="r-historical_event-dull"'));
-  assert.equal(html.split("Star Trek went out for the first time.").length, 2,
+  const feed = html.slice(html.indexOf('<ul class="wlist hist mlist">'));
+  assert.ok(feed.indexOf('id="m-historical_event-trek"') < feed.indexOf('id="m-historical_event-dull"'));
+  // Counted outside attributes: the museum's button names its row for a
+  // screen reader, "Buzz: Star Trek went out for the first time.", and that
+  // is a label on the row's own button, not a second copy of the row.
+  assert.equal(html.replace(/ aria-label="[^"]*"/g, "").split("Star Trek went out for the first time.").length, 2,
     "the written line is on the page once, on its row");
   assert.ok(!html.includes("made its broadcast television debut"), "and it stands in for the record, not beside it");
 });
@@ -1609,7 +1621,7 @@ test("the first ask stays away from years with no record beside them", () => {
   ];
   const html = renderDayPage(page, [], [], events);
   assert.equal(html.includes('<section class="ask '), false, "nothing from 1958 on, so no ask");
-  assert.ok(html.includes('id="r-historical_event-a"'), "and the row keeps its own anchor in the feed");
+  assert.ok(html.includes('id="m-historical_event-a"'), "and the row keeps its own anchor in the museum");
 });
 
 test("the about page explains what the site does before what is on a page", () => {
@@ -1804,7 +1816,7 @@ test("the stylesheet is sent without its comments, and nothing in it depends on 
   const html = renderDayPage(page);
   const style = html.slice(html.indexOf("<style>") + 7, html.indexOf("</style>"));
   assert.ok(!style.includes("/*"), "no comment reaches the page");
-  assert.ok(style.includes(".wcomb {"), "and the rules are all still there");
+  assert.ok(style.includes(".museum {") && style.includes(".mcomb {"), "and the rules are all still there");
   assert.equal(stripCss('a { content: "x"; } /* why */\n\n\n  b { color: red; }'), 'a { content: "x"; } \nb { color: red; }');
 });
 
@@ -1813,25 +1825,133 @@ test("born on a date is two lists, legends keep their place, and nobody is in bo
   const legends = ["Beethoven", "Austen", "Clarke", "Dick", "Mead", "Coward"].map((n, i) => person(`L${i}`, n, 100 - i));
   const now = [person("N0", "Theo James", 900), legends[0]!, person("N1", "Billy Gibbons", 800), legends[1]!, person("N2", "Krysten Ritter", 700), person("N3", "Quiet", 0)];
   const html = renderDayPage({ month: 12, day: 16, people: legends, now });
-  const at = html.indexOf('class="bornlists"');
+  const at = html.indexOf('class="mgroup bornlists" id="born"');
   assert.ok(at > 0, "the section is on the page");
   assert.ok(html.indexOf("<!--wall:start-->") < at, "and it comes after the hive");
-  const section = html.slice(at, html.indexOf("</section>", at));
+  const section = html.slice(at, html.indexOf("</details>", at));
   const hot = section.slice(section.indexOf("Big right now"), section.indexOf("Legends"));
-  const old = section.slice(section.indexOf("Legends"));
+  const old = section.slice(section.indexOf("Legends"), section.indexOf('class="mrest"'));
   assert.ok(old.includes("Beethoven") && old.includes("Austen"), "a legend stays a legend");
   assert.ok(!hot.includes("Beethoven") && !hot.includes("Austen"), "and is not repeated under attention");
   assert.ok(hot.includes("Theo James") && hot.includes("Billy Gibbons") && hot.includes("Krysten Ritter"));
   assert.ok(!hot.includes("Quiet"), "nobody with no views leads on attention");
   assert.ok(!old.includes("Coward"), "five a side");
+  // Everybody past the ten is still in the page, under the two lists, once.
+  const rest = section.slice(section.indexOf('class="mrest"'));
+  assert.ok(rest.includes("Coward"), "the sixth legend is under everyone else");
+  assert.equal(html.split('id="m-person-L0"').length, 2, "and nobody is drawn twice");
 });
 
 test("a page built before the attention list existed shows the legends alone", () => {
   const html = renderDayPage(page);
-  const at = html.indexOf('class="bornlists"');
+  const at = html.indexOf('class="mgroup bornlists" id="born"');
   assert.ok(at > 0);
-  const section = html.slice(at, html.indexOf("</section>", at));
+  const section = html.slice(at, html.indexOf("</details>", at));
   assert.ok(!section.includes("Big right now"));
   assert.ok(section.includes("Anton Bruckner"));
   assert.ok(!section.includes("<script>"), "names are escaped");
+});
+
+// ---------------------------------------------------------------------------
+// One gimmick, museum below the fold. docs/the-wall.md section 32.
+// ---------------------------------------------------------------------------
+
+import { combPreview, replaceComb, replaceWall, wallSection, type WallDay as MuseumWallDay, type WallStory as MuseumStory } from "../src/wall.js";
+
+/** A date page with a little of everything: people on both lists, history, number ones and an open hive. */
+function fullDate(): { html: string; day: MuseumWallDay; songs: Array<{ year: number; song: string; artist: string; chartDate: string }>; events: Array<{ id: string; month: number; day: number; year: number; sourceUrl: string; description: string }> } {
+  const people = Array.from({ length: 12 }, (_, i) => ({ qid: `Q${100 + i}`, name: `Legend ${i}`, birthYear: 1800 + i, deathYear: 1880 + i, description: "a person of note", monthlyViews: 10 + i }));
+  const now = [{ qid: "Q900", name: "Famous Now", birthYear: 2001, deathYear: null, description: "a streamer", monthlyViews: 90000 }];
+  const full = { month: 10, day: 5, people, now };
+  const songs = [
+    { year: 1990, song: "Close to You", artist: "Maxi Priest", chartDate: "1990-10-06" },
+    { year: 1985, song: "Oh Sheila", artist: "Ready for the World", chartDate: "1985-10-05" },
+  ];
+  const events = Array.from({ length: 4 }, (_, i) => ({ id: `e${i}`, month: 10, day: 5, year: 1900 + i * 20, sourceUrl: "https://en.wikipedia.org/wiki/October_5", description: `The thing that happened in ${1900 + i * 20}` }));
+  const story = (id: string, overrides: Partial<MuseumStory>): MuseumStory => ({
+    id, wallDate: "2026-10-05", submittedAt: "2026-10-05T10:00:00Z", headline: `Story ${id}`, url: `https://www.example.org/${id}`, outlet: "example.org",
+    status: "pool", tier: "claimed", support: 0, priority: 0, placedAt: null, rect: null, falseAt: null, falseNote: null,
+    subjectKind: null, subjectId: null, sources: [], ...overrides,
+  });
+  const day: MuseumWallDay = {
+    wallDate: "2026-10-05", year: 2026, month: 10, day: 5,
+    opensAt: "2026-10-04T04:00:00Z", liveAt: "2026-10-05T04:00:00Z", closesAt: "2026-10-07T04:00:00Z", closedAt: null,
+    suggestions: true, answers: true,
+    stories: [
+      story("aaaaaaaa-0000-4000-8000-000000000001", { status: "placed", rect: { mx: 4, my: 4, w: 4, h: 4 }, support: 3, headline: "The news that took the board" }),
+      story("aaaaaaaa-0000-4000-8000-000000000002", { headline: "News that did not make the board" }),
+      story("aaaaaaaa-0000-4000-8000-000000000003", { subjectKind: "historical_event", subjectId: "e1", headline: "1920: The thing that happened in 1920" }),
+      story("aaaaaaaa-0000-4000-8000-000000000004", { subjectKind: "person", subjectId: "Q100", headline: "Legend 0, a person of note, born 1800" }),
+      story("aaaaaaaa-0000-4000-8000-000000000005", { subjectKind: "song", subjectId: "1990-10-06", headline: "1990: \"Close to You\" by Maxi Priest was the number one song" }),
+      story("aaaaaaaa-0000-4000-8000-000000000006", { subjectKind: "suggestion", subjectId: "Q7259", support: 2, headline: "Ada Lovelace: English mathematician", url: "https://en.wikipedia.org/wiki/Ada_Lovelace", outlet: "Wikipedia" }),
+    ],
+  };
+  const html = renderDayPage(full, songs, [], events, [], null, new Map(), new Map(), day);
+  return { html, day, songs, events };
+}
+
+test("the museum is all in the baked page, under the hive and outside the part the server swaps, so a crawler reads every row", () => {
+  const { html, songs, events } = fullDate();
+  const wallEnd = html.indexOf("<!--wall:end-->");
+  const museum = html.indexOf('<section class="museum" id="museum"');
+  assert.ok(wallEnd > 0 && museum > wallEnd, "below the game, outside the swapped section");
+  const end = html.indexOf("</section>", html.indexOf("<!--comb:end-->"));
+  const section = html.slice(museum, end);
+  // Every part the brief names, each one folded and each one there.
+  assert.ok(section.includes('<h2 class="mtitle" id="museum-h">October 5, every year</h2>'), "clearly the archive");
+  assert.ok(section.includes('<details class="mgroup" id="history">') && section.includes("October 5 in history"));
+  assert.ok(section.includes('<details class="mgroup bornlists" id="born">') && section.includes("Born on October 5"));
+  assert.ok(section.includes("<h4>Big right now</h4>") && section.includes("<h4>Legends</h4>"));
+  assert.ok(section.includes('<details class="mgroup" id="number-ones">') && section.includes("Number ones by year"));
+  assert.ok(section.includes('<section class="mcomb" id="comb"') && section.includes("Open the comb"), "the comb, as a handful and the way in");
+  assert.ok(!/<details[^>]*\sopen/.test(section), "every group is closed: it never competes with the hive");
+  assert.ok(!/\shidden[\s>]/.test(section), "closed, never hidden: the text is in the page");
+  // Every row, in full.
+  for (const e of events) assert.ok(section.includes(e.description), `${e.year} is in the page`);
+  // A dated row carries its year for the reader's own age above it, as the feed's did.
+  assert.ok(section.includes('<li class="mrow hist" id="m-historical_event-e1" data-y="1920" data-k="historical_event:e1">'));
+  for (let i = 0; i < 12; i += 1) assert.ok(section.includes(`>Legend ${i}</a>`), `Legend ${i} is in the page`);
+  assert.ok(section.includes(">Famous Now</a>"));
+  for (const s of songs) assert.ok(section.includes(`&quot;${s.song}&quot; by ${s.artist}`) && section.includes(`id="${s.year}"`));
+  // Every row carries the button a buzz goes through, baked switched off.
+  assert.equal((section.match(/<button class="mbuzz"/g) ?? []).length, events.length + 13 + songs.length);
+  assert.equal((html.match(/<form id="mbz"/g) ?? []).length, 1, "one form for all of them");
+});
+
+test("no content type is drawn twice on the date page, baked or live", () => {
+  const { html, day } = fullDate();
+  const now = Date.parse("2026-10-05T16:00:00Z");
+  const live = replaceComb(replaceWall(html, wallSection(day, "October 5", now, { interactive: true, date: { month: 10, day: 5 } }))!, combPreview(day, "October 5", now, true));
+  for (const page of [html, live]) {
+    for (const id of ["song", "suggest", "museum", "history", "born", "number-ones", "comb", "wallhead", "wcrown"]) {
+      assert.ok((page.match(new RegExp(`id="${id}"`, "g")) ?? []).length <= 1, `one ${id}`);
+    }
+    assert.ok(!page.includes("Today's feed") && !page.includes('id="feedhead"') && !page.includes('class="feed2"'), "the feed is cut");
+    assert.ok(!page.includes('<a class="wcomb"'), "the old comb card is gone; the preview replaced it");
+    assert.ok(!page.includes('id="wdecades"'), "the decade teams are the full screen hive's, not the date page's");
+  }
+  // Live, each story is drawn in exactly one place on the page.
+  const at = (id: string): number => (live.match(new RegExp(`id="(w|ws|wt)-${id}"`, "g")) ?? []).length;
+  assert.equal(at("aaaaaaaa-0000-4000-8000-000000000001"), 1, "the board's tile");
+  assert.equal(at("aaaaaaaa-0000-4000-8000-000000000002"), 1, "the news off the board, in the comb preview");
+  assert.equal(at("aaaaaaaa-0000-4000-8000-000000000006"), 1, "the suggestion, in Suggested today");
+  for (const museumStory of ["aaaaaaaa-0000-4000-8000-000000000003", "aaaaaaaa-0000-4000-8000-000000000004", "aaaaaaaa-0000-4000-8000-000000000005"]) {
+    assert.equal(at(museumStory), 0, "a museum kind is its museum row and nothing else");
+  }
+  assert.equal((live.match(/id="m-historical_event-e1"/g) ?? []).length, 1);
+  assert.equal((live.match(/id="m-person-Q100"/g) ?? []).length, 1);
+  assert.equal((live.replace(/ aria-label="[^"]*"/g, "").match(/The thing that happened in 1920/g) ?? []).length, 1, "the event's words once, outside its button's label");
+  // The live section switches the museum on and says how the rows stand.
+  assert.ok(live.includes(".mbuzz{display:inline-flex}"));
+  assert.ok(live.includes('data-k="historical_event:e1"'), "and the row carries the key its story is found by");
+});
+
+test("on a phone the first screen is the game: the song, then the hive, then the box, and the museum only after all of it", () => {
+  const { html, day } = fullDate();
+  const now = Date.parse("2026-10-05T16:00:00Z");
+  const live = replaceComb(replaceWall(html, wallSection(day, "October 5", now, { interactive: true, date: { month: 10, day: 5 } }))!, combPreview(day, "October 5", now, true));
+  const order = ["<h1>October 5</h1>", 'id="song"', 'class="wall"', 'class="wboard', 'id="wcrown"', 'id="suggest"', "Pick between two", '<section class="museum"', 'id="history"', 'id="born"', 'id="number-ones"', 'id="comb"', 'class="bopenrow"'];
+  const where = order.map((marker) => live.indexOf(marker));
+  where.forEach((w, i) => assert.ok(w > 0, `${order[i]} is on the page`));
+  for (let i = 1; i < where.length; i += 1) assert.ok(where[i - 1]! < where[i]!, `${order[i - 1]} comes before ${order[i]}`);
 });

@@ -270,13 +270,19 @@ test("on the date page the holder's tile wears the crown, the others do not, and
   assert.ok(html.includes("4:27 am Eastern: Typhoid Mary took the crown."));
 });
 
-test("a story that leads from the feed wears the crown on its row until the tick gives it a tile", () => {
+test("a story that leads from off the board is named under the board until the tick gives it a tile", () => {
+  // The feed that drew it as a crowned row is gone, docs/the-wall.md
+  // section 32; the crown under the board still names it, and its row in
+  // the museum carries the buzz.
   const d = day([buzz(1, B, "2026-09-23T08:27:57Z")]);
   d.stories[1]!.status = "pool";
   d.stories[1]!.rect = null;
   const html = wallSection(d, "September 23", OPEN_NOW, { interactive: true, date: { month: 9, day: 23 } });
-  assert.ok(new RegExp(`<li id="w-${B}"[^>]*class="wcrowned"><span class="wcrownmark"`).test(html));
   assert.ok(!/class="wtile[^"]*wcrowned"/.test(html), "no tile wears it");
+  assert.ok(!html.includes(`<li id="w-${B}"`), "and there is no feed row to wear it");
+  const crown = html.slice(html.indexOf('id="wcrown"'));
+  assert.ok(crown.includes("Bruce Springsteen"), "the crown names it");
+  assert.ok(crown.includes("4:27 am Eastern: Bruce Springsteen took the crown."));
 });
 
 test("a headline's own characters cannot break the list or the tile", () => {
@@ -365,14 +371,16 @@ test("the day's read asks for the buzz rows without the booster and keeps only t
     const d = await fetchWallDay("https://example.supabase.co", "key", "2026-09-23");
     assert.ok(d !== null);
     const boostCall = calls.find((c) => c.includes("wall_boosts"))!;
-    // The answer column since October 3, 2026, docs/the-wall.md section 31.
-    assert.ok(boostCall.includes("select=id,story_id,units,cast_at,answer&"), boostCall);
+    // The answer column since October 3, 2026, docs/the-wall.md section 31,
+    // and the suggested column since October 5, section 32.
+    assert.ok(boostCall.includes("select=id,story_id,units,cast_at,answer,suggested&"), boostCall);
     assert.ok(!boostCall.includes("booster"));
     assert.deepEqual(d.boosts, [
       { id: 1, storyId: A, units: 1, castAt: "2026-09-23T08:27:57+00:00" },
       { id: 3, storyId: B, units: 1, castAt: "2026-09-23T15:25:08+00:00" },
     ]);
     assert.equal(d.answers, true, "the read knew which buzzes are answers");
+    assert.equal(d.suggestions, true, "and which are suggestions");
   } finally {
     globalThis.fetch = real;
   }
@@ -392,8 +400,9 @@ test("before the song migration the day is read the way it was, and knows it can
   try {
     const d = await fetchWallDay("https://example.supabase.co", "key", "2026-09-23");
     assert.ok(d !== null);
-    assert.equal(calls.filter((c) => c.includes("wall_boosts")).length, 2, "asked once with the column and once without");
+    assert.equal(calls.filter((c) => c.includes("wall_boosts")).length, 3, "asked with both columns, with the answer alone, and with neither");
     assert.equal(d.answers, false);
+    assert.equal(d.suggestions, false);
     assert.equal(d.boosts?.length, 1);
     assert.ok(!calls.some((c) => c.includes("wall_songs")), "no songs are asked for");
   } finally {
@@ -401,9 +410,33 @@ test("before the song migration the day is read the way it was, and knows it can
   }
 });
 
-test("an answer row is marked as one, and a buzz row is exactly the shape it was", () => {
+test("after the song migration and before the suggestions one, the day is read with the answer column and knows it cannot tell a suggestion", async () => {
+  const real = globalThis.fetch;
+  const calls: string[] = [];
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    const url = String(input);
+    calls.push(url);
+    if (url.includes("wall_days")) return new Response(JSON.stringify([{ wall_date: "2026-09-23", opens_at: "2026-09-22T04:00:00Z", live_at: "2026-09-23T04:00:00Z", closes_at: "2026-09-25T04:00:00Z", closed_at: null }]), { status: 200 });
+    if (url.includes("wall_boosts") && url.includes(",suggested")) return new Response('{"code":"42703","message":"column wall_boosts.suggested does not exist"}', { status: 400 });
+    if (url.includes("wall_boosts")) return new Response(JSON.stringify([{ id: 1, story_id: A, units: 1, cast_at: "2026-09-23T08:27:57+00:00", answer: true }]), { status: 200 });
+    return new Response("[]", { status: 200 });
+  }) as typeof fetch;
+  try {
+    const d = await fetchWallDay("https://example.supabase.co", "key", "2026-09-23");
+    assert.ok(d !== null);
+    assert.equal(calls.filter((c) => c.includes("wall_boosts")).length, 2);
+    assert.equal(d.answers, true);
+    assert.equal(d.suggestions, false);
+    assert.equal(d.boosts?.[0]?.answer, true);
+  } finally {
+    globalThis.fetch = real;
+  }
+});
+
+test("an answer row is marked as one, a suggestion row as one, and a buzz row is exactly the shape it was", () => {
   assert.deepEqual(boostFrom({ id: 7, story_id: A, units: 1, cast_at: "2026-10-03T12:00:00Z", answer: true }), { id: 7, storyId: A, units: 1, castAt: "2026-10-03T12:00:00Z", answer: true });
-  assert.deepEqual(boostFrom({ id: 8, story_id: A, units: 1, cast_at: "2026-10-03T12:00:00Z", answer: false }), { id: 8, storyId: A, units: 1, castAt: "2026-10-03T12:00:00Z" });
+  assert.deepEqual(boostFrom({ id: 9, story_id: A, units: 1, cast_at: "2026-10-05T12:00:00Z", answer: false, suggested: true }), { id: 9, storyId: A, units: 1, castAt: "2026-10-05T12:00:00Z", suggested: true });
+  assert.deepEqual(boostFrom({ id: 8, story_id: A, units: 1, cast_at: "2026-10-03T12:00:00Z", answer: false, suggested: false }), { id: 8, storyId: A, units: 1, castAt: "2026-10-03T12:00:00Z" });
 });
 
 test("the build's read files each buzz under its own date", async () => {
