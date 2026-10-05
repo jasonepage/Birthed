@@ -84,12 +84,21 @@ async function getJson(url: string): Promise<unknown> {
   }
 }
 
+/** For tests: how many phrases are held in memory. */
+export function searchesHeld(): number {
+  return searches.size;
+}
+
 /**
  * The songs for a phrase, one row per song, or "busy" when Apple could not
  * be asked or did not answer. A phrase under two characters or over the
  * box's limit is no songs.
  */
 export async function searchSongs(q: string, now: number = Date.now()): Promise<Found[] | "busy"> {
+  // The phrase is the cache's key, so an answer past its ten minutes is
+  // dropped here rather than left until five hundred newer ones push it
+  // out: the privacy page says it is gone after ten minutes, and it is.
+  for (const [held, entry] of searches) if (now - entry.at >= SEARCH_TTL_MS) searches.delete(held);
   const key = searchKey(q);
   if (key.length < 2 || key.length > SONG_QUERY_MAX) return [];
   const held = searches.get(key);

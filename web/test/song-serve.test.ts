@@ -9,7 +9,7 @@ import { join, resolve } from "node:path";
 import { test } from "node:test";
 
 import { forgetWalls, readPick, sangFrom, soughtFrom, start } from "../src/serve.js";
-import { forgetApple, rememberArt, searchKey, searchSongs, mayAskApple } from "../src/song-apple.js";
+import { forgetApple, rememberArt, searchKey, searchSongs, searchesHeld, mayAskApple } from "../src/song-apple.js";
 import { SONG_SCRIPT_SOURCE, type Found } from "../src/song-prompt.js";
 import { SUGGEST_SCRIPT_SOURCE } from "../src/suggest.js";
 import { WALL_END, WALL_START, openWallDates } from "../src/wall.js";
@@ -66,6 +66,11 @@ test("Apple is asked at most eighteen times a minute, and a phrase is asked once
     assert.equal(calls, 1, "the same phrase, folded, is answered from memory");
     assert.deepEqual(await searchSongs("e", now), [], "one letter asks nothing");
     assert.equal(calls, 1);
+    // Held ten minutes and then gone, as the privacy page says, not kept
+    // until five hundred newer phrases push it out.
+    assert.equal(searchesHeld(), 1);
+    await searchSongs("dreams", now + 11 * 60_000);
+    assert.equal(searchesHeld(), 1, "the first phrase is gone, the new one held");
   } finally {
     globalThis.fetch = real;
     forgetApple();
