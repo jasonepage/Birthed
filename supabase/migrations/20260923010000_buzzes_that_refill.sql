@@ -1,11 +1,15 @@
--- **Apply after 20261003000000_the_song_in_your_head.sql, never before.**
+-- **Apply after 20261005000000_suggestions_on_the_page.sql, never before.**
 -- Edited on October 3, 2026, while still unapplied, so that applying it later
--- keeps what that file added to the four functions below: an answer row is
--- one free unit on its own date and never one of the day's three, the web
--- buzz refuses a hidden story, and the standing says which story this browser
--- answered with. Every function here reads wall_boosts.answer, which that file
--- creates, so applied first it fails rather than quietly dropping the change.
--- docs/the-wall.md section 31.
+-- keeps what 20261003000000_the_song_in_your_head.sql added to the four
+-- functions below: an answer row is one free unit on its own date and never
+-- one of the day's three, the web buzz refuses a hidden story, and the
+-- standing says which story this browser answered with. Edited again on
+-- October 5, 2026 for the same reason, so that it keeps what the suggestions
+-- file added: a suggestion row is free in the same way, and the standing says
+-- which story this browser suggested. Every function here reads
+-- wall_boosts.suggested, which that file creates, so applied first it fails
+-- rather than quietly dropping the change. docs/the-wall.md sections 31
+-- and 32.
 --
 -- Buzzes that refill through the day. docs/the-wall.md section 30, decided
 -- September 23, 2026; the times confirmed by Nathan the same day.
@@ -118,6 +122,7 @@ declare
   auth_by   text;
   jwt_role  text;
   is_answer boolean;
+  is_suggested boolean;
 begin
   select * into story from wall_stories where id = new.story_id;
   if story.id is null then
@@ -132,15 +137,20 @@ begin
 
   cast_on := (new.cast_at at time zone 'America/New_York')::date;
 
-  -- An answer is one free unit on its own date, outside the budget.
-  -- 20261003000000_the_song_in_your_head.sql.
+  -- An answer and a suggestion are one free unit on their own date, outside
+  -- the budget. 20261003000000_the_song_in_your_head.sql and
+  -- 20261005000000_suggestions_on_the_page.sql.
   is_answer := coalesce(nullif(current_setting('wall.boost_answer', true), '') = 'answer', false);
-  if is_answer then
+  is_suggested := coalesce(nullif(current_setting('wall.boost_suggest', true), '') = 'suggest', false);
+  if is_answer and is_suggested then
+    raise exception 'wall_boosts: a row is an answer or a suggestion, not both';
+  end if;
+  if is_answer or is_suggested then
     if cast_on <> story.wall_date then
-      raise exception 'wall_boosts: an answer is taken on its own date only, not on %', cast_on;
+      raise exception 'wall_boosts: an answer or a suggestion is taken on its own date only, not on %', cast_on;
     end if;
     if new.units <> 1 then
-      raise exception 'wall_boosts: an answer is one unit';
+      raise exception 'wall_boosts: an answer or a suggestion is one unit';
     end if;
   else
     -- The units that have arrived by this instant, not the day's total.
@@ -151,7 +161,8 @@ begin
      where booster_id = new.booster_id
        and wall_date = story.wall_date
        and (cast_at at time zone 'America/New_York')::date = cast_on
-       and not answer;
+       and not answer
+       and not suggested;
 
     if already + new.units > allowance then
       raise exception 'wall_boosts: % units on % from % would exceed the budget of % for that day so far (already %)',
@@ -178,6 +189,7 @@ begin
   new.support_before   := story.support;
   new.authenticated_by := auth_by;
   new.answer           := is_answer;
+  new.suggested        := is_suggested;
   return new;
 end;
 $$;
@@ -214,7 +226,8 @@ begin
    where booster_id = uid
      and wall_date = wall_date_in
      and (cast_at at time zone 'America/New_York')::date = today_e
-     and not answer;
+     and not answer
+     and not suggested;
   return greatest(0, allowance - spent);
 end;
 $$;
@@ -245,6 +258,7 @@ declare
   backed      jsonb := '[]'::jsonb;
   anniversary jsonb := '[]'::jsonb;
   answered    uuid;
+  suggestion  uuid;
 begin
   allowance := wall_boost_budget(today_e, wall_date_in);
   arrived := wall_boost_allowance(now(), wall_date_in);
@@ -262,7 +276,8 @@ begin
      where booster_id = booster
        and wall_date = wall_date_in
        and (cast_at at time zone 'America/New_York')::date = today_e
-       and not answer;
+       and not answer
+       and not suggested;
     select coalesce(jsonb_agg(story_id order by cast_at), '[]'::jsonb) into backed
       from wall_boosts
      where booster_id = booster
@@ -272,6 +287,11 @@ begin
      where booster_id = booster
        and wall_date = wall_date_in
        and answer;
+    select story_id into suggestion
+      from wall_boosts
+     where booster_id = booster
+       and wall_date = wall_date_in
+       and suggested;
 
     select coalesce(jsonb_agg(row order by (row ->> 'wall_date') desc), '[]'::jsonb)
       into anniversary
@@ -298,7 +318,8 @@ begin
     'next_at', next_at,
     'backed', backed,
     'anniversary', anniversary,
-    'answered', answered
+    'answered', answered,
+    'suggested', suggestion
   );
 end;
 $$;
@@ -367,7 +388,8 @@ begin
    where booster_id = booster
      and wall_date = story.wall_date
      and (cast_at at time zone 'America/New_York')::date = today_e
-     and not answer;
+     and not answer
+     and not suggested;
   if spent >= allowance then
     return jsonb_build_object('result', 'spent', 'support', story.support)
       || wall_web_standing(story.wall_date, voter_token_in);

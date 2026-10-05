@@ -1,10 +1,13 @@
--- **Apply after 20261003000000_the_song_in_your_head.sql, never before.**
+-- **Apply after 20261005000000_suggestions_on_the_page.sql, never before.**
 -- Edited on October 3, 2026, while still unapplied, so that applying it later
--- keeps what that file added to this function: an answer row is not one of
--- the day's three, and the standing says which story this browser answered
--- with. It reads wall_boosts.answer, which that file creates, so applied
--- first it fails rather than quietly dropping the change. docs/the-wall.md
--- section 31.
+-- keeps what 20261003000000_the_song_in_your_head.sql added to this function:
+-- an answer row is not one of the day's three, and the standing says which
+-- story this browser answered with. Edited again on October 5, 2026 for the
+-- same reason, so that it keeps what the suggestions file added: a
+-- suggestion row is not one of the three either, and the standing says which
+-- story this browser suggested. It reads wall_boosts.suggested, which that
+-- file creates, so applied first it fails rather than quietly dropping the
+-- change. docs/the-wall.md sections 31 and 32.
 --
 -- The anniversary. docs/the-wall.md section 15 designed it and this is it on
 -- the website: what you backed a year ago today, shown to you and to nobody
@@ -44,6 +47,7 @@ declare
   backed      jsonb := '[]'::jsonb;
   anniversary jsonb := '[]'::jsonb;
   answered    uuid;
+  suggestion  uuid;
 begin
   allowance := wall_boost_budget(today_e, wall_date_in);
   select * into day from wall_days where wall_date = wall_date_in;
@@ -57,7 +61,8 @@ begin
      where booster_id = booster
        and wall_date = wall_date_in
        and (cast_at at time zone 'America/New_York')::date = today_e
-       and not answer;
+       and not answer
+       and not suggested;
     select coalesce(jsonb_agg(story_id order by cast_at), '[]'::jsonb) into backed
       from wall_boosts
      where booster_id = booster
@@ -67,6 +72,11 @@ begin
      where booster_id = booster
        and wall_date = wall_date_in
        and answer;
+    select story_id into suggestion
+      from wall_boosts
+     where booster_id = booster
+       and wall_date = wall_date_in
+       and suggested;
 
     -- The same month and day, in an earlier year. Compared as month and day
     -- rather than by subtracting a year, because subtracting a year from
@@ -100,7 +110,8 @@ begin
     'left', greatest(0, allowance - spent),
     'backed', backed,
     'anniversary', anniversary,
-    'answered', answered
+    'answered', answered,
+    'suggested', suggestion
   );
 end;
 $$;

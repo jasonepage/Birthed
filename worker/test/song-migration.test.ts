@@ -243,6 +243,9 @@ test("the midnight seal: no answer once the day has sealed, and the day's answer
 
 test("the two older unapplied files keep the change when applied after this one, and fail when applied before it", { skip }, async () => {
   const db = await fresh();
+  // Since October 5, 2026 both files also read wall_boosts.suggested, so they
+  // go after the suggestions migration too, which comes after this one.
+  await db.exec(read(`${MIGRATIONS}/20261005000000_suggestions_on_the_page.sql`));
   await db.exec(read(`${MIGRATIONS}/20260911020000_the_anniversary.sql`));
   const a = await answer(db, 1738363970, T(1));
   assert.equal(a.result, "kept");

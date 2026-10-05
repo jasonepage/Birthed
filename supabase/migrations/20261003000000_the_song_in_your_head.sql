@@ -31,15 +31,13 @@
 -- before it. Applied the other way round they would fail on the missing
 -- column, which is the safe direction to fail in.
 --
--- **Not yet run on the live project.** A run inside a transaction that rolls
--- back was attempted on October 3, 2026 and was cancelled before it started;
--- the project was read afterwards and had none of this. It was tested
--- instead in memory, on PGlite, on top of the live project's wall tables and
--- functions as they stood that day: worker/test/song-migration.test.ts. What
--- that cannot test is Apple itself, the lookup wall_song_lookup makes. The
--- title folding was checked on the live project with a read only query and
--- matches. Applied when Jason says, and before the website that reads it is
--- pushed.
+-- **Applied to the live project on October 4, 2026**, in the SQL editor,
+-- before the website that reads it was pushed. Before that, a run inside a
+-- transaction that rolls back was attempted on October 3, 2026 and was
+-- cancelled before it started. It was tested in memory, on PGlite, on top of
+-- the live project's wall tables and functions as they stood that day:
+-- worker/test/song-migration.test.ts. The title folding was checked on the
+-- live project with a read only query and matches.
 
 -- ---------------------------------------------------------------------------
 -- An answer is a buzz, marked, and free
