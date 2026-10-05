@@ -26,7 +26,21 @@ const read = (path: string): string => readFileSync(path, "utf8");
 type Db = {
   exec(sql: string): Promise<unknown>;
   query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<{ rows: T[] }>;
+  close(): Promise<void>;
 };
+
+/**
+ * The database the last test opened. Each one is a whole Postgres in this
+ * process's memory, so it is closed when the next test opens its own:
+ * left open, a file's dozen of them were enough for a small machine to
+ * kill the test run.
+ */
+let open: Db | null = null;
+async function opened(db: Db): Promise<Db> {
+  if (open !== null) await open.close().catch(() => undefined);
+  open = db;
+  return db;
+}
 
 let PGlite: (new () => Db) | null = null;
 try {
@@ -91,7 +105,7 @@ const WIKIPEDIA: Array<[number, number, unknown]> = [
 const T = (n: number): string => `checktoken-${String(n).repeat(16)}`;
 
 async function fresh(withSuggestions = true): Promise<Db> {
-  const db = new PGlite!();
+  const db = await opened(new PGlite!());
   await db.exec(read("test/fixtures/wall-live-2026-10-03.sql"));
   for (const [id, status, body] of WIKIPEDIA) {
     await db.query("insert into extensions.fake_apple (uri, status, body) values ($1, $2, $3)", [ask(id), status, typeof body === "string" ? body : JSON.stringify(body)]);

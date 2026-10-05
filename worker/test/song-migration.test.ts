@@ -22,7 +22,21 @@ const read = (path: string): string => readFileSync(path, "utf8");
 type Db = {
   exec(sql: string): Promise<unknown>;
   query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<{ rows: T[] }>;
+  close(): Promise<void>;
 };
+
+/**
+ * The database the last test opened. Each one is a whole Postgres in this
+ * process's memory, so it is closed when the next test opens its own:
+ * left open, a file's dozen of them were enough for a small machine to
+ * kill the test run.
+ */
+let open: Db | null = null;
+async function opened(db: Db): Promise<Db> {
+  if (open !== null) await open.close().catch(() => undefined);
+  open = db;
+  return db;
+}
 
 let PGlite: (new () => Db) | null = null;
 try {
@@ -53,7 +67,7 @@ const APPLE: Array<[number, number, unknown]> = [
 const T = (n: number): string => `checktoken-${String(n).repeat(16)}`;
 
 async function fresh(): Promise<Db> {
-  const db = new PGlite!();
+  const db = await opened(new PGlite!());
   await db.exec(read("test/fixtures/wall-live-2026-10-03.sql"));
   for (const [id, status, body] of APPLE) {
     await db.query("insert into extensions.fake_apple (uri, status, body) values ($1, $2, $3)",
@@ -263,7 +277,7 @@ test("the two older unapplied files keep the change when applied after this one,
   for (const id of await others(db, date)) words.push((await buzz(db, id, T(2))).result);
   assert.equal(words.filter((w) => w === "kept").length, arrived, "under refills the answer is still outside the budget");
 
-  const early = new PGlite!();
+  const early = await opened(new PGlite!());
   await early.exec(read("test/fixtures/wall-live-2026-10-03.sql"));
   await early.exec(read(`${MIGRATIONS}/20260911020000_the_anniversary.sql`));
   assert.match(await refusal(() => early.query("select wall_web_standing(current_date, $1)", [T(1)])), /answer/);
