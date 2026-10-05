@@ -37,6 +37,12 @@ var HiveAllocator = (function () {
   var MAX_BANDS = Math.floor(BOARD_MODULES / MIN_H);
   var GROUP_QUOTA = { news: 8, event: 10, person: 10, release: 10, other: 2 };
   var PER_OUTLET_UNBACKED = 3;
+  var TODAY_UNBACKED = GROUP_QUOTA.news;
+
+  // Section 32: unbuzzed, only the day's news reaches the board.
+  function qualifies(story) {
+    return story.support > 0 || (story.subjectKind == null) || (story.frozen === true && story.anchor != null);
+  }
 
   function groupOf(story) {
     var kind = story.subjectKind == null ? null : story.subjectKind;
@@ -265,8 +271,10 @@ var HiveAllocator = (function () {
       if ((b.priority || 0) !== (a.priority || 0)) return (b.priority || 0) - (a.priority || 0);
       return byArrival(a, b);
     });
-    var backed = sorted.filter(function (s) { return s.support > 0; });
-    var unbacked = varied(sorted.filter(function (s) { return s.support <= 0; }), UNBACKED_PLACED);
+    var shelved = sorted.filter(function (s) { return !qualifies(s); }).map(function (s) { return s.id; });
+    var eligible = sorted.filter(qualifies);
+    var backed = eligible.filter(function (s) { return s.support > 0; });
+    var unbacked = varied(eligible.filter(function (s) { return s.support <= 0; }), TODAY_UNBACKED);
     var chosen = [];
     var overflow = [];
     var unbackedPlaced = 0;
@@ -274,14 +282,14 @@ var HiveAllocator = (function () {
     for (var i = 0; i < all.length; i++) {
       var story = all[i];
       var isBacked = story.support > 0;
-      if (chosen.length >= MAX_PLACED || (!isBacked && unbackedPlaced >= UNBACKED_PLACED)) {
+      if (chosen.length >= MAX_PLACED || (!isBacked && unbackedPlaced >= TODAY_UNBACKED)) {
         overflow.push(story.id);
         continue;
       }
       chosen.push(story);
       if (!isBacked) unbackedPlaced += 1;
     }
-    if (chosen.length === 0) return { placed: [], overflow: overflow };
+    if (chosen.length === 0) return { placed: [], overflow: overflow.concat(shelved) };
     var anyBuzz = chosen.some(function (s) { return s.support > 0; });
     var weights = chosen.map(function (s) { return anyBuzz ? Math.max(0, s.support) : Math.max(0, s.score || 0); });
     var areas = shares(weights, BOARD_MODULES * BOARD_MODULES, MIN_MODULES);
@@ -292,7 +300,7 @@ var HiveAllocator = (function () {
       var r = rects[i];
       return { id: o.s.id, mx: r.mx, my: r.my, w: r.w, h: r.h };
     });
-    return { placed: placed, overflow: overflow };
+    return { placed: placed, overflow: overflow.concat(shelved) };
   }
 
   return {

@@ -315,6 +315,22 @@ test("a song every answer was taken back from waits in the pool rather than taki
   assert.equal(settled.snapshot, null, "and nothing else on the date, so no board");
 });
 
+test("a suggestion is placed on the tick after it is made, and one taken back waits, while unbuzzed history never takes the board", () => {
+  // Filed by wall_suggest_topic with no submitter, one imported source at
+  // Wikipedia, and the suggester's own free buzz. Section 32.
+  const wiki = (id: string): ReturnType<typeof source> =>
+    source(`s-${id}`, id, "https://en.wikipedia.org/wiki/Hurricane_Milton", { imported: true });
+  const settled = settle(DAY, [
+    story("idea", { submitted_by: null, submitted_at: JUST_NOW, support: 1, subject_kind: "suggestion", subject_id: "Q130428849", outlet: "Wikipedia" }),
+    story("gone", { submitted_by: null, submitted_at: JUST_NOW, support: 0, subject_kind: "suggestion", subject_id: "Q35637", outlet: "Wikipedia" }),
+    story("legend", { submitted_by: null, submitted_at: JUST_NOW, support: 0, subject_kind: "person", subject_id: "Q937", outlet: "wikidata.org", priority: 2 }),
+  ], [wiki("idea"), wiki("gone"), source("s-legend", "legend", "https://www.wikidata.org/wiki/Q937", { imported: true })], OWNERS, NOW);
+  assert.equal(settled.stories.find((x) => x.id === "idea")?.status, "placed", "a suggestion does not wait out the hold: a reader asked for it");
+  assert.equal(settled.stories.find((x) => x.id === "gone")?.status, undefined, "a suggestion every buzz was taken back from waits in the pool");
+  const legend = settled.stories.find((x) => x.id === "legend");
+  assert.notEqual(legend?.status, "placed", "an unbuzzed legend waits in the museum");
+});
+
 test("the hidden stories are read on their own, and a read that fails hides nothing", async () => {
   const realFetch = globalThis.fetch;
   try {

@@ -172,6 +172,43 @@ export const PER_KIND_UNBACKED = 10;
 export type TileGroup = "news" | "event" | "person" | "release" | "other";
 export const GROUP_QUOTA: Readonly<Record<TileGroup, number>> = { news: NEWS_UNBACKED, event: PER_KIND_UNBACKED, person: PER_KIND_UNBACKED, release: 10, other: 2 };
 
+/**
+ * The kinds that are today's rather than the date's: the day's news, the
+ * songs in people's heads and what readers suggested. docs/the-wall.md
+ * section 32, decided by Jason on October 5, 2026.
+ *
+ * Only these reach the board without a buzz. The date's history, its people
+ * and its number ones wait in the museum under the hive until somebody buzzes
+ * one, and then it takes the board like anything else, because one buzz beats
+ * every rule here. The board had been forty tiles of history nobody chose,
+ * which read as a quiz rather than as the day.
+ */
+export function isToday(story: Pick<StoryInput, "subjectKind">): boolean {
+  const kind = story.subjectKind ?? null;
+  return kind === null || kind === "answer" || kind === "suggestion";
+}
+
+/**
+ * How many tiles nobody has buzzed the pie holds: today's news, and no more
+ * than the news was already given. The rest of the board is what people
+ * chose, so a quiet day is a sparse board rather than a full one.
+ */
+export const TODAY_UNBACKED = NEWS_UNBACKED;
+
+/**
+ * Whether a story may take the board at all: anything somebody buzzed, the
+ * day's news, and a story stamped false, which keeps the rectangle it had.
+ * Everything else is overflow until it is buzzed.
+ *
+ * A song or a suggestion is today's too, but it is on the hive because a
+ * person put it there, so one that every answer or suggestion was taken back
+ * from waits like the history does, the way the pool already holds a song
+ * nobody holds any more. docs/the-wall.md sections 31 and 32.
+ */
+export function qualifies(story: Pick<StoryInput, "support" | "subjectKind" | "frozen" | "anchor">): boolean {
+  return story.support > 0 || (story.subjectKind ?? null) === null || (story.frozen === true && story.anchor !== null && story.anchor !== undefined);
+}
+
 export function groupOf(story: Pick<StoryInput, "subjectKind">): TileGroup {
   const kind = story.subjectKind ?? null;
   if (kind === null) return "news";
@@ -257,7 +294,8 @@ export interface StoryInput {
   frozen?: boolean;
   /**
    * The imported row this story stands for, or null for the day's news.
-   * Read by the variety pass and by nothing else here.
+   * Read by the variety pass and by `qualifies`, which keeps the date's own
+   * history off the board until somebody buzzes it.
    */
   subjectKind?: string | null;
   /** The outlet, for the variety pass. A missing one is its own outlet. */
@@ -744,8 +782,6 @@ export function cutBands(areas: number[]): Rect[] {
  * exactly and the pie has no hole in it yet.
  */
 export function allocate(stories: StoryInput[]): Allocation {
-  if (stories.some((s) => s.frozen && s.anchor)) return allocateByGrowth(stories);
-
   const byArrival = (a: StoryInput, b: StoryInput): number => {
     const at = toMillis(a.placedAt) - toMillis(b.placedAt);
     if (at !== 0) return at;
@@ -757,22 +793,31 @@ export function allocate(stories: StoryInput[]): Allocation {
     if ((b.priority ?? 0) !== (a.priority ?? 0)) return (b.priority ?? 0) - (a.priority ?? 0);
     return byArrival(a, b);
   });
-  const backed = sorted.filter((s) => s.support > 0);
-  const unbacked = varied(sorted.filter((s) => s.support <= 0), UNBACKED_PLACED);
+  // What may not take the board yet waits as overflow, in the board's own
+  // order, after everything that was considered. Section 32.
+  const shelved = sorted.filter((s) => !qualifies(s)).map((s) => s.id);
+  const eligible = sorted.filter(qualifies);
+  if (eligible.some((s) => s.frozen && s.anchor)) {
+    const grown = allocateByGrowth(eligible, TODAY_UNBACKED);
+    return { placed: grown.placed, overflow: [...grown.overflow, ...shelved] };
+  }
+
+  const backed = eligible.filter((s) => s.support > 0);
+  const unbacked = varied(eligible.filter((s) => s.support <= 0), TODAY_UNBACKED);
 
   const chosen: StoryInput[] = [];
   const overflow: string[] = [];
   let unbackedPlaced = 0;
   for (const story of [...backed, ...unbacked]) {
     const isBacked = story.support > 0;
-    if (chosen.length >= MAX_PLACED || (!isBacked && unbackedPlaced >= UNBACKED_PLACED)) {
+    if (chosen.length >= MAX_PLACED || (!isBacked && unbackedPlaced >= TODAY_UNBACKED)) {
       overflow.push(story.id);
       continue;
     }
     chosen.push(story);
     if (!isBacked) unbackedPlaced += 1;
   }
-  if (chosen.length === 0) return { placed: [], overflow };
+  if (chosen.length === 0) return { placed: [], overflow: [...overflow, ...shelved] };
 
   // The shares. By buzzes when there are any; by points when there are none,
   // so a board nobody has touched is still meaningful rather than even.
@@ -784,7 +829,7 @@ export function allocate(stories: StoryInput[]): Allocation {
   const order = chosen.map((s, i) => ({ s, area: areas[i]! })).sort((a, b) => b.area - a.area || chosen.indexOf(a.s) - chosen.indexOf(b.s));
   const rects = cutBands(order.map((o) => o.area));
   const placed: Placement[] = order.map((o, i) => ({ id: o.s.id, ...rects[i]! }));
-  return { placed, overflow };
+  return { placed, overflow: [...overflow, ...shelved] };
 }
 
 /**
@@ -798,7 +843,7 @@ export function allocate(stories: StoryInput[]): Allocation {
  * are overflow. Runs for a date carrying a story stamped false, and for the
  * tests that pin how growth behaves.
  */
-export function allocateByGrowth(stories: StoryInput[]): Allocation {
+export function allocateByGrowth(stories: StoryInput[], unbackedLimit: number = UNBACKED_PLACED): Allocation {
   const byArrival = (a: StoryInput, b: StoryInput): number => {
     const at = toMillis(a.placedAt) - toMillis(b.placedAt);
     if (at !== 0) return at;
@@ -821,7 +866,7 @@ export function allocateByGrowth(stories: StoryInput[]): Allocation {
   // and only as far as the slots they can take.
   const backedFirst = sorted.filter((s) => s.support > 0);
   const unbackedRest = sorted.filter((s) => s.support <= 0);
-  const room = Math.max(0, UNBACKED_PLACED - anchored.filter((s) => s.support <= 0).length);
+  const room = Math.max(0, unbackedLimit - anchored.filter((s) => s.support <= 0).length);
   const arriving = [...backedFirst, ...varied(unbackedRest, room)];
 
   const board = new Board();
@@ -856,7 +901,7 @@ export function allocateByGrowth(stories: StoryInput[]): Allocation {
 
   for (const story of arriving) {
     const backed = story.support > 0;
-    if (placed.length >= MAX_PLACED || (!backed && unbacked >= UNBACKED_PLACED)) {
+    if (placed.length >= MAX_PLACED || (!backed && unbacked >= unbackedLimit)) {
       overflow.push(story.id);
       continue;
     }

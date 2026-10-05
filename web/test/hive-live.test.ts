@@ -72,8 +72,10 @@ test("the port cuts a full board with no overlaps, biggest share first", () => {
     { id: "c", tier: "claimed", support: 0, placedAt: NOW, subjectKind: "historical_event", outlet: "en.wikipedia.org" },
   ]);
   assert.ok(result !== null);
-  assert.deepEqual(result.placed.map((p) => p.id), ["a", "b", "c"], "most buzzed first, then the rest");
-  assert.deepEqual(result.overflow, []);
+  // The history nobody has buzzed waits off the board, October 5, 2026,
+  // docs/the-wall.md section 32: unbuzzed, only today's news takes a tile.
+  assert.deepEqual(result.placed.map((p) => p.id), ["a", "b"], "most buzzed first, and the unbuzzed history waits");
+  assert.deepEqual(result.overflow, ["c"]);
   const a = result.placed[0]!;
   assert.ok(a.w * a.h > 128, "four buzzes against one is more than half the board");
   // A buzz on c moves it: the same call with one more unit lays out differently.

@@ -19,6 +19,9 @@ import {
   MIN_MODULES,
   MIN_W,
   UNBACKED_PLACED,
+  TODAY_UNBACKED,
+  isToday,
+  qualifies,
   UNITS_PER_MODULE,
   anchorOrder,
   contains,
@@ -592,7 +595,7 @@ test("a board of one is the whole board, and a board of twelve minimums is three
 });
 
 test("a tile's size is its share of the date's buzzes, and it thins as others are backed", () => {
-  const before = allocate([story("a", { support: 5 }), story("b", { support: 1 }), story("c", { support: 0, subjectKind: "person" })]);
+  const before = allocate([story("a", { support: 5 }), story("b", { support: 1 }), story("c", { support: 0, subjectKind: null })]);
   full(before.placed);
   const areaOf = (out: Allocation, id: string): number => { const p = out.placed.find((x: Placement) => x.id === id)!; return p.w * p.h; };
   assert.ok(areaOf(before, "a") > areaOf(before, "b") && areaOf(before, "b") > areaOf(before, "c"), `${before.placed.map((p) => `${p.id}=${p.w * p.h}`)}`);
@@ -602,7 +605,7 @@ test("a tile's size is its share of the date's buzzes, and it thins as others ar
   assert.ok(areaOf(before, "c") <= 2 * MIN_MODULES, `${areaOf(before, "c")}`);
   // b is backed four more times: a gives up modules. The promise that a
   // tile never shrinks is withdrawn in section 18, in writing.
-  const after = allocate([story("a", { support: 5 }), story("b", { support: 5 }), story("c", { support: 0, subjectKind: "person" })]);
+  const after = allocate([story("a", { support: 5 }), story("b", { support: 5 }), story("c", { support: 0, subjectKind: null })]);
   full(after.placed);
   assert.ok(areaOf(after, "a") < areaOf(before, "a"));
   // Equal shares, as near as the bands can cut them: two of 128 owed, and the
@@ -611,10 +614,12 @@ test("a tile's size is its share of the date's buzzes, and it thins as others ar
 });
 
 test("with no buzzes the shares follow the points, and the biggest tile is top left", () => {
+  // Today's news, scored by the editor, since unbuzzed history waits off the
+  // board (section 32). The rule under test is the same one.
   const out = allocate([
-    story("dull", { score: 29, subjectKind: "historical_event", placedAt: 1000 }),
-    story("attacks", { score: 89, subjectKind: "historical_event", placedAt: 2000 }),
-    story("person", { subjectKind: "person", placedAt: 500 }),
+    story("dull", { score: 29, subjectKind: null, outlet: "a.com", placedAt: 1000 }),
+    story("attacks", { score: 89, subjectKind: null, outlet: "b.com", placedAt: 2000 }),
+    story("person", { subjectKind: null, outlet: "c.com", placedAt: 500 }),
   ]);
   full(out.placed);
   assert.equal(out.placed[0]!.id, "attacks");
@@ -627,11 +632,11 @@ test("with no buzzes the shares follow the points, and the biggest tile is top l
 
 test("a stored rectangle no longer holds a place: a story backed later takes the board from one placed earlier", () => {
   const stale = { mx: 6, my: 6, w: 4, h: 3 };
-  const filler = Array.from({ length: 8 }, (_, i) => story(`f${i}`, { subjectKind: "person", placedAt: 1000 + i, anchor: { mx: (i % 4) * 4, my: Math.floor(i / 4) * 3, w: 4, h: 3 } }));
-  const out = allocate([...filler, story("late", { support: 1, placedAt: 9000 }), story("old", { anchor: stale, placedAt: 100, subjectKind: "person" })]);
+  const filler = Array.from({ length: 7 }, (_, i) => story(`f${i}`, { subjectKind: null, outlet: `o${i}.com`, placedAt: 1000 + i, anchor: { mx: (i % 4) * 4, my: Math.floor(i / 4) * 3, w: 4, h: 3 } }));
+  const out = allocate([...filler, story("late", { support: 1, placedAt: 9000 }), story("old", { anchor: stale, placedAt: 100, subjectKind: null, outlet: "old.com" })]);
   full(out.placed);
   assert.ok(out.placed.some((p) => p.id === "late"), "the backed story is on the board");
-  assert.equal(out.placed.length, 10, "every one of them fits on a mural");
+  assert.equal(out.placed.length, 9, "every one of them fits");
   assert.ok(out.overflow.includes("old") || out.placed.some((p) => p.id === "old"));
 });
 
@@ -651,10 +656,12 @@ test("the pie is deterministic under identical inputs, whatever order they arriv
   assert.deepEqual(one, two);
 });
 
-test("the pie on the real September 11 shape: eight unbacked tiles, the attacks largest, the board full", () => {
-  // Three scored events, three people, two facts, as the September 11, 2026
-  // stories stood: nobody had buzzed, so the points cut the pie.
-  const out = allocate([
+test("the pie on the real September 11 shape: the history waits off the board until it is buzzed, and then it takes the board", () => {
+  // Three scored events, three people, two facts and twenty more events, as
+  // the September 11, 2026 stories stood, plus the day's news. Until October
+  // 5, 2026 nobody had to buzz the history for it to fill the board, and the
+  // board read as a quiz. Section 32: unbuzzed, only today's kinds take it.
+  const history = [
     story("attacks", { score: 89, subjectKind: "historical_event", placedAt: 3000 }),
     story("benghazi", { score: 62, subjectKind: "historical_event", placedAt: 3100 }),
     story("coup", { score: 59, subjectKind: "historical_event", placedAt: 3200 }),
@@ -664,15 +671,52 @@ test("the pie on the real September 11 shape: eight unbacked tiles, the attacks 
     story("bart", { priority: 1, subjectKind: "birth_fact", placedAt: 2000 }),
     story("day254", { priority: 1, subjectKind: "birth_fact", placedAt: 2100 }),
     ...Array.from({ length: 20 }, (_, i) => story(`more${i}`, { score: 29, subjectKind: "historical_event", placedAt: 5000 + i })),
+  ];
+  const news = Array.from({ length: 12 }, (_, i) => story(`news${i}`, { subjectKind: null, outlet: `outlet${i}.com`, placedAt: 6000 + i }));
+  const quiet = allocate([...history, ...news]);
+  full(quiet.placed);
+  assert.equal(quiet.placed.length, TODAY_UNBACKED, "the day's news, no more");
+  assert.ok(quiet.placed.every((p) => p.id.startsWith("news")), quiet.placed.map((p) => p.id).join(","));
+  for (const s of history) assert.ok(quiet.overflow.includes(s.id), `${s.id} waits off the board`);
+  assert.equal(quiet.placed.length + quiet.overflow.length, history.length + news.length, "nothing is lost");
+
+  // One buzz on the attacks from the museum, and it takes the board, biggest.
+  const buzzed = allocate([...history.map((s) => (s.id === "attacks" ? { ...s, support: 1 } : s)), ...news]);
+  full(buzzed.placed);
+  assert.equal(buzzed.placed[0]!.id, "attacks");
+  assert.equal(buzzed.placed.length, TODAY_UNBACKED + 1);
+  const cutAreas = buzzed.placed.map((p) => p.w * p.h);
+  assert.ok(cutAreas[0]! === Math.max(...cutAreas), "the one buzz holds more than anything nobody chose");
+});
+
+test("today's kinds are the news, the songs in people's heads and the suggestions, and only they reach the board unbuzzed", () => {
+  assert.equal(TODAY_UNBACKED, NEWS_UNBACKED);
+  for (const kind of [null, undefined, "answer", "suggestion"]) assert.ok(isToday({ subjectKind: kind }), String(kind));
+  for (const kind of ["historical_event", "birth_fact", "cultural_event", "person", "song", "album", "film"]) {
+    assert.ok(!isToday({ subjectKind: kind }), kind);
+    assert.ok(!qualifies({ support: 0, subjectKind: kind }), `${kind} unbuzzed`);
+    assert.ok(qualifies({ support: 1, subjectKind: kind }), `${kind} buzzed once`);
+  }
+  // A song or a suggestion every head was taken back from waits too.
+  assert.ok(!qualifies({ support: 0, subjectKind: "answer" }));
+  assert.ok(!qualifies({ support: 0, subjectKind: "suggestion" }));
+  assert.ok(qualifies({ support: 0, subjectKind: null }), "the news does not wait");
+  // A story stamped false keeps the rectangle it had, whatever its kind.
+  assert.ok(qualifies({ support: 0, subjectKind: "person", frozen: true, anchor: { mx: 0, my: 0, w: 2, h: 2 } }));
+  // A quiet date with no news and no buzz is an empty board, not a quiz.
+  const empty = allocate([story("p", { subjectKind: "person" }), story("e", { subjectKind: "historical_event", score: 90 })]);
+  assert.deepEqual(empty.placed, []);
+  assert.deepEqual([...empty.overflow].sort(), ["e", "p"]);
+  // A song somebody answered with and a suggestion are on the board with the news.
+  const today = allocate([
+    story("song", { subjectKind: "answer", support: 2, tier: "seen_direct" }),
+    story("idea", { subjectKind: "suggestion", support: 1, tier: "claimed" }),
+    story("wire", { subjectKind: null, outlet: "w.com" }),
+    story("legend", { subjectKind: "person", priority: 2 }),
   ]);
-  full(out.placed);
-  // Twenty eight stories and a board that holds forty eight, so all of them
-  // are on it. The point of this test is the cut, not the count.
-  assert.equal(out.placed.length, 28);
-  assert.equal(out.placed[0]!.id, "attacks");
-  const cutAreas = out.placed.map((p) => p.w * p.h);
-  assert.ok(cutAreas[0]! >= 20, `the attacks hold ${cutAreas[0]} modules`);
-  assert.ok(cutAreas[0]! === Math.max(...cutAreas), "and hold more than anything else");
+  full(today.placed);
+  assert.deepEqual(today.placed.map((p) => p.id).sort(), ["idea", "song", "wire"]);
+  assert.deepEqual(today.overflow, ["legend"]);
 });
 
 test("the unbacked forty are dealt by group: eight news, ten events, ten people, ten releases", () => {

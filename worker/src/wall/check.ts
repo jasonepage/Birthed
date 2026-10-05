@@ -270,8 +270,9 @@ export function settle(
       if (!its.some((s) => s.verified)) continue;
       // A song nobody holds any more, every answer taken back inside its
       // thirty seconds, waits in the pool: a song is on the hive because it
-      // is in somebody's head. docs/the-wall.md section 31.
-      if (story.subject_kind === "answer" && story.support < 1) continue;
+      // is in somebody's head. docs/the-wall.md section 31. A suggestion
+      // taken back the same way waits too, section 32.
+      if ((story.subject_kind === "answer" || story.subject_kind === "suggestion") && story.support < 1) continue;
       if (!eligibleForWall({ support: story.support, submittedAt: story.submitted_at, submittedBy: story.submitted_by }, its, now)) continue;
       touch(story.id).placed_at = now;
       input.push({ id: story.id, tier, support: story.support, priority: story.priority, score: scoreOf(story), placedAt: now, anchor: null,
