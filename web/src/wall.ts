@@ -2467,7 +2467,17 @@ function liveStateLine(day: WallDay, now: number): string {
   const closes = day.closedAt ?? day.closesAt;
   if (!takingBoosts(day, now)) return stateLine(day, now);
   const key = (word: string): string => `<em class="wkey">${word}</em>`;
-  return `<b>Open.</b> ${key("Seals")} in ${hoursUntil(closes, now)}, at midnight Eastern, then ${key("permanent")}.`;
+  // A hive takes buzzes on its date and the day after, so on the date itself
+  // the seal is tomorrow night, and "at midnight Eastern" alone read as
+  // tonight beside "about 30 hours". The night is named: tonight on the last
+  // day, and the weekday and date before it.
+  const lastDay = easternDateOf(Date.parse(closes) - 60_000);
+  const [y, m, d] = lastDay.split("-").map(Number) as [number, number, number];
+  const weekday = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][new Date(Date.UTC(y, m - 1, d)).getUTCDay()]!;
+  const when = lastDay === easternDateOf(now)
+    ? "tonight at midnight Eastern"
+    : `at midnight Eastern ending ${weekday}, ${monthName(m)} ${d}`;
+  return `<b>Open.</b> ${key("Seals")} ${when}, in ${hoursUntil(closes, now)}, then ${key("permanent")}.`;
 }
 
 function wallBody(day: WallDay | null, name: string, now: number, options: WallOptions): string {

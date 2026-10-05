@@ -501,6 +501,17 @@ function suggestion(overrides: Partial<WallStory> = {}): WallStory {
   });
 }
 
+test("the countdown names the night the hive seals, because the date and the day after both take buzzes", () => {
+  // Found live on October 5, 2026: at 5:43 in the evening the line said
+  // "Seals in about 30 hours, at midnight Eastern", which read as tonight.
+  const d = day([story({ rect: { mx: 3, my: 5, w: 4, h: 3 } })]);
+  const first = wallSection(d, "September 9", LIVE_NOW, { interactive: true });
+  assert.ok(first.includes('<b>Open.</b> <em class="wkey">Seals</em> at midnight Eastern ending Thursday, September 10, in about 32 hours, then <em class="wkey">permanent</em>.'));
+  const last = wallSection(d, "September 9", Date.parse("2026-09-10T22:00:00Z"), { interactive: true });
+  assert.ok(last.includes('<em class="wkey">Seals</em> tonight at midnight Eastern, in about 6 hours, then'));
+  assert.ok(!first.includes("Seals</em> tonight"), "never tonight on the date itself");
+});
+
 test("the suggestion box is on today's live section only, posts a plain form, and is never a dead box", () => {
   const d = suggestDay([story({ rect: { mx: 3, my: 5, w: 4, h: 3 } })]);
   const baked = wallSection(d, "September 9", LIVE_NOW);
