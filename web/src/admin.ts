@@ -345,6 +345,11 @@ details.offpage > summary { cursor: pointer; font-size: 13px; color: #9C9490; pa
   <div class="rows" id="songs"></div>
   <p class="note" id="songs-note"></p>
 
+  <h3 class="dh">Suggested by readers</h3>
+  <p class="lede" id="sugg-lede">Loading.</p>
+  <div class="rows" id="sugg"></div>
+  <p class="note" id="sugg-note"></p>
+
   <h3 class="dh">Weakest dates</h3>
   <p class="lede" id="weak-lede">Ranked by decayed points, the estimate only. Reader answers replace it once a date is opened.</p>
   <div class="weak" id="weak"></div>
@@ -1926,6 +1931,7 @@ ${POINTS_JS}
         drawChips();
         loadQueue();
         loadSongs();
+        loadSuggestions();
         // Reach and the editors' picks are loaded once and used by every date
         // and by the ranking, so the ranking waits for them.
         Promise.all([loadReach(), loadSelected()]).then(rankYear);
@@ -1983,6 +1989,46 @@ ${POINTS_JS}
       });
     }).catch(function (e) {
       el("songs-lede").textContent = "The songs could not be read. Before the song migration is applied that is expected. " + e.message;
+    });
+  }
+
+  /**
+   * Suggestions on the page, docs/the-wall.md section 32. Every suggestion on
+   * the open dates, with its buzzes and the article it is, and the same Hide
+   * the songs have: off the board, the hive and every reader, only before
+   * the seal, with the reason kept.
+   */
+  function loadSuggestions() {
+    return rest("rpc/wall_suggestions_for_curator", { method: "POST", body: {} }).then(function (rows) {
+      rows = rows || [];
+      el("sugg-lede").textContent = rows.length === 0
+        ? "Nothing suggested on the open dates yet."
+        : rows.length + (rows.length === 1 ? " suggestion" : " suggestions") + " on the open dates. Hide takes one off the board, the hive and every reader. Only before the seal.";
+      el("sugg").innerHTML = rows.map(function (r) {
+        return '<div class="row"><span class="yr">' + esc(String(r.wall_date).slice(5)) + "</span><div>" +
+          '<p class="tx">' + esc(r.headline) + "</p>" +
+          '<p class="meta">' + r.support + (r.support === 1 ? " buzz" : " buzzes") + ' &middot; <a href="' + esc(r.url) + '" rel="noopener">the article</a>' +
+          (r.hidden_at ? ' &middot; <span class="st st-rejected">hidden</span> ' + esc(r.hidden_note || "") : "") + "</p></div>" +
+          '<div class="btns">' + (r.hidden_at ? "" :
+            '<input type="text" maxlength="200" placeholder="Why, a few words" data-why="' + esc(r.story_id) + '"> ' +
+            '<button class="act" data-hide-sugg="' + esc(r.story_id) + '">Hide</button>') + "</div></div>";
+      }).join("");
+      Array.prototype.forEach.call(el("sugg").querySelectorAll("[data-hide-sugg]"), function (b) {
+        b.addEventListener("click", function () {
+          var id = b.dataset.hideSugg;
+          var why = el("sugg").querySelector('[data-why="' + id + '"]').value.trim();
+          if (!why) { note("sugg-note", "Say why first, in a few words. It is kept with the suggestion.", "bad"); return; }
+          b.disabled = true;
+          rest("rpc/wall_hide_song", { method: "POST", body: { story_id_in: id, note_in: why } })
+            .then(function (r) {
+              note("sugg-note", r && r.result === "hidden" ? "Hidden. It is off the site and the app now." : r && r.result === "closed" ? "That hive has sealed, so the suggestion stays." : "Not hidden: " + (r && r.result), r && r.result === "hidden" ? "good" : "bad");
+              return loadSuggestions();
+            })
+            .catch(function (e) { note("sugg-note", e.message, "bad"); b.disabled = false; });
+        });
+      });
+    }).catch(function (e) {
+      el("sugg-lede").textContent = "The suggestions could not be read. Before the suggestions migration is applied that is expected. " + e.message;
     });
   }
 
