@@ -12,7 +12,7 @@
     "test": "npm run build && node --test dist/test/*.test.js",
     "site": "npm run build && node --env-file-if-exists=.env dist/src/build.js",
     "og": "npm run build && node --env-file-if-exists=.env dist/src/og.js",
-    "og:ci": "npx --yes playwright install chromium && npm run og",
+    "og:ci": "npm run build && node --env-file-if-exists=.env dist/src/og-ci.js",
     "serve": "npm run build && node dist/src/serve.js",
     "covers": "npm run build && node --env-file-if-exists=.env dist/src/download-covers.js",
     "faces": "npm run build && node --env-file-if-exists=.env dist/src/download-faces.js",

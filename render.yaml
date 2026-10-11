@@ -48,12 +48,27 @@ services:
     # --include=dev because typescript and playwright are development
     # dependencies, and a build with NODE_ENV set to production skips both.
     #
-    # og:ci downloads Chromium and shoots the 366 share images. It is allowed to
-    # fail the deploy rather than be skipped, on purpose: every page carries an
-    # og:image tag pointing at /og/<date>.png, so a site that ships without them
-    # has 366 broken link previews and nothing to notice it by. If Render's
-    # build image will not run Chromium, generate them locally with
-    # `npm run og`, un-ignore web/out/og, commit them, and drop og:ci here.
+    # og:ci is the share pictures, 732 of them, and since October 11, 2026 it
+    # shoots them only when something that draws them changed. web/src/og-ci.ts
+    # fingerprints og.ts, every source it imports and the covers and faces the
+    # cards inline, and keeps the last good set with its fingerprint under
+    # $XDG_CACHE_HOME, which Render preserves between builds (cleared by
+    # "Clear build cache & deploy" or past seven gigabytes). A build whose
+    # fingerprint matches and whose cache holds every picture copies them into
+    # out/og and never downloads Chromium; that was most of the build minutes.
+    # Anything else generates: a changed template, an empty or cleared cache,
+    # a short set, or OG_FORCE=1 set on the service for a deploy that should
+    # refresh the pictures for new data (a data change does not move the
+    # fingerprint on its own). The build log says which, and why.
+    #
+    # Skipping when unchanged is not tolerating failure. When it generates it
+    # is still allowed to fail the deploy rather than ship short, on purpose:
+    # every page carries an og:image tag pointing at /og/<date>.png, so a site
+    # that ships without them has 366 broken link previews and nothing to
+    # notice it by. A generator that exits non-zero, or writes fewer than 732
+    # pictures, fails the build. If Render's build image will not run
+    # Chromium, generate them locally with `npm run og`, un-ignore web/out/og,
+    # commit them, and drop og:ci here.
     buildCommand: npm install --include=dev && npm run site && npm run og:ci
     startCommand: node dist/src/serve.js
     healthCheckPath: /healthz

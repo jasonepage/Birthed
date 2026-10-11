@@ -419,6 +419,21 @@ by the session.
   deliver; if the cadence moves again, that test is where it fails first.
   `docs/the-wall.md` sections 11 and 12 still say fifteen minutes and are
   left as the record of what was decided then.
+- **The share pictures are regenerated only when their design changes.**
+  `npm run og:ci` used to download Chromium and shoot 732 pictures on every
+  deploy, which was the build minutes. `web/src/og-ci.ts` now fingerprints
+  the picture's sources (`og.ts`, everything it imports, and the covers and
+  faces it inlines) and keeps the pictures and the fingerprint under
+  `$XDG_CACHE_HOME`, which Render keeps between builds. A build whose
+  fingerprint matches, with every expected picture present, copies them into
+  `out/og` and never starts Chromium. Anything else, including an empty or
+  cleared cache or `OG_FORCE=1`, generates, and a generation that fails still
+  fails the deploy: skipping when unchanged is not tolerating failure, and
+  366 broken previews stay impossible. Two things to know: a data change
+  (new people, a new hive) no longer refreshes the pictures by itself, set
+  `OG_FORCE=1` on a deploy to refresh them; and a skipped build writes no
+  readers' own pictures (`personal/`), so the date page falls back to the
+  plain square for them, which is the fallback it already had.
 ### The number the hive is judged on, decided September 11, 2026
 
 - **One number, and it is repeat buzzing: of the boosters who buzz at all, the
