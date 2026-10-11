@@ -81,9 +81,14 @@ services:
       ignoredPaths:
         - web/test/**
 
-    domains:
-      - birthed.app
-      - www.birthed.app
+    # birthed.app and www.birthed.app are attached to this service in the
+    # Render dashboard, not here. They were listed here until October 10, 2026,
+    # when every sync began failing with "services[0].domains: one of the
+    # domains is already taken": the Blueprint tried to claim domains the
+    # service already held, and a failed sync means nothing else in this file
+    # is applied either, which is how the cron schedule below sat unchanged
+    # after it was committed. The domains do not move when they leave this
+    # file; a Blueprint sync never detaches a domain the dashboard holds.
 
     envVars:
       - key: SUPABASE_ANON_KEY
