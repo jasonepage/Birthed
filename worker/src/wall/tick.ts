@@ -1,6 +1,9 @@
 // One tick of the wall, for the schedule in render.yaml: the history seeder,
 // hindsight, the news seeder, the news pictures and then the checker, every
-// quarter hour.
+// hour. It was every quarter hour until October 11, 2026; the two editor
+// calls at the end are the one variable spend in the product and they ran
+// four times as often as anybody read the board. The last line of every run
+// says what the editors cost.
 //
 //   node dist/src/wall/tick.js
 //
@@ -19,12 +22,16 @@ import { run as news } from "./news.js";
 import { run as pictures } from "./story-pictures.js";
 import { run as factsEditor } from "../facts-editor.js";
 import { run as storiesEditor } from "../stories-editor.js";
+import { spendLine } from "../spend.js";
 
 async function main(): Promise<void> {
   await loadDotEnv();
   const config = loadConfig({ needsWrite: true });
   const db: Db = { url: config.supabaseUrl, key: config.serviceRoleKey };
   let failed = false;
+  // Model calls this run, for the spend line. An editor that failed asked
+  // for nothing we can count, and counts as nought.
+  const calls = { facts: 0, stories: 0 };
 
   // The date's own history first, so a wall opens looking like the date and
   // its picks take the first tiles ahead of the feeds.
@@ -68,7 +75,7 @@ async function main(): Promise<void> {
   // The editor's sweep over the found facts. Not the wall's, but this is the
   // one schedule there is. Last, so a slow model never delays the checker.
   try {
-    await factsEditor(db);
+    calls.facts = await factsEditor(db);
   } catch (error: unknown) {
     failed = true;
     console.error(`facts editor failed: ${error instanceof Error ? error.message : error}`);
@@ -76,11 +83,13 @@ async function main(): Promise<void> {
   // And over the hive's own stories, September 22, 2026: the score that
   // orders what nobody has buzzed. The next tick's board reads it.
   try {
-    await storiesEditor(db);
+    calls.stories = await storiesEditor(db);
   } catch (error: unknown) {
     failed = true;
     console.error(`stories editor failed: ${error instanceof Error ? error.message : error}`);
   }
+  // One line, every run, so the next bill is never a surprise.
+  console.log(spendLine(calls));
   if (failed) process.exit(1);
 }
 

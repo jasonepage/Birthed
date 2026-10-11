@@ -434,6 +434,12 @@ by the session.
   `OG_FORCE=1` on a deploy to refresh them; and a skipped build writes no
   readers' own pictures (`personal/`), so the date page falls back to the
   plain square for them, which is the fallback it already had.
+- **The tick says what it spent.** Its last line is
+  `editor: 2 calls, ~$0.02 (facts 1 run, stories 1 call)`, from the counts
+  the two Edge Functions already answer with and the two prices in
+  `worker/src/spend.ts`. The prices are the estimates recorded in this file,
+  not a metered figure; when Google's price moves, change them there.
+
 ### The number the hive is judged on, decided September 11, 2026
 
 - **One number, and it is repeat buzzing: of the boosters who buzz at all, the
