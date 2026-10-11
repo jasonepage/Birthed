@@ -390,6 +390,35 @@ as a shelf, not a plan.
   That is the trade, it is the right one for four numbers, and wanting more
   later is a decision to reopen with the privacy page open beside it.
 
+### The three biggest costs, cut October 11, 2026
+
+Nathan's instruction. Three changes, each committed on its own, none pushed
+by the session.
+
+- **The tick runs every hour, not every quarter hour.** `render.yaml`,
+  `birthed-wall`, `schedule: "0 * * * *"`. The tick ends with two editor
+  calls, `rate-facts` and `rate-stories`, and they are the one thing in the
+  product that pays a model per run. At about half a cent to a cent a run,
+  four ticks an hour was the main variable spend, and nobody reads the board
+  four times an hour. About three quarters of the editor spend goes with it.
+  What it costs: the day's news reaches the hive within the hour rather than
+  within fifteen minutes; a never-passed source gets one retry in its first
+  hour rather than four (`RETRY_WINDOW_MS` in `worker/src/wall/recheck.ts`,
+  unchanged in value); a story stands on a changed page for at most four
+  hours and one hourly tick. The seal reads `closes_at` and is not moved.
+  It is the only schedule in the repository that changed: the sealed recap
+  workflow has its own cron, and nothing in `supabase/` schedules anything.
+- **Every sentence that promised the quarter hour was rewritten.** The one
+  the reader sees after a buzz now says "The hive redraws every hour, so a
+  bigger tile can take up to an hour to show; your mark is there now", on the
+  date page (`web/src/wall.ts`) and in the app (`HiveCopy.counted`); the
+  receipt's "Not checked yet" line says within the hour; the panel's score
+  button says within the hour; the README and its diagram say every hour. A
+  test in `web/test/wall.test.ts` pins the sentence and refuses "quarter
+  hour" and "few minutes". Nothing may promise freshness the tick does not
+  deliver; if the cadence moves again, that test is where it fails first.
+  `docs/the-wall.md` sections 11 and 12 still say fifteen minutes and are
+  left as the record of what was decided then.
 ### The number the hive is judged on, decided September 11, 2026
 
 - **One number, and it is repeat buzzing: of the boosters who buzz at all, the
@@ -744,7 +773,7 @@ trade item and the Emancipation Proclamation as equals.
   `story:<id>` at ten times the score, on the panel's own scale, and the
   panel's points for a subject stand in until a story is scored. On the web
   `combRank` sorts by support, then interest, then priority.
-- **Two ways to run it**: the quarter hour tick calls it after the facts
+- **Two ways to run it**: the hourly tick calls it after the facts
   editor (`worker/src/stories-editor.ts`), and the curation panel has a
   "Score the open hives" button for not waiting.
 - **Not fake buzzes.** Asked for and refused the same night: a sealed board
@@ -873,7 +902,7 @@ trade item and the Emancipation Proclamation as equals.
   bar can move without asking the model again.
 - **Search off, one call a run, about half a cent.** find-facts scores its
   own run inline; `rate-facts` sweeps anything unscored, twenty runs a
-  quarter hour from the wall tick, and costs nothing once the backlog is gone.
+  tick from the wall tick, and costs nothing once the backlog is gone.
 - **It learns from people, not from edits here.** Every call carries recent
   panel rejections and the most liked facts as examples.
 - **"Every fact lands off the page and waits" was never live.** The

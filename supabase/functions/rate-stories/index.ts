@@ -5,7 +5,7 @@
 //
 // Scores the stories nobody has scored yet on the open dates, or on the one
 // date given, a batch of sixty at a time up to the limit, and says how many
-// are still waiting. The wall worker calls it every quarter hour
+// are still waiting. The wall worker calls it every hour
 // (worker/src/stories-editor.ts) and the curation panel has a button for it.
 // With nothing unscored it asks the model nothing and costs nothing.
 

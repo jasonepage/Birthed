@@ -21,7 +21,8 @@
 //
 // The three open dates are the exception, decided September 9, 2026 in the
 // second build session, docs/the-wall.md section 12. While a date is open its
-// wall changes by the quarter hour, and section 7 promises a reader watches
+// wall changes on every tick, hourly since October 11, 2026, and section 7
+// promises a reader watches
 // the day take shape, so for those three pages serve.ts reads the wall at
 // request time through fetchWallDay below and swaps it into the baked page
 // between the markers wallSection writes. When anything about that read
@@ -490,8 +491,8 @@ export function songParts(headline: string): { year: string; title: string } | n
  * also a reason to serve the page as built.
  */
 export async function fetchWallDay(url: string, key: string, wallDate: string, timeoutMs: number = 3000): Promise<WallDay | null> {
-  // Without the checks. The worker writes two check rows per source every
-  // quarter hour, so a day's checks run to thousands of rows and megabytes
+  // Without the checks. The worker writes two check rows per source on every
+  // tick, so a day's checks run to thousands of rows and megabytes
   // by the afternoon, and the date page draws none of them. Reading them
   // here was what pushed the live read past its three seconds and handed
   // every reader the baked page, with no buttons and the wrong count. The
@@ -1654,11 +1655,11 @@ export function afterwords(voice: Voice, name: string, undo: WallStory | null = 
     // paragraph was doing. That is exactly the bug this line had first.
     : `<div class="wundoline">${undoForm(undo, v, back)}<span class="wundonote">Thirty seconds, for a tap you did not mean.</span></div>`;
   // On the live hive the tile has already grown by the time this shows, so
-  // the quarter hour sentence would be false there; the page writes what the
+  // the hourly sentence would be false there; the page writes what the
   // buzz moved into the span instead (HiveShare in hive-live.ts).
   const kept = live
     ? `That counts. <span class="wshare" id="wshare"></span> <span class="wleft"></span>`
-    : `That counts.${crowned} <span class="wleft"></span> The hive redraws on the quarter hour, so a bigger tile takes a few minutes to show; your mark is there now.`;
+    : `That counts.${crowned} <span class="wleft"></span> The hive redraws every hour, so a bigger tile can take up to an hour to show; your mark is there now.`;
   const rallied = live
     ? `
 <p class="wsaid" id="wrallied">Link copied. Send it to whoever should ${v.one} this. It opens the hive with that tile lit, and nothing about you or them travels with it.</p>`

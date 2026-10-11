@@ -155,7 +155,7 @@ before changing anything.
 ## How it fits together
 
 <p align="center">
-  <img src="docs/readme/how-it-fits.svg" alt="Facts come from Wikidata, Wikipedia, public news feeds and Wikimedia Commons into the worker, which runs every fifteen minutes and is the only holder of the service role key. It writes to Supabase, which has row level security on every table. The website and the iPhone app read from it with the anonymous key." width="100%">
+  <img src="docs/readme/how-it-fits.svg" alt="Facts come from Wikidata, Wikipedia, public news feeds and Wikimedia Commons into the worker, which runs every hour and is the only holder of the service role key. It writes to Supabase, which has row level security on every table. The website and the iPhone app read from it with the anonymous key." width="100%">
 </p>
 
 The specifications are in `docs/specs/`: `PRD.md` (what the product is and
@@ -208,7 +208,7 @@ facts about tiles and never about a person:
   arrive at midnight, 8 am and 4 pm Eastern instead of all at midnight.
   Migration `20260923010000_buzzes_that_refill` holds it.
 
-The worker's tick, `worker/src/wall/tick.ts`, runs every fifteen minutes. It
+The worker's tick, `worker/src/wall/tick.ts`, runs every hour. It
 files the date's imported history as stories, reads the public news feeds
 listed in `worker/src/wall/news.ts`, checks every cited source, and writes a
 snapshot of the board.

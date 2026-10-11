@@ -23,7 +23,7 @@
   <!-- worker -->
   <rect x="294" y="140" width="200" height="136" rx="8" fill="#1E1826" stroke="#E7A83A" stroke-width="1.6"/>
   <text x="310" y="166" fill="#E7A83A" font-size="14" font-weight="800">worker/</text>
-  <text x="310" y="188" fill="#F3EDE4" font-size="12">Runs every 15 minutes.</text>
+  <text x="310" y="188" fill="#F3EDE4" font-size="12">Runs every hour.</text>
   <text x="310" y="206" fill="#F3EDE4" font-size="12">Imports, checks every</text>
   <text x="310" y="222" fill="#F3EDE4" font-size="12">cited page, cuts the board.</text>
   <text x="310" y="248" fill="#9C9490" font-size="11">The only holder of the</text>

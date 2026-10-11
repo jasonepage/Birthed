@@ -1300,7 +1300,7 @@ ${POINTS_JS}
    * The editor on the hive, September 22, 2026: one click scores every
    * unscored story on the open dates, one to ten, for whether somebody born
    * on the day would tell a friend. The next tick's board and the comb read
-   * it. The quarter hour tick calls the same function on its own; this is
+   * it. The hourly tick calls the same function on its own; this is
    * for not waiting. About a cent a date.
    */
   function rateHives() {
@@ -1318,7 +1318,7 @@ ${POINTS_JS}
           for (i = 0; i < r.report.length; i++) { scored += r.report[i].scored; waiting += r.report[i].waiting; }
           total += scored;
           if (waiting > 0 && scored > 0) { note("measure-note", total + " scored so far, " + waiting + " waiting."); return again(total); }
-          note("measure-note", total + " stories scored. The board reads it on the next tick, within fifteen minutes.", "good");
+          note("measure-note", total + " stories scored. The board reads it on the next tick, within the hour.", "good");
           b.disabled = false;
         });
     }

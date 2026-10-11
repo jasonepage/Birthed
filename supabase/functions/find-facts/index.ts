@@ -484,7 +484,7 @@ async function search(
     // The editor, straight away, so a good fact is on the phone in this
     // run rather than after the next sweep. A failure here costs nothing but
     // time: the rows stay unscored and unshown, and rate-facts picks them up
-    // within the quarter hour.
+    // within the hour.
     try {
       await rateRun(admin, key, where);
     } catch (error) {

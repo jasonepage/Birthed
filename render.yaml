@@ -23,11 +23,13 @@
 #
 # The second service is the worker's clock. docs/the-wall.md section 11 found
 # that two documents assumed a scheduled worker that was never created, and
-# section 12 records this as the answer: one cron job, every fifteen minutes,
-# that seeds each open wall from the public news feeds and then runs the
-# checker. It builds from the worker's own Dockerfile and carries the service
-# role key, which the web service never does. Nothing on birthed.app depends
-# on it running: a tick that fails leaves the wall as it was.
+# section 12 records this as the answer: one cron job that seeds each open
+# wall from the public news feeds and then runs the checker. Section 12 said
+# every fifteen minutes; it has been every hour since October 11, 2026, see
+# the cron job below and CLAUDE.md section 5. It builds from the worker's own
+# Dockerfile and carries the service role key, which the web service never
+# does. Nothing on birthed.app depends on it running: a tick that fails
+# leaves the wall as it was.
 
 services:
   - type: web
@@ -81,9 +83,18 @@ services:
     region: oregon
     dockerfilePath: ./worker/Dockerfile
     dockerContext: ./worker
-    # Every quarter hour. The checker fetches every source on every open
-    # wall and the seeder reads six feeds, which is a minute or two of work.
-    schedule: "*/15 * * * *"
+    # Every hour, on the hour. It was every quarter hour until October 11,
+    # 2026. The tick ends with the two editor calls (rate-facts and
+    # rate-stories), which are the one thing in the product that pays a model
+    # per run, and at about half a cent to a cent a run four ticks an hour
+    # was the main variable spend. Going hourly cuts it by about three
+    # quarters. What it costs: the day's news reaches the hive within the
+    # hour rather than within fifteen minutes, and a never-passed source gets
+    # one retry in its first hour rather than four (worker/src/wall/recheck.ts).
+    # The seal is not affected: it reads closes_at, not the tick. The sentence
+    # the page shows after a buzz ("The hive redraws every hour") must match
+    # this line, and a test in web/test/wall.test.ts pins the sentence.
+    schedule: "0 * * * *"
     dockerCommand: node dist/src/wall/tick.js
 
     buildFilter:

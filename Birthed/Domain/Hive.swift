@@ -669,8 +669,8 @@ enum HiveCopy {
     }
 
     /// After the database has taken it.
-    static let counted = "That counts. The hive redraws on the quarter hour, so a bigger tile takes a few"
-        + " minutes to show; your mark is there now."
+    static let counted = "That counts. The hive redraws every hour, so a bigger tile can take up to an"
+        + " hour to show; your mark is there now."
 
     /// A story shown false is still the story the reader meant, so it is
     /// found and shown, and this is what the confirmation says instead of a

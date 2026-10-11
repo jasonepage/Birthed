@@ -40,13 +40,14 @@ const HOUR = 60 * MINUTE;
  * rewritten or put behind a wall since it passed, so the tier that rests on
  * it falls. The edits that break an exact match cluster in the first hours
  * after a story is published, and the sources here are read within a quarter
- * hour of being filed, so the first read already lands in that window. After
+ * tick of being filed, so the first read already lands in that window. After
  * a pass the question is only whether the page is still there. Four hours
  * means a story stands on a changed page for at most four hours and a tick,
- * against fifteen minutes before, and a wall is open for three days, so one
- * passing source costs about nineteen reads over its whole life instead of
- * nearly three hundred. Two hours would double that for a tighter window
- * nothing reads at that grain; six would let a page stand a quarter of a day.
+ * against fifteen minutes when the tick ran every quarter hour, and a wall is
+ * open for three days, so one passing source costs about nineteen reads over
+ * its whole life instead of nearly three hundred. Two hours would double that
+ * for a tighter window nothing reads at that grain; six would let a page
+ * stand a quarter of a day.
  */
 export const PASSING_INTERVAL_MS = 4 * HOUR;
 
@@ -59,8 +60,9 @@ export const PASSING_INTERVAL_MS = 4 * HOUR;
  * does not contain the feed's description, and eleven never answered. None
  * had ever flipped. A page that does not use the words the feed used will
  * not start using them, and a host that refuses the checker is not helped by
- * being asked again every fifteen minutes; that is the quickest way to be
- * blocked for good. An hour of every-tick retries, four reads, sees through
+ * being asked again on every tick; that is the quickest way to be blocked
+ * for good. An hour of every-tick retries, four reads when the tick ran every
+ * quarter hour and one since it runs hourly (October 11, 2026), sees through
  * a transient outage at the first read, and after that the page is read as
  * often as a passing one, which still catches a page that comes good later.
  *

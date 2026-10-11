@@ -181,7 +181,7 @@ struct WallSource: Equatable, Identifiable {
             return "The quotation was found on the page, exactly. The check history below is the evidence."
         }
         if checks.isEmpty {
-            return "Not checked yet. The checker reads every source within the quarter hour."
+            return "Not checked yet. The checker reads every source within the hour."
         }
         return "The quotation has not been found on the page."
     }

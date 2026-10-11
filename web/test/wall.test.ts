@@ -1025,6 +1025,11 @@ test("the Undo button is inside the sentence that says a buzz counted, and a for
   const closed = opened.slice(0, opened.indexOf("</div>"));
   assert.ok(closed.includes("/unboost"), "the button is inside the element that is hidden until a buzz counts");
   assert.ok(!closed.includes("<p>That counts".replace("<p>", "<p class")), "the sentence itself is still a paragraph");
+  // The promise the sentence makes has to match the schedule in render.yaml.
+  // The tick has run hourly since October 11, 2026, so the page may not say
+  // the hive redraws any sooner than that.
+  assert.ok(after.includes("The hive redraws every hour, so a bigger tile can take up to an hour to show; your mark is there now."), "the kept sentence names the hourly tick");
+  assert.ok(!after.includes("quarter hour") && !after.includes("few minutes"), "and promises nothing the tick no longer delivers");
   for (const carrier of [after, renderStoryPage(s, d, now, { interactive: true, undo: s })]) {
     for (const match of carrier.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/g)) {
       assert.ok(!match[1]!.includes("<form"), `a form inside a paragraph: ${match[0]!.slice(0, 90)}`);

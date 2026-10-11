@@ -215,7 +215,8 @@ test("the reader's own buzz pulses the tile, pops the count and writes the share
   assert.ok(/prefers-reduced-motion: reduce\)[^}]*\{[\s\S]*?\.wlive \.wtile\.wpulse \.wcell, \.wlive \.wn\.wpop \{ animation: none; \}/.test(HIVE_LIVE_STYLE), "and both stop under reduced motion");
   const html = liveHiveSection(day([story()]), "September 11", NOW, OPTIONS);
   assert.ok(html.includes('<span class="wshare" id="wshare"></span>'), "the live kept sentence has the span");
-  assert.ok(!html.includes("redraws on the quarter hour"), "and not the baked page's quarter hour sentence, which would be false here");
+  assert.ok(!html.includes("redraws every hour"), "and not the baked page's hourly sentence, which would be false here");
+  assert.ok(!html.includes("redraws on the quarter hour"), "and not the old quarter hour sentence either; the tick has been hourly since October 11, 2026");
   assert.ok(html.includes(HIVE_SHARE_JS), "the page carries HiveShare");
   assert.ok(html.indexOf(HIVE_SHARE_JS) < html.indexOf(HIVE_LIVE_JS), "before the script that calls it");
 });

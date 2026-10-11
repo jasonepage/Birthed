@@ -14,8 +14,8 @@
 // This is not the test seed. worker/src/wall/seed.ts invents boosts and must
 // never run against the live project. This file invents nothing: every row
 // it writes is a real article and it writes no boost, no check and no
-// rectangle. The checker reads the page and writes the checks within the
-// quarter hour.
+// rectangle. The checker reads the page and writes the checks in the same
+// tick, which runs every hour.
 
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -344,7 +344,7 @@ export type QuotationOrigin = "feed" | "page description" | "page headline" | "f
  * wall_submit_story applies to a link a person pastes: the page is asked
  * what it says about itself and that is quoted. Every candidate is held to
  * pageContains before it is taken, the same exact match with whitespace
- * folded that the checker will run a quarter hour later, so nothing is
+ * folded that the checker will run later in the same tick, so nothing is
  * stored here that the checker could disagree with. When the page could not
  * be read the feed's words are kept and the checker retries on its own
  * schedule; when the page offers nothing quotable the feed's words are kept
@@ -442,7 +442,7 @@ export async function run(db: Db, options: { now?: Date; dry?: boolean; userAgen
     const at = now.toISOString();
     await insert(db, "wall_days", [{ wall_date: wallDate, opens_at: at, live_at: at, closes_at: at }], { ignoreDuplicates: true });
     // Only a page not already on this date is read. A feed carries an
-    // article for days, and reading it again every quarter hour to settle a
+    // article for days, and reading it again on every tick to settle a
     // quotation that was settled on the first run is the checker's old
     // mistake, recheck.ts, made over again in the seeder.
     const already = new Set((await rows<{ url_key: string }>(db, `wall_stories?select=url_key&wall_date=eq.${wallDate}`)).map((r) => r.url_key));

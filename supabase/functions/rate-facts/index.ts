@@ -4,13 +4,13 @@
 //   apikey: <the project's secret key>
 //
 // Scores the facts nobody has scored yet, a run at a time, oldest first, and
-// publishes the ones that pass. The wall worker calls it every quarter hour
+// publishes the ones that pass. The wall worker calls it every hour
 // (worker/src/facts-editor.ts), so the backlog clears on its own and anything
-// find-facts could not score inline is picked up within fifteen minutes.
+// find-facts could not score inline is picked up within the hour.
 // With nothing unscored it asks the model nothing and costs nothing.
 //
-// The limit is the cost ceiling: at about half a cent a run, twenty runs a
-// quarter hour is at most ten cents, and only while there is a backlog.
+// The limit is the cost ceiling: at about half a cent a run, twenty runs an
+// hour is at most ten cents an hour, and only while there is a backlog.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -50,7 +50,7 @@ Deno.serve(async (request: Request) => {
     .select("birth_month,birth_day,birth_year,region_key")
     .is("rated_at", null)
     // The same filter rateRun reads with, or a run whose only unscored rows
-    // are ones it will never score would be picked every quarter hour and
+    // are ones it will never score would be picked every tick and
     // starve the rest: a person reviewed them, or their cited page failed.
     .is("reviewed_at", null)
     .or("source_checked.eq.true,and(source_checked.is.null,verified.eq.true)")

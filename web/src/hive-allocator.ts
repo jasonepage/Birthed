@@ -4,7 +4,7 @@
 // worker/src/wall/allocator.ts on every tick and at the seal. The live hive
 // page, the one page on this site that runs a script, lays the board out
 // itself between ticks from the buzz counts as they arrive, so a tile moves
-// the instant a buzz lands rather than a quarter hour later. For that to be
+// the instant a buzz lands rather than up to an hour later. For that to be
 // honest the page has to cut the pie exactly the way the worker does, or the
 // board would jump every time the tick re-baked it.
 //

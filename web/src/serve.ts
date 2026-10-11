@@ -2155,7 +2155,7 @@ async function handle(
         if (html !== null) {
           response.writeHead(200, {
             "Content-Type": "text/html; charset=utf-8",
-            // Briefly. The wall moves by the quarter hour and this is the
+            // Briefly. The wall moves by the hourly tick and this is the
             // same for every reader, so a short shared cache is right. Vary,
             // because the reader's own copy of this page is decided by their
             // cookies and a shared cache must not hand this one to them.
@@ -2392,7 +2392,7 @@ export function yearMarks(slug: string, year: number | null): string {
 //
 // The bargain is the one withResult makes: when anything about the read
 // fails, a slow answer, an outage, a missing key, the baked page is served
-// untouched. A Supabase outage costs a stale wall for a quarter hour and
+// untouched. A Supabase outage costs a stale wall until the next tick and
 // never a site. One read per open date per twenty seconds, whatever the
 // traffic, so a busy day on the wall is not a busy day for the database.
 // ---------------------------------------------------------------------------

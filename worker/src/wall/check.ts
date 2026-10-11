@@ -5,7 +5,7 @@
 //   node dist/src/wall/check.js --date 2026-09-09
 //   node dist/src/wall/check.js --dry          # read and report, write nothing
 //
-// Runs on the worker's schedule, every fifteen minutes, beside the news
+// Runs on the worker's schedule, every hour, beside the news
 // seeder. For every source on every open wall that recheck.ts says is due,
 // it fetches the page and judges a check of kind resolves, then tests
 // whether the page contains the stored quotation by exact string match and

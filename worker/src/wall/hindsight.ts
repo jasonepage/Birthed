@@ -178,7 +178,7 @@ export function datesAcrossYears(monthDay: string, throughYear: number): string[
 async function readDateAcrossYears(db: Db, monthDay: string, throughYear: number): Promise<Array<SealedStory & { support: number; sources: SourceCopy[] }>> {
   // The exact dates, listed. Never a LIKE on a date column through the
   // automatic interface, docs/the-wall.md section 17, and never the whole
-  // table: a tick runs every quarter hour.
+  // table: a tick runs every hour, and used to run every quarter hour.
   const dates = datesAcrossYears(monthDay, throughYear).join(",");
   const onDate = await rows<StoryRow>(db, `wall_stories?select=id,wall_date,headline,url,url_key,outlet,status,support,subject_kind&wall_date=in.(${dates})&order=wall_date.asc,id.asc`);
   if (onDate.length === 0) return [];

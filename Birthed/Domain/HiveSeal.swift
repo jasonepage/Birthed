@@ -3,7 +3,7 @@ import Foundation
 /// What became of a buzz, and the one thing the reader hears about it after.
 ///
 /// docs/the-wall.md section 15 named the gap this closes: a buzz has no
-/// consequence at either end. The tile does not move for fifteen minutes, by
+/// consequence at either end. The tile does not move until the next tick, by
 /// design, and then the date seals and the reader never hears about it again.
 /// So when a date somebody buzzed on seals, the phone tells them once, the
 /// next morning, at the hour their other reminders arrive.
