@@ -390,6 +390,35 @@ as a shelf, not a plan.
   That is the trade, it is the right one for four numbers, and wanting more
   later is a decision to reopen with the privacy page open beside it.
 
+### The pivot, decided October 14, 2026
+
+Nathan's decision. Birthed stays, the bees stay, the domain stays. The
+birthday question comes off the front door and the hive engine points at
+one subject: a model, a paper, a company, born on a date, sealed. Every day
+the board fills with the day's news from the feeds and from members, members
+spend three buzzes on what will still matter in ten years, and at midnight
+Pacific the day seals for good. The sealed board is posted the next morning
+with the count of people who voted, and the word "agreed" is not used until
+the voter floor on the About page is met. The plan is nine slices, each
+committed on its own, never pushed by the session; the slices are recorded
+here as they land.
+
+- **Slice 0, October 14, 2026: the model is gone.** The two editor calls
+  came out of `worker/src/wall/tick.ts`, and the seven Edge Functions that
+  called a model (`find-facts`, `rate-facts`, `rate-stories`,
+  `find-culture`, `scan-day`, `draft-line`, `hive-find`) came out of the
+  repository with `_shared/editor.ts`, `_shared/story-editor.ts`,
+  `worker/src/facts-editor.ts`, `worker/src/stories-editor.ts` and
+  `worker/src/spend.ts`. `measure-reach` stays: it reads Wikipedia view
+  counts and holds no model key. The unbuzzed board orders by priority and
+  arrival again, as it did before September 22. Still to do by hand on the
+  Supabase dashboard: delete the seven deployed functions and the
+  `GEMINI_API_KEY` secret, because a function that is deleted from the
+  repository is still deployed. The curation panel's remaining model
+  buttons (scan a day, draft a line, find culture) now fail with a 404 and
+  come off with the rest of the birthday panel in slice 6. The iOS Mine
+  tab's fact finder fails the same way; the app comes down in slice 6.
+
 ### The three biggest costs, cut October 11, 2026
 
 Nathan's instruction. Three changes, each committed on its own, none pushed

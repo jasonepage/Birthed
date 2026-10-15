@@ -104,13 +104,12 @@ services:
     dockerfilePath: ./worker/Dockerfile
     dockerContext: ./worker
     # Every hour, on the hour. It was every quarter hour until October 11,
-    # 2026. The tick ends with the two editor calls (rate-facts and
-    # rate-stories), which are the one thing in the product that pays a model
-    # per run, and at about half a cent to a cent a run four ticks an hour
-    # was the main variable spend. Going hourly cuts it by about three
-    # quarters. What it costs: the day's news reaches the hive within the
-    # hour rather than within fifteen minutes, and a never-passed source gets
-    # one retry in its first hour rather than four (worker/src/wall/recheck.ts).
+    # 2026. Until October 14, 2026 the tick ended with two editor calls that
+    # paid a model per run; they are gone (CLAUDE.md section 5, slice 0 of
+    # the pivot) and nothing on this schedule calls a model now. What the
+    # hourly cadence costs: the day's news reaches the hive within the hour
+    # rather than within fifteen minutes, and a never-passed source gets one
+    # retry in its first hour rather than four (worker/src/wall/recheck.ts).
     # The seal is not affected: it reads closes_at, not the tick. The sentence
     # the page shows after a buzz ("The hive redraws every hour") must match
     # this line, and a test in web/test/wall.test.ts pins the sentence.
