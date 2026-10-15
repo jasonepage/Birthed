@@ -419,6 +419,27 @@ here as they land.
   come off with the rest of the birthday panel in slice 6. The iOS Mine
   tab's fact finder fails the same way; the app comes down in slice 6.
 
+- **Slice 1, October 14, 2026: one story, one tile, every outlet under it.**
+  `foldNews` in `worker/src/wall/news.ts`. A feed item that agrees with a
+  news story already on the date (two shared uncommon words, the rule the
+  feed has used in public since September 22, copied byte for byte into
+  `worker/src/wall/agree.ts` and held to `web/src/agree.ts` by a test) is
+  filed as a `wall_sources` row on that story and never as a story of its
+  own. Among new items that agree with each other, the shortest headline is
+  the row and the rest are its sources. The board, the feed, the live hive,
+  the receipt and the sealed record all see one story with every outlet
+  under it, and the checker's tier turns reported on its own once two
+  owners' pages verify. No allocator change and no schema change. What it
+  does not do: merge two rows already written (a row that exists is not
+  renamed, and a story somebody buzzed keeps its headline), and it cannot
+  tell two different stories about the same company on the same day apart
+  when they share two uncommon words. The second is the known risk for a
+  day of AI news, where "openai" and "model" are two uncommon words, and the
+  answer is the stop list in `agree.ts` grown against real headlines in
+  slice 4, with the editor's merge and unmerge in slice 8 as the backstop.
+  Not run against the live feeds; the next tick is the test, and the line
+  to look for is "folded under a story already filed".
+
 ### The three biggest costs, cut October 11, 2026
 
 Nathan's instruction. Three changes, each committed on its own, none pushed

@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 
-import { FEEDS, PER_FEED_PER_DATE, feedName, fitHeadline, mayMatter, openDates, parseFeed, plain, planNews, quotationFor, withPageQuotations, withoutTruncationMark, type Feed, type PlannedStory } from "../src/wall/news.js";
+import { FEEDS, PER_FEED_PER_DATE, feedName, fitHeadline, foldNews, mayMatter, openDates, parseFeed, plain, planNews, quotationFor, withPageQuotations, withoutTruncationMark, type Feed, type FiledStory, type PlannedStory } from "../src/wall/news.js";
 import type { Fetched } from "../src/wall/page.js";
 
 // 20:30 Coordinated Universal Time on September 9 is 16:30 Eastern, so the
@@ -417,4 +417,67 @@ test("a feed with no outlet of its own still has a name for a log line", () => {
   assert.equal(feedName(HACKER_NEWS), "news.ycombinator.com");
   assert.equal(feedName(ARS_TECHNICA), "arstechnica.com");
   assert.equal(feedName({ url: "https://example.org/rss", outlet: "" }), "https://example.org/rss");
+});
+
+// ---------------------------------------------------------------------------
+// One story, one row, four sources: the fold at filing time. Slice 1 of the
+// pivot, October 14, 2026. The two headlines are the pair docs/the-wall.md
+// section 28 gives as its example, from the real September 22 feeds.
+// ---------------------------------------------------------------------------
+
+function item(outlet: string, headline: string, path: string): PlannedStory {
+  const url = `https://www.${outlet}/${path}`;
+  return { wallDate: "2026-09-22", headline, url, urlKey: url, outlet, quotation: headline + " and more words for twenty." };
+}
+
+const SRI_LANKA_SHORT = "Sri Lanka court convicts 15 over deadly 2019 Easter bombings";
+const SRI_LANKA_LONG = "Fifteen guilty in 2019 Sri Lanka Easter bombings: What the verdict says";
+
+function filed(over: Partial<FiledStory> = {}): FiledStory {
+  return { id: "s1", headline: SRI_LANKA_LONG, outlet: "aljazeera.com", tier: "claimed", submittedAt: "2026-09-22T10:00:00Z", support: 0, priority: 0, subjectKind: null, status: "pool", ...over };
+}
+
+test("a feed item that agrees with a story already filed becomes a source on it, not a story", () => {
+  const out = foldNews([filed()], [item("npr.org", SRI_LANKA_SHORT, "sri-lanka")]);
+  assert.equal(out.stories.length, 0);
+  assert.deepEqual(out.attachments.map((a) => a.storyId), ["s1"]);
+});
+
+test("the existing row leads even when the new headline is shorter: a row that exists is not renamed", () => {
+  const out = foldNews([filed({ headline: SRI_LANKA_LONG })], [item("npr.org", SRI_LANKA_SHORT, "x")]);
+  assert.equal(out.stories.length, 0);
+  assert.equal(out.attachments.length, 1);
+});
+
+test("two new items on the same story file as one story with the other under it, the shortest headline leading", () => {
+  const out = foldNews([], [item("aljazeera.com", SRI_LANKA_LONG, "a"), item("npr.org", SRI_LANKA_SHORT, "b")]);
+  assert.equal(out.stories.length, 1);
+  assert.equal(out.stories[0]!.headline, SRI_LANKA_SHORT);
+  assert.equal(out.underNew.length, 1);
+  assert.equal(out.underNew[0]!.leaderKey, out.stories[0]!.urlKey);
+  assert.equal(out.underNew[0]!.item.outlet, "aljazeera.com");
+});
+
+test("a story somebody has buzzed is folded into on purpose", () => {
+  const out = foldNews([filed({ support: 3 })], [item("npr.org", SRI_LANKA_SHORT, "x")]);
+  assert.equal(out.attachments.length, 1);
+});
+
+test("a story stamped false and a history row are never folded into", () => {
+  const stamped = foldNews([filed({ status: "false" })], [item("npr.org", SRI_LANKA_SHORT, "x")]);
+  assert.equal(stamped.stories.length, 1);
+  assert.equal(stamped.attachments.length, 0);
+  const history = foldNews([filed({ subjectKind: "event" })], [item("npr.org", SRI_LANKA_SHORT, "x")]);
+  assert.equal(history.stories.length, 1);
+  assert.equal(history.attachments.length, 0);
+});
+
+test("unrelated items stay their own stories, in the order they were planned", () => {
+  const out = foldNews([filed()], [
+    item("theverge.com", "Apple opens a music venue under its London headquarters", "a"),
+    item("billboard.com", "Ella Langley breaks the Hot 100 record for a debut country single", "b"),
+  ]);
+  assert.deepEqual(out.stories.map((s) => s.outlet), ["theverge.com", "billboard.com"]);
+  assert.equal(out.attachments.length, 0);
+  assert.equal(out.underNew.length, 0);
 });

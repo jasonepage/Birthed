@@ -21,6 +21,7 @@ import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { loadConfig, loadDotEnv } from "../config.js";
+import { agree, type Agreeable } from "./agree.js";
 import { insert, rows, type Db } from "./db.js";
 import { decodeEntities, fetchPage, fold, meta, ownerOf, pageContains, type Fetched, type OwnerRow } from "./page.js";
 import { normalizeUrl, outletOf } from "./url.js";
@@ -421,6 +422,93 @@ async function readFeed(feed: Feed, userAgent: string): Promise<FeedItem[]> {
   }
 }
 
+
+// ---------------------------------------------------------------------------
+// One story, one row, four sources. Slice 1 of the pivot, October 14, 2026.
+// ---------------------------------------------------------------------------
+
+/** What the fold needs to know about a news story already filed on the date. */
+export interface FiledStory {
+  id: string;
+  headline: string;
+  outlet: string;
+  tier: string;
+  submittedAt: string;
+  support: number;
+  priority: number;
+  subjectKind: string | null;
+  status: string;
+}
+
+/** A feed item that is the same story as one already filed: it becomes a source on that story, not a story of its own. */
+export interface Attachment {
+  storyId: string;
+  item: PlannedStory;
+}
+
+export interface Folded {
+  /** Items that are a new story on the date, one per cluster, the leader by agree's rule. */
+  stories: PlannedStory[];
+  /** Items that belong under a story the date already had. */
+  attachments: Attachment[];
+  /** New items folded under another new item, keyed by the leader's url key. */
+  underNew: Array<{ leaderKey: string; item: PlannedStory }>;
+}
+
+/**
+ * Fold the day's new feed items into the stories the date already has.
+ *
+ * docs/the-wall.md section 28 collapsed the feed one row per story and left
+ * the board alone, so a model release still arrived as four tiles and the
+ * buzzes split four ways. The fold happens at filing time now: a feed item
+ * that agrees with a news story already on the date (two shared uncommon
+ * words, the same rule the feed has used in public since September 22) is
+ * written as a wall_sources row on that story and never as a story of its
+ * own. The board, the feed, the live hive, the receipt and the sealed
+ * record all see one story with every outlet under it, and the tier the
+ * checker computes from the owners of those sources turns reported on its
+ * own. Among new items that agree with each other, the leader is chosen by
+ * agree's rule (best tier, then the shortest headline) and the rest go
+ * under it.
+ *
+ * What is never folded into: a story stamped false, and anything that is
+ * not news (history, people, songs, suggestions carry a subject kind). A
+ * story somebody has already buzzed is folded into on purpose: that is the
+ * point, the buzz and the new outlet land on the same row.
+ */
+export function foldNews(existing: readonly FiledStory[], incoming: readonly PlannedStory[]): Folded {
+  type Row = Agreeable & { kind: "old" | "new"; story?: FiledStory; item?: PlannedStory };
+  const rows: Row[] = [];
+  for (const s of existing) {
+    if (s.status === "false") continue;
+    if (!(s.subjectKind === null || s.subjectKind === "news")) continue;
+    rows.push({ id: s.id, headline: s.headline, outlet: s.outlet, tier: s.tier, submittedAt: s.submittedAt, support: s.support, priority: s.priority, subjectKind: s.subjectKind, kind: "old", story: s });
+  }
+  for (const item of incoming) {
+    rows.push({ id: "new:" + item.urlKey, headline: item.headline, outlet: item.outlet, tier: "claimed", submittedAt: "9999", support: 0, priority: 0, subjectKind: "news", kind: "new", item });
+  }
+  const out: Folded = { stories: [], attachments: [], underNew: [] };
+  for (const cluster of agree(rows)) {
+    const members = [cluster.leader, ...cluster.others];
+    // An existing story always leads its cluster, whatever its headline
+    // length: it may already carry a buzz, a receipt and a tile, and a row
+    // that exists is not renamed by a feed item that arrived later. If two
+    // existing stories agree with each other they stay two; the fold never
+    // merges rows already written.
+    const old = members.find((m) => m.kind === "old");
+    if (old !== undefined) {
+      for (const m of members) if (m.kind === "new") out.attachments.push({ storyId: old.story!.id, item: m.item! });
+      continue;
+    }
+    const leader = cluster.leader.item!;
+    out.stories.push(leader);
+    for (const m of cluster.others) out.underNew.push({ leaderKey: leader.urlKey, item: m.item! });
+  }
+  const order = new Map(incoming.map((p, i) => [p.urlKey, i]));
+  out.stories.sort((a, b) => order.get(a.urlKey)! - order.get(b.urlKey)!);
+  return out;
+}
+
 export async function run(db: Db, options: { now?: Date; dry?: boolean; userAgent?: string; feeds?: Feed[] } = {}): Promise<{ planned: number; written: number }> {
   const now = options.now ?? new Date();
   const userAgent = options.userAgent ?? "Mozilla/5.0 (compatible; Birthed/0.1; +https://birthed.app)";
@@ -445,37 +533,50 @@ export async function run(db: Db, options: { now?: Date; dry?: boolean; userAgen
     // article for days, and reading it again on every tick to settle a
     // quotation that was settled on the first run is the checker's old
     // mistake, recheck.ts, made over again in the seeder.
-    const already = new Set((await rows<{ url_key: string }>(db, `wall_stories?select=url_key&wall_date=eq.${wallDate}`)).map((r) => r.url_key));
+    // A page already on this date, as a story or as a source under one, is
+    // that story; the fold below is what puts a page under a story.
+    const filed = await rows<{ id: string; url_key: string; headline: string; outlet: string; tier: string; submitted_at: string; support: number; priority: number; subject_kind: string | null; status: string }>(
+      db, `wall_stories?select=id,url_key,headline,outlet,tier,submitted_at,support,priority,subject_kind,status&wall_date=eq.${wallDate}`);
+    const sourced = await rows<{ url_key: string }>(db, `wall_sources?select=url_key,story:wall_stories!inner(wall_date)&story.wall_date=eq.${wallDate}`);
+    const already = new Set([...filed.map((r) => r.url_key), ...sourced.map((r) => r.url_key)]);
     const mine = await withPageQuotations(planned.filter((p) => p.wallDate === wallDate && !already.has(p.urlKey)), undefined, console.log);
     if (mine.length === 0) {
       console.log(`wall news ${wallDate}: nothing new`);
       continue;
     }
+    const folded = foldNews(filed.map((r) => ({
+      id: r.id, headline: r.headline, outlet: r.outlet, tier: r.tier, submittedAt: r.submitted_at, support: r.support, priority: r.priority, subjectKind: r.subject_kind, status: r.status,
+    })), mine);
     // A page already on this date is that story; ignoring the duplicate is
     // the same rule wall_submit_story applies, and the row that comes back
-    // is only the new ones.
-    // The conflict target has to be named. PostgREST resolves
-    // ignore-duplicates against the primary key unless told otherwise, and
-    // this table's primary key is a generated uuid that never collides. The
-    // constraint that actually fires on a second run is the unique on
-    // (wall_date, url_key), so without this the whole batch fails with a 409
-    // the moment a feed still carries an article it carried last time, which
-    // is every run.
+    // is only the new ones. The conflict target has to be named: PostgREST
+    // resolves ignore-duplicates against the primary key unless told
+    // otherwise, and the constraint that fires on a second run is the
+    // unique on (wall_date, url_key).
     const stories = await insert<{ id: string; url_key: string }>(
-      db, "wall_stories?on_conflict=wall_date,url_key", mine.map((p) => ({
+      db, "wall_stories?on_conflict=wall_date,url_key", folded.stories.map((p) => ({
       wall_date: wallDate, headline: p.headline, url: p.url, url_key: p.urlKey, outlet: p.outlet, status: "pool", tier: "claimed",
     })), { returning: true, ignoreDuplicates: true });
-    const byKey = new Map(mine.map((p) => [p.urlKey, p]));
-    const sources = stories.map((s) => {
-      const p = byKey.get(s.url_key)!;
-      return {
-        story_id: s.id, url: p.url, url_key: p.urlKey, outlet: p.outlet, owner: ownerOf(owners, outletOf(p.url)),
-        headline: p.headline, quotation: p.quotation,
-      };
+    const sourceOf = (storyId: string, p: PlannedStory) => ({
+      story_id: storyId, url: p.url, url_key: p.urlKey, outlet: p.outlet, owner: ownerOf(owners, outletOf(p.url)),
+      headline: p.headline, quotation: p.quotation,
     });
-    await insert(db, "wall_sources", sources);
+    const byKey = new Map(mine.map((p) => [p.urlKey, p]));
+    const idByKey = new Map(stories.map((s) => [s.url_key, s.id]));
+    const sources = stories.map((s) => sourceOf(s.id, byKey.get(s.url_key)!));
+    // The other outlets' pages, under the story they agree with: one the
+    // date already had, or one this run just filed.
+    let foldedCount = 0;
+    for (const a of folded.attachments) { sources.push(sourceOf(a.storyId, a.item)); foldedCount += 1; }
+    for (const u of folded.underNew) {
+      const id = idByKey.get(u.leaderKey);
+      if (id === undefined) continue;
+      sources.push(sourceOf(id, u.item));
+      foldedCount += 1;
+    }
+    await insert(db, "wall_sources?on_conflict=story_id,url_key", sources, { ignoreDuplicates: true });
     written += stories.length;
-    console.log(`wall news ${wallDate}: ${stories.length} new of ${mine.length}`);
+    console.log(`wall news ${wallDate}: ${stories.length} new of ${mine.length}, ${foldedCount} folded under a story already filed`);
   }
   return { planned: planned.length, written };
 }

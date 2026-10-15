@@ -2585,6 +2585,12 @@ The same clustering answers that and it is the next commit. It is separate
 because the feed can be read against the live day and the board cannot be until
 a deploy lands.
 
+Built October 14, 2026, slice 1 of the pivot, and not the way this section
+expected: the fold moved from the feed to the filing. `foldNews` in
+`worker/src/wall/news.ts` writes an agreeing feed item as a source on the
+story it agrees with, so the board never holds the second row in the first
+place. CLAUDE.md section 5 has the entry.
+
 ## 29. Does it look like history, September 22, 2026
 
 Section 28 ranked the feed by how many desks carried a story. Nathan pushed
