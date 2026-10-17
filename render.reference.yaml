@@ -1,3 +1,11 @@
+# REFERENCE ONLY, NOT A BLUEPRINT (2026-10-17). Renamed from render.yaml on purpose so
+# Render can never read it again. A Render Blueprint matches services by NAME. This file
+# names "birthed-web" and "birthed-wall", but the live service in the Render dashboard is "Birthed Web", so every
+# Blueprint sync failed or tried to build a duplicate (paid) service.
+#
+# The live service is managed in the Render dashboard and deploys from GitHub on every
+# push by itself. Change its settings there, not here. With no Blueprint reading this
+# file, renaming services in the dashboard is safe. Do not rename this file back.
 # Hosting for birthed.app, the search surface.
 #
 # To deploy: Render dashboard, New, Blueprint, point it at this repository. It
