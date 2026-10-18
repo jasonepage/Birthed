@@ -1274,9 +1274,13 @@ const TODAY_ICON = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" a
  * Every date, Random day; the live hive said Back to the day. One set of
  * words in one order is what makes a site read as one site.
  */
+/** A die, for the pill that lands on a random sealed hive. */
+const DICE = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="4.6"/><circle cx="8.4" cy="8.4" r="1.35" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.35" fill="currentColor" stroke="none"/><circle cx="15.6" cy="15.6" r="1.35" fill="currentColor" stroke="none"/></svg>`;
+
 function barEnd(): string {
   return `<span class="barend">
 <a class="pill" href="/today/" title="Today's date" aria-label="Today's date">${TODAY_ICON}<span>Today</span></a>
+<a class="pill" href="/random/" title="A random hive that has sealed" aria-label="A random hive that has sealed">${DICE}<span>Random</span></a>
 <a class="pill" href="/about/" title="About Birthed" aria-label="About Birthed">${INFO}<span>About</span></a>
 </span>`;
 }

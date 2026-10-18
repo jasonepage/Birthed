@@ -393,6 +393,33 @@ export function todayStylesheet(now: Date = new Date(), _random: () => number = 
     `\n`;
 }
 
+/** A date with a board and when it seals, as build.ts writes them to sealed.json. */
+export interface SealedHive { path: string; closesAt: string }
+
+/**
+ * The hives the build saw, read once per root: the file changes only with a
+ * deploy, and a deploy is a new process. A missing or broken file is no
+ * hives, which sends Random to today.
+ */
+const sealedByRoot = new Map<string, Promise<SealedHive[]>>();
+export function sealedHives(root: string): Promise<SealedHive[]> {
+  let found = sealedByRoot.get(root);
+  if (found === undefined) {
+    found = readFile(join(root, "sealed.json"), "utf8")
+      .then((text) => {
+        const rows = JSON.parse(text) as unknown;
+        if (!Array.isArray(rows)) return [];
+        return rows.filter((r): r is SealedHive =>
+          typeof r === "object" && r !== null
+          && typeof (r as SealedHive).path === "string" && /^\/[a-z]+-\d{1,2}\/$/.test((r as SealedHive).path)
+          && typeof (r as SealedHive).closesAt === "string" && !Number.isNaN(Date.parse((r as SealedHive).closesAt)));
+      })
+      .catch(() => []);
+    sealedByRoot.set(root, found);
+  }
+  return found;
+}
+
 export function todaySlug(now: Date = new Date()): string {
   const shifted = new Date(now.getTime() - TODAY_BEHIND_UTC_HOURS * 60 * 60 * 1000);
   return slug(shifted.getUTCMonth() + 1, shifted.getUTCDate());
@@ -402,18 +429,23 @@ export function redirectFor(
   requestPath: string,
   now: Date = new Date(),
   random: () => number = Math.random,
+  sealed: ReadonlyArray<SealedHive> = [],
 ): string | null {
   const path = requestPath.length > 1 && requestPath.endsWith("/")
     ? requestPath.slice(0, -1)
     : requestPath;
 
+  // A random hive that has sealed, October 18, 2026. Nathan: "maybe it does
+  // a random selection of only hives that have sealed so far". Most of the
+  // 366 have never had a hive, and a die that lands on an empty page was why
+  // the pill came off. Before anything has sealed it lands on today.
   if (path === "/random") {
-    const dates = everyDate();
+    const done = sealed.filter((h) => Date.parse(h.closesAt) <= now.getTime());
+    if (done.length === 0) return `/${todaySlug(now)}/`;
     // Clamped, because a random source that ever returns exactly 1 would
     // index one past the end and the server would answer with undefined.
-    const index = Math.min(dates.length - 1, Math.max(0, Math.floor(random() * dates.length)));
-    const picked = dates[index]!;
-    return `/${slug(picked.month, picked.day)}/`;
+    const index = Math.min(done.length - 1, Math.max(0, Math.floor(random() * done.length)));
+    return done[index]!.path;
   }
 
   if (path === "/yesterday" || path === "/tomorrow") {
@@ -1156,7 +1188,7 @@ async function handle(
   // Answered before the disk is touched, because neither of these is a file.  // Answered before the disk is touched, because neither of these is a file.
   // Never stored: a cached "today" is wrong by tomorrow morning, and a cached
   // "random" is the same date for everybody who asks after the first one.
-  const redirect = redirectFor(path);
+  const redirect = redirectFor(path, new Date(), Math.random, path.startsWith("/random") ? await sealedHives(root) : []);
   if (redirect !== null) {
     response.writeHead(302, {
       Location: redirect,

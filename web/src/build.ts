@@ -81,6 +81,16 @@ export function boardPictures(
   return [...out, ...answerPictures(day).filter((p) => drawn.has(p.subject))];
 }
 
+/** Every date whose newest hive has a board, with when that hive seals. */
+export function sealedList(wallFor: ReadonlyMap<string, WallDay>): Array<{ path: string; closesAt: string }> {
+  const out: Array<{ path: string; closesAt: string }> = [];
+  for (const day of wallFor.values()) {
+    if (!hasBoard(day)) continue;
+    out.push({ path: `/${slug(day.month, day.day)}/`, closesAt: day.closedAt ?? day.closesAt });
+  }
+  return out.sort((a, b) => a.closesAt.localeCompare(b.closesAt));
+}
+
 async function main(): Promise<void> {
   const { url, key } = config();
   const dates = everyDate();
@@ -206,6 +216,9 @@ async function main(): Promise<void> {
     await cp(join("static", path), join(OUT, path)).catch(() => undefined);
   }
   await writeFile(join(OUT, "sitemap.xml"), renderSitemap(ready), "utf8");
+  // The dates with a board and when each seals, for the Random pill, which
+  // lands only on a hive that has sealed (serve.ts, redirectFor).
+  await writeFile(join(OUT, "sealed.json"), JSON.stringify(sealedList(wallFor)), "utf8");
   await writeFile(join(OUT, "robots.txt"), renderRobots(), "utf8");
   await writeFile(join(OUT, "404.html"), renderNotFound(), "utf8");
 

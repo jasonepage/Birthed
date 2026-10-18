@@ -442,9 +442,9 @@ test("the front door reaches the two pages people need, and no grid of dates", (
 test("the front door offers today, and it is not a page", () => {
   const html = renderHome();
   assert.ok(html.includes('href="/today/"'));
-  // Every date and Random came off the bar on October 18, 2026; both
-  // addresses still answer for anybody holding a link.
-  assert.ok(!html.includes('href="/random/"'));
+  // Every date came off the bar on October 18, 2026, and still answers.
+  // Random came back the same day, landing only on a sealed hive.
+  assert.ok(html.includes('href="/random/"'));
   assert.equal(redirectFor("/random/") === null, false);
   assert.equal(redirectFor("/today/") === null, false);
 });
@@ -808,13 +808,20 @@ test("random lands on a date that exists, every time", () => {
   }
 });
 
-test("random can reach all 366 and never anything else", () => {
+test("random lands only on a hive that has sealed, can reach every one, and lands on today before any has", () => {
+  const now = new Date("2026-10-18T16:00:00Z");
+  const sealed = [
+    { path: "/september-26/", closesAt: "2026-09-28T04:00:00Z" },
+    { path: "/october-1/", closesAt: "2026-10-03T04:00:00Z" },
+    { path: "/october-17/", closesAt: "2026-10-19T04:00:00Z" },
+    { path: "/october-18/", closesAt: "2026-10-20T04:00:00Z" },
+  ];
   const seen = new Set<string>();
-  for (let index = 0; index < 366; index++) {
-    const to = redirectFor("/random/", new Date(), () => (index + 0.5) / 366);
-    seen.add(to!);
-  }
-  assert.equal(seen.size, 366);
+  for (let index = 0; index < 100; index++) seen.add(redirectFor("/random/", now, () => index / 100, sealed)!);
+  assert.deepEqual([...seen].sort(), ["/october-1/", "/september-26/"], "the two still open are never picked");
+  assert.equal(redirectFor("/random/", now, () => 0.999999, sealed), "/october-1/", "a roll near one stays in range");
+  assert.equal(redirectFor("/random/", now, () => 0.5, []), "/october-18/", "nothing sealed yet is today");
+  assert.equal(redirectFor("/random/", now, () => 0.5, sealed.slice(2)), "/october-18/", "nothing sealed yet is today");
 });
 
 test("today is read six hours behind, which is the whole point of it", () => {
@@ -1012,17 +1019,18 @@ test("a date page can be moved off in both directions without reaching the foot"
   assert.ok(!html.includes('class="everyday"'));
 });
 
-test("Today and About are two of the same control, each with its own mark and its word", () => {
+test("Today, Random and About are three of the same control, each with its own mark and its word", () => {
   const html = renderDayPage(page);
   const bar = html.slice(html.indexOf('<span class="barend">'), html.indexOf("</span>\n</div>"));
   const pills = bar.match(/<a class="pill[ "]/g) ?? [];
-  assert.equal(pills.length, 2, "two matching pills since October 18, 2026");
-  assert.equal((bar.match(/<svg class="ic"/g) ?? []).length, 2, "a drawn mark on each, not an emoji");
-  const words = ["Today", "About"];
+  assert.equal(pills.length, 3, "Random came back on October 18, 2026, for sealed hives only");
+  assert.equal((bar.match(/<svg class="ic"/g) ?? []).length, 3, "a drawn mark on each, not an emoji");
+  const words = ["Today", "Random", "About"];
   for (const word of words) assert.ok(bar.includes(`<span>${word}</span>`), `the word ${word} stays next to its mark`);
   const at = words.map((word) => bar.indexOf(`<span>${word}</span>`));
   assert.deepEqual([...at].sort((a, b) => a - b), at, "the pills are in one order");
-  assert.ok(!bar.includes("Every date") && !bar.includes("Random"), "the two that led to empty pages are gone");
+  assert.ok(bar.includes('title="A random hive that has sealed"'), "the die says where it lands");
+  assert.ok(!bar.includes("Every date"), "the calendar of mostly empty pages stays off");
   assert.ok(!bar.includes("testflight.apple.com"), "no app pill in the bar");
   assert.ok(!html.includes("testflight.apple.com"), "no way to the app on a date page at all");
 });
