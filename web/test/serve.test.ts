@@ -4,11 +4,8 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
 
-import { ageMark, cardFor, openDates, pictureFor, redirectFor, resolvePath, securityFor, songMark, start, todaySlug, todayStylesheet, yearMarks, yoursMark } from "../src/serve.js";
-import { personalName } from "../src/share.js";
+import { cardFor, openDates, pictureFor, redirectFor, resolvePath, securityFor, start, todaySlug, todayStylesheet } from "../src/serve.js";
 import { SHARE_SCRIPT_SOURCE, shareBlock } from "../src/share-button.js";
-import { SONG_SCRIPT, SONG_SCRIPT_SOURCE } from "../src/song-prompt.js";
-import { SUGGEST_SCRIPT, SUGGEST_SCRIPT_SOURCE } from "../src/suggest.js";
 import { monthName } from "../src/model.js";
 
 const ROOT = resolve("out");
@@ -114,30 +111,6 @@ test("today.css names the date it is asked for, and turns over", () => {
   assert.match(eighth, /a\[href="\/september-8\/"\]/);
 });
 
-// The rotation. This sheet is generated on every request and never cached, so
-// the slot it names is the whole of what makes the ask card change under a
-// reader who reloads. Injected rather than left to Math.random, because a test
-// that rolls dice reports a bug once every few hundred runs and gets muted.
-// The author's name is baked hidden into every date page and drawn on one.
-// The site asked "born in?" on every date page and kept asking after it had
-// been told, which is the site not listening. It knows: it set that cookie and
-// it reads it on the way back in.
-test("a known birth year puts the picker away, with a way back to it", () => {
-  const marks = yearMarks("september-8", 1994);
-  assert.match(marks, /\.on-september-8 \.yearask\{display:none\}/, "the question stops being asked");
-  assert.match(marks, /\.on-september-8 \.yearset\{display:block\}/, "and a line says what it is now");
-  assert.match(marks, /content:"the 1990s"/, "the decade, not the year, which is nobody's business on a page");
-
-  // Hidden and not removed, because hiding it is the only route back to it.
-  assert.match(marks, /\.yearask:target\{display:block\}/, "the link brings it out again");
-
-  // Prefixed the way today.css prefixes, since that is what revealed the
-  // picker and an unprefixed rule loses to it on specificity.
-  assert.equal(marks.includes(".yearask{display:none}") && !marks.includes(".on-september-8 .yearask{display:none}"), false);
-
-  assert.equal(yearMarks("september-8", null), "", "and nothing at all for somebody who never said");
-});
-
 test("today.css signs today's date and no other", () => {
   const css = todayStylesheet(new Date("2026-09-08T18:00:00Z"), () => 0.5);
   assert.match(css, /\.on-september-8 \.signed\{display:block\}/);
@@ -145,42 +118,6 @@ test("today.css signs today's date and no other", () => {
   assert.equal(css.includes(".on-september-7 .signed"), false);
   assert.equal(css.includes(".on-september-9 .signed"), false);
   assert.equal(css.split(".signed{display:block}").length, 2, "one page, once");
-});
-
-test("today.css deals a different ask card per request, and gives back the one just answered", () => {
-  const when = new Date("2026-09-08T18:00:00Z");
-
-  // A fixed roll picks a fixed slot, and the same roll picks it on all three
-  // open dates. Every date page carries a card for every slot, so no roll can
-  // ever leave a page with nothing to answer.
-  const middle = todayStylesheet(when, () => 0.5);
-  for (const date of ["september-7", "september-8", "september-9"]) {
-    assert.match(middle, new RegExp(`\\.on-${date} \\.asks2\\{display:block\\}`));
-  }
-  assert.match(todayStylesheet(when, () => 0), /\.on-september-8 \.asks0\{display:block\}/);
-  // A source that returned exactly one would index one past the end.
-  assert.match(todayStylesheet(when, () => 0.999999), /\.on-september-8 \.asks4\{display:block\}/);
-  assert.match(todayStylesheet(when, () => 1), /\.on-september-8 \.asks4\{display:block\}/);
-
-  // Each date rolls separately, so stepping between the three open dates does
-  // not show the same slot on each.
-  const rolls = [0, 0.5, 0.99];
-  let next = 0;
-  const stepped = todayStylesheet(when, () => rolls[next++ % rolls.length] ?? 0);
-  assert.match(stepped, /\.on-september-7 \.asks0\{display:block\}/);
-  assert.match(stepped, /\.on-september-8 \.asks2\{display:block\}/);
-  assert.match(stepped, /\.on-september-9 \.asks4\{display:block\}/);
-
-  // The card the reader just answered is revealed by its own identifier
-  // whatever the roll landed on, and the rolled one steps aside so there is
-  // never a second card on screen. Written with :has so a browser without it
-  // shows two cards rather than none.
-  assert.match(middle, /\.on-september-8 \.ask:target\{display:block\}/);
-  assert.match(middle, /\.on-september-8:has\(\.ask:target\) \.ask:not\(:target\)\{display:none\}/);
-
-  // And none of it reaches a sealed date, which would be an answer button on a
-  // page that refuses answers.
-  assert.equal(middle.includes(".on-september-20"), false);
 });
 
 test("today.css switches the first screen on for the three open dates and nothing else", () => {
@@ -200,12 +137,13 @@ test("today.css switches the first screen on for the three open dates and nothin
   // The link to the page itself is hidden, so the line names the other two.
   assert.match(css, /\.on-september-8 \.also a\[href="\/today\/"\]\{display:none\}/);
   assert.match(css, /\.on-september-7 \.also a\[href="\/yesterday\/"\]\{display:none\}/);
-  // The ask comes up and the feed's copy of its row goes away, together.
-  assert.match(css, /\.on-september-8 \.asks[0-4]\{display:block\}/);
   // Equal specificity would lose to the baked grey, because this sheet loads
   // first. Two classes, not one.
   assert.match(css, /\.on-september-8 \.state \.dot\{background:var\(--ember\)/);
-  assert.match(css, /\.on-september-8 \.asked\{display:none\}/);
+  // The ask cards and the year question came off long ago, and the strip of
+  // October 18, 2026 took their last rules with them.
+  assert.equal(css.includes(".ask"), false);
+  assert.equal(css.includes(".yearask"), false);
   // Nothing sets a rule for an element the page no longer has.
   assert.equal(css.includes("openflag"), false);
 });
@@ -306,16 +244,6 @@ test("yesterday and tomorrow are redirects, so a link to them is never stale", (
   assert.equal(redirectFor("/yesterday/", now), "/september-7/");
   assert.equal(redirectFor("/tomorrow/", now), "/september-9/");
   assert.equal(redirectFor("/today/", now), "/september-8/");
-});
-
-test("today.css opens the year question on the same three dates as the buttons", () => {
-  const css = todayStylesheet(new Date(Date.UTC(2026, 8, 8, 12)));
-  for (const date of ["september-7", "september-8", "september-9"]) {
-    assert.ok(css.includes(`.on-${date} .yearask{display:block}`), `${date} should ask`);
-  }
-  assert.equal(css.includes(".on-september-6 .yearask"), false, "a sealed date does not ask");
-  assert.equal(css.includes(".on-september-10 .yearask"), false, "and neither does one not yet open");
-  assert.equal((css.match(/\.yearask\{display:block\}/g) ?? []).length, 3);
 });
 
 test("the dot breathes only on an open date, and only for readers who allow motion", () => {
@@ -484,23 +412,15 @@ import { readTap, receiptFor, tappedFrom } from "../src/serve.js";
 
 test("a posted tap is a story and a date, and nothing else gets through", () => {
   assert.deepEqual(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9"), {
-    storyId: "11111111-1111-1111-1111-111111111111", key: null, month: 9, day: 9, back: "day", pick: 0,
+    storyId: "11111111-1111-1111-1111-111111111111", month: 9, day: 9, back: "day", pick: 0,
   });
-  // A museum button names its row by key, docs/the-wall.md section 32, and
-  // the story is found on the open hive by the same key.
-  assert.deepEqual(readTap("k=person:Q937&m=9&d=9&v=museum"), {
-    storyId: "", key: "person:Q937", month: 9, day: 9, back: "museum", pick: 0,
-  });
-  assert.equal(readTap("k=song:1990-09-08&m=9&d=9&v=museum")!.key, "song:1990-09-08");
-  // A story named by its identifier wins over a key in the same post.
-  assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&k=person:Q937&m=9&d=9")!.key, null);
-  // A key that could break out of the selector it is matched with is refused.
-  assert.equal(readTap(`k=person:Q1"]{x}&m=9&d=9`), null);
-  assert.equal(readTap("k=Person:Q1&m=9&d=9"), null);
-  assert.equal(readTap("k=person&m=9&d=9"), null);
-  assert.equal(readTap("k=person:Q937&m=13&d=9"), null);
-  assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=suggest")!.back, "suggest");
-  assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=song")!.back, "song");
+  // The museum's buttons named a row by key; the museum came off on October
+  // 18, 2026, docs/strip-to-the-hive.md, and a post with only a key is no tap.
+  assert.equal(readTap("k=person:Q937&m=9&d=9&v=museum"), null);
+  // The places a buzz used to come back to that are gone come back to the date page.
+  assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=suggest")!.back, "day");
+  assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=song")!.back, "day");
+  assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=museum")!.back, "day");
   assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=hive")!.back, "hive");
   // The pick page's own field. Out of range, or absent, is the top of the list.
   assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=pick&p=4")!.back, "pick");
@@ -509,7 +429,7 @@ test("a posted tap is a story and a date, and nothing else gets through", () => 
   assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=pick&p=1.5")!.pick, 0);
   assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=pick&p=99999")!.pick, 0);
   assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=pick&p=abc")!.pick, 0);
-  assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=comb")!.back, "comb");
+  assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=comb")!.back, "day");
   assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=receipt")!.back, "receipt");
   assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&v=elsewhere")!.back, "day");
   assert.equal(readTap("s=not-a-story&m=9&d=9"), null);
@@ -1022,75 +942,6 @@ test("a flood of taps from one address is refused before the database is touched
  * answer is never stored, because it is one reader's own the way their marks
  * and their anniversary already are.
  */
-test("a reader's own picture is chosen by the cookie, never by the address", async (t) => {
-  const root = resolve("test-site-yours");
-  const personal = resolve("test-personal");
-  await rm(root, { recursive: true, force: true });
-  await rm(personal, { recursive: true, force: true });
-  await mkdir(join(root, "og"), { recursive: true });
-  await mkdir(personal, { recursive: true });
-  // A date that cannot be open, whichever day this suite runs on: the three
-  // open dates are today in Eastern and the two either side of it.
-  const closedKey = [...openWallDates(Date.now()).keys()];
-  const closed = [...Array(12).keys()].map((m) => `${m + 1}-15`).find((k) => !closedKey.includes(k))!;
-  const [cm, cd] = closed.split("-").map(Number) as [number, number];
-  const shutSlug = `${monthName(cm).toLowerCase()}-${cd}`;
-  await writeFile(join(root, "og", `${shutSlug}-square.png`), "PLAIN", "utf8");
-
-  // The date has to be an open one for a reader's own picture to exist at
-  // all, because that is the window og.ts renders.
-  const open = [...openWallDates(Date.now()).entries()];
-  const [key, wallDate] = open[1]!;
-  assert.notEqual(key, closed, "the open date and the shut one must be different dates");
-  const [month, day] = key.split("-").map(Number) as [number, number];
-  const dated = `${monthName(month).toLowerCase()}-${day}`;
-  await writeFile(join(personal, `${personalName(wallDate, 1994)}.png`), "MINE", "utf8");
-  await writeFile(join(root, "og", `${dated}-square.png`), "PLAIN-OPEN", "utf8");
-
-  process.env.PERSONAL_ROOT = personal;
-  const server = start({ root, port: 0 });
-  await new Promise((done) => server.once("listening", done));
-  const address = server.address();
-  assert.ok(address && typeof address === "object");
-  const base = `http://127.0.0.1:${address.port}`;
-  t.after(async () => {
-    server.close();
-    delete process.env.PERSONAL_ROOT;
-    await rm(root, { recursive: true, force: true });
-    await rm(personal, { recursive: true, force: true });
-  });
-
-  // A reader who has given a year gets their own, and it is never stored.
-  const mine = await fetch(`${base}/${dated}/yours.png`, { headers: { cookie: "by=1994" } });
-  assert.equal(mine.status, 200);
-  assert.equal(mine.headers.get("content-type"), "image/png");
-  assert.equal(mine.headers.get("cache-control"), "no-store");
-  assert.equal(await mine.text(), "MINE");
-
-  // A reader who has not gets the shared square, and that one caches.
-  const plain = await fetch(`${base}/${dated}/yours.png`);
-  assert.equal(plain.status, 200);
-  assert.equal(await plain.text(), "PLAIN-OPEN");
-  assert.match(plain.headers.get("cache-control") ?? "", /max-age=3600/);
-
-  // A year nothing was rendered for is the shared square rather than a miss,
-  // so the link under the board is never broken.
-  const odd = await fetch(`${base}/${dated}/yours.png`, { headers: { cookie: "by=1901" } });
-  assert.equal(odd.status, 200);
-  assert.equal(await odd.text(), "PLAIN-OPEN");
-
-  // A date whose hive is not open has no reader's picture at all.
-  const shut = await fetch(`${base}/${shutSlug}/yours.png`, { headers: { cookie: "by=1994" } });
-  assert.equal(await shut.text(), "PLAIN");
-
-  // And the folder the pictures live in is not reachable by asking for it,
-  // which is why it is not under the site root.
-  const direct = await fetch(`${base}/personal/${personalName(wallDate, 1994)}.png`);
-  assert.equal(direct.status, 404);
-  const climbed = await fetch(`${base}/../test-personal/${personalName(wallDate, 1994)}.png`);
-  assert.ok(climbed.status === 404 || climbed.status === 400);
-});
-
 test("no address on this site carries a birth year", () => {
   assert.deepEqual(pictureFor("/september-10/yours.png"), { month: 9, day: 10 });
   // There is no shape of this path that takes a year, which is the point.
@@ -1098,94 +949,6 @@ test("no address on this site carries a birth year", () => {
   assert.equal(pictureFor("/september-10/yours.png?by=1994"), null);
   assert.equal(pictureFor("/february-31/yours.png"), null);
   assert.equal(pictureFor("/september-10/"), null);
-});
-
-test("a reader who has given a year is told the picture will be theirs", () => {
-  const mark = yoursMark("september-4", 1994);
-  assert.ok(mark.includes(".on-september-4 .wsaveall{display:none}"));
-  assert.ok(mark.includes(".on-september-4 .wsavemine{display:inline}"));
-  // The year itself never reaches the page, only the fact that there is one.
-  assert.ok(!mark.includes("1994"));
-  assert.equal(yoursMark("september-4", null), "", "and nothing for a reader who never said");
-});
-
-test("a reader has their own week marked in the song strip, on their own date only", () => {
-  const own = { year: 1994, month: 9, day: 4 };
-  const mark = songMark("september-4", own);
-  assert.ok(mark.startsWith("<style"));
-  assert.ok(mark.endsWith("</style>"));
-  // Both shapes of the strip: the baked row carries the id, the live row's
-  // year span carries it.
-  assert.ok(mark.includes('.on-september-4 .wsongs li:is([id="1994"], :has(.wyr[id="1994"]))'));
-  assert.ok(mark.includes("outline:2px solid #FFD98A"));
-  assert.ok(mark.includes('.wsongt::before{content:"The week you were born. "'));
-  // Only generated text goes in: a year and the site's own label.
-  assert.equal(mark.split("<").length, 3, "the only tags are the style element's own");
-  assert.equal(songMark("september-4", null), "", "and nothing for a reader who never said");
-  // On somebody else's date the birth year's row is the year, never the week.
-  const other = songMark("september-22", { year: 1990, month: 6, day: 15 }, 2026);
-  assert.ok(!other.includes("The week you were born"));
-  assert.ok(other.includes('content:"The year you were born. "'));
-  assert.ok(!other.includes("outline"), "the outline is for the reader's own week alone");
-  // A cookie holding a year alone cannot know the reader's date, so it never
-  // says week either. Hana's walkthrough, September 22, 2026.
-  assert.ok(!songMark("september-4", 1994).includes("The week you were born"));
-  // A reader born before the charts has no week to mark, but still has an
-  // age on every row the charts do cover.
-  const early = { year: 1943, month: 9, day: 4 };
-  assert.ok(!songMark("september-4", early, 2026).includes("The week you were born"));
-  assert.ok(songMark("september-4", early, 2026).includes('[id="1959"], :has(.wyr[id="1959"]))'));
-  assert.ok(songMark("september-4", early, 2026).includes('content:"You were 16. "'));
-  assert.ok(songMark("september-4", { year: 1959, month: 9, day: 4 }) !== "", "1959 is the first year with a row");
-});
-
-test("the song strip starts at the reader's year and walks forward, with the age on each card", () => {
-  const mark = songMark("september-22", { year: 2002, month: 9, day: 22 }, 2026);
-  const row = (y: number): string => `.on-september-22 .wsongs li:is([id="${y}"], :has(.wyr[id="${y}"]))`;
-  // Everything else goes to the back, in the order it was baked.
-  assert.ok(mark.includes(".on-september-22 .wsongs li{order:1000}"));
-  assert.ok(mark.includes(`${row(2002)}{order:0;`));
-  assert.ok(mark.includes(`${row(2018)}{order:16}`));
-  assert.ok(mark.includes(`${row(2018)} .wsongt::before{content:"You were 16. "}`));
-  assert.ok(mark.includes(`${row(2026)}{order:24}`));
-  // Nothing for a year after this one, and no age before the reader.
-  assert.ok(!mark.includes('[id="2027"]'));
-  assert.ok(!mark.includes('[id="2001"]'));
-  assert.equal(mark.split("<").length, 3);
-});
-
-test("the age on a card is the age on that date, not the difference of the years", () => {
-  // Born September 30, 2002, read on September 22: the 2002 row is a week
-  // before the reader existed, 2003 is before their first birthday, and
-  // 2018 finds them 15, not 16.
-  const mark = songMark("september-22", { year: 2002, month: 9, day: 30 }, 2026);
-  const row = (y: number): string => `.on-september-22 .wsongs li:is([id="${y}"], :has(.wyr[id="${y}"]))`;
-  assert.ok(!mark.includes(row(2002)), "not born yet on September 22, 2002");
-  assert.ok(mark.includes(`${row(2003)} .wsongt::before{content:"Not yet 1. "}`));
-  assert.ok(mark.includes(`${row(2018)} .wsongt::before{content:"You were 15. "}`));
-  // And a date later in the year than the birthday, in the birth year, is
-  // the year they were born.
-  const later = ageMark("december-1", { year: 2002, month: 9, day: 30 }, 2026);
-  assert.ok(later.includes('li[data-y="2002"]::before{content:"The year you were born"}'));
-  assert.ok(later.includes('li[data-y="2018"]::before{content:"You were 16"}'));
-});
-
-test("a dated feed row carries the reader's age, and only from their own year", () => {
-  const mark = ageMark("september-22", { year: 2002, month: 9, day: 22 }, 2026);
-  assert.ok(mark.startsWith('<style class="wage">'));
-  assert.ok(mark.endsWith("</style>"));
-  assert.ok(mark.includes('.on-september-22 .wlist li[data-y="2002"]::before{content:"The day you were born"}'));
-  assert.ok(mark.includes('.on-september-22 .wlist li[data-y="2013"]::before{content:"You were 11"}'));
-  assert.ok(mark.includes('.on-september-22 .wlist li[data-y="2026"]::before{content:"You were 24"}'));
-  assert.ok(!mark.includes('data-y="2001"'), "a year before the reader says nothing");
-  assert.ok(!mark.includes('data-y="2027"'));
-  assert.equal(mark.split("<").length, 3, "the only tags are the style element's own");
-  assert.equal(ageMark("september-22", null, 2026), "", "and nothing for a reader who never said");
-  assert.equal(ageMark("september-22", { year: 2030, month: 1, day: 1 }, 2026), "", "or for a year that has not happened");
-  // A year alone keeps the old reading: the year, then the difference.
-  const legacy = ageMark("september-22", 2002, 2026);
-  assert.ok(legacy.includes('li[data-y="2002"]::before{content:"The year you were born"}'));
-  assert.ok(legacy.includes('li[data-y="2013"]::before{content:"You were 11"}'));
 });
 
 /**
@@ -1197,111 +960,6 @@ test("a dated feed row carries the reader's age, and only from their own year", 
  * their own copy of a date page when the year picker came off, so the mark
  * was computed and never sent.
  */
-test("a birth year alone is enough to change the label, and to stop the page being cached", async (t) => {
-  const root = resolve("test-site-label");
-  await rm(root, { recursive: true, force: true });
-  const open = openWallDates();
-  const [openKey, openDate] = [...open.entries()][1]!;
-  const [openMonth, openDay] = openKey.split("-").map(Number) as [number, number];
-  const openSlug = `${monthName(openMonth).toLowerCase()}-${openDay}`;
-  await mkdir(join(root, openSlug), { recursive: true });
-  await writeFile(join(root, openSlug, "index.html"), BAKED, "utf8");
-  // The label promises a picture, so the picture has to be there.
-  const personal = resolve("test-personal-label");
-  await rm(personal, { recursive: true, force: true });
-  await mkdir(personal, { recursive: true });
-  await writeFile(join(personal, `${personalName(openDate, 1994)}.png`), "MINE", "utf8");
-  process.env.PERSONAL_ROOT = personal;
-
-  const realFetch = globalThis.fetch;
-  const previousKey = process.env.SUPABASE_ANON_KEY;
-  process.env.SUPABASE_ANON_KEY = "test-key";
-  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
-    const url = String(input);
-    if (!url.includes("supabase")) return realFetch(input, init);
-    const rows = wallRows(openDate);
-    return new Response(JSON.stringify(url.includes("wall_days") ? rows.day : rows.stories), {
-      status: 200, headers: { "Content-Type": "application/json" },
-    });
-  }) as typeof fetch;
-
-  const server = start({ root, port: 0 });
-  await new Promise((done) => server.once("listening", done));
-  const address = server.address();
-  assert.ok(address && typeof address === "object");
-  const base = `http://127.0.0.1:${address.port}`;
-  t.after(async () => {
-    server.close();
-    globalThis.fetch = realFetch;
-    if (previousKey === undefined) delete process.env.SUPABASE_ANON_KEY; else process.env.SUPABASE_ANON_KEY = previousKey;
-    forgetWalls();
-    delete process.env.PERSONAL_ROOT;
-    await rm(root, { recursive: true, force: true });
-    await rm(personal, { recursive: true, force: true });
-  });
-
-  forgetWalls();
-  const mine = await realFetch(`${base}/${openSlug}/`, { headers: { cookie: "by=1994" } });
-  const mineBody = await mine.text();
-  assert.ok(mineBody.includes(`.on-${openSlug} .wsavemine{display:inline}`), "the reader's own label is revealed");
-  assert.equal(mine.headers.get("cache-control"), "no-store", "a page carrying one reader's own words is never cached");
-  // The year reaches this page in exactly two places, both style rules on a
-  // response that is never stored: the one that marks the reader's own row
-  // in the song strip, and the one that puts their age on the feed's dated
-  // rows. Outside those two elements it is nowhere.
-  const songStyle = /<style class="wsong">[^<]*<\/style>/.exec(mineBody)?.[0] ?? "";
-  assert.ok(songStyle.includes(`.on-${openSlug} .wsongs li:is([id="1994"], :has(.wyr[id="1994"])){order:0`), "the reader's own year is marked in the song strip");
-  assert.ok(mineBody.includes(`<style class="wage">`), "and the feed's dated rows are told the reader's age");
-  assert.ok(!mineBody.replace(/<style class="wsong">[^<]*<\/style>/, "").replace(/<style class="wage">[^<]*<\/style>/, "").includes("1994"), "and the year itself is nowhere else on it");
-
-  forgetWalls();
-  const shared = await realFetch(`${base}/${openSlug}/`);
-  const sharedBody = await shared.text();
-  assert.ok(!sharedBody.includes(".wsavemine{display:inline}"), "a reader who never said keeps the shared words");
-  assert.match(shared.headers.get("cache-control") ?? "", /max-age=20/, "and the shared page is still shared");
-  assert.equal(shared.headers.get("vary"), "Cookie", "a shared cache is told what decides the body");
-
-  // A year nothing was rendered for gets no promise. The label is decided
-  // live and the picture is a build artefact, so four days after a deploy,
-  // or for a year outside the rendered range, the file is simply not there.
-  // Saying "Save your version" and handing over the shared square is a lie
-  // told in the one place this feature is visible.
-  forgetWalls();
-  const unrendered = await realFetch(`${base}/${openSlug}/`, { headers: { cookie: "by=1911" } });
-  assert.ok(!(await unrendered.text()).includes(".wsavemine{display:inline}"), "no picture, no promise");
-});
-
-test("a reader's own picture is never served as a file, even if the folders overlap", async (t) => {
-  // Deliberately the wrong arrangement: the pictures inside the site root,
-  // which is what a deployment with one environment variable wrong would do.
-  const root = resolve("test-site-overlap");
-  const personal = join(root, "personal");
-  await rm(root, { recursive: true, force: true });
-  await mkdir(personal, { recursive: true });
-  await writeFile(join(root, "404.html"), "<p>nope</p>", "utf8");
-  const open = openWallDates(Date.now());
-  const [, wallDate] = [...open.entries()][1]!;
-  const hashed = personalName(wallDate, 1994);
-  await writeFile(join(personal, `${hashed}.png`), "MY-OWN-PICTURE", "utf8");
-
-  process.env.PERSONAL_ROOT = personal;
-  const server = start({ root, port: 0 });
-  await new Promise((done) => server.once("listening", done));
-  const address = server.address();
-  assert.ok(address && typeof address === "object");
-  const base = `http://127.0.0.1:${address.port}`;
-  t.after(async () => {
-    server.close();
-    delete process.env.PERSONAL_ROOT;
-    await rm(root, { recursive: true, force: true });
-  });
-
-  const direct = await fetch(`${base}/personal/${hashed}.png`);
-  assert.equal(direct.status, 404, "asking for the file by name gets nothing");
-  const listed = await fetch(`${base}/personal/`);
-  assert.equal(listed.status, 404, "and neither does asking for the folder");
-});
-
 test("the numbers page is never stored by anybody", async (t) => {
   const root = resolve("test-site-numbers");
   await rm(root, { recursive: true, force: true });
@@ -1339,7 +997,7 @@ test("the numbers page is never stored by anybody", async (t) => {
 // The live hive. docs/the-wall.md section 21.
 // ---------------------------------------------------------------------------
 
-import { jsonAnswer, liveHiveDates, liveHivePathFor, songPathFor } from "../src/serve.js";
+import { jsonAnswer, liveHiveDates, liveHivePathFor } from "../src/serve.js";
 
 test("only the live hive path runs a script and opens a socket to the project; a sealed hive, tomorrow's and every date page do not", () => {
   // Four in the afternoon Eastern on September 11: the 10th and the 11th
@@ -1364,28 +1022,15 @@ test("only the live hive path runs a script and opens a socket to the project; a
   assert.match(hive, /form-action 'self'/, "the buzz form still posts without the script");
   assert.match(hive, /img-src 'self' https:\/\/[a-z0-9]+\.supabase\.co;/, "pictures from here and the project, as everywhere");
   assert.equal(securityFor("/september-10/hive/", now)["Content-Security-Policy"], hive, "yesterday's hive is live too");
-  for (const path of ["/september-10/", "/september-12/", "/september-12/hive/", "/march-3/hive/", "/", "/calendar/", "/september-11/comb/"]) {
+  for (const path of ["/september-10/", "/september-11/", "/september-12/", "/september-12/hive/", "/march-3/hive/", "/", "/calendar/", "/september-11/comb/"]) {
     const policy = securityFor(path, now)["Content-Security-Policy"] ?? "";
     assert.ok(!policy.includes("script-src"), `${path} must run nothing`);
     assert.ok(!policy.includes("connect-src"), `${path} must reach nothing`);
     assert.match(policy, /font-src 'self'/, `${path} loads the font from here, like every page since September 22, 2026`);
   }
-  // Today's date page, since October 3, 2026, docs/the-wall.md section 31:
-  // the song search and nothing else, named by its hash, reaching this
-  // origin alone. No socket, no project, no inline script of any other kind.
-  const today = securityFor("/september-11/", now)["Content-Security-Policy"] ?? "";
-  // And since October 5, section 32, the suggestion box's search, the same way.
-  assert.ok(today.includes(`script-src ${SONG_SCRIPT_SOURCE} ${SUGGEST_SCRIPT_SOURCE};`), "today's date page may run the song search and the suggestion search");
-  assert.ok(!today.includes("'unsafe-inline'; connect") && !/script-src[^;]*unsafe-inline/.test(today), "and no other script");
-  assert.match(today, /connect-src 'self';/, "the search goes to this origin and nowhere else");
-  assert.ok(!/connect-src[^;]*supabase/.test(today), "no socket to the project");
-  assert.match(today, /form-action 'self'/, "the pick still posts without the script");
-  assert.deepEqual(songPathFor("/september-11/", now), { month: 9, day: 11, wallDate: "2026-09-11" });
-  assert.equal(songPathFor("/september-10/", now), null, "yesterday's answers have closed");
-  assert.equal(songPathFor("/september-11/hive/", now), null, "the hive is not the date page");
-  // The hour after Eastern midnight: the 12th asks, the 11th does not.
-  assert.deepEqual(songPathFor("/september-12/", midnight)?.wallDate, "2026-09-12");
-  assert.equal(songPathFor("/september-11/", midnight), null);
+  // Today's date page runs nothing since October 18, 2026, when the song
+  // search and the suggestion search came off with their boxes,
+  // docs/strip-to-the-hive.md. It is in the loop above with every other page.
   // The word a buzz is answered with, as the page's script is told it.
   assert.deepEqual(jsonAnswer("kept", { result: "kept", support: 4, left: 2, allowance: 3, backed: ["11111111-1111-1111-1111-111111111111", "nope"], boost_id: 77, booster: "secret" }),
     { result: "kept", support: 4, left: 2, allowance: 3, backed: ["11111111-1111-1111-1111-111111111111"], boost_id: 77 });
@@ -1464,18 +1109,14 @@ test("an open date's full screen hive is served live with the script, its data a
   assert.equal(data.stories[0]!.support, 12);
   assert.equal(calls.filter((c) => c.url.includes("wall_snapshots")).length, 1);
 
-  // The date page beside it: none of the hive's script, none of its data.
-  // Since October 3, 2026 today's date page runs one script, the song
-  // search, named by its hash, docs/the-wall.md section 31, and nothing else.
+  // The date page beside it: none of the hive's script, none of its data,
+  // and since October 18, 2026 no script at all, docs/strip-to-the-hive.md.
   const day = await realFetch(`${base}/${liveSlug}/`);
   const dayPolicy = day.headers.get("content-security-policy") ?? "";
-  // And since October 5, the suggestion box's search, section 32.
-  assert.ok(dayPolicy.includes(`script-src ${SONG_SCRIPT_SOURCE} ${SUGGEST_SCRIPT_SOURCE};`), dayPolicy);
+  assert.ok(!dayPolicy.includes("script-src"), dayPolicy);
   assert.ok(!/connect-src[^;]*supabase/.test(dayPolicy), "and it opens no socket");
   const dayPage = await day.text();
-  assert.equal((dayPage.match(/<script/g) ?? []).length, 2, "two scripts on the date page");
-  assert.ok(dayPage.includes(`<script>${SONG_SCRIPT}</script>`), "the song search, byte for byte the one the header names");
-  assert.ok(dayPage.includes(`<script>${SUGGEST_SCRIPT}</script>`), "and the suggestion search, byte for byte the other");
+  assert.equal((dayPage.match(/<script/g) ?? []).length, 0, "no script on the date page");
   assert.ok(!dayPage.includes("HiveAllocator"));
   assert.ok(dayPage.includes("Fresh headline from the live read"), "and still shows the live wall");
 
@@ -1701,3 +1342,45 @@ test("the words on the bar are an address too", () => {
   assert.equal(redirectFor("/february-31/card/"), null);
 });
 
+
+// ---------------------------------------------------------------------------
+// The strip, October 18, 2026. docs/strip-to-the-hive.md.
+// ---------------------------------------------------------------------------
+
+test("the addresses the date page used to post to send the reader back to the date, and the old birthday address clears its cookie", async (t) => {
+  const root = resolve("tmp-retired-posts");
+  await mkdir(join(root, "october-5"), { recursive: true });
+  await writeFile(join(root, "october-5", "index.html"), "<p>day</p>");
+  const server = start({ root, port: 0 });
+  await new Promise((done) => server.once("listening", done));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const base = `http://127.0.0.1:${address.port}`;
+  t.after(async () => {
+    server.close();
+    await rm(root, { recursive: true, force: true });
+  });
+
+  for (const path of ["/song", "/song/search", "/song/undo", "/suggest", "/suggest/search", "/suggest/undo", "/find", "/year"]) {
+    const posted = await fetch(`${base}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: "q=anything&m=10&d=5",
+      redirect: "manual",
+    });
+    assert.equal(posted.status, 303, path);
+    assert.equal(posted.headers.get("location"), "/october-5/", `${path} goes back to its date`);
+    assert.equal(posted.headers.get("cache-control"), "no-store");
+  }
+  const year = await fetch(`${base}/year`, { method: "POST", body: "y=", redirect: "manual" });
+  assert.equal(year.headers.get("location"), "/", "with no date, the front door");
+  assert.equal(year.headers.get("set-cookie"), "by=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax; Secure", "the birthday cookie is cleared");
+  const song = await fetch(`${base}/song`, { method: "POST", body: "m=10&d=5", redirect: "manual" });
+  assert.equal(song.headers.get("set-cookie"), null, "nothing else touches a cookie");
+});
+
+test("a link to a date's comb lands on the date", () => {
+  assert.equal(redirectFor("/october-5/comb/"), "/october-5/");
+  assert.equal(redirectFor("/october-5/comb"), "/october-5/");
+  assert.equal(redirectFor("/octember-5/comb/"), null);
+});

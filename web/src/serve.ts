@@ -30,17 +30,13 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { extname, join, normalize, resolve, sep } from "node:path";
 
 import { everyDate, monthName, slug } from "./model.js";
-import { ASK_SLOTS, FIRST_CHART_YEAR, TODAY, renderCardPage, renderMePanel, renderRecord, renderStoryPage, withMe } from "./render.js";
+import { TODAY, renderCardPage, renderRecord, renderStoryPage } from "./render.js";
 import { SHARE_SCRIPT_SOURCE } from "./share-button.js";
-import { ASK_MAX, answerPictures, type SongOptions, type SuggestOptions, easternDateOf, easternMidnight, emptyWallDay, fetchWallDay, hiveDaysNav, openWallDates, pictureRules, picturedSubjects, combPictured, combPreview, keptAt, museumKey, replaceComb, replaceWall, combPath, hivePath, takingBoosts, wallKey, wallMarks, wallSection, withChecks, type Anniversary, type RecordRow, type TapBack, type WallDay, type WallStory } from "./wall.js";
+import { answerPictures, easternMidnight, emptyWallDay, fetchWallDay, hiveDaysNav, openWallDates, pictureRules, picturedSubjects, keptAt, replaceWall, hivePath, takingBoosts, wallKey, wallMarks, wallSection, withChecks, type Anniversary, type RecordRow, type TapBack, type WallDay } from "./wall.js";
 import { fetchSnapshotScores, liveHiveSection, type Standing } from "./hive-live.js";
 import { pickFor, pickIndexFrom, pickPath, renderPickPage, PICK_MAX } from "./pick.js";
-import { answer as findAnswer } from "./find.js";
 import { fetchPictureFor, fetchPicturesFor, type StoredPicture } from "./stored-pictures.js";
-import { personalName } from "./share.js";
-import { SONG_QUERY_MAX, SONG_SCRIPT_SOURCE, SONG_WORDS, type Found, type SongWord } from "./song-prompt.js";
-import { chartNow, coverFor, foundById, searchSongs } from "./song-apple.js";
-import { SUGGEST_QUERY_MAX, SUGGEST_SCRIPT_SOURCE, SUGGEST_WORDS, hereFor, searchTopics, suggestionName, tileFor, topicsById, type SuggestWord, type Topic } from "./suggest.js";
+import { coverFor } from "./song-apple.js";
 
 
 const TYPES: Record<string, string> = {
@@ -214,36 +210,7 @@ export function liveHivePathFor(requestPath: string, now: number = Date.now()): 
   return wallDate === undefined ? null : { month: at.month, day: at.day, wallDate };
 }
 
-/**
- * The date page that is asking "What song is in your head today?", by the
- * Eastern clock, docs/the-wall.md section 31, or null. The date page itself,
- * never its hive, comb or receipts, and only on the date the question is
- * for: that page runs one script, named by its hash.
- */
-export function songPathFor(requestPath: string, now: number = Date.now()): { month: number; day: number; wallDate: string } | null {
-  const at = dateFor(requestPath);
-  if (at === null || at.hive || at.comb) return null;
-  const today = easternDateOf(now);
-  const wallDate = openWallDates(now).get(wallKey(at.month, at.day));
-  if (wallDate === undefined || wallDate !== today) return null;
-  return { month: at.month, day: at.day, wallDate };
-}
-
 export function securityFor(requestPath: string, now: number = Date.now()): Record<string, string> {
-  // Today's date page, while it asks the song question and takes
-  // suggestions: the two search scripts and nothing else, each named by its
-  // hash, and requests to this origin alone, which is where both searches
-  // go. Pictures still come from here and the project; the covers are served
-  // from here. docs/the-wall.md sections 31 and 32.
-  if (songPathFor(requestPath, now) !== null) {
-    return {
-      ...SECURITY,
-      "Content-Security-Policy":
-        `default-src 'none'; img-src 'self' ${projectBase()}; style-src 'unsafe-inline' 'self'; font-src 'self'; media-src 'self'; ` +
-        `script-src ${SONG_SCRIPT_SOURCE} ${SUGGEST_SCRIPT_SOURCE}; connect-src 'self'; ` +
-        "base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
-    };
-  }
   // The live hive: its own script, a socket to the project and a buzz posted
   // to this origin, the font served from this origin. Nothing else moves:
   // pictures still come from here and the project, a form still posts here
@@ -380,31 +347,7 @@ export function openDates(now: Date = new Date()): string[] {
  * to fail in. The server still refuses a hand written post either way, because
  * the check that matters is in the database.
  */
-/**
- * Which ask card each open date shows on this request.
- *
- * A number from zero to ASK_SLOTS minus one. Every page carries a card for
- * every slot, so any number resolves on any date, whatever that date's own
- * count of candidates is. See askSection in render.ts for the arithmetic.
- *
- * Random rather than clocked, and per date rather than one number for all
- * three, because this sheet is generated on every request and is never
- * cached, so a reader who reloads gets a different row to answer and a reader
- * who steps between the three open dates does not get the same slot on each.
- * That is the point: a fixed card is one chance to hook a stranger and the
- * same card forever for anybody who comes back.
- *
- * A reader who has just answered is the exception and it is handled in the
- * sheet rather than here. The redirect lands on that card's own identifier,
- * so :target reveals it whatever this picked, and the picked one is hidden
- * while a targeted one exists. Otherwise answering would scroll somebody to a
- * card that the next roll had already replaced.
- */
-function askSlot(random: () => number): number {
-  return Math.min(ASK_SLOTS - 1, Math.max(0, Math.floor(random() * ASK_SLOTS)));
-}
-
-export function todayStylesheet(now: Date = new Date(), random: () => number = Math.random): string {
+export function todayStylesheet(now: Date = new Date(), _random: () => number = Math.random): string {
   const open = openDates(now);
   const day = 24 * 60 * 60 * 1000;
   // The site's own clock, the same shift todaySlug makes.
@@ -432,15 +375,8 @@ export function todayStylesheet(now: Date = new Date(), random: () => number = M
       const opensAt = startOfToday + (i - 2) * day;
       const gone = Math.min(1, Math.max(0, (shifted - opensAt) / (3 * day)));
       return `.on-${date} .rem{display:flex}` +
-        // The year control is revealed with the buttons and by the same rule.
-        // It is only worth asking somebody their birth year on a page where
-        // they can do something with it, and asking on the 363 dates that
-        // would refuse an answer is a personal question for nothing.
-        `.on-${date} .yearask{display:block}` +
         // The first screen. The state sentence for this page, the open
-        // version of the mechanic, the lit dot, the fuse, the ask card, and
-        // the feed's copy of the ask row put away so the row is on the page
-        // once.
+        // version of the mechanic, the lit dot and the fuse.
         `.on-${date} .${sentence[i]},.on-${date} .senopen{display:inline}` +
         `.on-${date} .senshut{display:none}` +
         // .state .dot, not .dot: today.css is linked before the inline stylesheet,
@@ -452,14 +388,6 @@ export function todayStylesheet(now: Date = new Date(), random: () => number = M
         `@media (prefers-reduced-motion:no-preference){.on-${date} .state .dot{animation:breathe 4s ease-in-out infinite}}` +
         `.on-${date} .fuse{display:block}` +
         `.on-${date} .fuse span{--gone:${gone.toFixed(4)}}` +
-        `.on-${date} .asks${askSlot(random)}{display:block}` +
-        // The card the reader just answered, wherever the roll landed. The
-        // second rule is what stops two cards being on screen at once, and it
-        // is written with :has so that a browser without it shows two cards
-        // rather than none, which is the right way round for a fallback.
-        `.on-${date} .ask:target{display:block}` +
-        `.on-${date}:has(.ask:target) .ask:not(:target){display:none}` +
-        `.on-${date} .asked{display:none}` +
         `.on-${date} .also a[href="${self[i]}"]{display:none}`;
     }).join("") +
     `\n`;
@@ -497,6 +425,11 @@ export function redirectFor(
   // The bar's pill says Every date and the page is /calendar/, so people
   // type the words they read. Hana did, September 22, 2026, and got a 404.
   if (path === "/every-date" || path === "/every-day") return "/calendar/";
+
+  // The comb came off on October 18, 2026, docs/strip-to-the-hive.md. A link
+  // to a date's comb lands on its date.
+  const comb = /^\/([a-z]+-\d{1,2})\/comb$/.exec(path);
+  if (comb !== null && everyDate().some((d) => slug(d.month, d.day) === comb[1])) return `/${comb[1]}/`;
 
   // The card page is off for now, September 22, 2026. Anybody holding a
   // link to one lands on its date instead of a picture that was not ready.
@@ -588,73 +521,17 @@ const TOKEN_COOKIE = "bt";
 /// A separate cookie rather than a second field inside the token one, because
 /// tokenFromCookie validates the token's shape strictly and a year sharing
 /// that value would have to loosen it. Two cookies is cheaper than a format.
+/**
+ * The birthday cookie an older version of this site set. Nothing reads it
+ * since October 18, 2026, docs/strip-to-the-hive.md; the one place it is
+ * named is the old /year address, which clears it.
+ */
 const YEAR_COOKIE = "by";
 const MAX_BODY = 4096;
 
 /** One person's opaque token. Not an account, not an address, not a fingerprint. */
 export function newToken(): string {
   return randomBytes(24).toString("base64url");
-}
-
-/**
- * The birthday this browser saved: always a year, and a month and day when
- * the reader gave them.
- *
- * Until September 22, 2026 the cookie held the year alone, so the site could
- * not tell the reader's own date from any other and wrote "Your September 22"
- * over whichever date was open. It now holds the whole birthday as
- * yyyy-mm-dd. A cookie from before then still reads, as a year with no month
- * and no day, and every page that uses it says only what a year can support.
- *
- * Bounded by the same 1900 to 2100 the database column checks, and the month
- * and day must be a real date in that year, so a hand edited cookie is no
- * birthday rather than an answer that draws nonsense.
- */
-export interface Birthday {
-  year: number;
-  month: number | null;
-  day: number | null;
-}
-
-export function birthdayFromValue(raw: string): Birthday | null {
-  const value = raw.trim();
-  const whole = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (whole !== null) {
-    const year = Number(whole[1]);
-    const month = Number(whole[2]);
-    const day = Number(whole[3]);
-    if (year < 1900 || year > 2100 || !realDate(year, month, day)) return null;
-    return { year, month, day };
-  }
-  if (!/^\d{4}$/.test(value)) return null;
-  const year = Number(value);
-  return year >= 1900 && year <= 2100 ? { year, month: null, day: null } : null;
-}
-
-export function birthdayFromCookie(header: string | undefined): Birthday | null {
-  for (const part of (header ?? "").split(";")) {
-    const [name, ...rest] = part.trim().split("=");
-    if (name === YEAR_COOKIE) return birthdayFromValue(rest.join("="));
-  }
-  return null;
-}
-
-/** The birth year alone, for the pictures, which are rendered one per year. */
-export function yearFromCookie(header: string | undefined): number | null {
-  return birthdayFromCookie(header)?.year ?? null;
-}
-
-/** Whether a month and day exist in a year. February 29 only in a leap year. */
-function realDate(year: number, month: number, day: number): boolean {
-  if (!Number.isInteger(month) || !Number.isInteger(day) || month < 1 || month > 12 || day < 1) return false;
-  const at = new Date(Date.UTC(year, month - 1, day));
-  return at.getUTCMonth() === month - 1 && at.getUTCDate() === day;
-}
-
-/** What the cookie holds for a birthday: yyyy-mm-dd, or the year alone when the date is not a real one. */
-export function birthdayCookieValue(year: number, month: number, day: number): string {
-  if (!realDate(year, month, day)) return String(year);
-  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 export function tokenFromCookie(header: string | undefined): string | null {
@@ -721,17 +598,11 @@ function readBody(request: IncomingMessage): Promise<string> {
 // ---------------------------------------------------------------------------
 
 export interface Tap {
-  /** The story, or "" for a tap from the museum, which names its row by key instead. */
+  /** The story. */
   storyId: string;
-  /**
-   * A museum row's key, "person:Q937", for a tap from the museum, which is
-   * baked and never knew the story's identifier. The server finds the story
-   * on the open hive by it. Null for every other tap. Section 32.
-   */
-  key: string | null;
   month: number;
   day: number;
-  /** Where the reader is sent back to: the date page, the full screen hive, the story's receipt, the comb, or the pick page. */
+  /** Where the reader is sent back to: the date page, the full screen hive, the story's receipt, or the pick page. */
   back: TapBack;
   /** The pair the pick page was showing, carried back so the reader lands on the same place in the list. Nought elsewhere. */
   pick: number;
@@ -746,17 +617,10 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
  */
 export function readTap(body: string): Tap | null {
   const form = new URLSearchParams(body);
-  let storyId = (form.get("s") ?? "").trim().toLowerCase();
-  let key: string | null = null;
+  const storyId = (form.get("s") ?? "").trim().toLowerCase();
   const month = Number(form.get("m"));
   const day = Number(form.get("d"));
-  if (!UUID.test(storyId)) {
-    // A museum button names its row, not its story.
-    const k = (form.get("k") ?? "").trim();
-    if (!/^[a-z_]+:[A-Za-z0-9-]{1,40}$/.test(k)) return null;
-    storyId = "";
-    key = k;
-  }
+  if (!UUID.test(storyId)) return null;
   if (!Number.isInteger(month) || month < 1 || month > 12) return null;
   if (!Number.isInteger(day) || day < 1 || day > 31) return null;
   const v = form.get("v");
@@ -765,7 +629,7 @@ export function readTap(body: string): Tap | null {
   // top of the list rather than refused: the index is a place to come back
   // to and nothing the database is told.
   const pick = Number.isInteger(p) && p >= 0 && p <= PICK_MAX ? p : 0;
-  return { storyId, key, month, day, back: v === "hive" || v === "receipt" || v === "comb" || v === "pick" || v === "song" || v === "museum" || v === "suggest" ? v : "day", pick };
+  return { storyId, month, day, back: v === "hive" || v === "receipt" || v === "pick" ? v : "day", pick };
 }
 
 /**
@@ -780,204 +644,22 @@ export type Tapped =
   // ride the same query string as a tap's word, for the same reason: it is
   // what permits the one fresh wall read on the way back, so the reader lands
   // on the count that moved rather than the one everybody else saw.
-  | "undone" | "too_late"
-  // A museum row whose story is not on the open hive, section 32.
-  | "absent";
+  | "undone" | "too_late";
+
+/** The addresses the date page used to post to, answered with a way back. October 18, 2026. */
+const RETIRED_POSTS: ReadonlySet<string> = new Set([
+  "/year", "/find", "/song", "/song/search", "/song/undo", "/suggest", "/suggest/search", "/suggest/undo",
+]);
 
 const TAPPED = new Set<string>([
-  "kept", "already", "spent", "not_yet", "closed", "false", "bad", "failed", "undone", "too_late", "absent",
+  "kept", "already", "spent", "not_yet", "closed", "false", "bad", "failed", "undone", "too_late",
 ]);
 
 const TAP_FRAGMENT: Record<Tapped, string> = {
   kept: "wkept", already: "walready", spent: "wspent", not_yet: "wnotyet",
   closed: "wclosed", false: "wfalse", bad: "wfailed", failed: "wfailed",
-  undone: "wundone", too_late: "wtoolate", absent: "wabsent",
+  undone: "wundone", too_late: "wtoolate",
 };
-
-// ---------------------------------------------------------------------------
-// The song in your head. docs/the-wall.md section 31.
-// ---------------------------------------------------------------------------
-
-/** A posted pick: an Apple track number and the date page to come back to. */
-export interface SongPick {
-  track: string;
-  month: number;
-  day: number;
-}
-
-/** A posted pick, or null. Checked here so a malformed post is a 400; the database reads the track from Apple again. */
-export function readPick(body: string): SongPick | null {
-  const form = new URLSearchParams(body);
-  const track = (form.get("t") ?? "").trim();
-  const month = Number(form.get("m"));
-  const day = Number(form.get("d"));
-  if (!/^\d{1,15}$/.test(track) || Number(track) < 1) return null;
-  if (!Number.isInteger(month) || month < 1 || month > 12) return null;
-  if (!Number.isInteger(day) || day < 1 || day > 31) return null;
-  return { track, month, day };
-}
-
-/** The word a redirect says a pick, an undo or a search came back with, or null. Bounded like a tap's word: it permits one fresh read. */
-export function sangFrom(query: string | undefined): SongWord | null {
-  if (query === undefined || query === "") return null;
-  const value = new URLSearchParams(query).get("sang");
-  return value !== null && SONG_WORDS.has(value) ? value as SongWord : null;
-}
-
-/**
- * What a search without the script found, from the redirect: the tracks, in
- * order, or why there are none. Numbers only, never a phrase. Tracks this
- * process no longer remembers are "expired", and the page says search again.
- */
-export function soughtFrom(query: string | undefined, lookup: (ids: string[]) => Found[] = foundById): Found[] | "none" | "busy" | "expired" | null {
-  if (query === undefined || query === "") return null;
-  const value = new URLSearchParams(query).get("songs");
-  if (value === null) return null;
-  if (value === "none" || value === "busy") return value;
-  const ids = value.split(",").map((id) => id.trim());
-  if (ids.length === 0 || ids.length > 8 || !ids.every((id) => /^\d{1,18}$/.test(id))) return null;
-  const found = lookup(ids);
-  return found.length === 0 ? "expired" : found;
-}
-
-/**
- * Ask the database for one answer. It decides everything: whether today is
- * open, whether this browser has answered, whether Apple has the song, and
- * which story it joins. A word this server does not know is our failure.
- */
-async function answerSong(track: string, token: string): Promise<{ said: SongWord; storyId: string | null }> {
-  const key = process.env.SUPABASE_ANON_KEY;
-  if (!key) return { said: "failed", storyId: null };
-  try {
-    const response = await fetch(`${projectBase()}/rest/v1/rpc/wall_answer_song`, {
-      method: "POST",
-      headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ track_id_in: Number(track), voter_token_in: token }),
-    });
-    if (!response.ok) return { said: "failed", storyId: null };
-    const answer = (await response.json()) as Record<string, unknown>;
-    const result = typeof answer?.result === "string" ? answer.result : "";
-    const storyId = typeof answer?.story_id === "string" && UUID.test(answer.story_id) ? answer.story_id : null;
-    if (result === "bad_token") return { said: "bad", storyId: null };
-    return { said: SONG_WORDS.has(result) ? result as SongWord : "failed", storyId };
-  } catch {
-    return { said: "failed", storyId: null };
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Suggestions on the page. docs/the-wall.md section 32.
-// ---------------------------------------------------------------------------
-
-/** A posted suggestion: an English Wikipedia article number and the date page to come back to. */
-export interface SuggestPick {
-  page: number;
-  month: number;
-  day: number;
-}
-
-/** A posted suggestion, or null. Checked here so a malformed post is a 400; the database reads the article from Wikipedia again. */
-export function readSuggestPick(body: string): SuggestPick | null {
-  const form = new URLSearchParams(body);
-  const page = (form.get("p") ?? "").trim();
-  const month = Number(form.get("m"));
-  const day = Number(form.get("d"));
-  if (!/^\d{1,15}$/.test(page) || Number(page) < 1) return null;
-  if (!Number.isInteger(month) || month < 1 || month > 12) return null;
-  if (!Number.isInteger(day) || day < 1 || day > 31) return null;
-  return { page: Number(page), month, day };
-}
-
-/** The word a redirect says a suggestion, an undo or a search came back with, or null. Bounded like a tap's word: it permits one fresh read. */
-export function suggestedFrom(query: string | undefined): SuggestWord | null {
-  if (query === undefined || query === "") return null;
-  const value = new URLSearchParams(query).get("suggested");
-  return value !== null && SUGGEST_WORDS.has(value) ? value as SuggestWord : null;
-}
-
-/**
- * What a search without the script found on Wikipedia, from the redirect:
- * the articles, in order, or why there are none. Numbers only, never a
- * phrase. Articles this process no longer remembers are "expired".
- */
-export function topicsFrom(query: string | undefined, lookup: (ids: number[]) => Topic[] = topicsById): Topic[] | "none" | "busy" | "expired" | null {
-  if (query === undefined || query === "") return null;
-  const value = new URLSearchParams(query).get("topics");
-  if (value === null) return null;
-  if (value === "none" || value === "busy") return value;
-  const ids = value.split(",").map((id) => id.trim());
-  if (ids.length === 0 || ids.length > 10 || !ids.every((id) => /^\d{1,15}$/.test(id))) return null;
-  const found = lookup(ids.map(Number));
-  return found.length === 0 ? "expired" : found;
-}
-
-/**
- * Ask the database for one suggestion. It decides everything: whether today
- * is open, whether this browser has suggested, whether Wikipedia has the
- * article, and whether the thing is already a tile. A word this server does
- * not know is our failure.
- */
-async function suggestTopic(page: number, token: string): Promise<{ said: SuggestWord; storyId: string | null }> {
-  const key = process.env.SUPABASE_ANON_KEY;
-  if (!key) return { said: "failed", storyId: null };
-  try {
-    const response = await fetch(`${projectBase()}/rest/v1/rpc/wall_suggest_topic`, {
-      method: "POST",
-      headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ page_id_in: page, voter_token_in: token }),
-    });
-    if (!response.ok) return { said: "failed", storyId: null };
-    const answer = (await response.json()) as Record<string, unknown>;
-    const result = typeof answer?.result === "string" ? answer.result : "";
-    const storyId = typeof answer?.story_id === "string" && UUID.test(answer.story_id) ? answer.story_id : null;
-    return { said: SUGGEST_WORDS.has(result) ? result as SuggestWord : "failed", storyId };
-  } catch {
-    return { said: "failed", storyId: null };
-  }
-}
-
-// ---------------------------------------------------------------------------
-// The typed field. docs/the-wall.md section 15.
-// ---------------------------------------------------------------------------
-
-export interface Ask {
-  /** What the reader typed, trimmed. May be empty: pressing Find on nothing is a blank answer, not a bad request. */
-  q: string;
-  month: number;
-  day: number;
-}
-
-/**
- * A posted phrase and the date it asks about, or null. The phrase is held
- * to the length the input already declares, so a hand made post cannot hand
- * the matcher a novel. The date is checked the way a tap's is.
- */
-export function readAsk(body: string): Ask | null {
-  const form = new URLSearchParams(body);
-  const q = (form.get("q") ?? "").trim();
-  const month = Number(form.get("m"));
-  const day = Number(form.get("d"));
-  if (q.length > ASK_MAX) return null;
-  if (!Number.isInteger(month) || month < 1 || month > 12) return null;
-  if (!Number.isInteger(day) || day < 1 || day > 31) return null;
-  return { q, month, day };
-}
-
-/**
- * The stories a redirect from /find says were found, best first, or null.
- * Identifiers only, never words: the phrase itself stays in the post body
- * it arrived in and is never written into an address, where it would land
- * in a request log. At most the few the field offers, and every one of
- * them must be shaped like ours or the whole list is refused.
- */
-export function foundFrom(query: string | undefined): string[] | null {
-  if (query === undefined || query === "") return null;
-  const value = new URLSearchParams(query).get("found");
-  if (value === null) return null;
-  const ids = value.split(",").map((id) => id.trim().toLowerCase());
-  if (ids.length === 0 || ids.length > 3 || !ids.every((id) => UUID.test(id))) return null;
-  return ids;
-}
 
 /**
  * The story a redirect says a buzz just counted for, or null.
@@ -1210,9 +892,7 @@ async function handle(
   // POST reaches exactly one address and every other verb on every other path
   // is still refused. The allow header names the truth per path rather than
   // advertising POST across a site where it means nothing.
-  const posts = path === "/year" || path === "/boost" || path === "/unboost"
-    || path === "/find" || path === "/song" || path === "/song/search" || path === "/song/undo"
-    || path === "/suggest" || path === "/suggest/search" || path === "/suggest/undo";
+  const posts = path === "/boost" || path === "/unboost" || RETIRED_POSTS.has(path);
   if (method !== "GET" && method !== "HEAD" && !(method === "POST" && posts)) {
     response.writeHead(405, {
       Allow: posts ? "POST" : "GET, HEAD",
@@ -1221,38 +901,26 @@ async function handle(
     return;
   }
 
-  // The one thing this site asks a reader about themselves, saved once.  // The one thing this site asks a reader about themselves, saved once.
-  //
-  // Its own address rather than a field on the 150 answer forms, because a
-  // control outside a form cannot reach into one without a script and this
-  // site runs none. The year is bounded here and again in yearFromCookie, so
-  // a hand edited cookie is no year rather than an answer the database refuses
-  // for reasons nobody can see.
-  if (method === "POST" && path === "/year") {
-    const body = await readBody(request);
-    const form = new URLSearchParams(body);
-    const year = Number(form.get("y"));
-    const month = Number(form.get("m"));
-    const day = Number(form.get("d"));
-    const good = Number.isInteger(year) && year >= 1900 && year <= 2100;
-    const back = Number.isInteger(month) && Number.isInteger(day)
-      && month >= 1 && month <= 12 && day >= 1 && day <= 31
-      ? `/${slug(month, day)}/`
-      : "/";
-
-    // The whole birthday, since September 22, 2026, so the page can tell the
-    // reader's own date from every other one. It stays in this browser and
-    // comes back with each request; nothing here writes it anywhere.
-    const cookie = good
-      ? `${YEAR_COOKIE}=${birthdayCookieValue(year, month, day)}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax; Secure`
-      // Choosing the blank option clears it, which is the only way off this
-      // site to change your mind, and a reader who has one should have one.
-      : `${YEAR_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax; Secure`;
-
+  // The addresses the date page used to post to, retired on October 18,
+  // 2026, docs/strip-to-the-hive.md: the birthday picker, the song in your
+  // head, the suggestion box and the old typed field. A page cached before
+  // then can still post here, so each answers with the date it came from
+  // rather than a refusal, and the old birthday picker's address clears the
+  // cookie it used to set. Nothing is read from the body but the date.
+  if (method === "POST" && RETIRED_POSTS.has(path)) {
+    let back = "/";
+    try {
+      const form = new URLSearchParams(await readBody(request));
+      const month = Number(form.get("m"));
+      const day = Number(form.get("d"));
+      if (Number.isInteger(month) && Number.isInteger(day) && month >= 1 && month <= 12 && day >= 1 && day <= 31) back = `/${slug(month, day)}/`;
+    } catch {
+      back = "/";
+    }
     response.writeHead(303, {
       Location: back,
       "Cache-Control": "no-store",
-      "Set-Cookie": cookie,
+      ...(path === "/year" ? { "Set-Cookie": `${YEAR_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax; Secure` } : {}),
       ...SECURITY,
     });
     response.end();
@@ -1289,25 +957,8 @@ async function handle(
       response.end("No.\n");
       return;
     }
-    // A tap from the museum names its row by key, section 32: the story is
-    // found on the open hive by the same key, from the cached read, and a row
-    // whose story is not on the hive spends nothing and says so.
-    const onDatePage = tap.back === "day" || tap.back === "song" || tap.back === "suggest" || tap.back === "museum";
-    const read = tap.key !== null || onDatePage ? await liveWall(tap.month, tap.day, Date.now(), false, false) : null;
-    if (tap.key !== null) {
-      const story = read?.day.stories.find((s) => museumKey(s) === tap!.key) ?? null;
-      if (story === null) {
-        response.writeHead(303, {
-          Location: `/${slug(tap.month, tap.day)}/?tapped=absent#wabsent`,
-          "Cache-Control": "no-store",
-          "Set-Cookie": `${TOKEN_COOKIE}=${token}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax; Secure`,
-          ...SECURITY,
-        });
-        response.end();
-        return;
-      }
-      tap = { ...tap, storyId: story.id };
-    }
+    const onDatePage = tap.back === "day";
+    const read = onDatePage ? await liveWall(tap.month, tap.day, Date.now(), false, false) : null;
     const { said, answer } = await castWebBoostAnswer(tap.storyId, token);
     // The live hive's script asks for the answer as JSON and draws it
     // itself, docs/the-wall.md section 21. Same tap, same token, same
@@ -1324,8 +975,6 @@ async function handle(
     }
     const where = tap.back === "hive"
       ? hivePath(tap.month, tap.day)
-      : tap.back === "comb"
-        ? combPath(tap.month, tap.day)
       : tap.back === "receipt"
         ? `/${slug(tap.month, tap.day)}/wall/${tap.storyId}/`
       : tap.back === "pick"
@@ -1335,32 +984,15 @@ async function handle(
         : `/${slug(tap.month, tap.day)}/`;
     const joiner = where.includes("?") ? "&" : "?";
     // A tap that counted lands on the story it counted for, so the tile
-    // reads as changed through :target and the page scrolls to it. The
-    // sentence for it is revealed by a :has rule in the stylesheet rather
-    // than by the fragment, which can only name one element. Every other
-    // word lands on its sentence as before, because there is nothing on the
-    // board to show for it.
-    // A buzz from the song board lands on its row there, docs/the-wall.md
-    // section 31, and the :has rule shows the sentence the way a tile does.
-    // On the date page keptAt decides, section 32: a buzz from the board
-    // lands on the board, one from the suggestion list or the museum on its
-    // row there, the year for a number one, and a story the page does not
-    // draw lands on the sentence itself. A story too new for the cached read
-    // lands where the button it came from said.
+    // reads as changed through :target and the page scrolls to it. On the
+    // date page keptAt decides: the tile when the story is on the board, the
+    // sentence when it is not. Every other word lands on its sentence.
     const counted = said === "kept" && onDatePage ? read?.day.stories.find((s) => s.id === tap!.storyId) ?? null : null;
-    let fragment = said !== "kept"
+    const fragment = said !== "kept"
       ? TAP_FRAGMENT[said]
-      : counted !== null && read !== null
-        ? keptAt(counted, tap.back, read.day)
-        : `${tap.back === "song" ? "ws" : tap.back === "suggest" ? "wt" : "w"}-${tap.storyId}`;
-    // A museum row is baked, and the build bakes thirty people and the facts
-    // it had, while the worker files every person and facts arrive after the
-    // deploy. A row the page does not carry lands on the sentence instead.
-    if (said === "kept" && /^(m-|\d{4}$)/.test(fragment)) {
-      const baked = await fileFor(join(root, slug(tap.month, tap.day)));
-      const page = baked === null ? "" : await readFile(baked, "utf8").catch(() => "");
-      if (!page.includes(`id="${fragment}"`)) fragment = "wkept";
-    }
+      : counted !== null
+        ? keptAt(counted)
+        : `w-${tap.storyId}`;
     // A buzz that counted also names its story in the query string, because
     // the fragment above never reaches this server on the way back and the
     // Undo button has to know what it is undoing. Only for a buzz that
@@ -1400,7 +1032,7 @@ async function handle(
     } catch {
       tap = null;
     }
-    if (tap === null || tap.storyId === "" || token === null || !underLimit(address)) {
+    if (tap === null || token === null || !underLimit(address)) {
       response.writeHead(400, { "Content-Type": "text/plain; charset=utf-8", ...SECURITY });
       response.end("No.\n");
       return;
@@ -1413,8 +1045,6 @@ async function handle(
     }
     const where = tap.back === "hive"
       ? hivePath(tap.month, tap.day)
-      : tap.back === "comb"
-        ? combPath(tap.month, tap.day)
       : tap.back === "receipt"
         ? `/${slug(tap.month, tap.day)}/wall/${tap.storyId}/`
       : tap.back === "pick"
@@ -1425,295 +1055,6 @@ async function handle(
     const joiner = where.includes("?") ? "&" : "?";
     response.writeHead(303, {
       Location: `${where}${joiner}tapped=${said}#${TAP_FRAGMENT[said]}`,
-      "Cache-Control": "no-store",
-      ...SECURITY,
-    });
-    response.end();
-    return;
-  }
-
-  // The song in your head, docs/the-wall.md section 31. Three posts.
-  //
-  // A search. The phrase travels in the post body and nowhere else, held to
-  // the box's length, and the address is limited before Apple is asked, on
-  // its own count so that typing never spends the limit a buzz needs. The
-  // script asks for JSON. Without the script the reader is sent back to the
-  // date page with the tracks the search found, numbers only, the way /find
-  // sends back stories, so what somebody typed never lands in an address or
-  // a request log.
-  if (method === "POST" && path === "/song/search") {
-    const address = String(request.headers["x-forwarded-for"] ?? "").split(",")[0]?.trim()
-      || request.socket.remoteAddress || "unknown";
-    let form: URLSearchParams;
-    try {
-      form = new URLSearchParams(await readBody(request));
-    } catch {
-      form = new URLSearchParams();
-    }
-    const q = (form.get("q") ?? "").trim();
-    const month = Number(form.get("m"));
-    const day = Number(form.get("d"));
-    if (q.length > SONG_QUERY_MAX || !underLimit(`song:${address}`)) {
-      response.writeHead(400, { "Content-Type": "text/plain; charset=utf-8", ...SECURITY });
-      response.end("No.\n");
-      return;
-    }
-    const answer = await searchSongs(q);
-    if (wantsJson(request)) {
-      response.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...SECURITY });
-      response.end(JSON.stringify(answer === "busy"
-        ? { busy: true }
-        : { results: answer.map((f) => ({ id: f.id, title: f.title, artist: f.artist, year: f.year, explicit: f.explicit })) }));
-      return;
-    }
-    const where = Number.isInteger(month) && Number.isInteger(day) && month >= 1 && month <= 12 && day >= 1 && day <= 31
-      ? `/${slug(month, day)}/`
-      : "/";
-    const songs = answer === "busy" ? "busy" : answer.length === 0 ? "none" : answer.map((f) => f.id).join(",");
-    response.writeHead(303, { Location: `${where}?songs=${songs}#song`, "Cache-Control": "no-store", ...SECURITY });
-    response.end();
-    return;
-  }
-
-  // The pick. The shape of /boost: the token cookie is the identity, a reader
-  // with none gets one here, the address is limited before the database is
-  // touched, and the database decides in one word, reading the track from
-  // Apple itself so nothing posted here can put words on a tile. The answer
-  // is a redirect to the date page with the word, which permits the one
-  // fresh read, and with the story, so the page can mark it and offer the
-  // thirty second Undo.
-  if (method === "POST" && path === "/song") {
-    const address = String(request.headers["x-forwarded-for"] ?? "").split(",")[0]?.trim()
-      || request.socket.remoteAddress || "unknown";
-    const token = tokenFromCookie(request.headers.cookie) ?? newToken();
-    let pick: SongPick | null = null;
-    try {
-      pick = readPick(await readBody(request));
-    } catch {
-      pick = null;
-    }
-    if (pick === null || !underLimit(address)) {
-      response.writeHead(400, { "Content-Type": "text/plain; charset=utf-8", ...SECURITY });
-      response.end("No.\n");
-      return;
-    }
-    const { said, storyId } = await answerSong(pick.track, token);
-    const on = storyId !== null && (said === "kept" || said === "answered" || said === "already") ? `&on=${storyId}` : "";
-    const fragment = said === "kept" && storyId !== null ? `ws-${storyId}` : "song";
-    response.writeHead(303, {
-      Location: `/${slug(pick.month, pick.day)}/?sang=${said}${on}#${fragment}`,
-      "Cache-Control": "no-store",
-      "Set-Cookie": `${TOKEN_COOKIE}=${token}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax; Secure`,
-      ...SECURITY,
-    });
-    response.end();
-    return;
-  }
-
-  // Taking an answer back, inside thirty seconds. An answer is a buzz row,
-  // so wall_forget_boost is the whole of it, unchanged: the same window, the
-  // same caller check, the same seal. A reader with no token answered
-  // nothing, so nothing is minted.
-  if (method === "POST" && path === "/song/undo") {
-    const address = String(request.headers["x-forwarded-for"] ?? "").split(",")[0]?.trim()
-      || request.socket.remoteAddress || "unknown";
-    const token = tokenFromCookie(request.headers.cookie);
-    let tap: Tap | null = null;
-    try {
-      tap = readTap(await readBody(request));
-    } catch {
-      tap = null;
-    }
-    if (tap === null || tap.storyId === "" || token === null || !underLimit(address)) {
-      response.writeHead(400, { "Content-Type": "text/plain; charset=utf-8", ...SECURITY });
-      response.end("No.\n");
-      return;
-    }
-    const { said } = await forgetWebBoost(tap.storyId, token);
-    const word: SongWord = said === "undone" || said === "too_late" || said === "closed" ? said : "failed";
-    response.writeHead(303, {
-      Location: `/${slug(tap.month, tap.day)}/?sang=${word}#song`,
-      "Cache-Control": "no-store",
-      ...SECURITY,
-    });
-    response.end();
-    return;
-  }
-
-  // Suggestions on the page, docs/the-wall.md section 32. Three posts, the
-  // shape of the song's three.
-  //
-  // A search. The phrase travels in the post body and nowhere else, held to
-  // the box's length, and the address is limited before anything is asked,
-  // on its own count so typing never spends the limit a buzz needs. First the
-  // stories already filed for the date are matched in memory, from the
-  // cached read, so a reader is pointed at a tile that is there; then
-  // Wikipedia is asked for articles. The script asks for JSON. Without it the
-  // reader is sent back with numbers and identifiers only, never the phrase.
-  if (method === "POST" && path === "/suggest/search") {
-    const address = String(request.headers["x-forwarded-for"] ?? "").split(",")[0]?.trim()
-      || request.socket.remoteAddress || "unknown";
-    let form: URLSearchParams;
-    try {
-      form = new URLSearchParams(await readBody(request));
-    } catch {
-      form = new URLSearchParams();
-    }
-    const q = (form.get("q") ?? "").trim();
-    const month = Number(form.get("m"));
-    const day = Number(form.get("d"));
-    const dated = Number.isInteger(month) && Number.isInteger(day) && month >= 1 && month <= 12 && day >= 1 && day <= 31;
-    if (q.length > SUGGEST_QUERY_MAX || !dated || !underLimit(`suggest:${address}`)) {
-      response.writeHead(400, { "Content-Type": "text/plain; charset=utf-8", ...SECURITY });
-      response.end("No.\n");
-      return;
-    }
-    const live = await liveWall(month, day, Date.now(), false, false);
-    const stories = (live?.day.stories ?? []).filter((s) => s.status !== "false");
-    const here = q.length >= 2 ? hereFor(q, stories) : [];
-    const searched = await searchTopics(q);
-    // One thing once: an article whose tile is already in the list above it
-    // is not offered a second time below.
-    const hereIds = new Set(here.map((s) => s.id));
-    const topics = searched === "busy" ? "busy" : searched.filter((t) => !hereIds.has(tileFor(t, stories)?.id ?? ""));
-    if (wantsJson(request)) {
-      response.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...SECURITY });
-      response.end(JSON.stringify({
-        // A suggestion goes by its article's title, with where it came from
-        // in place of the outlet, the way its row in the list reads.
-        here: here.map((s) => s.subjectKind === "suggestion"
-          ? { id: s.id, headline: suggestionName(s), outlet: "Suggested today" }
-          : { id: s.id, headline: s.headline, outlet: s.outlet }),
-        results: topics === "busy" ? [] : topics.map((t) => ({ pageId: t.pageId, title: t.title, description: t.description, tile: tileFor(t, stories)?.id ?? null })),
-        ...(topics === "busy" ? { busy: true } : {}),
-      }));
-      return;
-    }
-    const found = here.length === 0 ? "" : `&found=${here.map((s) => s.id).join(",")}`;
-    const said = topics === "busy" ? "busy" : topics.length === 0 ? "none" : topics.map((t) => t.pageId).join(",");
-    response.writeHead(303, { Location: `/${slug(month, day)}/?topics=${said}${found}#suggest`, "Cache-Control": "no-store", ...SECURITY });
-    response.end();
-    return;
-  }
-
-  // The suggestion. The shape of /boost: the token cookie is the identity, a
-  // reader with none gets one here, the address is limited before the
-  // database is touched, and the database decides in one word, reading the
-  // article from Wikipedia itself so nothing posted here can put words on a
-  // tile, and pointing at the tile already there rather than making a second.
-  if (method === "POST" && path === "/suggest") {
-    const address = String(request.headers["x-forwarded-for"] ?? "").split(",")[0]?.trim()
-      || request.socket.remoteAddress || "unknown";
-    const token = tokenFromCookie(request.headers.cookie) ?? newToken();
-    let pick: SuggestPick | null = null;
-    try {
-      pick = readSuggestPick(await readBody(request));
-    } catch {
-      pick = null;
-    }
-    if (pick === null || !underLimit(address)) {
-      response.writeHead(400, { "Content-Type": "text/plain; charset=utf-8", ...SECURITY });
-      response.end("No.\n");
-      return;
-    }
-    const { said, storyId } = await suggestTopic(pick.page, token);
-    const on = storyId !== null && (said === "kept" || said === "exists" || said === "suggested") ? `&on=${storyId}` : "";
-    const fragment = said === "kept" && storyId !== null ? `wt-${storyId}` : "suggest";
-    // The database files a suggestion on today by the Eastern clock, whatever
-    // page it came from, so the reader is sent to today's page: a box loaded
-    // before midnight and used after it lands where the suggestion did.
-    const [, todayMonth, todayDay] = easternDateOf(Date.now()).split("-").map(Number) as [number, number, number];
-    response.writeHead(303, {
-      Location: `/${slug(todayMonth, todayDay)}/?suggested=${said}${on}#${fragment}`,
-      "Cache-Control": "no-store",
-      "Set-Cookie": `${TOKEN_COOKIE}=${token}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax; Secure`,
-      ...SECURITY,
-    });
-    response.end();
-    return;
-  }
-
-  // Taking a suggestion back, inside thirty seconds. A suggestion is a buzz
-  // row, so wall_forget_boost is the whole of it, unchanged. The story stays
-  // filed with nobody behind it, and the worker leaves it off the board.
-  if (method === "POST" && path === "/suggest/undo") {
-    const address = String(request.headers["x-forwarded-for"] ?? "").split(",")[0]?.trim()
-      || request.socket.remoteAddress || "unknown";
-    const token = tokenFromCookie(request.headers.cookie);
-    let tap: Tap | null = null;
-    try {
-      tap = readTap(await readBody(request));
-    } catch {
-      tap = null;
-    }
-    if (tap === null || tap.storyId === "" || token === null || !underLimit(address)) {
-      response.writeHead(400, { "Content-Type": "text/plain; charset=utf-8", ...SECURITY });
-      response.end("No.\n");
-      return;
-    }
-    const { said } = await forgetWebBoost(tap.storyId, token);
-    const word: SuggestWord = said === "undone" || said === "too_late" || said === "closed" ? said : "failed";
-    response.writeHead(303, {
-      Location: `/${slug(tap.month, tap.day)}/?suggested=${word}#suggest`,
-      "Cache-Control": "no-store",
-      ...SECURITY,
-    });
-    response.end();
-    return;
-  }
-
-  // The typed field. docs/the-wall.md section 15.
-  //
-  // The shape of /boost up to the point where /boost spends something: a
-  // plain form, a malformed post refused as a 400 before anything is read,
-  // a flood from one address refused before the wall is touched. Then the
-  // phrase is matched, in memory, against the stories this server has
-  // already read for the date, and the answer is a redirect back to the
-  // date page. A find spends nothing, so no token is minted here and no
-  // cookie is set: the buzz that may follow goes through /boost, which
-  // does both.
-  //
-  // The phrase travels in the post body and nowhere else. The redirect
-  // carries story identifiers, or a bare fragment for a miss, so what a
-  // person typed never lands in an address or a request log. Whether it
-  // should ever be kept is Nathan's call, section 15, and until it is made
-  // the answer here is that it is not.
-  if (method === "POST" && path === "/find") {
-    const address = String(request.headers["x-forwarded-for"] ?? "").split(",")[0]?.trim()
-      || request.socket.remoteAddress || "unknown";
-    let ask: Ask | null = null;
-    try {
-      ask = readAsk(await readBody(request));
-    } catch {
-      ask = null;
-    }
-    if (ask === null || !underLimit(address)) {
-      response.writeHead(400, { "Content-Type": "text/plain; charset=utf-8", ...SECURITY });
-      response.end("No.\n");
-      return;
-    }
-    const where = `/${slug(ask.month, ask.day)}/`;
-    // The cached read is the right one: nothing is spent on a find, and the
-    // reader confirms against the same wall the page just showed them.
-    const wall = await liveWall(ask.month, ask.day, Date.now(), false, false);
-    let location: string;
-    if (wall === null) {
-      // A date that is not open, or a wall this end could not read. The
-      // sentence says both, because from here they are the same thing:
-      // nothing to search.
-      location = `${where}#wnofind`;
-    } else {
-      const found = findAnswer(ask.q, wall.day.stories);
-      location = found.kind === "blank"
-        ? `${where}#wblank`
-        : found.kind === "miss"
-          ? `${where}#wmiss`
-          : found.kind === "one"
-            ? `${where}?found=${found.match.story.id}#suggest`
-            : `${where}?found=${found.matches.map((m) => m.story.id).join(",")}#suggest`;
-    }
-    response.writeHead(303, {
-      Location: location,
       "Cache-Control": "no-store",
       ...SECURITY,
     });
@@ -1826,19 +1167,12 @@ async function handle(
     return;
   }
 
-  // The page around that picture, with a way to send it. Drawn per request
-  // because the heading says whether the picture is the reader's own, and
-  // never stored for the same reason.
+  // The page around that picture, with a way to send it. The reader's own
+  // version, drawn from a birth year, came off with the birthday cookie on
+  // October 18, 2026, so every reader gets the shared picture.
   const carded = method === "GET" || method === "HEAD" ? cardFor(path) : null;
   if (carded !== null) {
-    // "Your card" only when the picture at that address will be the reader's
-    // own, which is the same stat the save link's label makes: the pictures
-    // are rendered for the open dates and a range of years, not for every one.
-    const cardYear = yearFromCookie(request.headers.cookie);
-    const cardDate = openWallDates(Date.now()).get(wallKey(carded.month, carded.day));
-    const mine = cardYear !== null && cardDate !== undefined
-      && await fileFor(join(personalRoot(), `${personalName(cardDate, cardYear)}.png`)) !== null;
-    const html = renderCardPage(carded.month, carded.day, mine);
+    const html = renderCardPage(carded.month, carded.day, false);
     response.writeHead(200, {
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": "no-store",
@@ -1849,48 +1183,17 @@ async function handle(
     return;
   }
 
-  // A reader's own picture of a hive.
-  //
-  // Rendered ahead of time, one per birth year on the dates whose hive is
-  // near enough to today to be worth sharing, and picked here by the `by`
-  // cookie. No browser runs in this process: Chromium wants more memory
-  // sitting idle than this instance has in total, and the render would land
-  // on the one process that serves every page.
-  //
-  // Answered `no-store`, and the address names only the date, so nothing a
-  // reader could copy, and nothing in a log or a referrer, carries the year.
-  // A request with no year, or one on a date with no picture rendered, gets
-  // the plain square instead of a miss, so the link under the board is never
-  // broken.
+  // A hive's picture at "/<date>/yours.png". It used to answer with a
+  // reader's own version, picked by the birthday cookie; since October 18,
+  // 2026 it is always the shared square, so a link saved before then still
+  // works.
   const wanted = method === "GET" || method === "HEAD" ? pictureFor(path) : null;
   if (wanted !== null) {
-    const born = yearFromCookie(request.headers.cookie);
-    const wallDate = openWallDates(Date.now()).get(wallKey(wanted.month, wanted.day));
-    const mine = born === null || wallDate === undefined
-      ? null
-      : await fileFor(join(personalRoot(), `${personalName(wallDate, born)}.png`));
-    if (mine !== null) {
-      response.writeHead(200, {
-        "Content-Type": "image/png",
-        // One reader's own, like their marks and their anniversary.
-        "Cache-Control": "no-store",
-        Vary: "Cookie",
-        ...securityFor(path),
-      });
-      if (method === "HEAD") { response.end(); return; }
-      createReadStream(mine).pipe(response);
-      return;
-    }
     const plain = await fileFor(resolve(join(root, "og", `${slug(wanted.month, wanted.day)}-square.png`)));
     if (plain !== null) {
       response.writeHead(200, {
         "Content-Type": "image/png",
-        // The shared picture. One address answers two bodies here, so the
-        // cache has to be told what decides which, or a reader who looks
-        // before giving a year keeps the shared square for an hour and their
-        // own picture never arrives. must-revalidate for the same reason.
         "Cache-Control": "public, max-age=3600, must-revalidate",
-        Vary: "Cookie",
         ...securityFor(path),
       });
       if (method === "HEAD") { response.end(); return; }
@@ -1994,148 +1297,67 @@ async function handle(
   const file = full === null || inPersonal ? null : await fileFor(full);
 
   if (file !== null) {
-    // Your own marks, on a date you have answered before.    // Your own marks, on a date you have answered before.
+    // Your own marks, on a date page or a hive page you have buzzed on.
     //
-    // Only for a request that carries a token, which means only for somebody
-    // who has answered something somewhere, so the ordinary visitor still gets
-    // a file off disk and nothing else. When the call fails, or the reader has
-    // said nothing about this date, marks is "" and the page is served exactly
-    // as it was built. That is the same bargain the result path makes: an
-    // outage costs a mark, never a site.
-    // Either cookie is a reason to write something into the page: the token
-    // brings a reader's own answers back, and the birth year puts the picker
-    // away. Gating both on the token was wrong, because somebody can tell the
-    // site their year before they ever answer anything, and then be asked for
-    // it again on every page.
-    // Since September 10, 2026 the only marks are the hive's: the year
-    // picker and the remembrance answers are off the page, so the by cookie
-    // and my_answers are no longer read on the way in. yearMarks stays
-    // below, unused, with the route that still answers /year.
+    // Only for a request that carries a token, which means only for a browser
+    // that has buzzed something somewhere, or for the one request that
+    // follows a tap, so the ordinary visitor still gets a file off disk and
+    // nothing else. When the call fails, marks is "" and the page is served
+    // exactly as it was built: an outage costs a mark, never a site.
+    //
+    // Since October 18, 2026 this reads the token and nothing else. The
+    // birthday cookie, the song in your head and the suggestion box came off
+    // the page, docs/strip-to-the-hive.md.
     const readable = method === "GET" && file.endsWith(".html");
     const token = readable ? tokenFromCookie(request.headers.cookie) : null;
-    // The birth year is read again, for one thing only: the label on the save
-    // link, because a reader who has given a year gets their own picture at
-    // that address and the link should say so.
-    const birthday = readable ? birthdayFromCookie(request.headers.cookie) : null;
-    const born = birthday?.year ?? null;
     // The one request that follows a tap. It is allowed a fresh wall read,
     // past the twenty second cache, so the count and the mark the reader
     // just made are on the page they land on. Rate limited per address like
-    // the tap itself, and like ?kept=.
+    // the tap itself.
     const tapped = readable ? tappedFrom(query) : null;
-    // The song in your head, docs/the-wall.md section 31: the word after a
-    // pick, an undo or a search, and what a search without the script found.
-    // A word permits the one fresh read the way a tap's does, so a reader
-    // sees their song on the board the moment they land.
-    const sang = readable ? sangFrom(query) : null;
-    const sought = readable ? soughtFrom(query) : null;
-    // Suggestions on the page, section 32: the word after a suggestion, an
-    // undo or a search, and the articles a search without the script found.
-    const suggested = readable ? suggestedFrom(query) : null;
-    const topics = readable ? topicsFrom(query) : null;
-    const fresh = (tapped !== null || sang !== null || suggested !== null) && underLimit(
+    const fresh = tapped !== null && underLimit(
       String(request.headers["x-forwarded-for"] ?? "").split(",")[0]?.trim() || request.socket.remoteAddress || "unknown",
     );
-    // The one request that follows a find. It carries the identifiers the
-    // matcher chose, and the section is drawn with the confirmation for
-    // them. Nothing was spent, so the cached wall is the right one, and no
-    // token is needed: a browser that has never buzzed can find.
-    const found = readable ? foundFrom(query) : null;
     // The story a buzz just counted for, so the sentence that says it
     // counted can carry the Undo button for the one request that follows.
     const undoOn = readable && tapped === "kept" ? tappedOnFrom(query) : null;
-    const marked = token === null && tapped === null && found === null && born === null && sang === null && sought === null && suggested === null && topics === null ? null : dateFor(path);
+    const marked = token === null && tapped === null ? null : dateFor(path);
     if (marked !== null) {
       const now = Date.now();
       // The reader's own buzzes are read before the section rather than after
-      // it, because the section now depends on one of them: the anniversary
-      // is drawn into it, not written over it as a style rule. The wall date
-      // comes from the clock rather than from the read, which is where
-      // liveWall gets it too, so this costs no extra round trip.
-      //
-      // The count and the marks are still a style block on top, because the
-      // section they land on is the shared one and they are one reader's
-      // alone. Section 13.
+      // it, because the section depends on one of them: the anniversary is
+      // drawn into it, not written over it as a style rule. The count and the
+      // marks are a style block on top, because the section they land on is
+      // the shared one and they are one reader's alone. Section 13.
       const wallDate = openWallDates(now).get(wallKey(marked.month, marked.day));
       const standing = wallDate !== undefined && token !== null ? await wallStanding(wallDate, token) : null;
-      // The Undo for an answer only for the browser whose own standing says
-      // it answered with that story, the rule the pick page uses for a buzz.
-      const songOn = sang === "kept" ? tappedOnFrom(query) : null;
-      // The story a suggestion's word is about, and the Undo only for the
-      // browser whose own standing says it suggested that story.
-      const suggestOn = suggested !== null ? tappedOnFrom(query) : null;
       const wall = await liveWall(
-        marked.month, marked.day, now, fresh, marked.hive, found, undoOn, standing?.anniversary ?? [], standing,
+        marked.month, marked.day, now, fresh, marked.hive, undoOn, standing?.anniversary ?? [], standing,
         // The way to this reader's own record, drawn for a browser carrying
         // the token and for no other. docs/the-wall.md section 25.
         token !== null,
-        marked.comb,
-        { said: sang, found: sought, undo: songOn !== null && standing?.answered === songOn ? songOn : null },
-        { said: suggested, on: suggestOn, topics, undo: suggested === "kept" && suggestOn !== null && standing?.suggested === suggestOn ? suggestOn : null },
       );
-      let marks = "";
-      // The reader's own taps and count, for a browser that has a token and
-      // a date whose wall is open. A browser with no token yet sees the
-      // section's own words, which are right for a browser that has done
-      // nothing.
-      if (wall !== null && standing !== null) {
-        marks += wallMarks(standing, wall.day, now);
+      const marks = wall !== null && standing !== null ? wallMarks(standing, wall.day, now) : "";
+      // A token alone is reason enough to draw this reader their own page,
+      // since September 21, 2026: the link to this browser's own record is on
+      // it, and a page carrying it is one reader's own like the marks and is
+      // never stored.
+      let html: string | null = null;
+      try {
+        html = await readFile(file, "utf8");
+      } catch {
+        html = null;
       }
-      // And the label on the save link, but only when the picture it promises
-      // is actually on disk for this reader.
-      //
-      // The label is decided from live state and the file behind it is a
-      // build artefact, and the two drift: the pictures are rendered for the
-      // dates within three days of the build, so four days after a deploy
-      // there are none for today, and the years rendered are 1930 to 2020
-      // while the cookie accepts 1900 to 2100. Promising a reader their own
-      // version and handing them the shared square is a small lie told in
-      // the one place this feature is visible, so the promise is made only
-      // when the file is there. One stat, on a request that is already
-      // reading the wall.
-      if (wall !== null && born !== null && wallDate !== undefined) {
-        const mine = await fileFor(join(personalRoot(), `${personalName(wallDate, born)}.png`));
-        if (mine !== null) marks += yoursMark(slug(marked.month, marked.day), born);
-      }
-      // And the reader's own year in the song strip, on any date, for a
-      // reader whose year the charts cover. The strip is baked into every
-      // page, so this needs no wall.
-      marks += songMark(slug(marked.month, marked.day), birthday);
-      marks += ageMark(slug(marked.month, marked.day), birthday);
-      // An anniversary is reason enough to draw this reader their own page,
-      // even on a date they have done nothing on today: it is the whole of
-      // what they came back for.
-      // The reader's own panel, for anybody who has given a birth year, on any
-      // date: their age, their decade and the world their year landed in. It
-      // needs no hive, so it is what makes entering a birthday land on a date
-      // that has no board yet.
-      const mePanel = birthday !== null ? renderMePanel(marked.month, marked.day, birthday, new Date(now)) : null;
-      const anniversary = (standing?.anniversary.length ?? 0) > 0;
-      // A year alone is reason enough: without this a reader who has given
-      // one and done nothing else is handed the shared page, and their link
-      // says "Save this picture" while the address gives them their own.
-      // A token alone is reason enough as well, since September 21, 2026: the
-      // link to this browser's own record is on the page for a reader who
-      // carries one, and a page carrying it is one reader's own like the
-      // marks and is never stored.
-      if (marks !== "" || anniversary || tapped !== null || found !== null || born !== null || token !== null || sang !== null || sought !== null || suggested !== null || topics !== null) {
-        let html: string | null = null;
-        try {
-          html = await readFile(file, "utf8");
-        } catch {
-          html = null;
-        }
-        if (html !== null) {
-          response.writeHead(200, {
-            "Content-Type": "text/html; charset=utf-8",
-            // Never stored. It is one reader's own answers and it is wrong for
-            // everybody else who would be handed the cached copy.
-            "Cache-Control": "no-store",
-            ...securityFor(path),
-          });
-          response.end(method === "HEAD" ? undefined : withMe(withWall(html, wall?.section ?? null, wall?.comb ?? null), mePanel) + marks + (tapped === "kept" ? KEPT_SAID + BUZZ_SOUND : ""));
-          return;
-        }
+      if (html !== null) {
+        response.writeHead(200, {
+          "Content-Type": "text/html; charset=utf-8",
+          // Never stored. It is one reader's own marks and it is wrong for
+          // everybody else who would be handed the cached copy.
+          "Cache-Control": "no-store",
+          ...securityFor(path),
+        });
+        response.end(method === "HEAD" ? undefined : withWall(html, wall?.section ?? null) + marks + (tapped === "kept" ? KEPT_SAID + BUZZ_SOUND : ""));
+        return;
       }
     }
     // An open date, for everybody: the page off disk with the wall as it is
@@ -2143,7 +1365,7 @@ async function handle(
     // is streamed exactly as built, below.
     const open = readable ? dateFor(path) : null;
     if (open !== null) {
-      const live = await liveWall(open.month, open.day, Date.now(), false, open.hive, null, null, [], null, false, open.comb);
+      const live = await liveWall(open.month, open.day, Date.now(), false, open.hive, null, [], null, false);
       const wall = live?.section ?? null;
       if (wall !== null) {
         let html: string | null = null;
@@ -2158,12 +1380,12 @@ async function handle(
             // Briefly. The wall moves by the hourly tick and this is the
             // same for every reader, so a short shared cache is right. Vary,
             // because the reader's own copy of this page is decided by their
-            // cookies and a shared cache must not hand this one to them.
+            // token cookie and a shared cache must not hand this one to them.
             "Cache-Control": "public, max-age=20, must-revalidate",
             Vary: "Cookie",
             ...securityFor(path),
           });
-          response.end(method === "HEAD" ? undefined : withWall(html, wall, live?.comb ?? null));
+          response.end(method === "HEAD" ? undefined : withWall(html, wall));
           return;
         }
       }
@@ -2185,34 +1407,6 @@ async function handle(
 }
 
 /**
- * The year picker, put away once the year is in a cookie.
- *
- * The site asks "born in?" on every date page, and kept asking after it had
- * been told, which is the site not listening. It knows: it set that cookie on
- * /year and reads it on the way back in.
- *
- * The picker is hidden rather than removed, and the line that replaces it links
- * to it, so `:target` brings it back out. That is the whole way to change your
- * mind and it needs no script and no second page.
- *
- * Written with the same `.on-<date>` prefix today.css uses, because today.css
- * is what revealed the picker in the first place and an unprefixed rule loses
- * to it on specificity. This block is later in the document, so an equal rule
- * wins.
- */
-/**
- * The one rule that changes the label on the save link under the board.
- *
- * A reader who has told the site their birth year gets their own picture at
- * the same address, so the link says so. Both labels are baked into the
- * shared page and this reveals the right one, which is the shape the count
- * and the marks already use: everything written here is generated text, never
- * a source's words, so it is safe inside a style block.
- *
- * Empty for a reader with no year, and the page keeps the words it was built
- * with.
- */
-/**
  * The buzz, heard. Jason's mom's idea, September 22, 2026. The page that
  * follows a buzz that counted carries one audio element that plays by
  * itself, because the pages that take a buzz run no script and this is the
@@ -2231,142 +1425,6 @@ export const BUZZ_SOUND = `<audio class="wbuzzsound" src="/buzz.wav" autoplay pr
  */
 export const KEPT_SAID = `<style>#wkept{display:block}</style>`;
 
-export function yoursMark(dateSlug: string, year: number | null): string {
-  if (year === null) return "";
-  return `<style class="wyours">.on-${dateSlug} .wsaveall{display:none}.on-${dateSlug} .wsavemine{display:inline}</style>`;
-}
-
-/**
- * Where a reader stands against one year's row on a date: not born yet, born
- * that very day, born earlier that year, or an age.
- *
- * With the whole birthday this is exact. Born June 15, 1990, the row for
- * September 22, 1990 is the year they were born, and the row for June 10,
- * 1991 is before their first birthday. With a year alone, from a cookie set
- * before September 22, 2026, the site cannot tell the reader's date from any
- * other: the birth year's row is "the year", later rows are the year's
- * difference, and it never says "the day" or "the week" at all, because that
- * would be the claim the whole change exists to stop making.
- */
-export type LifeMark =
-  | { kind: "before" }
-  | { kind: "day" }
-  | { kind: "year" }
-  | { kind: "age"; age: number };
-
-export function lifeMark(birth: Birthday, year: number, month: number, day: number): LifeMark {
-  if (year < birth.year) return { kind: "before" };
-  if (birth.month === null || birth.day === null) {
-    return year === birth.year ? { kind: "year" } : { kind: "age", age: year - birth.year };
-  }
-  const order = month - birth.month || day - birth.day;
-  if (year === birth.year) return order < 0 ? { kind: "before" } : order === 0 ? { kind: "day" } : { kind: "year" };
-  return { kind: "age", age: year - birth.year - (order < 0 ? 1 : 0) };
-}
-
-/** A year, from before the whole birthday was kept, reads as a birthday with no date. */
-function asBirthday(birth: Birthday | number | null): Birthday | null {
-  if (birth === null) return null;
-  if (typeof birth === "number") return Number.isInteger(birth) ? { year: birth, month: null, day: null } : null;
-  return birth;
-}
-
-/**
- * The one rule that picks out the reader's own year in the song strip.
- *
- * "The most popular songs stopped 10 years before I was born" was a reader
- * scrolling a strip of sixty rows with nothing to say which one was theirs.
- * This outlines that row and puts a short label in front of its title. The
- * strip is drawn two ways, baked with the year as the row's id and live with
- * the year as the id on the year span, and the rule matches both.
- *
- * "The week you were born" is said only on the reader's own date. On any
- * other date the birth year's row is "The year you were born", and every
- * later row carries the age the reader was on this date in that year.
- *
- * Same safety argument as yoursMark: everything inside the style block is
- * generated text. The year is an integer from the cookie, already checked,
- * and the label is the site's own words, never a source's. A song title
- * never goes in here.
- *
- * Empty for a reader with no year, and for a year before the charts begin,
- * because there is no row to mark.
- */
-export function songMark(dateSlug: string, birth: Birthday | number | null, thisYear: number = new Date().getUTCFullYear()): string {
-  const b = asBirthday(birth);
-  const page = dateFor(`/${dateSlug}/`);
-  if (b === null || page === null || b.year > thisYear) return "";
-  const rowOf = (y: number): string => `.on-${dateSlug} .wsongs li:is([id="${y}"], :has(.wyr[id="${y}"]))`;
-  // "Your life in number ones." The strip starts at the reader's own year
-  // and walks forward, one card per birthday with the age on it, and the
-  // years before they were born follow after, newest first as baked. It is
-  // done with the grid's order property, so the baked page and the live one
-  // keep the one order everybody else sees and nothing is drawn twice.
-  // September 22, 2026.
-  let rules = `.on-${dateSlug} .wsongs li{order:1000}`;
-  for (let y = Math.max(b.year, FIRST_CHART_YEAR); y <= thisYear; y += 1) {
-    const mark = lifeMark(b, y, page.month, page.day);
-    if (mark.kind === "before") continue;
-    const row = rowOf(y);
-    if (mark.kind === "day") {
-      rules += `${row}{order:0;outline:2px solid #FFD98A;outline-offset:-2px}`
-        + `${row} .wsongt::before{content:"The week you were born. ";color:#FFD98A;font-weight:800}`;
-    } else if (mark.kind === "year") {
-      rules += `${row}{order:0}${row} .wsongt::before{content:"The year you were born. "}`;
-    } else {
-      rules += `${row}{order:${y - b.year}}${row} .wsongt::before{content:"${mark.age === 0 ? "Not yet 1" : `You were ${mark.age}`}. "}`;
-    }
-  }
-  rules += `.on-${dateSlug} .wsongs .wsongt::before{color:#FFD98A;font-weight:700}`;
-  return `<style class="wsong">${rules}</style>`;
-}
-
-/**
- * The reader's age on every dated row of the feed.
- *
- * A row the hive filed from history starts "1975: " and the list item
- * carries that year as data-y, baked. This writes one rule per year from the
- * reader's own to this one, so the row says "You were 11" above its
- * headline, the one thing an encyclopedia's date page cannot say. Years
- * before the reader say nothing, and the year they were born says so, or
- * says it was the very day on their own date.
- *
- * Same safety argument as songMark: an integer from the cookie and the
- * site's own words, never a source's.
- *
- * With the whole birthday the age is the one the reader was on this date in
- * that year. With a year alone, from an older cookie, it can be one high.
- */
-export function ageMark(dateSlug: string, birth: Birthday | number | null, thisYear: number = new Date().getUTCFullYear()): string {
-  const b = asBirthday(birth);
-  const page = dateFor(`/${dateSlug}/`);
-  if (b === null || page === null || b.year > thisYear) return "";
-  const rowOf = (y: number): string => `.on-${dateSlug} .wlist li[data-y="${y}"]::before`;
-  // One shared look. A ::before with no content is never drawn, so the rows
-  // before the reader's year, which get no content rule, stay as they were.
-  let rules = `.on-${dateSlug} .wlist li[data-y]::before{display:block;font-size:12px;font-weight:700;color:#FFD98A;margin-bottom:2px}`;
-  for (let y = b.year; y <= thisYear; y += 1) {
-    const mark = lifeMark(b, y, page.month, page.day);
-    if (mark.kind === "before") continue;
-    const words = mark.kind === "day"
-      ? "The day you were born"
-      : mark.kind === "year"
-        ? "The year you were born"
-        : mark.age === 0 ? "Not yet 1" : `You were ${mark.age}`;
-    rules += `${rowOf(y)}{content:"${words}"}`;
-  }
-  return `<style class="wage">${rules}</style>`;
-}
-
-export function yearMarks(slug: string, year: number | null): string {
-  if (year === null) return "";
-  const decade = `${Math.floor(year / 10) * 10}s`;
-  return `.on-${slug} .yearask{display:none}` +
-    `.on-${slug} .yearask:target{display:block}` +
-    `.on-${slug} .yearset{display:block}` +
-    `.on-${slug} .yearask:target ~ .yearset,.on-${slug} .yearset:has(~ .yearask:target){display:none}` +
-    `.on-${slug} .yearsetv::after{content:"the ${decade}"}`;
-}
 
 /**
  * A baked page with one row's result written into it, or null.
@@ -2427,7 +1485,7 @@ const scoreCache = new Map<string, { at: number; scores: Map<string, number> }>(
  */
 async function liveWall(
   month: number, day: number, now: number = Date.now(), fresh: boolean = false, hive: boolean = false,
-  found: string[] | null = null, undoOn: string | null = null,
+  undoOn: string | null = null,
   anniversary: Anniversary[] = [],
   /** This browser's own standing, for the live hive alone, on a request answered no-store. */
   standing: Standing | null = null,
@@ -2437,13 +1495,7 @@ async function liveWall(
    * every such request is answered no-store by the caller.
    */
   yours: boolean = false,
-  /** The comb, every row of the feed on its own page. */
-  comb: boolean = false,
-  /** What this request brings to the song board, docs/the-wall.md section 31. */
-  song: SongOptions = {},
-  /** What this request brings to the suggestion box, section 32: the word, the story it is about, the Undo, and the articles a search found. */
-  suggest: { said?: SuggestWord | null; on?: string | null; undo?: string | null; topics?: Topic[] | "none" | "busy" | "expired" | null } = {},
-): Promise<{ section: string; comb: string | null; day: WallDay } | null> {
+): Promise<{ section: string; day: WallDay } | null> {
   const key = process.env.SUPABASE_ANON_KEY;
   if (!key) return null;
   const wallDate = openWallDates(now).get(wallKey(month, day));
@@ -2493,59 +1545,34 @@ async function liveWall(
     }
     return {
       section: pictureRules([...pictures, ...answerPictures(wall)]) + hiveDaysNav(month, day, now) + liveHiveSection(wall, `${monthName(month)} ${day}`, now, { project: projectBase(), key, standing, scores, anniversary, yours }),
-      comb: null,
       day: wall,
     };
   }
-  // The identifiers a find redirect carries, resolved against this wall in
-  // the order the matcher gave them. One that is not on the date is dropped
-  // rather than refused: the wall may have moved since the find.
   const read = wall;
-  // What a search or the old typed field found already on the date, and the
-  // articles a search found on Wikipedia, for the suggestion box. Section 32.
-  const here = found === null
-    ? []
-    : found.map((id) => read.stories.find((s) => s.id === id)).filter((s): s is WallStory => s !== undefined);
-  const topics = suggest.topics ?? null;
-  const suggestFound: SuggestOptions["found"] = found === null && topics === null
-    ? null
-    : here.length === 0 && (topics === "none" || topics === "busy" || topics === "expired")
-      ? topics
-      : { here, topics: Array.isArray(topics) ? topics : [] };
   // The story a buzz just counted for, resolved against this wall. One that
   // is not on the date is dropped rather than refused, the way a find's is:
   // the button is a convenience and its absence costs the reader the window,
   // never the page.
   const undo = undoOn === null ? null : read.stories.find((s) => s.id === undoOn) ?? null;
-  // Only the pictures something on this page draws: the tiles on the board
-  // and the song covers. Every story's picture was written into every date
-  // page, which on September 22, 2026 was 207 kilobytes of rules for rows
-  // that draw no picture. The comb draws its cells' pictures, the news
-  // aside, whose pictures are the publishers' and the heaviest.
-  const drawn = comb ? combPictured(wall) : picturedSubjects(wall);
+  // Only the pictures something on this page draws: the tiles on the board.
+  // Every story's picture was written into every date page, which on
+  // September 22, 2026 was 207 kilobytes of rules for rows that draw no
+  // picture.
+  const drawn = picturedSubjects(wall);
   const shown = [...pictures, ...answerPictures(wall)].filter((p) => drawn.has(p.subject));
-  // Apple's chart for the strip beside the song board, only on the date page
-  // asking the question, as last read: the page never waits on Apple.
-  const asking = !hive && !comb && easternDateOf(now) === wallDate && takingBoosts(wall, now);
-  const chart = asking ? chartNow(now) : [];
   const name = `${monthName(month)} ${day}`;
   return {
     section: pictureRules(shown) + (hive ? hiveDaysNav(month, day, now) : "") + wallSection(wall, name, now, {
-      interactive: true, hive, comb, date: { month, day }, undo, anniversary, yours, song: { ...song, chart },
-      suggest: { found: suggestFound, said: suggest.said ?? null, on: suggest.on ?? null, undo: suggest.undo ?? null },
+      interactive: true, hive, date: { month, day }, undo, anniversary, yours,
     }),
-    // The comb's handful in the museum, from the same read, on the date page
-    // alone. Section 32.
-    comb: hive || comb ? null : combPreview(wall, name, now, true),
     day: wall,
   };
 }
 
-/** The page with the fresh wall in it, and the fresh comb preview, or the page as it was. */
-export function withWall(html: string, section: string | null, comb: string | null = null): string {
+/** The page with the fresh wall in it, or the page as it was. */
+export function withWall(html: string, section: string | null): string {
   if (section === null) return html;
-  const walled = replaceWall(html, section) ?? html;
-  return comb === null ? walled : replaceComb(walled, comb);
+  return replaceWall(html, section) ?? html;
 }
 
 /** For tests: forget every fresh wall. */
@@ -2592,12 +1619,11 @@ export function pictureFor(requestPath: string): { month: number; day: number } 
 }
 
 /** The date a request path names, or null. The hive page names its date too. */
-function dateFor(requestPath: string): { month: number; day: number; hive: boolean; comb: boolean } | null {
+function dateFor(requestPath: string): { month: number; day: number; hive: boolean } | null {
   for (const d of everyDate()) {
     const at = `/${slug(d.month, d.day)}`;
-    if (requestPath === at || requestPath === `${at}/` || requestPath === `${at}/index.html`) return { month: d.month, day: d.day, hive: false, comb: false };
-    if (requestPath === `${at}/hive` || requestPath === `${at}/hive/` || requestPath === `${at}/hive/index.html`) return { month: d.month, day: d.day, hive: true, comb: false };
-    if (requestPath === `${at}/comb` || requestPath === `${at}/comb/` || requestPath === `${at}/comb/index.html`) return { month: d.month, day: d.day, hive: false, comb: true };
+    if (requestPath === at || requestPath === `${at}/` || requestPath === `${at}/index.html`) return { month: d.month, day: d.day, hive: false };
+    if (requestPath === `${at}/hive` || requestPath === `${at}/hive/` || requestPath === `${at}/hive/index.html`) return { month: d.month, day: d.day, hive: true };
   }
   return null;
 }

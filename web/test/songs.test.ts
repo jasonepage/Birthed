@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 
-import { READY_PEOPLE, isReady, renderDayPage, renderSitemap } from "../src/render.js";
+import { renderSitemap } from "../src/render.js";
 import { ChartWeek, coverageByDay, dateExists, songsForDate, coverName, withDownloadedCovers } from "../src/songs.js";
 
 /** Four consecutive Saturdays, the way the table actually holds them. */
@@ -49,32 +49,6 @@ test("February 29 yields leap years only", () => {
     "2023 has no February 29, so it cannot have a song on one");
 });
 
-test("the section is absent rather than empty when there are no songs", () => {
-  const html = renderDayPage({ month: 9, day: 4, people: [] }, []);
-  assert.equal(html.includes("The number one song on"), false);
-});
-
-test("the section renders the years and credits the source", () => {
-  const songs = songsForDate(coverageByDay(WEEKS), 9, 4, 1959, 2026);
-  const html = renderDayPage({ month: 9, day: 4, people: [] }, songs);
-  assert.ok(html.includes("The number one song on September 4"));
-  assert.ok(html.includes("We Belong Together"));
-  assert.ok(html.includes("Kanye West") === false, "September 4 2005 is not Gold Digger week");
-  assert.ok(html.includes("Billboard Hot 100"));
-  assert.ok(html.includes("not affiliated with Billboard"));
-});
-
-test("a song title with markup in it is escaped", () => {
-  const nasty: ChartWeek[] = [
-    { chartDate: "2005-09-10", song: '<script>alert(1)</script>', artist: 'A & B "live"' },
-  ];
-  const songs = songsForDate(coverageByDay(nasty), 9, 4, 2005, 2005);
-  const html = renderDayPage({ month: 9, day: 4, people: [] }, songs);
-  assert.equal(html.includes("<script>alert(1)</script>"), false);
-  assert.ok(html.includes("&lt;script&gt;"));
-  assert.ok(html.includes("A &amp; B &quot;live&quot;"));
-});
-
 // MARK: Readiness
 
 function people(count: number) {
@@ -88,22 +62,6 @@ function people(count: number) {
   }));
 }
 
-test("a half imported date is built but told not to index itself", () => {
-  const thin = renderDayPage({ month: 9, day: 4, people: people(3) }, []);
-  assert.ok(thin.includes('name="robots" content="noindex"'));
-  assert.ok(thin.includes("Person 0"), "still built, still readable by anyone who types the address");
-});
-
-test("a finished date does not carry noindex", () => {
-  const full = renderDayPage({ month: 9, day: 4, people: people(10) }, []);
-  assert.equal(full.includes('content="noindex"'), false);
-});
-
-test("the readiness line is exactly where it says it is", () => {
-  assert.equal(isReady({ month: 1, day: 1, people: people(READY_PEOPLE - 1) }), false);
-  assert.equal(isReady({ month: 1, day: 1, people: people(READY_PEOPLE) }), true);
-});
-
 test("the sitemap lists only the pages that are ready", () => {
   const map = renderSitemap([{ month: 9, day: 4 }, { month: 3, day: 22 }]);
   assert.ok(map.includes("https://birthed.app/september-4/"));
@@ -112,19 +70,6 @@ test("the sitemap lists only the pages that are ready", () => {
     "a sitemap that lists a noindex page contradicts itself");
   // The index is always in it.
   assert.ok(map.includes("<loc>https://birthed.app/</loc>"));
-});
-
-test("ten people who were never ranked is not a ready page", () => {
-  // The failure this exists to stop. A date imported before pageviews has its
-  // full ten and is ordered by how many languages have an article, which fills
-  // the page with footballers. It passes a head count and is exactly the page
-  // that should not be handed to a search engine.
-  const unranked = people(10).map((person) => ({ ...person, monthlyViews: 0 }));
-  assert.equal(isReady({ month: 1, day: 1, people: unranked }), false);
-
-  const ranked = [...unranked];
-  ranked[0] = { ...ranked[0]!, monthlyViews: 1 };
-  assert.equal(isReady({ month: 1, day: 1, people: ranked }), true);
 });
 
 // ---------------------------------------------------------------------------

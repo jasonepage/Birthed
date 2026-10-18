@@ -11,8 +11,8 @@
 // the comments say where. When the code changes, this changes with it.
 
 import { DAYS_IN_MONTH, monthName, slug } from "./model.js";
-import { hostOf, type Highlight } from "./facts.js";
-import { FOOT, FOOT_ADD, SITE, TESTFLIGHT_URL, escapeHtml, head, renderBirthdayBar, siteBar } from "./render.js";
+import { hostOf } from "./facts.js";
+import { FOOT, FOOT_ADD, SITE, TESTFLIGHT_URL, escapeHtml, head, siteBar } from "./render.js";
 
 /** Where a person can reach us. One place, so it changes in one place. */
 export const SUPPORT_EMAIL = "support@birthed.app";
@@ -21,7 +21,7 @@ export const SUPPORT_EMAIL = "support@birthed.app";
 export const APP_STORE_URL = "";
 export { TESTFLIGHT_URL };
 
-const UPDATED = "October 5, 2026";
+const UPDATED = "October 18, 2026";
 
 // The index of all 366 dates, drawn as twelve calendars rather than as twelve
 // lists. A list of 366 lines is a wall of text that nobody scans; a grid of
@@ -82,105 +82,9 @@ ${tile("4 / span 5", "5 / span 4", 5, "seen_direct", "1862: A preliminary Emanci
 <p class="wsamplesay">A hive, sealed. Each tile is a story with a birthday on the date, and its size is its share of the day's buzzes. Tap Buzz on a live hive and its story grows.</p>`;
 }
 
-/**
- * Twelve month buttons, each jumping to that month on the calendar page.
- *
- * The twelve grids used to sit at the foot of this page as well as on
- * /calendar/. Nathan, September 10, 2026: with Every date in the bar the
- * copy at the foot was the same page twice, so the buttons point at the one
- * calendar and the same :target rule lights the month there.
- *
- * The page cannot know when a visitor was born, and a picker that asked would
- * need a script. So the visitor tells it with one tap, and the answer is a
- * fragment, which the browser resolves without a request and without the
- * month ever leaving it.
- *
- * The month that has been jumped to lights up, which is a `:target` rule in
- * the stylesheet and not a script. That matters more than it sounds: before
- * it, tapping a month scrolled the page a long way and landed on twelve
- * identical grids with nothing saying which one had been asked for, so the
- * one interactive thing on the page gave no sign it had worked.
- */
-function bornInStrip(): string {
-  const links = Array.from({ length: 12 }, (_, index) => {
-    const month = index + 1;
-    const name = monthName(month);
-    return `<a href="/calendar/#${monthAnchor(month)}" aria-label="Born in ${name}"><span aria-hidden="true">${name.slice(0, 3)}</span></a>`;
-  }).join("");
-  return `<section class="picker">
-<h2 class="pickerlabel">Born in</h2>
-<nav class="bornin" aria-label="Pick the month you were born in">${links}</nav>
-</section>`;
-}
-
 function storeButton(): string {
   if (APP_STORE_URL) return `<a class="btn brand" href="${APP_STORE_URL}">Get Birthed on the App Store</a>`;
   return `<a class="btn brand" href="${TESTFLIGHT_URL}">Try the beta on TestFlight</a>`;
-}
-
-/**
- * The rail of real facts: one off each month's date pages, moving.
- *
- * A landing page for a site whose whole value is 366 pages of content, that
- * shows none of the content, is asking to be taken on trust by somebody who
- * has no reason to. These rows cost the build nothing, because every fact on
- * the site is already in memory by the time this page is written.
- *
- * It moves because a still grid of six is a thing you read once and a rail
- * that keeps bringing another one past is a thing you watch, and what it is
- * bringing past is the argument for the product. It moves without a script,
- * which on this site is not a preference: default-src 'none' means no page
- * here may run one. So the track is a keyframe animation and the pause is a
- * hover rule, and there is no state anywhere that can get out of step with
- * what is on screen.
- *
- * The track is written out twice. That is what makes the loop seamless: the
- * first copy slides its own width to the left, by which point the second copy
- * is standing exactly where the first one started, and the animation restarts
- * with nothing having moved. The second copy is the same links a second time,
- * so it is hidden from anything that reads the page out loud and taken out of
- * the tab order, or a keyboard would walk the same twelve dates twice.
- *
- * Empty when the facts have not been imported yet, which is a section that is
- * simply not there rather than a heading over nothing.
- */
-function highlightStrip(highlights: Highlight[]): string {
-  if (highlights.length === 0) return "";
-  // Spelled out, because a numeral in the middle of a sentence reads as a
-  // quantity worth noting and this one is not.
-  const words = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve"];
-  const count = words[highlights.length] ?? String(highlights.length);
-
-  const card = (row: Highlight, duplicate: boolean): string => {
-    const name = `${monthName(row.month)} ${row.day}`;
-    // The second copy is furniture. It says the same thing as the first and
-    // goes to the same place, so it is not announced and cannot be tabbed to.
-    const spare = duplicate ? ' tabindex="-1"' : "";
-    return `<li class="hlcard">
-<a class="hl" href="/${slug(row.month, row.day)}/"${spare}>
-<span class="hlhead"><span class="hldate">${escapeHtml(name)}</span><span class="hlyear">${row.year}</span></span>
-<span class="hltext">${escapeHtml(row.text)}</span>
-</a>
-<p class="hlsrc"><a href="${escapeHtml(row.sourceUrl)}" rel="nofollow noopener"${spare}>${escapeHtml(hostOf(row.sourceUrl))}</a></p>
-</li>`;
-  };
-
-  const track = (duplicate: boolean): string =>
-    `<ul class="railtrack"${duplicate ? ' aria-hidden="true"' : ""}>
-${highlights.map((row) => card(row, duplicate)).join("\n")}
-</ul>`;
-
-  return `<section class="proof">
-<div class="col">
-<h2 class="plain">Every date has a day like this in it</h2>
-<p class="lede">${count} of them, spread across the year, off ${count.toLowerCase()} of the 366 pages. Tap one for the rest of that date.</p>
-</div>
-<div class="rail">
-${track(false)}
-${track(true)}
-</div>
-<p class="col credit">Each of these was found by a model searching the web and kept only because the page it cites answered when it was checked. The page under each one is where it came from.</p>
-</section>`;
 }
 
 /**
@@ -196,10 +100,7 @@ ${track(true)}
  * column the calendar needs and the light behind the heading, and every other
  * page keeps the narrow measure that prose is meant to be read at.
  */
-export function renderHome(
-  year: number = new Date().getUTCFullYear(),
-  highlights: Highlight[] = [],
-): string {
+export function renderHome(): string {
   // /about/ rather than /. The root now serves whatever date it is, and two
   // addresses claiming the same words is how a site asks a search engine to
   // pick a winner on its behalf.
@@ -246,7 +147,7 @@ ${sampleHive()}
 <ol class="beats">
   <li>
     <h3>Open a date</h3>
-    <p>Today is the one that is live. Everything with a birthday on it is in one pile: what happened on this date in history, who was born on it, what was number one, and today's news.</p>
+    <p>Today is the one that is live. Today's news lands on its board as it breaks. Pick between two brings up the rest of the date, what happened on it in history, who was born on it and what was number one, two at a time.</p>
   </li>
   <li>
     <h3>Spend your three buzzes</h3>
@@ -276,13 +177,13 @@ ${sampleHive()}
   <li><b>Every tile</b> links to its source</li>
   <li><b>No</b> sign up, no ads, nothing to buy</li>
 </ul>
-<p class="fine">Tap any headline to see where it came from. Looking for your own birthday? Every date page has a See your own birthday button at the top.</p>
+<p class="fine">Tap any headline to see where it came from.</p>
 </section>
 
 <section class="col how">
 <h2 class="plain">Who made this</h2>
 <p class="lede">My name is Jason Evan Page and I built Birthed on my own. I made it because I wanted to know what people actually remember of a day, which is a different thing from what got written down about it, and nowhere kept that.</p>
-<p class="lede">It costs me money to run and it does not make any. There are no ads on it, there is nothing on it to buy, and there is no company behind it. I am not collecting birthdays to sell, and the <a href="/privacy/">privacy page</a> lists every single thing that is kept, down to the two cookies and what each one is for. If you find something on this site that does not match what that page says, write to me and I will fix it the same day.</p>
+<p class="lede">It costs me money to run and it does not make any. There are no ads on it, there is nothing on it to buy, and there is no company behind it. I am not collecting birthdays to sell, and the <a href="/privacy/">privacy page</a> lists every single thing that is kept, down to the one cookie and what it is for. If you find something on this site that does not match what that page says, write to me and I will fix it the same day.</p>
 </section>
 
 <section class="col how">
@@ -572,7 +473,7 @@ ${siteBar()}
 <h2>On the website</h2>
 
 <h3>Do I need an account?</h3>
-<p>No. The website has no accounts and no sign up. The first time you buzz something, the site keeps one random string in a cookie, so your browser gets its few buzzes a day and no more. If you give the site your birthday, that is kept in a second cookie, in your browser. That is all it keeps, and the <a href="/privacy/">privacy page</a> says exactly what each one is.</p>
+<p>No. The website has no accounts and no sign up. The first time you buzz something, the site keeps one random string in a cookie, so your browser gets its few buzzes a day and no more. That is all it keeps, and the <a href="/privacy/">privacy page</a> says exactly what it is.</p>
 
 <h3>What is a buzz?</h3>
 <p>A buzz is a vote that a story will still matter years from now. Each one makes that story's tile on the hive bigger. You get three a day, one per story. The day after a date, you get one more to spend on its hive. There is no downvote and no score.</p>
@@ -592,12 +493,9 @@ ${siteBar()}
 <h3>Where do the stories come from?</h3>
 <p>From the source, in the source's own words. History comes from Wikipedia's date pages, people from Wikidata, songs from the Billboard Hot 100 as compiled by Wikipedia, and the day's news from the public feeds of news sites. Tap any headline to see its receipt: every source, the quotation, and every check run on it.</p>
 
-<h3>How do I change or forget my birthday on the website?</h3>
-<p>To change it, use See your own birthday at the top of any date page and enter it again. To forget it, press this button. It clears the birthday from this browser and nothing else.</p>
+<h3>I told the website my birthday before. Is it still kept?</h3>
+<p>Not any more. Until October 18, 2026 the website could keep your birthday in a cookie in your browser to draw your own page. Nothing reads that cookie now. To clear it from this browser straight away, press this button.</p>
 <form class="forget" method="post" action="/year"><input type="hidden" name="y" value=""><button type="submit">Forget my birthday on this browser</button></form>
-
-<h3>Why is there no number one song for my year?</h3>
-<p>The chart this site uses, the Billboard Hot 100, starts in August 1958 and Birthed reads it from 1959. A song also appears only once its chart is published and copied into Wikipedia's list, so the newest week can lag behind by a week or two.</p>
 
 <h2>In the iPhone app</h2>
 <p>The app is in beta. You can try it through <a href="${TESTFLIGHT_URL}">TestFlight</a>, Apple's free app for trying apps before they are on the App Store. The questions below are about the app, not the website.</p>
@@ -660,7 +558,7 @@ ${siteBar()}
   <li><strong>How many messages you have sent</strong> after one, counted at the moment the iOS Messages composer reports that a message went. What was in it, and who it went to, are never known to Birthed.</li>
 </ul>
 <p>That is the whole list, and each one is a single current number rather than a history. There is no record of when you opened the app, what you looked at, or what you tapped, and nothing is timestamped. Deleting the app resets all four.</p>
-<p>The account service is <a href="https://supabase.com">Supabase</a>, which hosts the database on servers in the United States. The song search, the song covers and the chart on the website come from Apple, and the suggestion search and the articles a suggestion names come from Wikipedia, each asked by our server and our database rather than by your browser or your phone, as described under the website below. The pictures on the hive's event tiles are copies of freely licensed pictures from Wikimedia Commons, stored with the same service and served from its address, so your browser asks Supabase for those pictures and asks Wikimedia for nothing. The website you are reading is served by <a href="https://render.com">Render</a>.</p>
+<p>The account service is <a href="https://supabase.com">Supabase</a>, which hosts the database on servers in the United States. The covers on the songs people named on the website between October 3 and October 18, 2026 come from Apple, and the articles a suggestion names come from Wikipedia, each asked by our server and our database rather than by your browser or your phone, as described under the website below. The pictures on the hive's event tiles are copies of freely licensed pictures from Wikimedia Commons, stored with the same service and served from its address, so your browser asks Supabase for those pictures and asks Wikimedia for nothing. The website you are reading is served by <a href="https://render.com">Render</a>.</p>
 
 <h3>Finding things about your day</h3>
 <p>The Mine tab shows specific things that happened on the day you were born, and those are found by a model that searches the web, Google's Gemini service. To ask it, the Birthed server sends the month, the day, the birth year and the region you typed, and nothing else. Your account and the token that identifies it stay behind, so what Google is asked is a date and a place, not a person.</p>
@@ -698,20 +596,19 @@ ${siteBar()}
 <p>The app can tell you how many Birthed users share your birthday. That number is computed on the server from birthdays alone, is never shown below a small floor, and never exposes anyone's record.</p>
 
 <h3>This website</h3>
-<p>birthed.app has no accounts, no analytics service, no advertising and no third party code of any kind. It sets two cookies, both of them only after you do something, and this is all of what they are.</p>
+<p>birthed.app has no accounts, no analytics service, no advertising and no third party code of any kind. It sets one cookie, only after you buzz something, and this is all of what it is.</p>
 <ul>
-  <li><strong>The first time you buzz a story on the hive, pick a song or suggest something</strong>, the site puts a random string in a cookie called <code>bt</code>. It is not a name, an account or an address, and it is not built from anything about you or your browser. It exists so that the hive can count your buzzes against the few you get a day, so that the same browser is not counted twice on the same story, and so that it answers the song question once a day and suggests one thing a day. It lasts a year. Before September 10, 2026 the site also set it when you answered a remembrance question; those answers are kept as they were and the question is no longer asked.</li>
-  <li><strong>If you tell the site your birthday</strong>, it is kept in a cookie called <code>by</code>, as the year, month and day, so you are asked once instead of on every date and the site can tell your own date from every other one. Your browser sends it back to this site with each page, the page is drawn for you from it, and it is not written down anywhere on our side. It is optional, nothing on the site requires it, and the button on the <a href="/support/">support page</a> deletes it. Until September 22, 2026 this cookie held the year alone, and one set before then still works as a year.</li>
+  <li><strong>The first time you buzz a story on the hive</strong>, the site puts a random string in a cookie called <code>bt</code>. It is not a name, an account or an address, and it is not built from anything about you or your browser. It exists so that the hive can count your buzzes against the few you get a day and so that the same browser is not counted twice on the same story. It lasts a year. Before September 10, 2026 the site also set it when you answered a remembrance question, and from October 3 to October 18, 2026 when you named a song or suggested something; those are kept as they were, described below, and none of them is asked any more.</li>
 </ul>
-<p>Both cookies are marked <em>HttpOnly</em>, which means no script in any browser can read them, including the scripts on this site described further down. Nothing about you is stored on our side except the buzzes themselves. A buzz is which story, that it was one buzz, when, what the story's evidence tier and support were at that moment, that it came from this website rather than from the app, and the random string in a scrambled form that cannot be turned back into it. A buzz is kept for good, because the hive it lands on is permanent; it names nobody and is shown to nobody as yours except to the browser that made it. Since September 23, 2026, the most buzzed story on a hive wears a crown, and the list under the board says at what time of day the crown changed hands and between which stories; each line is the time one of those buzzes landed, and it names nobody. That is also what lets the site show you your own buzzes back. Two places do it, and both read the same rows and show them only to the browser that made them: a year later on the same date, the story you backed on it, and at <a href="/yours/">birthed.app/yours</a>, every story this browser has buzzed with what became of each one. Both carry no number of any kind, neither says anything about anybody else, and nobody else can see either. The link to that page appears under the board only for a browser that has buzzed something, nothing else on the site points at it, and clearing the cookie empties it while the buzzes themselves stay on their hives and still count. For thirty seconds after you make one there is an Undo button beside it, and pressing it deletes that buzz outright: the record of it is gone, not marked as cancelled, and nothing is kept anywhere to say you changed your mind. After those thirty seconds a buzz stands, and so does one on a hive that has sealed. An answer to the old remembrance question, if you gave one, is a date, which row, which answer, the random string, and your birth year if you gave that; it is kept as it was. <strong>The address your request came from is never sent to our database and is never stored against a buzz or an answer.</strong> There is no profile, nothing that follows you to another site, and nothing about any of this is for sale or ever will be.</p>
-<p><strong>The song in your head</strong>, since October 3, 2026. Today's date page asks "What song is in your head today?" and you answer by picking a real song from a search. When you search, the words you type go from your browser to our server in the body of the request, never in an address, and our server asks Apple's song search for them. Apple sees our server asking, not you, and nothing you typed is written down anywhere: the server keeps the answer in memory for ten minutes so the same search is not asked twice, and then it is gone. When you pick a song, it is recorded the way a buzz is, because it is one: which song, the date, when, that it came from this website, and the random string from the <code>bt</code> cookie in its scrambled form, with a mark saying it was an answer. That is how the site knows you have answered today, and it is set the first time you pick, the same as for a buzz. The song itself, its title, artist, album, year and cover, is read by our database from Apple's catalogue, so the words on the board are Apple's and never anything a person typed. Your answer is shown on the board as a song with a count of how many people named it, never as yours to anybody else; only your own browser sees "Your song" on it. For thirty seconds you can take it back, which deletes it the way an Undo deletes a buzz, and after that it stands and seals with the hive. The covers on the board and the chart beside it are fetched from Apple by our server and passed on to you from this site, so your browser asks Apple for nothing. The chart is Apple Music's public chart for the United States, read by our server at most once an hour.</p>
-<p><strong>Suggestions</strong>, since October 5, 2026. Today's date page has a box asking "What else mattered today?", and you answer by picking a real thing that has an English Wikipedia article: a person, an event, a place. When you search, the words you type go from your browser to our server in the body of the request, never in an address. Our server first looks for them among the stories already on today's hive, in its own memory, and then asks Wikipedia's search for them. Wikipedia sees our server asking, not you, and nothing you typed is written down anywhere: the server keeps the answer in memory for ten minutes so the same search is not asked twice, and then it is gone. When you pick an article, our database reads it from Wikipedia itself, so the words on the tile are Wikipedia's title and description and never anything a person typed. If that thing is already on today's hive, nothing new is made and the page points you at the tile that is there. If it is new, it becomes a tile, and your suggestion is recorded the way a buzz is, because it is one: which story, the date, when, that it came from this website, and the random string from the <code>bt</code> cookie in its scrambled form, with a mark saying it was a suggestion. That is how the site knows you have suggested something today, and it is one a day. Your suggestion is shown on the hive and in the list under it with its count of buzzes, never as yours to anybody else; only your own browser sees "You suggested this" on it. For thirty seconds you can take it back, which deletes that buzz the way an Undo deletes any buzz; the tile stays filed with nobody behind it and leaves the board. After that it stands and seals with the hive, and the person who curates the site can take a suggestion off a hive before it seals, with a reason that is kept.</p>
+<p><strong>The birthday cookie is gone.</strong> Until October 18, 2026, if you told the site your birthday, it was kept in a second cookie called <code>by</code>, in your browser, to draw your own page. The site no longer asks for a birthday and no longer reads that cookie. It was never written down on our side. A browser that still has one keeps it until it expires, and the button on the <a href="/support/">support page</a> clears it straight away.</p>
+<p>The cookie is marked <em>HttpOnly</em>, which means no script in any browser can read it, including the scripts on this site described further down. Nothing about you is stored on our side except the buzzes themselves. A buzz is which story, that it was one buzz, when, what the story's evidence tier and support were at that moment, that it came from this website rather than from the app, and the random string in a scrambled form that cannot be turned back into it. A buzz is kept for good, because the hive it lands on is permanent; it names nobody and is shown to nobody as yours except to the browser that made it. Since September 23, 2026, the most buzzed story on a hive wears a crown, and the list under the board says at what time of day the crown changed hands and between which stories; each line is the time one of those buzzes landed, and it names nobody. That is also what lets the site show you your own buzzes back. Two places do it, and both read the same rows and show them only to the browser that made them: a year later on the same date, the story you backed on it, and at <a href="/yours/">birthed.app/yours</a>, every story this browser has buzzed with what became of each one. Both carry no number of any kind, neither says anything about anybody else, and nobody else can see either. The link to that page appears under the board only for a browser that has buzzed something, nothing else on the site points at it, and clearing the cookie empties it while the buzzes themselves stay on their hives and still count. For thirty seconds after you make one there is an Undo button beside it, and pressing it deletes that buzz outright: the record of it is gone, not marked as cancelled, and nothing is kept anywhere to say you changed your mind. After those thirty seconds a buzz stands, and so does one on a hive that has sealed. An answer to the old remembrance question, if you gave one, is a date, which row, which answer, the random string, and your birth year if you gave that; it is kept as it was. <strong>The address your request came from is never sent to our database and is never stored against a buzz or an answer.</strong> There is no profile, nothing that follows you to another site, and nothing about any of this is for sale or ever will be.</p>
+<p><strong>The song in your head and suggestions</strong>, from October 3 and October 5 to October 18, 2026. For those two weeks today's date page asked "What song is in your head today?" and "What else mattered today?", and you answered by picking a real song from Apple's catalogue or a real article from English Wikipedia. Both came off the page on October 18, 2026, and the site no longer searches Apple or Wikipedia for anybody. The answers already given are kept the way a buzz is, because each one was one: which song or article, the date, when, that it came from this website, and the random string from the <code>bt</code> cookie in its scrambled form, with a mark saying what it was. The words on those tiles are Apple's and Wikipedia's, never anything a person typed, and nothing anybody typed into either search was ever written down. A song's cover is still fetched from Apple by our server and passed on to you from this site, so your browser asks Apple for nothing.</p>
 <p>The person who runs Birthed can see how many buzzes there have been, how many different browsers and phones made them, and how many of those came back on another day. Those are counts of the buzzes already described above, worked out in the database when the page asking for them is opened, and they are not stored anywhere afterwards. Nothing was added to the site to make them possible, and no buzz is ever shown as anybody's. There is still no analytics service, no tracking service and no third party code of any kind on this site.</p>
 <p>The server counts requests per address, in memory, for one minute at a time, so that a script cannot make thousands of writes in a minute. Those counts are never written down and vanish when the server restarts. Like every website, the machine serving this one keeps ordinary access logs, which include the address your request came from, for a short time for operational reasons. Those logs are not joined to buzzes and nothing in this site can join them.</p>
 <p>A few pages run a script, and each is described here. The first is worth explaining because it looks like the opposite of what it is. When somebody shares a birthday with you, the birthday travels in the part of the web address after the hash symbol, and browsers never send that part to a server. The page at <a href="/add/">birthed.app/add</a> reads it in your browser to show you the date and hand it to the app. So that page is sent to everybody identically, our logs record only that somebody opened it, and no birthday you send or receive that way ever reaches us.</p>
 <p>The second is the full screen hive of a date that is open, the one at <em>birthed.app/the-date/hive/</em>, since September 11, 2026. Its script keeps the board moving while you watch: it opens a connection to our database, Supabase, carrying the same public key the app carries, and the database sends it each buzz as it lands so the board can grow that tile. What it is sent is the buzz as described above, which names nobody. Your own buzz from that page goes to our server the same way a buzz from any other page does, with the same cookie, and nothing new is kept about you. Every page on this site, this one included, draws its headings in a typeface served from this site rather than from a font company, so no font company hears from your browser.</p>
 <p>The third, since September 22, 2026, is the Share and Copy link buttons on a story's own page. The script opens your phone's own share sheet, or copies the page's address, and that is all it does. It sends nothing to us or to anybody else. The security header names that one script by its fingerprint, so those pages can run it and nothing else.</p>
-<p>The fourth, since October 3, 2026, is on today's date page and nowhere else: it searches for songs as you type into the song box, sending what you have typed to this site and to nowhere else, as described above. The fifth, since October 5, 2026, is on the same page and does the same for the suggestion box. The security header names each of them by its fingerprint too. Without them both boxes still work: you press Search and the page comes back with what was found. Every other page on this site, the other date pages included, runs nothing.</p>
+<p>Every date page runs nothing. From October 3 to October 18, 2026 today's date page ran two more scripts, for searching songs and suggestions as you typed, and both came off with those boxes.</p>
 <p>The same page has a second job. If you arrived through a link somebody used to <em>ask</em> for your birthday, the page shows a send button, and pressing it does send what you typed to our account service, to wait for them. That is the one case above, and the page says so on it before you press anything. The code identifying whose request it is also travels after the hash symbol, so our website's logs never see it either.</p>
 
 <h3>Deleting your data</h3>

@@ -27,6 +27,12 @@ a fight happen between two people.
 
 ## Part 1. The strip
 
+**Built October 18, 2026, on Nathan's go.** What landed, and how it differs
+from the plan below, is in the CLAUDE.md entry "The pivot paused, and the
+strip". In short: as planned, except that the faces and covers a board
+draws are still copied (only those), and the share picture step in `og.ts`
+was left for a later pass.
+
 ### What goes from the rendered date page
 
 | Module | Where it lives now | What happens |

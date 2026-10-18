@@ -187,9 +187,8 @@ test("every other page is exactly as scriptless as it was", () => {
   assert.ok(!hive.includes("hivedata"));
   const section = wallSection(d, "September 11", NOW, { interactive: true, hive: true, date: { month: 9, day: 11 } });
   assert.ok(!section.includes("<script"), "the plain hive section, sealed or not, has none");
-  const page = renderDayPage({ month: 9, day: 11, people: [] }, [], [], [], [], null, new Map(), new Map(), d, []);
-  const scripts = page.match(/<script[^>]*>/g) ?? [];
-  assert.ok(scripts.every((tag) => tag.includes('type="application/ld+json"')), `a date page runs nothing: ${scripts.join(" ")}`);
+  const page = renderDayPage({ month: 9, day: 11 }, d, []);
+  assert.ok(!page.includes("<script"), "a date page runs nothing, not even structured data");
   assert.ok(!page.includes("HiveAllocator"));
 });
 

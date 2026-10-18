@@ -1,6 +1,9 @@
 // The song in your head, docs/the-wall.md section 31.
 //
-// The pure half, the board above the hive, and the sealed picture. The rules
+// The prompt came off the date page on October 18, 2026,
+// docs/strip-to-the-hive.md. What is left is what the songs people named
+// still need: reading them, drawing them as tiles on sealed hives, and the
+// sealed picture. The rules
 // the database decides, one answer a day, one story per song, an answer
 // outside the three buzzes, are tested against the migration itself in
 // worker/test/song-migration.test.ts; what is tested here is that the page
@@ -12,11 +15,9 @@ import { test } from "node:test";
 import type { WallBoost } from "../src/crown.js";
 import { renderRecap, sealedRecap } from "../src/recap.js";
 import {
-  SONG_QUESTION, SONG_SCRIPT, SONG_SCRIPT_SOURCE, artAt, boardSongs, collapse, coverPath, exampleSongs, headsBy,
-  parseChart, parseSearch, recapSongs, songKey, songsFrom, type Found, type SongInfo,
+  artAt, boardSongs, coverPath, headsBy, recapSongs, songKey, songsFrom, type SongInfo,
 } from "../src/song-prompt.js";
-import { answerPictures, combPreview, crownName, KIND_WORD, songSection, tileKind, wallMarks, wallSection, type WallDay, type WallStory } from "../src/wall.js";
-import { createHash } from "node:crypto";
+import { answerPictures, crownName, KIND_WORD, tileKind, wallMarks, wallSection, type WallDay, type WallStory } from "../src/wall.js";
 
 const ESPRESSO = "aaaaaaaa-0000-4000-8000-000000000001";
 const SOLAR = "aaaaaaaa-0000-4000-8000-000000000002";
@@ -104,52 +105,6 @@ test("the title folds the way the database folds it, printed by the live project
   for (const [title, key] of Object.entries(live)) assert.equal(songKey(1, title), key, title);
 });
 
-function found(id: string, title: string, artistId: string, released: string, extra: Partial<Found> = {}): Found {
-  return { id, title, artist: "Sabrina Carpenter", artistId, released, year: Number(released.slice(0, 4)), explicit: false, artwork: null, ...extra };
-}
-
-test("dedupe by track: the same track twice is one row", () => {
-  const rows = collapse([found("1738363970", "Espresso", "390647681", "2024-04-11T12:00:00Z"), found("1738363970", "Espresso", "390647681", "2024-04-11T12:00:00Z")]);
-  assert.deepEqual(rows.map((r) => r.id), ["1738363970"]);
-});
-
-test("dedupe by song: the single, the album and the clean version are one row, the oldest, in Apple's order", () => {
-  const rows = collapse([
-    found("1750307020", "Espresso", "390647681", "2024-08-23T12:00:00Z"),
-    found("2000000001", "Please Please Please", "390647681", "2024-06-06T12:00:00Z"),
-    found("1738363970", "Espresso", "390647681", "2024-04-11T12:00:00Z"),
-    found("1750307099", "Espresso (Clean)", "390647681", "2024-08-23T12:00:00Z"),
-    found("3000000001", "Espresso", "999", "2019-01-01T12:00:00Z", { artist: "Somebody else" }),
-  ]);
-  assert.deepEqual(rows.map((r) => r.id), ["1738363970", "2000000001", "3000000001"], "Espresso once, the oldest release, where Apple first ranked it; another artist's Espresso is its own song");
-});
-
-test("Apple's search answer reads as songs only, with Apple's own artwork and nothing else", () => {
-  const rows = parseSearch({ results: [
-    { wrapperType: "track", kind: "song", trackId: 1738363970, trackName: "Espresso", artistName: "Sabrina Carpenter", artistId: 390647681, releaseDate: "2024-04-11T12:00:00Z", trackExplicitness: "notExplicit", artworkUrl100: "https://is1-ssl.mzstatic.com/image/thumb/x/100x100bb.jpg" },
-    { wrapperType: "track", kind: "music-video", trackId: 2, trackName: "Espresso (Video)", artistName: "Sabrina Carpenter", artistId: 390647681 },
-    { wrapperType: "collection", collectionId: 3, collectionName: "Short n' Sweet" },
-    { wrapperType: "track", kind: "song", trackId: 4, trackName: "Bad\u0007 Art", artistName: "X", artistId: 5, releaseDate: "", trackExplicitness: "explicit", artworkUrl100: "https://evil.example.com/x.jpg" },
-    { wrapperType: "track", kind: "song", trackId: "not a number", trackName: "Nope", artistName: "X", artistId: 5 },
-  ] });
-  assert.equal(rows.length, 2);
-  assert.deepEqual(rows[0], { id: "1738363970", title: "Espresso", artist: "Sabrina Carpenter", artistId: "390647681", released: "2024-04-11T12:00:00Z", year: 2024, explicit: false, artwork: "https://is1-ssl.mzstatic.com/image/thumb/x/100x100bb.jpg" });
-  assert.equal(rows[1]!.title, "Bad Art", "a control character is taken out");
-  assert.equal(rows[1]!.artwork, null, "an artwork address off Apple's image host is dropped");
-  assert.equal(rows[1]!.explicit, true);
-  assert.deepEqual(parseSearch(null), []);
-  assert.deepEqual(parseSearch({ results: "no" }), []);
-});
-
-test("Apple's chart reads its rows, marks the explicit ones, and stops at five", () => {
-  const results = Array.from({ length: 10 }, (_, i) => ({ id: String(6818209989 + i), name: `Song ${i}`, artistName: `Artist ${i}`, artworkUrl100: "https://is1-ssl.mzstatic.com/image/thumb/y/100x100bb.jpg", ...(i === 0 ? { contentAdvisoryRating: "Explict" } : {}) }));
-  const chart = parseChart({ feed: { title: "Top Songs", results } });
-  assert.equal(chart.length, 5);
-  assert.deepEqual(chart[0], { id: "6818209989", title: "Song 0", artist: "Artist 0", artwork: "https://is1-ssl.mzstatic.com/image/thumb/y/100x100bb.jpg", explicit: true });
-  assert.equal(chart[1]!.explicit, false);
-  assert.deepEqual(parseChart({ feed: {} }), []);
-});
-
 test("a cover is only ever Apple's image host, resized, and served from this site by track number", () => {
   assert.equal(artAt("https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/a/b/c/x.rgb.jpg/100x100bb.jpg"), "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/a/b/c/x.rgb.jpg/300x300bb.jpg");
   assert.equal(artAt("https://evil.example.com/image/thumb/100x100bb.jpg"), null);
@@ -198,101 +153,6 @@ test("a song whose row could not be read still reads from its headline", () => {
   assert.deepEqual([board[0]!.title, board[0]!.artist, board[0]!.year], ["Espresso", "Sabrina Carpenter", 2024]);
 });
 
-test("an empty board asks, and shows examples marked as examples, spread across the date's number ones", () => {
-  const html = songSection(day(NUMBER_ONES, []), "October 3", NOW, true, {});
-  assert.ok(html.includes(SONG_QUESTION));
-  assert.ok(html.includes("<b>Be the first.</b>"));
-  const examples = exampleSongs(NUMBER_ONES);
-  assert.deepEqual(examples.map((e) => e.year), [2019, 1985, 1961], "the newest, the middle and the oldest");
-  assert.equal((html.match(/class="sgtag">Example</g) ?? []).length, 3, "every example says so");
-  assert.ok(html.includes('aria-label="Examples, not answers"'));
-  const exampleList = html.slice(html.indexOf("sgexamples"), html.indexOf("</ol>", html.indexOf("sgexamples")));
-  assert.ok(!exampleList.includes("<form"), "an example has no buzz button");
-  assert.ok(!exampleList.includes("/cover/"), "and no cover, because it is not a song anybody picked");
-  assert.ok(exampleList.includes("Number one on this date in 1985"));
-  assert.ok(html.includes('action="/song/search"'), "the search posts without the script");
-  assert.ok(html.includes(`<script>${SONG_SCRIPT}</script>`));
-});
-
-test("the first real answer removes the examples", () => {
-  const before = songSection(day(NUMBER_ONES, []), "October 3", NOW, true, {});
-  assert.ok(before.includes("sgexample"));
-  const after = songSection(day([...NUMBER_ONES, story(ESPRESSO, '2024: "Espresso" by Sabrina Carpenter', { support: 1 })], [answer(1, ESPRESSO, "2026-10-03T12:00:00Z")]), "October 3", NOW, true, {});
-  assert.ok(!after.includes("sgexample"), "no example row");
-  assert.ok(!after.includes(">Example<"), "and no example label anywhere");
-  assert.ok(!after.includes("Be the first"));
-  assert.ok(after.includes('id="ws-' + ESPRESSO + '"'), "the real answer is on the board");
-  assert.ok(after.includes(">Espresso</a>") && after.includes("Sabrina Carpenter &middot; 2024"));
-  assert.ok(after.includes("In 1 head &middot; 1 buzz"));
-  assert.ok(after.includes('<img src="/cover/1738363970.jpg"'), "its cover comes from this site");
-  assert.ok(after.includes('action="/boost"') && after.includes('name="v" value="song"'), "and it takes buzzes, coming back to the board");
-});
-
-test("an answer is never typed text: a title is escaped wherever it is drawn", () => {
-  const evil = new Map<string, SongInfo>([["1", { trackId: "1", title: "</li><script>alert(1)</script>", artist: "\"><img src=x>", album: null, released: null, explicit: false, artwork: null }]]);
-  const html = songSection(day([story(ESPRESSO, "x", { subjectId: "1", support: 1 })], [answer(1, ESPRESSO, "t")], { songs: evil }), "October 3", NOW, true, {});
-  assert.ok(!html.includes("<script>alert"));
-  assert.ok(!html.includes('"><img src=x>'));
-  assert.ok(html.includes("&lt;/li&gt;&lt;script&gt;"));
-});
-
-test("a search without the script comes back as the forms the script would draw", () => {
-  const html = songSection(day([], []), "October 3", NOW, true, { found: [found("1738363970", "Espresso", "390647681", "2024-04-11T12:00:00Z", { explicit: true })] });
-  assert.ok(html.includes('<form class="sgpick" method="post" action="/song"><input type="hidden" name="t" value="1738363970"><input type="hidden" name="m" value="10"><input type="hidden" name="d" value="3">'));
-  assert.ok(html.includes('<span class="sge" title="Explicit">E</span>'));
-  assert.ok(songSection(day([], []), "October 3", NOW, true, { found: "none" }).includes("Nothing found."));
-  assert.ok(songSection(day([], []), "October 3", NOW, true, { found: "busy" }).includes("busy for a moment"));
-  assert.ok(songSection(day([], []), "October 3", NOW, true, { found: "expired" }).includes("Search again"));
-});
-
-test("the word after a pick is said, and the Undo is drawn only for the answer the server named", () => {
-  const d = day([story(ESPRESSO, '2024: "Espresso" by Sabrina Carpenter', { support: 1 })], [answer(1, ESPRESSO, "t")]);
-  const kept = songSection(d, "October 3", NOW, true, { said: "kept", undo: ESPRESSO });
-  assert.ok(kept.includes("Your song is on today&#39;s board."));
-  assert.ok(kept.includes('<form class="wundo" method="post" action="/song/undo"><input type="hidden" name="s" value="' + ESPRESSO + '">'));
-  assert.ok(!songSection(d, "October 3", NOW, true, { said: "kept", undo: null }).includes("/song/undo"), "no Undo the server did not name");
-  assert.ok(!songSection(d, "October 3", NOW, true, { said: "answered", undo: ESPRESSO }).includes("/song/undo"), "no Undo after any other word");
-  assert.ok(songSection(d, "October 3", NOW, true, { said: "answered" }).includes("You already answered today. One song a day."));
-  assert.ok(songSection(d, "October 3", NOW, true, { said: "already" }).includes("cannot be your answer too"));
-});
-
-test("one answer a day: a browser that has answered sees its song marked and the search put away", () => {
-  const marks = wallMarks({ left: 3, allowance: 3, backed: [ESPRESSO], answered: ESPRESSO }, day([], []), NOW);
-  assert.ok(marks.includes(".sgask,.sgresults,.sghint{display:none}.sgdone{display:block}"));
-  assert.ok(marks.includes(`#ws-${ESPRESSO} .sgmine{display:inline}`));
-  assert.ok(!wallMarks({ left: 3, allowance: 3, backed: [], answered: null }, day([], []), NOW).includes("sgask"), "a browser that has not answered keeps the search");
-  assert.ok(!wallMarks({ left: 3, allowance: 3, backed: [], answered: "not-a-uuid\"}{" }, day([], []), NOW).includes("sgask"), "only an identifier shaped like ours reaches a style rule");
-  const section = songSection(day([story(ESPRESSO, '2024: "Espresso" by Sabrina Carpenter', { support: 1 })], [answer(1, ESPRESSO, "t")]), "October 3", NOW, true, {});
-  assert.ok(section.includes('<p class="sgdone">You answered today.'), "the line the marks reveal is on the shared page, hidden");
-});
-
-test("yesterday's page shows yesterday's songs with their buzz buttons, asks nothing, and points at today's question by the Eastern clock", () => {
-  const d = day([story(ESPRESSO, '2024: "Espresso" by Sabrina Carpenter', { support: 2 })], [answer(1, ESPRESSO, "t"), buzz(2, ESPRESSO, "u")]);
-  const html = songSection(d, "October 3", TOMORROW_NOON, true, {});
-  assert.ok(html.includes("Stuck in heads on October 3, 2026"));
-  assert.ok(html.includes("Answers for October 3 closed at midnight Eastern."));
-  assert.ok(html.includes('<a href="/october-4/">Today\'s question</a>'));
-  assert.ok(!html.includes("<script"), "no script");
-  assert.ok(!html.includes('action="/song/search"'), "no search");
-  assert.ok(html.includes('action="/boost"'), "the songs still take buzzes until the seal");
-  assert.ok(html.includes("In 1 head &middot; 2 buzzes"));
-  assert.equal(songSection(day([], []), "October 3", TOMORROW_NOON, true, {}), "", "a yesterday nobody answered shows nothing");
-});
-
-test("the midnight seal: the board stays as it sealed, with no buttons, and a sealed day nobody answered shows nothing", () => {
-  const d = day([story(ESPRESSO, '2024: "Espresso" by Sabrina Carpenter', { support: 2 })], [answer(1, ESPRESSO, "t"), answer(2, ESPRESSO, "u")]);
-  const sealed = songSection(d, "October 3", AFTER_SEAL, true, {});
-  assert.ok(sealed.includes("Sealed with the hive. Permanent."));
-  assert.ok(sealed.includes(">Espresso</a>") && sealed.includes("In 2 heads"));
-  assert.ok(!sealed.includes("<form"), "nothing on a sealed board takes anything");
-  assert.ok(!sealed.includes("<script"));
-  assert.equal(songSection(day(NUMBER_ONES, []), "October 3", AFTER_SEAL, true, {}), "", "no examples and no question on a sealed date");
-  // The baked page, which is what a sealed date serves, draws the same board.
-  const baked = wallSection(d, "October 3", AFTER_SEAL, {});
-  assert.ok(baked.includes('id="ws-' + ESPRESSO + '"'));
-  assert.ok(!baked.includes("<form class=\"wbuzz\""));
-});
-
 test("the midnight seal: the sealed picture names the day's songs by heads, and only once the day has sealed", () => {
   const stories = [
     story(ESPRESSO, '2024: "Espresso" by Sabrina Carpenter', { support: 3, status: "placed", rect: { mx: 0, my: 0, w: 4, h: 4 } }),
@@ -317,43 +177,10 @@ test("the midnight seal: the sealed picture names the day's songs by heads, and 
   assert.ok(picture.includes("Espresso"));
 });
 
-test("nothing is drawn before the song migration, because the read cannot tell an answer from a buzz", () => {
-  assert.equal(songSection(day(NUMBER_ONES, [], { answers: false }), "October 3", NOW, true, {}), "");
-  assert.equal(songSection(day(NUMBER_ONES, [], { answers: undefined }), "October 3", NOW, true, {}), "");
-});
-
-test("a baked page never carries the question, the search or the script", () => {
-  const html = songSection(day(NUMBER_ONES, []), "October 3", NOW, false, {});
-  assert.equal(html, "", "nothing to show and nothing to ask on a page that cannot ask");
-});
-
 test("on the hive a song is its own kind, named by its title and artist, with its cover", () => {
   const s = story(ESPRESSO, '2024: "Espresso" by Sabrina Carpenter');
   assert.equal(tileKind(s), "answer");
   assert.equal(KIND_WORD.answer, "Stuck in someone's head today");
   assert.equal(crownName(s), '"Espresso" by Sabrina Carpenter');
   assert.deepEqual(answerPictures(day([s, story(NEWS, "news", { subjectKind: null, subjectId: null })], [])), [{ subject: "answer:1738363970", path: "/cover/1738363970.jpg" }]);
-});
-
-test("songs are the board above the hive and nowhere else in the game, and the comb leaves them out", () => {
-  // The feed under the hive is gone, docs/the-wall.md section 32; what is
-  // left to hold is that a song answer is drawn once, on its own board.
-  const d = day([story(ESPRESSO, '2024: "Espresso" by Sabrina Carpenter', { support: 1 }), story(NEWS, "A headline from the news", { subjectKind: null, subjectId: null })], [answer(1, ESPRESSO, "t")]);
-  const html = wallSection(d, "October 3", NOW, { interactive: true });
-  assert.ok(html.indexOf('id="song"') < html.indexOf('class="wall"'), "the board leads the page, above the hive");
-  assert.equal(html.split(`id="ws-${ESPRESSO}"`).length, 2, "one row for the song");
-  const hive = html.slice(html.indexOf('<section class="wall"'));
-  assert.ok(!hive.includes("Espresso"), "and the hive's own section does not draw it again while it is off the board");
-  assert.ok(!html.includes('id="feedhead"'), "there is no feed to draw it in");
-  const comb = combPreview(d, "October 3", NOW, true);
-  assert.ok(comb.includes("A headline from the news"), "the comb preview carries the news that is off the board");
-  assert.ok(!comb.includes("Espresso"), "and not the song");
-});
-
-test("the search script is the one the header names, draws with DOM calls only, and posts to this origin alone", () => {
-  assert.equal(SONG_SCRIPT_SOURCE, `'sha256-${createHash("sha256").update(SONG_SCRIPT).digest("base64")}'`);
-  assert.ok(!SONG_SCRIPT.includes("innerHTML"), "nothing Apple sent is ever markup");
-  assert.ok(SONG_SCRIPT.includes('fetch("/song/search"'));
-  assert.ok(!/fetch\("https?:/.test(SONG_SCRIPT), "and nothing else is fetched");
-  assert.ok(!SONG_SCRIPT.includes("?q="), "the phrase goes in the body, never in an address");
 });

@@ -27,7 +27,7 @@ export const MASCOT_STYLE = `
 .bee { display: inline-block; flex: none; width: 30px; height: auto; vertical-align: -8px; overflow: visible; }
 .bee .beewings { transform-origin: 25px 18px; transform-box: view-box; }
 .whead .bee { width: 26px; margin-right: 6px; vertical-align: -7px; }
-.wcombkick .bee { width: 22px; margin-right: 6px; vertical-align: -6px; }
+
 .wsaid .bee { width: 30px; margin-right: 8px; vertical-align: -9px; }
 @keyframes beeflap { from { transform: scaleY(1); } to { transform: scaleY(.55); } }
 @keyframes beebob { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-3px) rotate(3deg); } }
@@ -38,7 +38,7 @@ export const MASCOT_STYLE = `
 }
 @media (prefers-reduced-motion: no-preference) {
   .bee .beewings { animation: beeflap 90ms ease-in-out infinite alternate; }
-  .whead .bee, .wcombkick .bee { animation: beebob 2.6s ease-in-out infinite; }
+  .whead .bee { animation: beebob 2.6s ease-in-out infinite; }
   .wsaid .bee { animation: beefly 900ms cubic-bezier(.2, .8, .2, 1) both; }
 }
 `;

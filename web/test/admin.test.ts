@@ -152,9 +152,7 @@ test("the number is labelled and its arithmetic is one click away", () => {
 });
 
 test("the points never reach a public page", () => {
-  const html = renderDayPage({ month: 9, day: 8, people: [] }, [], [], [
-    { id: "a", month: 9, day: 8, year: 1998, sourceUrl: "https://en.wikipedia.org/wiki/September_8", description: "A thing happened." },
-  ]);
+  const html = renderDayPage({ month: 9, day: 8 });
   for (const word of ["rowPoints", "datePoints", 'class="pts"', "article_reach"]) {
     assert.equal(html.includes(word), false, `${word} is on a date page`);
   }

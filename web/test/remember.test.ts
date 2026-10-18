@@ -3,11 +3,12 @@
 // This file is named for the remembrance question, which is gone: its routes
 // came off the server on September 11, 2026 and its answers are kept in the
 // database exactly as they were. What is left here is the `bt` cookie, the
-// per address limit and the birth year cookie, all three of which the wall
-// uses, so the tests stayed and the name did not.
+// per address limit, both of which the wall uses, so the tests stayed and the
+// name did not. The birth year cookie went with the strip on October 18,
+// 2026, docs/strip-to-the-hive.md.
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { birthdayCookieValue, birthdayFromCookie, newToken, projectBase, tokenFromCookie, underLimit, yearFromCookie } from "../src/serve.js";
+import { newToken, projectBase, tokenFromCookie, underLimit } from "../src/serve.js";
 
 test("a token is long enough for the database to accept it", () => {
   // The function refuses anything under sixteen characters, so a token that
@@ -43,29 +44,6 @@ test("the limit is per address and forgets after the window", () => {
   for (let i = 0; i < 60; i++) underLimit("5.6.7.8", now);
   assert.ok(underLimit("9.9.9.9", now), "somebody else is not punished");
   assert.ok(underLimit("5.6.7.8", now + 61_000), "and a minute later neither are you");
-});
-
-test("a saved birth year is read back and a hand edited one is not", () => {
-  assert.equal(yearFromCookie("bt=abcdefghijklmnop; by=1994"), 1994);
-  assert.equal(yearFromCookie("by=1899"), null);
-  assert.equal(yearFromCookie("by=2101"), null);
-  assert.equal(yearFromCookie("by=nineteen"), null);
-  assert.equal(yearFromCookie("bt=abcdefghijklmnop"), null);
-  assert.equal(yearFromCookie(undefined), null);
-  // The whole birthday, since September 22, 2026, still gives its year.
-  assert.equal(yearFromCookie("by=1990-06-15"), 1990);
-});
-
-test("the birthday cookie holds the whole date, and refuses one that does not exist", () => {
-  assert.deepEqual(birthdayFromCookie("bt=abcdefghijklmnop; by=1990-06-15"), { year: 1990, month: 6, day: 15 });
-  assert.deepEqual(birthdayFromCookie("by=1994"), { year: 1994, month: null, day: null }, "a cookie from before still reads, as a year");
-  assert.equal(birthdayFromCookie("by=1990-02-29"), null, "1990 had no February 29");
-  assert.deepEqual(birthdayFromCookie("by=2000-02-29"), { year: 2000, month: 2, day: 29 });
-  assert.equal(birthdayFromCookie("by=1990-13-01"), null);
-  assert.equal(birthdayFromCookie("by=1899-06-15"), null);
-  assert.equal(birthdayFromCookie("by=1990-6-15"), null, "one shape only");
-  assert.equal(birthdayCookieValue(1990, 6, 15), "1990-06-15");
-  assert.equal(birthdayCookieValue(1990, 2, 30), "1990", "an impossible date keeps the year alone");
 });
 
 test("the project is reachable without SUPABASE_URL being set anywhere", () => {

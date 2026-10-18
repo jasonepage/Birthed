@@ -1,64 +1,12 @@
 // Rendering a date page. Pure string in, string out, so it can be tested
 // without a network and without a browser.
 
-import { DayPage, Person, monthName, neighbours, slug, everyDate } from "./model.js";
+import { monthName, neighbours, slug, everyDate } from "./model.js";
 import { SHARE_STYLE, shareBlock } from "./share-button.js";
 import { MASCOT_STYLE } from "./mascot.js";
 import { THEME } from "./theme.js";
-import { COMB_END, COMB_START, WALL_STYLE, combPath, combPreview, hivePath, pictureRules, recordStanding, storyBody, voiceFor, wallSection, type Picture, type RecordRow, type ReceiptOptions, type Voice, type WallDay, type WallStory } from "./wall.js";
-import { CHART_NAME, coverName, SongOfTheYear } from "./songs.js";
+import { WALL_STYLE, hivePath, pictureRules, recordStanding, storyBody, voiceFor, wallSection, type Picture, type RecordRow, type ReceiptOptions, type Voice, type WallDay, type WallStory } from "./wall.js";
 import { calendar } from "./calendar.js";
-import { type CulturalEvent, textOf } from "./culture.js";
-import { Fact, hostOf } from "./facts.js";
-import { buildTimeline, byMemory, pickHighlights, theRest, type DayEvent, type MemoryCount, type TimelineRow } from "./timeline.js";
-import { mayAsk, mayLeadWords } from "./highlight.js";
-import { leadKey } from "./lead.js";
-import { bestMatch, selectedKey, type Selected } from "./selected.js";
-
-/**
- * How many people a date page needs before it is worth putting in front of a
- * search engine.
- *
- * A new domain that publishes 366 pages, 234 of which are thin or half
- * imported, teaches Google that this site is thin. That judgement is expensive
- * to undo and it is made once. So a page that is not ready is still built and
- * still reachable by anybody who types the address, and it carries noindex and
- * stays out of the sitemap until it has something on it.
- *
- * FR-022 asks for at least ten. Eight is the line here rather than ten because
- * a handful of real dates genuinely have fewer people with English articles,
- * and holding those back forever would be worse than showing eight.
- */
-export const READY_PEOPLE = 8;
-
-/**
- * Enough people, and evidence that they were actually ranked.
- *
- * Counting people alone was not enough, and the way it failed is instructive.
- * The dates imported before pageviews existed have their full ten and are
- * ordered by how many languages have an article about somebody, which is
- * coverage rather than attention, and it fills a page with footballers. Those
- * pages pass a head count and are exactly the ones that should not be handed
- * to a search engine, because they are the worst version of the thing this
- * site is for.
- *
- * So a page is ready when it has the people and at least one of them carries
- * pageviews. This is the same test the worker's --only-missing uses, for the
- * same reason.
- */
-export function isReady(page: DayPage, facts: Fact[] = []): boolean {
-  // January 1, and only January 1. Wikidata files a birth date known only to
-  // the year as January 1 with a precision of 9, so the importer's precision
-  // filter correctly refuses every one of them and this date has nobody on it
-  // and never will. It is also one of the most searched dates of the year.
-  // A page with a dozen sourced facts, the number one song for every year
-  // since 1959, and an honest line saying nobody is imported yet, is not a
-  // thin page, and holding it back forever on a head count it can never meet
-  // is the rule misfiring rather than working.
-  if (page.people.length === 0) return facts.length >= READY_PEOPLE;
-  if (page.people.length < READY_PEOPLE) return false;
-  return page.people.some((person) => person.monthlyViews > 0);
-}
 
 export const SITE = "https://birthed.app";
 
@@ -105,14 +53,7 @@ export function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
-// Only the birth year goes in the column. A range wraps, and a wrapped range
-// shoves every name on the page out of alignment with the ones above it.
-function birthYearLabel(person: Person): string {
-  return person.birthYear ? String(person.birthYear) : "";
-}
-
 const STYLE = `
-
 
 /* The first screen, decided September 8, 2026. notes/first-impression-proposal.md.
 
@@ -127,9 +68,9 @@ const STYLE = `
   display: inline-block; width: 9px; height: 9px; border-radius: 999px;
   background: var(--line); margin: 0 8px 1px 0; vertical-align: middle;
 }
-.sen { display: none; }
+
 .senshut { display: inline; }
-.sen b { color: var(--cream); font-weight: 700; }
+
 /* The fuse. A two pixel line exactly as long as the part of the three days
    that has gone. Its length is one custom property, --gone, which today.css
    sets from the real clock on every request, so it is true to the second the
@@ -191,26 +132,7 @@ const STYLE = `
   background: linear-gradient(168deg, var(--cell) 0%, var(--cell) 62%);
   box-shadow: inset 0 0 0 1px rgba(255, 243, 224, .10);
 }
-.askhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px 0; }
-.asklab { font-size: 10.5px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--day-soft, var(--honey-lite)); }
-.askyr { font-family: var(--serif); font-size: 26px; font-weight: 700; color: var(--day-soft, var(--honey-lite)); line-height: 1; }
-.askbody { display: grid; grid-template-columns: 64px 1fr; gap: 14px; padding: 10px 16px 0; align-items: start; }
-.askbody.noart { grid-template-columns: 1fr; }
-.askart { width: 64px; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: var(--cell); box-shadow: 0 6px 18px rgba(0, 0, 0, .45); }
-.askart img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.asksaid {
-  margin: 0; font-family: var(--serif);
-  font-size: clamp(17px, 4.4vw, 22px); line-height: 1.3; text-wrap: pretty;
-}
-.askcap { grid-column: 1 / -1; font-size: 11.5px; color: var(--dimmer); line-height: 1.35; margin: 4px 0 0; }
-.askcap b { color: var(--dim); font-weight: 600; }
-/* The row's own sentence, under a line somebody wrote for it. Its own block
-   rather than a run of the caption, because it is a different kind of thing
-   from the record sleeve note beside it: that is context, this is the source
-   text the question was written from. */
-.askrec { display: block; margin: 0 0 3px; color: var(--dim); }
-.askcap a { color: var(--dimmer); text-decoration: none; }
-.askcap a:hover { color: ${ACCENT}; text-decoration: underline; }
+
 /* Same three words every row further down uses, bigger here, once, because
    this is where the mechanic is taught. */
 .ask .rem { gap: 8px; margin: 0; padding: 12px 16px 4px; }
@@ -220,7 +142,7 @@ const STYLE = `
 }
 .ask .rem button:hover { border-color: var(--day-soft, var(--honey-lite)); background: rgba(255, 207, 107, .14); }
 .ask .mine { padding: 6px 16px 0; margin: 0; }
-.askrule { margin: 0; padding: 6px 16px 14px; font-size: 12.5px; color: var(--dimmer); line-height: 1.45; }
+
 /* The row the ask was taken from, where it sits in the feed. Hidden by
    today.css on the three open dates, so a row is on the page once: at the top
    while the date is open, in its place once it has sealed. */
@@ -283,97 +205,11 @@ const STYLE = `
 .rest > summary::before { content: "+"; display: inline-block; width: 22px; color: var(--dim); font-weight: 700; }
 .rest[open] > summary::before { content: "\\2212"; }
 .rest > summary:hover { color: var(--honey-lite); }
-.wlist li.hist { display: flex; gap: 12px; align-items: baseline; }
-.wlist .fyr { flex: none; width: 46px; font-family: var(--serif); font-size: 17px; color: var(--honey); font-variant-numeric: tabular-nums; }
-.wlist .fbody { min-width: 0; flex: 1; }
-.wlist .fbody a, .wlist .ftext { font-weight: 600; text-decoration: none; }
-.wlist .fbody a:hover { text-decoration: underline; }
-.wlist .fbody .wmeta { margin-left: 4px; }
+
 .wlist .rem { display: none; margin: 0 0 0 6px; vertical-align: middle; }
 .wlist .mine { display: none; margin: 4px 0 0; font-size: 12px; font-weight: 700; color: var(--honey); }
 .wlist .mine::after { content: ""; }
 .state { margin: 26px 0 0; }
-.memorynote {
-  margin: 26px 0 -8px; font-size: 13px; color: ${QUIET};
-  border-left: 2px solid var(--day-soft, var(--honey-lite)); padding-left: 12px;
-}
-/* The one thing this site asks a reader about themselves.
-
-   Decade, then year. Two taps, nothing to scroll, and every option on screen
-   at the size of a finger.
-
-   The version before this was one strip of ninety years that scrolled
-   sideways, which was wrong for everybody and worst for the people most likely
-   to have a year worth collecting. A horizontal scroller is a poor control on
-   a phone and a genuinely bad one with a mouse, and finding 1955 in it meant
-   dragging through seventy numbers to get there.
-
-   No script, as everywhere else on this site. Ten hidden radios hold the only
-   state there is, and the checked one reveals its own row of years through a
-   sibling selector. That is the same mechanism the song year dial already
-   runs on. */
-.yearask { display: none; margin: 26px 0 30px; }
-/* Once the year is in a cookie, the question is answered and asking it again
-   on every date page is the site not listening. The server knows: it set that
-   cookie and it reads it on the way back, so it hides the picker and shows this
-   line instead, with the decade written in by the same style block that carries
-   a reader's own marks.
-
-   Not simply hidden, because hiding it is the only way back to it. The link
-   targets the picker and :target brings it out again, which is a way to change
-   your mind that needs no script and no second page. */
-.yearset { display: none; margin: 26px 0 30px; font-size: 13px; color: var(--dimmer); }
-.yearset a { color: var(--dim); text-decoration: none; border-bottom: 1px solid var(--line); }
-.yearset a:hover { color: var(--cream); }
-.yearsetv { color: var(--cream-2); }
-.yearlede { margin: 0 0 12px; font-size: 14px; color: var(--cream-2); }
-.yearlede b { color: var(--cream); font-weight: 700; }
-.yearask form { margin: 0; }
-.decpick { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-
-.yeardecs, .yg { display: flex; flex-wrap: wrap; gap: 8px; }
-.yeardecs label, .yg button {
-  font: inherit; font-size: 15px; font-weight: 700; line-height: 1; cursor: pointer;
-  padding: 13px 15px; border-radius: 12px; border: 1px solid var(--line);
-  background: var(--cell); color: var(--cream-2); font-variant-numeric: tabular-nums;
-}
-.yeardecs label:hover, .yg button:hover { color: var(--cream); border-color: var(--day-soft, var(--honey-lite)); }
-.decpick:focus-visible ~ .yeardecs label[for] { outline: 2px solid ${ACCENT}; outline-offset: 2px; }
-
-/* Nothing is shown until a decade is picked, which is why the years are
-   display:none rather than merely hidden: an empty row that took up space
-   would read as a control that had failed. */
-.yg { display: none; margin: 10px 0 0; }
-.yearyears { min-height: 0; }
-#dec2020:checked ~ .yearyears .yg2020 { display: flex; }
-#dec2020:checked ~ .yeardecs label[for="dec2020"] { background: ${ACCENT}; border-color: ${ACCENT}; color: var(--on-honey); }
-#dec2010:checked ~ .yearyears .yg2010 { display: flex; }
-#dec2010:checked ~ .yeardecs label[for="dec2010"] { background: ${ACCENT}; border-color: ${ACCENT}; color: var(--on-honey); }
-#dec2000:checked ~ .yearyears .yg2000 { display: flex; }
-#dec2000:checked ~ .yeardecs label[for="dec2000"] { background: ${ACCENT}; border-color: ${ACCENT}; color: var(--on-honey); }
-#dec1990:checked ~ .yearyears .yg1990 { display: flex; }
-#dec1990:checked ~ .yeardecs label[for="dec1990"] { background: ${ACCENT}; border-color: ${ACCENT}; color: var(--on-honey); }
-#dec1980:checked ~ .yearyears .yg1980 { display: flex; }
-#dec1980:checked ~ .yeardecs label[for="dec1980"] { background: ${ACCENT}; border-color: ${ACCENT}; color: var(--on-honey); }
-#dec1970:checked ~ .yearyears .yg1970 { display: flex; }
-#dec1970:checked ~ .yeardecs label[for="dec1970"] { background: ${ACCENT}; border-color: ${ACCENT}; color: var(--on-honey); }
-#dec1960:checked ~ .yearyears .yg1960 { display: flex; }
-#dec1960:checked ~ .yeardecs label[for="dec1960"] { background: ${ACCENT}; border-color: ${ACCENT}; color: var(--on-honey); }
-#dec1950:checked ~ .yearyears .yg1950 { display: flex; }
-#dec1950:checked ~ .yeardecs label[for="dec1950"] { background: ${ACCENT}; border-color: ${ACCENT}; color: var(--on-honey); }
-#dec1940:checked ~ .yearyears .yg1940 { display: flex; }
-#dec1940:checked ~ .yeardecs label[for="dec1940"] { background: ${ACCENT}; border-color: ${ACCENT}; color: var(--on-honey); }
-#dec1930:checked ~ .yearyears .yg1930 { display: flex; }
-#dec1930:checked ~ .yeardecs label[for="dec1930"] { background: ${ACCENT}; border-color: ${ACCENT}; color: var(--on-honey); }
-.yearnote { font-size: 11.5px; color: ${QUIET}; margin: 10px 0 0; }
-/* Said only after the server has redirected here, revealed by :target, which
-   is how this page says anything back without running a script. */
-.afterword {
-  display: none; margin: 14px 0 0; padding: 13px 15px; border-radius: 12px;
-  background: var(--cell); border: 1px solid var(--line); color: var(--cream-2);
-  font-size: 14px; line-height: 1.5;
-}
-.afterword:target { display: block; }
 
 .barend { display: flex; align-items: center; gap: 8px; }
 /* Three of the same thing. One height, one border, one type size, an icon
@@ -428,77 +264,13 @@ img.face {
   background: var(--cell); border: 1px solid var(--cell); border-radius: 14px; overflow: hidden;
 }
 a.tile:hover { border-color: var(--day-soft, var(--honey-lite)); }
-.tpic { display: block; position: relative; aspect-ratio: 1 / 1; overflow: hidden; }
-.tpic img, .tpic .tbg { width: 100%; height: 100%; object-fit: cover; display: block; }
-.tpic .tbg { object-position: 50% 18%; }
-/* The monogram is a placeholder and should read as one. It was set at ninety
-   points in the most valuable slot on the page, which made the least
-   interesting thing on it the loudest. */
-.tbg.noface {
-  display: grid; place-items: center;
-  font-family: var(--serif); font-size: 34px; font-weight: 700;
-  letter-spacing: .04em; color: rgba(255, 243, 224, .5);
-  background: linear-gradient(160deg, var(--line), var(--cell));
-}
-.t-person { border-bottom: 2px solid var(--honey); }
-.t-music { border-bottom: 2px solid var(--day, var(--honey)); }
-.t-moment {
-  border-bottom: 2px solid var(--dim); background: var(--bg);
-  display: grid; place-items: center;
-}
-.tyr {
-  font-family: var(--serif); font-size: 54px; line-height: 1;
-  color: rgba(159, 182, 201, .5); letter-spacing: -.02em;
-}
-.tin { display: block; padding: 12px 13px 14px; }
-.tlab {
-  display: block; font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase;
-  font-weight: 700; margin-bottom: 6px; color: var(--dimmer);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.tbig {
-  display: block; font-family: var(--serif);
-  font-size: 17px; line-height: 1.22; color: var(--cream);
-}
-.tsub { display: block; color: var(--dim); font-size: 13px; margin-top: 5px; }
-@media (max-width: 700px) {
-  .tbg.noface { font-size: 26px; }
-  .tyr { font-size: 34px; }
-  .tin { padding: 9px 10px 11px; }
-  .tlab { font-size: 9px; margin-bottom: 4px; white-space: normal; }
-  .tbig { font-size: 14px; }
-  .tsub { font-size: 12px; margin-top: 3px; }
-}
 
 /* What came out, above what happened. */
 .culture { list-style: none; margin: 0; padding: 0; }
-.cul {
-  display: flex; gap: 14px; align-items: baseline; padding: 11px 0 11px 14px;
-  border-bottom: 1px solid var(--cell); border-left: 2px solid var(--day, var(--honey));
-}
-.cul .cyr {
-  font-family: var(--serif); font-size: 21px; color: var(--day-soft, var(--honey-lite));
-  width: 58px; flex: none; font-variant-numeric: tabular-nums; line-height: 1.3;
-}
-.cul .ctx {
-  margin: 0; font-family: var(--serif);
-  font-size: 17px; line-height: 1.4; color: var(--cream);
-}
-/* The tag and the source belong on one quiet line under the sentence, not
-   stacked as two more paragraphs with a link underlined like a footnote. */
-.cul .meta { display: flex; gap: 10px; align-items: center; margin-top: 5px; }
-.cul .meta .src { margin: 0; }
-.cul .meta .src a { color: var(--dimmer); text-decoration: none; font-size: 11px; }
-.cul .meta .src a:hover { color: var(--dim); }
+
 @media (min-width: 760px) {
   .tiles { gap: 14px; }
-  .tin { padding: 14px 16px 16px; }
-  .tbg.noface { font-size: 54px; }
-  .tbig { font-size: 18px; }
-  .tyr { font-size: 64px; }
-  .cul { gap: 20px; padding-left: 16px; }
-  .cul .cyr { width: 68px; font-size: 24px; }
-  .cul .ctx { font-size: 18px; }
+
 }
 :root { color-scheme: dark; }
 * { box-sizing: border-box; }
@@ -645,58 +417,10 @@ ol.covers li:target .y a { color: ${ACCENT}; }
   to   { opacity: 1; transform: none; }
 }
 p.credit { color: ${QUIET}; font-size: 13px; margin: 14px 0 0; }
-/* Born on this date, as two lists. See bornLists. */
-.bornlists .bcols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 28px; }
-.bornlists h4 { font-family: var(--sans); font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--honey); margin: 10px 0 6px; }
-.bornlists ol { list-style: none; margin: 0; padding: 0; }
-/* Block, not the row layout list items get elsewhere on the page, so a long
-   description sits under the name instead of squeezing it onto two lines. */
-.bornlists li { display: block; padding: 9px 12px; margin: 0 0 8px; }
-.bornlists li a { color: var(--cream); font-size: 16px; font-weight: 600; text-decoration: none; }
-.bornlists li a:hover, .bornlists li a:focus-visible { text-decoration: underline; }
-.bornlists .bmeta { display: block; color: ${QUIET}; font-size: 13px; margin-top: 2px; }
-.bornlists p.bnote { color: ${QUIET}; font-size: 12.5px; margin: 6px 0 0; }
-@media (max-width: 560px) { .bornlists .bcols { grid-template-columns: minmax(0, 1fr); } }
-/* The museum, docs/the-wall.md section 32: the record of the date under the
-   game, every section folded, quieter than the hive on purpose. Tokens only. */
-.museum { margin: 48px 0 0; padding: 24px 0 0; border-top: 1px solid var(--line); }
-.mkick { margin: 0; color: var(--dimmer); font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
-.mtitle { margin: 4px 0 6px; font-family: var(--serif); font-optical-sizing: auto; font-size: clamp(22px, 5vw, 28px); font-weight: 800; line-height: 1.1; color: var(--cream); }
-.museum > .mnote { margin: 0 0 14px; color: var(--dim); font-size: 14px; line-height: 1.45; }
-.mlive { display: none; }
-.mgroup { margin: 8px 0; border: 1px solid var(--line); border-radius: 14px; background: var(--cell); }
-.mgroup > summary { list-style: none; cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; padding: 13px 44px 13px 16px; position: relative; }
-.mgroup > summary::-webkit-details-marker { display: none; }
-.mgroup > summary::after { content: "+"; position: absolute; right: 16px; top: 11px; color: var(--honey); font-size: 20px; font-weight: 700; }
-.mgroup[open] > summary::after { content: "\\2212"; }
-.mgroup > summary:hover .mhead { color: var(--honey-lite); }
-.mhead { margin: 0; font-family: var(--serif); font-size: 18px; font-weight: 800; color: var(--cream); }
-.mcount { min-width: 0; color: var(--dim); font-size: 13px; }
-.mgroup[open] { padding: 0 14px 14px; }
-.mgroup[open] > summary { margin: 0 -14px; }
-.mgroup .wnote { margin: 0 0 10px; }
-.mrest { font-family: var(--sans); font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--honey); margin: 18px 0 8px; }
-.mlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.mrow { scroll-margin-top: 84px; }
-.wlist li.mrow, .bornlists li.mrow, .mpeople li.mrow { display: flex; gap: 12px; align-items: flex-start; }
-.mwho { flex: 1; min-width: 0; }
-.mrow .fbody { flex: 1; min-width: 0; }
-.wlist li.mrow.hist { flex-wrap: wrap; }
-.wlist li.mrow.hist[data-y]::before { flex-basis: 100%; }
-.mdo { flex: none; display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 8px; align-items: center; margin-left: auto; }
-.mon, .mbuzz, .mmine { display: none; }
+
+.mon { display: none; }
 .mon { color: var(--dim); font-size: 12px; }
-.mn { color: var(--honey); font-size: 12px; font-weight: 700; }
-.mn:empty { display: none; }
-.mmine { color: var(--honey-lite); font-size: 12px; font-weight: 800; }
-.mbuzz { margin: 0; padding: 3px 11px; border: 0; border-radius: 999px; cursor: pointer; background: linear-gradient(180deg, var(--honey-lite), var(--honey)); color: var(--on-honey); font: inherit; font-size: 12px; font-weight: 800; line-height: 1.4; }
-.mbuzz:hover { filter: brightness(1.12); }
-.mbuzz:focus-visible { outline: 2px solid var(--honey-lite); outline-offset: 2px; }
-.mpeople li { padding: 9px 12px; border-radius: 12px; background: var(--bg); }
-.mpeople li a { color: var(--cream); font-size: 15px; font-weight: 600; text-decoration: none; }
-.mpeople .bmeta { display: block; color: var(--dim); font-size: 13px; margin-top: 2px; }
-.msong .mdo { width: 100%; justify-content: center; margin: 4px 0 0; }
-p.datenote { color: ${QUIET}; font-size: 12.5px; margin: 7px 0 0; font-style: italic; }
+
 /* The rest of the wall, shut.
    Sixty-odd covers is a long scroll to get past on the way to the people, and
    the dial above answers the question most of them were being scrolled for.
@@ -713,14 +437,10 @@ details.more > summary::after { content: "+"; font-size: 16px; }
 details.more[open] > summary::after { content: "\\2212"; }
 details.more > summary:hover { color: var(--cream); }
 details.more ol.covers { margin-top: 16px; }
-details.more > summary .n, .shelfhead .n {
+details.more > summary .n {
   color: ${QUIET}; font-size: 12px; font-weight: 400; letter-spacing: 0.04em;
 }
-.shelf { scroll-margin-top: 68px; }
-.shelfhead {
-  margin: 22px 0 14px; font-size: 14px; font-weight: 700; color: var(--cream);
-  display: flex; align-items: baseline; gap: 9px;
-}
+
 /* Read aloud but never drawn. The hive's kind marks carry one of these behind
    the icon, so a screen reader says "sport" where an eye sees a shape. */
 .sr {
@@ -748,15 +468,7 @@ ul.facts .what {
 ul.facts .src { margin: 7px 0 0; font-size: 13px; }
 ul.facts .src a { color: ${QUIET}; text-decoration: none; }
 ul.facts .src a:hover { color: ${ACCENT}; text-decoration: underline; }
-nav.pager { display: flex; justify-content: space-between; gap: 12px; margin: 34px 0 0; font-size: 15px; }
-nav.pager a { color: ${ACCENT}; text-decoration: none; }
-.cta {
-  margin: 34px 0 0; padding: 20px; border-radius: 16px;
-  background: linear-gradient(135deg, var(--honey-lite), var(--honey));
-  color: var(--cream);
-}
-.cta h2 { font-family: var(--serif); margin: 0 0 6px; font-size: 22px; }
-.cta p { margin: 0; opacity: 0.92; font-size: 15px; }
+
 footer { margin: 40px 0 0; color: ${QUIET}; font-size: 13px; }
 footer .nothing { color: var(--dim); }
 footer a { color: var(--dim); }
@@ -959,21 +671,6 @@ h2.plain { font-family: var(--serif); font-weight: 800; font-size: clamp(22px, 5
    was a pink to violet gradient clipped to the type, the one thing every
    generated landing page has, September 22, 2026. */
 .glow { color: var(--honey); font-style: italic; font-weight: 600; }
-/* The name, underlined rather than emboldened. The headline was Georgia at 800
-   and Georgia ships one bold, so there was no weight left to reach for and
-   asking for more only gets a browser's synthetic smear.
-
-   text-decoration-color is set explicitly and that is not tidiness. The rule
-   above paints this text with a gradient and sets color to transparent, and an
-   underline defaults to currentColor, so without naming a colour here the line
-   is drawn in transparent and there is simply nothing under the word. It would
-   have looked like the underline had not been applied at all. */
-.brandword {
-  text-decoration: underline;
-  text-decoration-color: #EF5680;
-  text-decoration-thickness: 0.055em;
-  text-underline-offset: 0.085em;
-}
 
 /* Four beats, numbered, because what this site does is a sequence and a reader
    who does not already know it needs the order more than the detail.
@@ -1035,18 +732,7 @@ h2.plain { font-family: var(--serif); font-weight: 800; font-size: clamp(22px, 5
   box-shadow: 0 20px 44px rgba(244, 183, 64, 0.40);
 }
 .btn.brand:active { transform: translateY(0); }
-.btn.ghost {
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 14px 20px; font-size: 15px;
-  background: transparent; color: var(--cream-2);
-  box-shadow: inset 0 0 0 1px rgba(255, 243, 224, 0.20);
-  transition: color 140ms ease, background 140ms ease, box-shadow 140ms ease, transform 140ms ease;
-}
-.btn.ghost:hover {
-  color: var(--cream); background: rgba(244, 183, 64, 0.10);
-  box-shadow: inset 0 0 0 1px rgba(244, 183, 64, 0.60);
-  transform: translateY(-2px);
-}
+
 .fine { color: ${QUIET}; font-size: 13px; margin: 14px 0 0; max-width: 46ch; }
 /* The About page as a how to play, September 22, 2026. Honey, the hive's
    own colour, for the three pieces that are the game: the button into it,
@@ -1065,128 +751,9 @@ h2.plain { font-family: var(--serif); font-weight: 800; font-size: clamp(22px, 5
 .rules li { display: inline-flex; align-items: baseline; gap: 6px; padding: 10px 16px; border-radius: 999px; background: var(--cell); border: 1px solid var(--line-strong); color: var(--cream-2); font-size: 14.5px; }
 .rules li b { color: var(--honey-lite); }
 
-/* Pick your month. A band rather than a line of small links, because this is
-   the one thing on the page a visitor who knows what they want is looking for,
-   and it used to be six words of grey text. */
-.picker {
-  margin: 34px 0 0; padding: 18px 20px 20px; border-radius: 22px;
-  background: linear-gradient(180deg, rgba(255, 243, 224, 0.06), rgba(255, 243, 224, 0.02));
-  box-shadow: inset 0 0 0 1px rgba(255, 243, 224, 0.09);
-}
-.pickerlabel {
-  margin: 0 0 13px; font-family: inherit;
-  font-size: 12px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase;
-  color: var(--dim);
-}
-.bornin { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
-.bornin a {
-  display: flex; align-items: center; justify-content: center;
-  padding: 12px 4px; border-radius: 13px;
-  font-size: 14px; font-weight: 700; color: var(--cream-2); text-decoration: none;
-  background: rgba(255, 243, 224, 0.05);
-  box-shadow: inset 0 0 0 1px rgba(255, 243, 224, 0.10);
-  transition: color 140ms ease, background 140ms ease, box-shadow 140ms ease, transform 140ms ease;
-}
-.bornin a:hover, .bornin a:focus-visible {
-  color: var(--on-honey); background-image: linear-gradient(135deg, var(--honey-lite), var(--honey));
-  box-shadow: 0 10px 22px rgba(244, 183, 64, 0.34);
-  transform: translateY(-2px);
-}
-@media (max-width: 560px) { .bornin { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 
-/* The rail of real facts, moving.
-
-   It moves without a script, because default-src 'none' means nothing on this
-   page may run one. The track is a keyframe animation, the pause is a hover
-   rule, and the loop is seamless because the track is written out twice: the
-   first copy slides exactly its own width plus the gap, by which point the
-   second copy is standing where the first one started.
-
-   The distance has to be its own width plus one gap and not just its width.
-   The two tracks are laid out side by side inside a flex row with a gap
-   between them, so a copy that only travelled 100 percent would stop one gap
-   short and the rail would jump by that much, once a minute, forever.
-
-   Cards are a fixed width rather than a share of the rail. A share of what:
-   the track is wider than the screen by design, so a percentage would be a
-   percentage of a number nobody chose. Fixed also means the whole track is a
-   known length, which is what lets one duration read as one steady speed.
-*/
-.proof { margin: 46px 0 0; }
-.rail {
-  overflow: hidden; display: flex; gap: 14px; margin: 24px 0 0;
-  /* Fades the cards in and out at both ends instead of cutting them off at a
-     hard edge, which is what makes it read as a wheel turning past rather
-     than as a list that has been clipped. A gradient, not an image: the
-     security header for this page says img-src 'self' and would refuse one. */
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
-  mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
-}
-.railtrack { display: flex; gap: 14px; flex: none; list-style: none; margin: 0; padding: 0; }
-/* Gated here rather than switched off later, so that every animation on the
-   site sits behind the same question and a test can walk the sheet and check. */
-@media (prefers-reduced-motion: no-preference) { .railtrack { animation: rail 72s linear infinite; } }
-@keyframes rail { to { transform: translateX(calc(-100% - 14px)); } }
-/* Hold it still to read one. Focus as well as hover, because a keyboard is
-   how somebody reaches these without a pointer and a link that keeps sliding
-   out from under the focus ring is unusable. */
-.rail:hover .railtrack, .rail:focus-within .railtrack { animation-play-state: paused; }
-.railtrack li.hlcard {
-  flex: none; width: 320px;
-  display: flex; flex-direction: column;
-  background: linear-gradient(180deg, rgba(255, 243, 224, 0.055), rgba(255, 243, 224, 0.022));
-  box-shadow: inset 0 0 0 1px rgba(255, 243, 224, 0.09);
-  border-radius: 18px; padding: 16px 18px 14px;
-  transition: box-shadow 160ms ease, background 160ms ease;
-}
-.railtrack li.hlcard:hover {
-  background: linear-gradient(180deg, rgba(244, 183, 64, 0.13), rgba(255, 243, 224, 0.03));
-  box-shadow: inset 0 0 0 1px rgba(244, 183, 64, 0.50), 0 20px 40px rgba(0, 0, 0, 0.34);
-}
 .hl { display: block; text-decoration: none; color: inherit; flex: 1; }
-.hlhead { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-.hldate {
-  font-size: 11px; font-weight: 800; letter-spacing: 0.13em; text-transform: uppercase;
-  color: ${ACCENT};
-}
-.hlyear {
-  font-size: 13px; font-weight: 700; color: ${QUIET}; font-variant-numeric: tabular-nums;
-}
-.hltext {
-  display: block; margin: 9px 0 0;
-  font-family: var(--serif); font-size: 17px; line-height: 1.42;
-  color: var(--cream);
-}
-.hlsrc { margin: 11px 0 0; font-size: 12px; }
-.hlsrc a { color: ${QUIET}; text-decoration: none; }
-.hlsrc a:hover { color: ${ACCENT}; text-decoration: underline; }
-.proof .credit { margin-top: 18px; }
 
-/* What is on a day. Six of them in two columns, hung off a hairline each,
-   because six rounded rectangles in a row is the shape of a page that has run
-   out of things to say. */
-.features {
-  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px 26px; margin: 22px 0 0; padding: 0; list-style: none;
-}
-.features li {
-  display: block; background: none; border-radius: 0;
-  padding: 15px 0 4px; border-top: 1px solid rgba(255, 243, 224, 0.11);
-}
-.features h3 { margin: 0 0 5px; font-size: 16px; }
-.features h3::before {
-  content: ""; display: inline-block; vertical-align: 0.12em;
-  width: 7px; height: 7px; border-radius: 2px; margin-right: 9px;
-  background-image: linear-gradient(135deg, var(--honey-lite), var(--honey));
-}
-.features p { margin: 0; color: var(--dim); font-size: 15px; }
-.features a { color: ${ACCENT}; }
-@media (max-width: 560px) { .features { grid-template-columns: 1fr; } }
-
-/* The year as twelve calendars, in the full width of the page rather than in
-   the width of a paragraph. Seven columns, so a row is a week and it reads the
-   way a wall calendar does instead of as a column of 366 lines. */
-.allyear { margin-top: 52px; }
 .months {
   display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px; margin: 22px 0 0; padding: 0;
@@ -1256,35 +823,25 @@ p.calkey .sw + .sw { margin-left: 14px; }
 p.calkey .sw.thispage { background: ${ACCENT}; }
 p.calkey .sw.today { background: none; box-shadow: inset 0 0 0 2px ${TODAY}; }
 @media (max-width: 900px) { .months { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 560px) { .railtrack li.hlcard { width: 74vw; } }
+
 @media (max-width: 600px) {
   .months { grid-template-columns: 1fr; gap: 10px; }
   .cal .days a { font-size: 16px; border-radius: 12px; }
   .home .hero { margin-top: 4px; }
   .wrap.home { padding-left: 16px; padding-right: 16px; }
-  .picker { padding: 16px 15px 17px; }
+
 }
 
 /* Nothing on this page needs to move for it to work. */
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
-  /* Nothing moves on its own, so the rail becomes one the reader pushes, and
-     the second copy of the track is dropped rather than left sitting there as
-     twelve cards nobody asked for twice. */
-  .railtrack { animation: none; }
-  .railtrack[aria-hidden="true"] { display: none; }
-  .rail {
-    overflow-x: auto; scroll-snap-type: x mandatory;
-    scrollbar-width: none; padding-bottom: 4px;
-  }
-  .rail::-webkit-scrollbar { display: none; }
-  .railtrack li.hlcard { scroll-snap-align: start; }
-  .btn.brand, .btn.ghost, .bornin a, .railtrack li.hlcard, .cal, .cal .days a {
+
+  .btn.brand, .cal, .cal .days a {
     transition: none;
   }
-  .btn.brand:hover, .btn.ghost:hover, .bornin a:hover, .cal .days a:hover { transform: none; }
-  .rem button, .yeardecs label, .yg button { transition: none; }
-  .rem button:active, .yeardecs label:active, .yg button:active { transform: none; }
+  .btn.brand:hover, .cal .days a:hover { transform: none; }
+  .rem button { transition: none; }
+  .rem button:active { transform: none; }
 }
 
 /* ---- The date page as a feed ---------------------------------------------
@@ -1352,88 +909,11 @@ p.calkey .sw.today { background: none; box-shadow: inset 0 0 0 2px ${TODAY}; }
 }
 .daybar .get:hover { color: var(--cream); border-bottom-color: var(--dimmer); }
 
-/* The birthday picker. The slim one lives under a date title; .bbig is the
-   home hero. Native selects, styled to sit in the dark rather than to hide
-   that they are selects: a reader knows how to open one and no script is
-   needed to. */
-.bbar { margin: 2px 0 22px; }
-.bbar .bbarq { margin: 0 0 8px; font-size: 15px; font-weight: 600; color: var(--cream-2); }
-.bbarrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; }
-.bbar select {
-  appearance: none; -webkit-appearance: none; font: inherit; font-size: 15px;
-  color: var(--cream); background: var(--cell); border: 1px solid var(--line); border-radius: 10px;
-  padding: 10px 30px 10px 12px; cursor: pointer; min-width: 0;
-  background-image: linear-gradient(45deg, transparent 50%, var(--dim) 50%), linear-gradient(135deg, var(--dim) 50%, transparent 50%);
-  background-position: right 14px center, right 9px center; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
-}
-.bbar select:hover, .bbar input:hover { border-color: var(--day-soft, var(--honey-lite)); }
-.bbar select:focus-visible, .bbar input:focus-visible { outline: 2px solid var(--honey-lite); outline-offset: 1px; }
-.bbar input {
-  appearance: none; font: inherit; font-size: 15px; color: var(--cream); background: var(--cell);
-  border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; width: 6.5em; min-width: 0;
-}
-.bbar input::placeholder { color: var(--dim); }
-.bbar button {
-  font: inherit; font-size: 15px; font-weight: 700; color: var(--on-honey);
-  background: var(--honey-lite); border: none; border-radius: 10px; padding: 10px 18px; cursor: pointer; flex: 1 0 auto;
-}
-.bbar button:hover { background: var(--honey-lite); }
-.bbig { margin: 8px 0 26px; padding: 22px; background: var(--cell); border: 1px solid var(--line); border-radius: 16px; }
-.bbig .bbarq { font-size: 22px; color: var(--cream); }
-.bbig .bbarsub { margin: 12px 0 0; font-size: 14px; color: var(--dim); line-height: 1.5; }
-
-/* The trigger that opens the popup on a date page. */
-.bopenrow { margin: 2px 0 18px; }
-.bopen {
-  display: inline-block; font-size: 14px; font-weight: 600; color: var(--honey-lite);
-  text-decoration: none; padding: 7px 14px; border: 1px solid var(--line); border-radius: 999px;
-}
-.bopen:hover { border-color: var(--honey-lite); background: var(--line); }
-/* On a phone the bar has no room for a fourth pill, so the way to the app
-   stands beside the birthday button instead. On anything wider it is in the
-   bar and this one stays hidden. September 22, 2026. */
-/* The way to the app is on the About page and nowhere else. Nathan,
-   September 22, 2026: it was a pill in every bar and a button under every
-   date's title, and the site is the product. */
-
-/* The popup itself. Hidden until its id is the page's target, which a link
-   sets and the close links clear, all without a script. */
-.bmodal { position: fixed; inset: 0; z-index: 60; display: none; }
-.bmodal:target { display: flex; align-items: center; justify-content: center; padding: 20px; }
-.bscrim { position: absolute; inset: 0; background: rgba(10, 6, 14, .72); backdrop-filter: blur(2px); }
-.bcard {
-  position: relative; z-index: 1; width: 100%; max-width: 420px; margin: 0;
-  background: var(--cell); border: 1px solid var(--line); border-radius: 16px; padding: 26px 24px;
-}
-.bcard .bbarq { font-size: 20px; color: var(--cream); }
-.bcard .bbarsub { margin: 12px 0 0; font-size: 13px; color: var(--dim); line-height: 1.5; }
-.bx {
-  position: absolute; top: 8px; right: 12px; font-size: 26px; line-height: 1; color: var(--dim);
-  text-decoration: none; padding: 4px 8px; border-radius: 8px;
-}
-.bx:hover { color: var(--cream); background: var(--line); }
-
 /* The reader's own panel, injected by serve.ts for a reader who has given a
    birth year. It is the birthday payoff, so it reads warm and sits at the top. */
 .me { margin: 4px 0 26px; padding: 22px; background: var(--cell); border: 1px solid var(--line); border-radius: 16px; }
-.me .mekicker { margin: 0 0 8px; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; color: var(--honey-lite); }
-.me .meage { margin: 0 0 10px; font-family: var(--serif); font-size: 30px; font-weight: 700; color: var(--cream); line-height: 1.15; }
-.me .meworld { margin: 0 0 12px; font-size: 16px; color: var(--cream-2); line-height: 1.5; }
-.me .menote { margin: 0; font-size: 13px; color: var(--dim); line-height: 1.5; }
-.me .menote a { color: var(--honey-lite); text-decoration: none; border-bottom: 1px solid var(--line); }
-.me .menote a:hover { border-color: var(--honey-lite); }
-@media (max-width: 460px) {
-  .bbarrow { display: grid; grid-template-columns: 1fr 1fr; }
-  .bbar button { grid-column: 1 / -1; }
-}
+
 @media (max-width: 400px) { .barnav .here { min-width: 44px; font-size: 12px; } .mark, .daybar .mark { font-size: 18px; letter-spacing: 0.16em; } }
-
-/* What the page holds, as one object rather than three sentences. */
-
-
-.hrow { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.hrow h2.section { margin-bottom: 0; }
-.hrow a { font-size: 13px; color: ${ACCENT}; text-decoration: none; font-weight: 600; white-space: nowrap; }
 
 /* The six. A card here is a card because it is one thing to read, not because
    every block on the page got the same rectangle. */
@@ -1454,26 +934,7 @@ ul.feed .tag {
   font-size: 10px; font-weight: 800; letter-spacing: 0.13em; text-transform: uppercase;
 }
 ul.feed .tag::before { content: ""; width: 6px; height: 6px; border-radius: 2px; background: currentColor; }
-/* One hue per kind of thing, so the badge carries information rather than
-   colour. Every value the researcher is allowed to return has a line here.
-   Fixed colours, deliberately not the month's: a badge that is violet in
-   September and green in March tells a reader nothing at all. */
-.k-event { color: var(--honey); }
-.k-release { color: #3FBFA3; }
-.k-sport { color: var(--ember); }
-.k-science { color: var(--honey-lite); }
-.k-record { color: var(--ember); }
-.k-price { color: var(--honey); }
-.k-weather { color: var(--ember); }
-.k-local { color: #3FBFA3; }
-.k-older { color: var(--honey-lite); }
-.k-tech { color: #3FBFA3; }
-.k-music { color: var(--honey-lite); }
-.k-cinema { color: var(--honey); }
-/* Two hues that nothing else on the page uses, for the two categories that
-   are the reason the curated table exists. */
-.k-gaming { color: #9BE07A; }
-.k-meme { color: #F58BC8; }
+
 ul.feed .yr {
   font-family: var(--serif); font-size: 15px; font-weight: 700; color: ${QUIET};
   font-variant-numeric: tabular-nums;
@@ -1489,32 +950,6 @@ ul.feed .src a:hover { color: ${ACCENT}; text-decoration: underline; }
 ul.feed li.lead { padding: 22px 20px 20px; }
 ul.feed li.lead .said { font-size: 23px; line-height: 1.28; }
 ul.feed li.lead .yr { font-size: 30px; color: var(--day-soft); }
-
-/* The front page lead, and only on a date that has sealed.
-   On an open date nothing has earned the top of the page, and setting a row
-   large because it happened to be first would be putting a headline on a story
-   nobody chose. Once a date seals, the row at the top is the one its own
-   people said they remembered, and the hierarchy is real. */
-ul.feed li.sealedlead {
-  padding: 30px 28px 26px;
-  background: linear-gradient(168deg, var(--cell) 0%, var(--cell) 62%);
-  border-color: var(--line);
-}
-ul.feed li.sealedlead .said {
-  font-size: clamp(28px, 4.6vw, 44px); line-height: 1.14; font-weight: 800;
-  letter-spacing: -0.015em; margin: 14px 0 0;
-}
-ul.feed li.sealedlead .yr { font-size: 40px; }
-ul.feed li.sealedlead .leadmark {
-  display: inline-flex; align-items: center; gap: 7px; margin: 0 0 4px;
-  font-size: 10.5px; font-weight: 800; letter-spacing: 0.14em;
-  text-transform: uppercase; color: var(--day-soft, var(--honey-lite));
-}
-ul.feed li.sealedlead .leadmark::before {
-  content: ""; width: 18px; height: 2px; border-radius: 2px;
-  background: var(--day-soft, var(--honey-lite));
-}
-@media (max-width: 560px) { ul.feed li.sealedlead { padding: 22px 18px 20px; } }
 
 /* The rest, behind one tap. Present in the HTML, so it is still indexed and
    still answers a search: closed is a display state, not a missing page. */
@@ -1547,16 +982,6 @@ details.more .x { font-family: var(--serif); font-size: 16px; line-height: 1.4; 
 details.more .src { margin: 6px 0 0; font-size: 12px; }
 details.more .src a { color: ${QUIET}; text-decoration: none; }
 
-/* The people, as a row you push. Ten boxes stacked down a page is ten
-   scrolls; ten cards in a row is one gesture. */
-.rail {
-  display: flex; gap: 10px; margin: 16px 0 0; padding: 2px 20px 12px;
-  margin-left: -20px; margin-right: -20px;
-  overflow-x: auto; scroll-snap-type: x mandatory;
-  scrollbar-width: none; -webkit-overflow-scrolling: touch;
-}
-.rail::-webkit-scrollbar { display: none; }
-.rail > * { scroll-snap-align: start; flex: none; }
 .who {
   width: 138px; border-radius: 16px; padding: 14px 13px 13px;
   background: linear-gradient(180deg, rgba(255, 243, 224, 0.055), rgba(255, 243, 224, 0.02));
@@ -1581,27 +1006,6 @@ details.more .src a { color: ${QUIET}; text-decoration: none; }
 .who .b { color: ${ACCENT}; font-size: 11px; font-weight: 700; margin: 8px 0 0; font-variant-numeric: tabular-nums; }
 .who .d { color: ${QUIET}; font-size: 11px; margin: 2px 0 0; }
 
-/* The two dates either side, as somewhere to go rather than two arrows. */
-nav.pager.cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-nav.pager.cards a {
-  display: block; padding: 14px 16px; border-radius: 16px; text-decoration: none; color: inherit;
-  background: linear-gradient(180deg, rgba(255, 243, 224, 0.05), rgba(255, 243, 224, 0.02));
-  box-shadow: inset 0 0 0 1px rgba(255, 243, 224, 0.09);
-  transition: background 160ms ease, box-shadow 160ms ease;
-}
-nav.pager.cards a:hover {
-  background: rgba(244, 183, 64, 0.10);
-  box-shadow: inset 0 0 0 1px rgba(244, 183, 64, 0.45), 0 16px 32px rgba(0, 0, 0, 0.34);
-}
-nav.pager.cards .dir {
-  font-size: 10px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase;
-  color: ${QUIET}; margin: 0;
-}
-nav.pager.cards .when {
-  font-family: var(--serif); font-size: 19px; font-weight: 700; margin: 6px 0 0; color: ${ACCENT};
-}
-nav.pager.cards .after { text-align: right; }
-
 @media (prefers-reduced-motion: no-preference) {
   ul.feed li { animation: rise 460ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards; }
   ul.feed li[style] { animation-delay: calc(var(--i) * 45ms); }
@@ -1625,36 +1029,26 @@ nav.pager.cards .after { text-align: right; }
    only it carries a non-empty result, so nothing else on the page moves. */
 @media (prefers-reduced-motion: no-preference) {
   :target .mine { animation: rise 460ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards; animation-delay: 270ms; }
-  .afterword:target { animation: rise 460ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards; }
 
   /* 2. The ask card, on the three open dates. Its parts arrive in reading
      order, label, year, sleeve, sentence, then the three buttons one beat
      apart, so the eye is led to the thing to do. The card itself does not
      move: it is the page, not a visitor to it. The ask never carries a heavy
      row, because mayLead in highlight.ts chose it. */
-  .asklab, .askyr, .askart, .asksaid, .askcap, .ask .rem button, .askrule {
+  .ask .rem button {
     animation: rise 460ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
   }
-  .askyr { animation-delay: 45ms; }
-  .askart { animation-delay: 90ms; }
-  .asksaid { animation-delay: 135ms; }
-  .askcap { animation-delay: 180ms; }
+
   .ask .rem button:nth-child(5) { animation-delay: 225ms; }
   .ask .rem button:nth-child(6) { animation-delay: 270ms; }
   .ask .rem button:nth-child(7) { animation-delay: 315ms; }
-  .askrule { animation-delay: 360ms; }
 
   /* 3. The dot. Baked here is only the shape of the breath; today.css
      starts it, and only on the three open dates, because a grey dot
      breathing on a sealed page would say the page is live when it is not.
      Four seconds. A fast pulse is an alarm. */
-  .rem button, .yeardecs label, .yg button { transition: transform 120ms ease, color 140ms ease, border-color 140ms ease, background 140ms ease; }
+  .rem button { transition: transform 120ms ease, color 140ms ease, border-color 140ms ease, background 140ms ease; }
 
-  /* 5. The year picker and the line that replaces it. :target brings the
-     picker back and a checked decade reveals its years; both arrive rather
-     than appear. The line that gives way cannot fade, because :target is a
-     cut, so the thing arriving is what carries the transition. */
-  .yearask:target, .yg { animation: rise 460ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards; }
 }
 @keyframes breathe {
   0%, 100% { box-shadow: 0 0 0 4px rgba(111, 165, 222, .18); }
@@ -1664,10 +1058,10 @@ nav.pager.cards .after { text-align: right; }
    tall, and a row scrolled flush to the top of the window sits under it, so
    the thing that just arrived is the one thing hidden. Not motion, but it is
    the landing, so it lives with the landing. */
-.ask, ul.feed li, details.more li, .cul { scroll-margin-top: 72px; }
+.ask, ul.feed li, details.more li { scroll-margin-top: 72px; }
 /* A press, felt. Not in the media query: a transform on :active is a state,
    not a motion, and the transition that softens it is switched off below. */
-.rem button:active, .yeardecs label:active, .yg button:active { transform: scale(.96); }
+.rem button:active { transform: scale(.96); }
 `;
 
 /**
@@ -1756,7 +1150,7 @@ ${extraHead}<style>${PAGE_STYLE}</style>
 const CREDIT = `<p>Names, years and descriptions come from <a href="https://www.wikidata.org">Wikidata</a>, released under <a href="https://creativecommons.org/publicdomain/zero/1.0/">Creative Commons Zero</a>. Credit to Wikipedia and Wikidata.</p>
 <p>Birthed is not affiliated with Wikipedia, Wikidata or the Wikimedia Foundation.</p>`;
 
-const SITELINKS = `<p class="sitelinks"><a href="/">Today</a> · <a href="/calendar/">Every date</a> · <a href="/about/">About</a> · <a href="/support/">Support</a> · <a href="/privacy/">Privacy</a></p>`;
+const SITELINKS = `<p class="sitelinks"><a href="/">Today</a> · <a href="/about/">About</a> · <a href="/support/">Support</a> · <a href="/privacy/">Privacy</a></p>`;
 
 /**
  * The footer, and the one sentence on it that is not a credit.
@@ -1796,7 +1190,7 @@ const SITELINKS = `<p class="sitelinks"><a href="/">Today</a> · <a href="/calen
  */
 export const FOOT = `<footer>
 ${SITELINKS}
-<p class="nothing">No account, no sign up, and nothing on this page is loaded from another company. Buzz something and one random string is kept in a cookie, so the same browser gets its few buzzes a day and no more. Tell the site your birthday and it is kept in a second cookie, in your browser, to draw your own page. That is the whole of what is kept about you.</p>
+<p class="nothing">No account, no sign up, and nothing on this page is loaded from another company. Buzz something and one random string is kept in a cookie, so the same browser gets its few buzzes a day and no more. That is the whole of what is kept about you.</p>
 ${CREDIT}
 </footer>`;
 
@@ -1814,66 +1208,6 @@ ${SITELINKS}
 ${CREDIT}
 </footer>
 </div></body></html>`;
-
-/** Structured data, so a search engine knows this is a list of people. */
-function jsonLd(page: DayPage, canonical: string): string {
-  const items = page.people.slice(0, 25).map((person, index) => ({
-    "@type": "ListItem",
-    position: index + 1,
-    item: {
-      "@type": "Person",
-      name: person.name,
-      // Tidied like the visible row, because this is the copy handed to
-      // search engines and it carried the same contradiction: Wikidata says
-      // Rishi Kapoor was born in 1952 and its description said 1951.
-      ...(person.description && tidyDescription(person.description)
-        ? { description: tidyDescription(person.description) }
-        : {}),
-      sameAs: `https://www.wikidata.org/wiki/${person.qid}`,
-    },
-  }));
-  const payload = {
-    "@context": "https://schema.org",
-    "@type": "ItemList",
-    name: `People born on ${monthName(page.month)} ${page.day}`,
-    url: canonical,
-    itemListElement: items,
-  };
-  return `<script type="application/ld+json">${JSON.stringify(payload)}</script>`;
-}
-
-/**
- * What happened on this date, with the page each one came from.
- *
- * Put above the people rather than below them. The names are what somebody
- * searched for, but they are also the part every competitor already has, and
- * a reader who scrolls past ten names to reach the only unusual thing on the
- * page mostly does not scroll. Nothing here is written in the second person,
- * because a stranger who typed this date into a search box was not born on it.
- */
-/**
- * Takes a trailing year range off a Wikidata description.
- *
- * "American actor and martial artist (1973-2022)" arrives on a row that
- * already prints 1973 in the margin and "died 2022" underneath, so the same
- * two numbers appear three times in one card, on every person who has died,
- * on all 366 pages.
- *
- * It also fixes a contradiction rather than only tidying one. Wikidata's own
- * data disagrees with itself on Rishi Kapoor: the birth date says 1952 and the
- * description says (1951-2020), so the page printed 1952 beside 1951 and
- * looked wrong to anybody reading it. We print the structured year, which is
- * the one the whole site is ordered by, and drop the prose copy of it.
- *
- * Only a parenthetical made of nothing but years, dashes and the word "born"
- * is removed. "Apollo 11 (1969 mission)" keeps its bracket, because the
- * bracket is saying something.
- */
-export function tidyDescription(description: string): string {
-  return description
-    .replace(/\s*\((?:born\s+)?\d{3,4}\s*(?:[\u2013\u2014-]\s*\d{3,4})?\)\s*$/u, "")
-    .trim();
-}
 
 /**
  * The month's own colour.
@@ -1896,68 +1230,6 @@ export function dayHue(_month: number): { day: string; soft: string } {
 }
 
 /**
- * What kind of day a row's date actually is, said out loud.
- *
- * A bare year claims the same confidence whether the timestamp came off the
- * post itself or off a magazine writing about something that had already been
- * going round for a fortnight. Those are different claims. Every competitor
- * prints them identically and this one does not, which is the entire argument
- * of docs/internet-culture.md rule two: the limitation is the differentiator,
- * so do not hide it.
- *
- * "happened" is deliberately absent. It is the ordinary case, it is what a
- * reader already assumes a dated row means, and printing it on most of the
- * page would turn the labels into wallpaper and cost the two that matter all
- * of their weight.
- */
-const WHEN: Record<string, string> = {
-  posted: "the exact day it was posted",
-  went_viral: "when it spread, not when it was posted",
-  ended: "the day it ended",
-};
-
-function whenOf(dateKind: string | null | undefined): string | null {
-  if (typeof dateKind !== "string") return null;
-  return WHEN[dateKind] ?? null;
-}
-
-/**
- * The things worth stopping on, and a drawer holding all the others.
- *
- * The whole list is still in the HTML. A closed drawer is a display state, so
- * a search engine reads every line and a reader is not handed forty three of
- * them at once. That is the entire idea: nothing is thrown away, one thing is
- * put in front.
- */
-/**
- * Who found what, under the history. Not decoration: Wikipedia's text is
- * quoted under Creative Commons Attribution ShareAlike and the credit is the
- * licence's condition, and a person's checked sentence must never be
- * counted as something a model turned up.
- */
-export function feedCredits(rows: TimelineRow[], name: string, searched: number, fromWikipedia: number, curated: number): string {
-  const spread = rows.filter((row) => row.dateKind === "went_viral").length;
-
-  const credits = [
-    spread > 0
-      ? `<p class="credit">${spread === 1 ? "One row says" : `${spread} rows say`} "when it spread, not when it was posted". That means the original posting is gone or was never recorded, and the date is the week it broke out, taken from something published at the time. Printing that instead of a confident year is deliberate.</p>`
-      : "",
-    searched > 0
-      ? `<p class="credit">The ${searched} with a source link under them were found by Google's Gemini searching the web, and kept only when the page each one cites answered. Birthed is not affiliated with Google.</p>`
-      : "",
-    curated > 0
-      ? `<p class="credit">${curated === 1 ? "One of them was" : `${curated} of them were`} written and checked by hand, against the page ${curated === 1 ? "it links" : "each one links"}.</p>`
-      : "",
-    fromWikipedia > 0
-      ? `<p class="credit">${searched + curated > 0
-        ? `The other ${fromWikipedia} ${fromWikipedia === 1 ? "is" : "are"}`
-        : fromWikipedia === 1 ? "The one without a link under it is" : `The ${fromWikipedia} without a link under them are`} from the ${escapeHtml(name)} article on Wikipedia, quoted as written and released under Creative Commons Attribution ShareAlike. Birthed is not affiliated with Wikipedia or the Wikimedia Foundation.</p>`
-      : "",
-  ].filter((line) => line !== "").join("\n");
-  return credits;
-}
-
-/**
  * Where a person's photograph lives on birthed.app.
  *
  * Named from the Wikidata identifier rather than from the person's name,
@@ -1975,332 +1247,19 @@ export function faceName(qid: string): string {
   return qid.replace(/[^A-Za-z0-9]/g, "");
 }
 
-// ---------------------------------------------------------------------------
-// The museum. docs/the-wall.md section 32, decided October 5, 2026.
-// ---------------------------------------------------------------------------
-
-/**
- * The key a museum row shares with the story the worker filed for it, or
- * null when it is not shaped like one. museumKey in wall.ts makes the same
- * key from the story, so a baked button can name a story it never knew.
- */
-export function museumKeyFor(kind: string, id: string | number): string | null {
-  const key = `${kind}:${id}`;
-  return /^[a-z_]+:[A-Za-z0-9-]{1,40}$/.test(key) ? key : null;
-}
-
-/**
- * The one form every museum button posts through. A row carries one small
- * button that names its row and no form of its own, so the hundred and fifty
- * rows of the museum cost a few kilobytes rather than fifty. Posts like any
- * buzz; serve.ts finds the story by the button's key.
- */
-function museumForm(month: number, day: number): string {
-  return `<form id="mbz" method="post" action="/boost"><input type="hidden" name="m" value="${month}"><input type="hidden" name="d" value="${day}"><input type="hidden" name="v" value="museum"></form>`;
-}
-
-/**
- * The end of a museum row: whether it is on the hive, how many buzzes it
- * has, its button and this browser's mark. All four are off in the baked
- * page, because a baked page cannot know whether its date is open; the live
- * section turns them on with a style block (museumMarks in wall.ts).
- */
-function museumDo(key: string, label: string, voice: Voice): string {
-  return `<span class="mdo"><span class="mon">On the hive</span><span class="mn"></span>`
-    + `<button class="mbuzz" type="submit" form="mbz" name="k" value="${key}" aria-label="${escapeHtml(`${voice.button}: ${label}`)}">${voice.button}</button>`
-    + `<span class="mmine">You ${voice.past} this</span></span>`;
-}
-
-/** "31 things, 1582 to 2024". */
-function spanOf(count: number, one: string, many: string, years: number[]): string {
-  const said = `${count} ${count === 1 ? one : many}`;
-  if (years.length === 0) return said;
-  const from = Math.min(...years);
-  const to = Math.max(...years);
-  return from === to ? `${said}, ${from}` : `${said}, ${from} to ${to}`;
-}
-
-/** What happened on the date, every year: the date's own history, the found facts and the culture rows, as one list. */
-export function historyGroup(rows: TimelineRow[], name: string, voice: Voice): string {
-  if (rows.length === 0) return "";
-  const items = rows.map((row) => {
-    const key = museumKeyFor(row.kind, row.id);
-    const text = row.leadLine ?? row.text;
-    // data-y is the year the row happened, for the reader's own age above it
-    // (ageMark in serve.ts), the way the feed's dated rows carried it.
-    return `<li class="mrow hist" id="m-${row.kind}-${escapeHtml(String(row.id))}"${row.year === null ? "" : ` data-y="${row.year}"`}${key === null ? "" : ` data-k="${key}"`}>
-<span class="fyr">${row.year === null ? "" : row.year}</span>
-<span class="fbody">${row.sourceUrl
-      ? `<a href="${escapeHtml(row.sourceUrl)}" rel="nofollow noopener">${escapeHtml(text)}</a>`
-      : `<span class="ftext">${escapeHtml(text)}</span>`}
-<span class="wmeta">${row.sourceUrl ? escapeHtml(hostOf(row.sourceUrl)) : ""}${whenOf(row.dateKind) ? ` ${escapeHtml(whenOf(row.dateKind) ?? "")}` : ""}</span>
-</span>${key === null ? "" : museumDo(key, text, voice)}
-</li>`;
-  }).join("\n");
-  const years = rows.map((r) => r.year).filter((y): y is number => y !== null);
-  return `<details class="mgroup" id="history">
-<summary><h3 class="mhead">${escapeHtml(name)} in history</h3><span class="mcount">${spanOf(rows.length, "thing", "things", years)}</span></summary>
-<ul class="wlist hist mlist">
-${items}
-</ul>
-</details>`;
-}
-
-/** How many names each of the two short lists shows. Five a side fits one screen on a phone. */
-export const BORN_SHOWN = 5;
-
-/**
- * Who was born on the date: "Big right now" and "Legends" first, then
- * everybody else the page carries. Nathan's call, September 25, 2026, for the
- * two lists, and the reason is the one in DayPage.now: each ordering is right
- * about something the other gets wrong. Nobody is in two places, and a
- * legend keeps their place: Legends is drawn first, Big right now is the
- * most read people who are not already in it, and the rest is everybody
- * left, in world score order. The screens still hold, because the build asks
- * for both lists with the adult and violence screens applied.
- */
-export function bornGroup(page: DayPage, name: string, voice: Voice): string {
-  const legends = page.people.slice(0, BORN_SHOWN);
-  const taken = new Set(legends.map((p) => p.qid));
-  const now = (page.now ?? []).filter((p) => p.monthlyViews > 0 && !taken.has(p.qid)).slice(0, BORN_SHOWN);
-  for (const p of now) taken.add(p.qid);
-  const rest = page.people.filter((p) => !taken.has(p.qid));
-  if (now.length === 0 && legends.length === 0) return "";
-  const meta = (p: Person): string => {
-    const said = p.description ? tidyDescription(p.description) : "";
-    const years = p.birthYear === null ? "" : p.deathYear ? `born ${p.birthYear}, died ${p.deathYear}` : `born ${p.birthYear}`;
-    return [years, said].filter((part) => part !== "").join(", ");
-  };
-  const row = (p: Person): string => {
-    const key = museumKeyFor("person", p.qid);
-    const m = meta(p);
-    return `<li class="mrow" id="m-person-${escapeHtml(p.qid)}"${key === null ? "" : ` data-k="${key}"`}><span class="mwho"><a href="https://www.wikidata.org/wiki/${escapeHtml(p.qid)}" rel="nofollow noopener">${escapeHtml(p.name)}</a>${m ? `<span class="bmeta">${escapeHtml(m)}</span>` : ""}</span>${key === null ? "" : museumDo(key, p.name, voice)}</li>`;
-  };
-  const column = (title: string, people: Person[], note: string): string => people.length === 0 ? "" : `<div class="bcol">
-<h4>${title}</h4>
-<ol>
-${people.map(row).join("\n")}
-</ol>
-<p class="bnote">${note}</p>
-</div>`;
-  const named = [...legends, ...now].slice(0, 2).map((p) => p.name);
-  const count = legends.length + now.length + rest.length;
-  const summary = named.length === 0
-    ? `${count} ${count === 1 ? "person" : "people"}`
-    : count > named.length ? `${named.join(", ")} and ${count - named.length} more` : named.join(" and ");
-  return `<details class="mgroup bornlists" id="born">
-<summary><h3 class="mhead">Born on ${escapeHtml(name)}</h3><span class="mcount">${escapeHtml(summary)}</span></summary>
-<div class="bcols">
-${column("Big right now", now, "The most read on English Wikipedia last month, after the legends.")}
-${column("Legends", legends, "Written about in the most languages, weighted by readers.")}
-</div>${rest.length === 0 ? "" : `
-<h4 class="mrest">Everyone else born on ${escapeHtml(name)}</h4>
-<ol class="mlist mpeople">
-${rest.map(row).join("\n")}
-</ol>`}
-</details>`;
-}
-
-/**
- * The number one song on the date in every year, as a strip of covers. Every
- * year is its own address, "/september-5/#1990", because "number one song on
- * September 5 1990" is a thing people type and the answer is on this page.
- */
-export function numberOnesGroup(songs: SongOfTheYear[], name: string, voice: Voice): string {
-  if (songs.length === 0) return "";
-  const rows = songs.map((song) => {
-    const key = museumKeyFor("song", song.chartDate);
-    const label = `"${song.song}" by ${song.artist}`;
-    return `<li class="mrow msong" id="${song.year}" data-subject="song:${escapeHtml(song.chartDate)}"${key === null ? "" : ` data-k="${key}"`}>
-<a class="wart" href="#${song.year}" title="${escapeHtml(song.song)} by ${escapeHtml(song.artist)}"><span class="wyr">${song.year}</span></a>
-<span class="wsongt">&quot;${escapeHtml(song.song)}&quot; by ${escapeHtml(song.artist)}</span>${key === null ? "" : museumDo(key, label, voice)}
-</li>`;
-  }).join("\n");
-  const years = songs.map((s) => s.year);
-  return `<details class="mgroup" id="number-ones">
-<summary><h3 class="mhead">Number ones by year</h3><span class="mcount">${spanOf(songs.length, "song", "songs", years)}</span></summary>
-<p class="wnote">The number one song on ${escapeHtml(name)} in every year, ${Math.min(...years)} to ${Math.max(...years)}.</p>
-<ul class="wsongs">
-${rows}
-</ul>
-</details>`;
-}
-
-/**
- * The museum: everything with a birthday on the date, every year, under the
- * game. docs/the-wall.md section 32. All of it is in the page, which is the
- * search plan, and all of it is folded, so it never competes with the hive.
- * Its buttons are baked switched off and the live section switches them on
- * while the date is taking buzzes, when a buzz here counts the same as one on
- * the hive. The comb sits last, as a handful of cells and the way in.
- */
-export function museumSection(page: DayPage, name: string, rows: TimelineRow[], songs: SongOfTheYear[], comb: string): string {
-  const voice = voiceFor(page.month, page.day);
-  const history = historyGroup(rows, name, voice);
-  const born = bornGroup(page, name, voice);
-  const ones = numberOnesGroup(songs, name, voice);
-  if (history === "" && born === "" && ones === "" && comb === `${COMB_START}${COMB_END}`) return comb;
-  return `<section class="museum" id="museum" aria-labelledby="museum-h">
-<p class="mkick">The archive</p>
-<h2 class="mtitle" id="museum-h">${escapeHtml(name)}, every year</h2>
-<p class="mnote">What happened, who was born and what was number one. <span class="mlive">While this date's hive is open, a ${voice.one} here counts the same as one on the hive.</span></p>
-${museumForm(page.month, page.day)}
-${history}
-${born}
-${ones}
-${comb}
-</section>`;
-}
-
-/**
- * How far back the first ask looks. The lead row should be one a large share
- * of living adults can answer with more than "never heard of it", and twenty
- * five years back is a year most adults today were somewhere between five and
- * sixty. One number, in one place, stable across builds so the card for a
- * date does not change every deploy.
- */
-const ASK_YEARS_BACK = 25;
-
-/**
- * How many rows are baked as ask cards, and how many slots today.css picks
- * from. One number, because a card carries the slot numbers that land on it
- * and the arithmetic only works if both ends agree.
- */
-export const ASK_SLOTS = 5;
-
-/**
- * The window a row's year has to fall in to be first choice.
- *
- * Wider than the single year ASK_YEARS_BACK named, and it replaces it as the
- * thing that decides. Nearest to one year is a rule that reliably picks the
- * routine over the memorable, because routine things get written down every
- * year and memorable ones do not happen on schedule. Anything inside this
- * window is treated as equally answerable and the tie is broken on evidence
- * and on length instead.
- */
-const ASK_FROM = 1985;
-const ASK_TO = 2015;
-
-/**
- * How good a lead this row would be, higher is better.
- *
- * Evidence first, because a row somebody wrote and checked is a row a person
- * chose, and Wikipedia's date article is everything anybody ever added. Then
- * the window, then shortness, because the card is read in about a second.
- */
-function askScore(row: TimelineRow): number {
-  const year = row.year ?? 0;
-  let score = 0;
-  // A person wrote a card for this row, so a person already made the judgement
-  // this function is a poor substitute for. It wins outright, and it wins by
-  // more than any combination of the rest, so a date with five written lines
-  // fills its rotation with them and nothing else.
-  if (row.leadLine !== undefined) score += 5_000;
-  // Somebody arguing on Wikipedia thought this was one of the day's biggest.
-  // Below a written line, because a person writing eight words for this site is
-  // a stronger signal than an editor picking a headline for a different one,
-  // and well above everything mechanical underneath.
-  if (row.selected === true) score += 1_000;
-  if (row.curated === true) score += 400;
-  else if (row.sourceUrl !== null) score += 200;
-  if (year >= ASK_FROM && year <= ASK_TO) score += 120;
-  else score -= Math.min(100, Math.abs(year - (year < ASK_FROM ? ASK_FROM : ASK_TO)));
-  score -= Math.min(60, Math.floor(row.text.length / 4));
-  return score;
-}
-
-/**
- * Up to ASK_SLOTS rows to open the page on, best first.
- *
- * **Why more than one.** A single fixed card is one chance to hook a stranger,
- * and on September 8 the old rule spent it on a routine space station resupply
- * flight, because that is what "nearest to twenty five years back, with a
- * source" picks. It is also the same card every time a reader comes back, on a
- * site whose whole promise is that the date changes under them. today.css
- * reveals one of these per request, so the page is dealt rather than fixed.
- *
- * **Why the years are spread.** Two candidates from the same decade are one
- * candidate as far as a reader is concerned, since the question the card asks
- * is really about a time in their life. A decade is taken at most once while
- * there is anything left to take, and only then does the list fill up.
- */
-export function askCandidates(rows: TimelineRow[], limit: number = ASK_SLOTS): TimelineRow[] {
-  // Screened on what the card would actually show. A row whose own sentence is
-  // three lines of encyclopedia becomes a candidate the moment somebody writes
-  // eight words for it, which is the entire point of writing one: the length
-  // limit exists because the card has a size, not because a long row is a bad
-  // row. The word screens still read the row's own sentence as well, because a
-  // gentle line over a killing is exactly the thing they exist to refuse.
-  const passing = rows.filter((row) =>
-    // 1958 is where the chart data starts, so a record can sit beside the card.
-    // A selected row does not need one: it is the day's biggest, and refusing
-    // it for being old is why September 8 could ask about a resupply flight and
-    // never about Michelangelo's David, New Amsterdam becoming New York, or the
-    // first season of the Football League. On most dates the biggest things are
-    // older than the charts, and a sleeve is decoration.
-    row.year !== null && (row.year >= 1958 || row.selected === true) &&
-    // Length, on what the card would actually show.
-    mayAsk(row.leadLine ?? row.text) &&
-    // Subject, on the row's own sentence as well, always. A written line is
-    // eight words and could be gentle about anything; the record underneath it
-    // is what says what the card is really about.
-    mayLeadWords(row.text));
-  const ranked = [...passing].sort((a, b) => {
-    const gap = askScore(b) - askScore(a);
-    // Year descending on a tie, so the order is stable across builds rather
-    // than dependent on whatever order the two tables came back in.
-    return gap !== 0 ? gap : (b.year ?? 0) - (a.year ?? 0);
-  });
-  const out: TimelineRow[] = [];
-  const decades = new Set<number>();
-  for (const row of ranked) {
-    if (out.length >= limit) break;
-    const decade = Math.floor((row.year ?? 0) / 10);
-    if (decades.has(decade)) continue;
-    decades.add(decade);
-    out.push(row);
-  }
-  for (const row of ranked) {
-    if (out.length >= limit) break;
-    if (!out.includes(row)) out.push(row);
-  }
-  return out;
-}
-
-/**
- * The best single ask, or null. Kept because a caller that wants one row
- * should not have to know about slots.
- */
-export function firstAsk(rows: TimelineRow[], _now: number = new Date().getUTCFullYear()): TimelineRow | null {
-  return askCandidates(rows, 1)[0] ?? null;
-}
-
-/**
- * The dice, on every date page.
- *
- * /random/ has existed in serve.ts since the beginning and was linked from
- * exactly one place, the about page, which is the page nobody lands on. A
- * reader who arrives on a date from a search result had no way to see a second
- * one without typing a URL, which is a strange thing to be true of a site made
- * of 366 pages that are fun to flick through.
- *
- * A server redirect rather than anything on the page, so it costs no script on
- * a site that ships none, and robots.txt already refuses it so no crawler
- * wanders 366 pages of duplicates.
- */
 // The three marks in the bar's end. Our own line drawings, one stroke weight,
 // the same box, so the three read as a set. Not emoji: an emoji is drawn by
 // whichever phone or computer is looking, and looks like three different
 // sets on three different screens.
-const DICE = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="4.6"/><circle cx="8.4" cy="8.4" r="1.35" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.35" fill="currentColor" stroke="none"/><circle cx="15.6" cy="15.6" r="1.35" fill="currentColor" stroke="none"/></svg>`;
-const CALENDAR = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3.4" y="5" width="17.2" height="15.6" rx="3.6"/><path d="M3.4 10.2h17.2M8.2 3.2v3.6M15.8 3.2v3.6"/></svg>`;
 const INFO = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="8.6"/><path d="M12 11v5.2"/><circle cx="12" cy="7.9" r="0.9" fill="currentColor" stroke="none"/></svg>`;
 
 const TODAY_ICON = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3.4" y="5" width="17.2" height="15.6" rx="3.6"/><path d="M3.4 10.2h17.2M8.2 3.2v3.6M15.8 3.2v3.6"/><circle cx="12" cy="15.4" r="1.6" fill="currentColor" stroke="none"/></svg>`;
 
 /**
- * The bar's end: Today, Every date, Random and About, as four matching
- * pills. The app pill came off on September 22, 2026: the way to the app
+ * The bar's end: Today and About, as two matching pills. Every date and
+ * Random came off on October 18, 2026, docs/strip-to-the-hive.md: most
+ * dates have no hive yet, so both led to an empty promise. Before that it
+ * was Today, Every date, Random and About, as four matching pills. The app pill came off on September 22, 2026: the way to the app
  * is the About page's one quiet line, and nowhere else. They used to be one pill and two bare words, which is
  * three controls that look like three different kinds of thing. Nathan,
  * September 10, 2026: same size, same border, an icon each, and the word
@@ -2314,8 +1273,6 @@ const TODAY_ICON = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" a
 function barEnd(): string {
   return `<span class="barend">
 <a class="pill" href="/today/" title="Today's date" aria-label="Today's date">${TODAY_ICON}<span>Today</span></a>
-<a class="pill" href="/calendar/" title="Every day of the year" aria-label="Every day of the year">${CALENDAR}<span>Every date</span></a>
-<a class="pill" href="/random/" title="A random day of the year" aria-label="A random day of the year">${DICE}<span>Random</span></a>
 <a class="pill" href="/about/" title="About Birthed" aria-label="About Birthed">${INFO}<span>About</span></a>
 </span>`;
 }
@@ -2333,389 +1290,43 @@ ${middle}${barEnd()}
 }
 
 /**
- * The birthday picker: month, day and year into the one route that already
- * knows what to do with them.
+ * A date page, October 18, 2026, docs/strip-to-the-hive.md: the hive for
+ * the date and nothing else. The song prompt, the archive (history, Born on,
+ * Number ones by year), the comb, the birthday box and the suggestion box
+ * came off, and none of it is baked for search either: the search experiment
+ * is over. What is left is the game: the board, what a reader has left to
+ * spend, the crown and when the date seals.
  *
- * This is the front door. A stranger who lands on today's page, or on any
- * date, tells the site their birthday here and is sent straight to it with
- * the personal card turned on, because POST /year takes exactly month, day
- * and year: it sets the birth-year cookie and redirects to that date. So the
- * whole flow is one form and no new server code, and it runs with no script,
- * which this site requires: three native selects and a button, which every
- * phone knows how to open.
- *
- * `big` is the hero on the home page; the slim one sits under each date
- * title so the front door is on every page, not only the home.
+ * `wall` is the newest hive the month and day have, or null for a date that
+ * has not had one yet, which draws the promise of when it opens. `pictures`
+ * are the pictures the build holds for the tiles on that board.
  */
-function birthdayForm(heading: string, sub: string): string {
-  const thisYear = new Date().getUTCFullYear();
-  const months = Array.from({ length: 12 }, (_, i) => `<option value="${i + 1}">${monthName(i + 1)}</option>`).join("");
-  const days = Array.from({ length: 31 }, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join("");
-  // The year is a number field, not a hundred options: a year dropdown would
-  // print every year from 1920 on into every date page, which bloats the page
-  // and drops a stray "1951" next to the real ones. The field carries no year
-  // text at all until a reader types one.
-  return `<p class="bbarq">${heading}</p>
-<div class="bbarrow">
-<select name="m" required aria-label="Month"><option value="" disabled selected hidden>Month</option>${months}</select>
-<select name="d" required aria-label="Day"><option value="" disabled selected hidden>Day</option>${days}</select>
-<input type="number" name="y" required aria-label="Year" placeholder="Year" min="1920" max="${thisYear}" inputmode="numeric">
-<button type="submit">See my day</button>
-</div>
-${sub ? `<p class="bbarsub">${sub}</p>` : ""}`;
-}
-
-/** Landmarks a reader's birth year is measured against, launch year and name. */
-const LANDMARKS: Array<[number, string]> = [
-  [1994, "the PlayStation"],
-  [1995, "Amazon"],
-  [1998, "Google"],
-  [2001, "Wikipedia"],
-  [2004, "Facebook"],
-  [2005, "YouTube"],
-  [2007, "the iPhone"],
-  [2009, "Bitcoin"],
-  [2010, "Instagram"],
-  [2011, "Minecraft"],
-  [2016, "TikTok"],
-  [2020, "the PlayStation 5"],
-  [2022, "ChatGPT"],
-];
-
-const ME_START = "<!--me:start-->";
-const ME_END = "<!--me:end-->";
-
-/** The empty marker baked into every date page, filled by serve.ts for a reader who has given a year. */
-export function meMarker(): string {
-  return `${ME_START}${ME_END}`;
-}
-
-/** Put the reader's own panel where the marker is, or leave the page as built. */
-export function withMe(html: string, panel: string | null): string {
-  if (panel === null) return html;
-  const start = html.indexOf(ME_START);
-  const end = html.indexOf(ME_END, start);
-  if (start < 0 || end < 0) return html;
-  return html.slice(0, start) + panel + html.slice(end + ME_END.length);
-}
-
-function ageOn(month: number, day: number, birthYear: number, now: Date): number {
-  const y = now.getUTCFullYear();
-  const had = now.getUTCMonth() + 1 > month || (now.getUTCMonth() + 1 === month && now.getUTCDate() >= day);
-  return y - birthYear - (had ? 0 : 1);
-}
-
-function landmarkList(names: string[]): string {
-  if (names.length === 1) return names[0]!;
-  if (names.length === 2) return `${names[0]} and ${names[1]}`;
-  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
-}
-
-/**
- * The reader's own panel, built from their birth year alone: their age, the
- * decade, and the world their year landed in, measured against a fixed set of
- * landmarks. It needs no hive and no data for the date, so it is the one thing
- * that always has something to say the moment a birthday is entered, which is
- * the point of the front door. Pure: serve.ts computes the year, this draws it.
- */
-/**
- * The first year the number one song strip covers. Mirrors FIRST_CHART_YEAR in
- * build.ts, which cannot be imported here because build.ts runs the build on
- * import and imports this file; render.test.ts holds the two numbers equal.
- */
-export const FIRST_CHART_YEAR = 1959;
-
-export function renderMePanel(
-  month: number,
-  day: number,
-  birth: number | { year: number; month: number | null; day: number | null },
-  now: Date = new Date(),
-): string {
-  const b = typeof birth === "number" ? { year: birth, month: null, day: null } : birth;
-  const birthYear = b.year;
-  const name = `${monthName(month)} ${day}`;
-  const known = b.month !== null && b.day !== null;
-  // Whose date this is. Until September 22, 2026 the kicker said "Your
-  // September 22" on whichever date was open, because the site kept the
-  // year alone and could not tell. Now it can, when the reader gave the whole
-  // birthday, and it says "Your" only when it is true.
-  const own = known && b.month === month && b.day === day;
-  const theirs = known ? `${monthName(b.month!)} ${b.day}` : null;
-  // The age is the reader's real one, from their own birthday. With a year
-  // alone it is the age they reach this year, which is true whichever side
-  // of their birthday today falls.
-  const age = known ? ageOn(b.month!, b.day!, birthYear, now) : now.getUTCFullYear() - birthYear;
-  const decade = `${Math.floor(birthYear / 10) * 10}s`;
-  // Older than: launched after you. Younger than: already here. Nearest to
-  // the reader's year first, three each, so the names mean something.
-  const older = LANDMARKS.filter(([y]) => y > birthYear).sort((a, b) => a[0] - b[0]).slice(0, 3).map(([, n]) => n);
-  const younger = LANDMARKS.filter(([y]) => y <= birthYear).sort((a, b) => b[0] - a[0]).slice(0, 3).map(([, n]) => n);
-  const ageLine = !known
-    ? age <= 0
-      ? `You were born this year.`
-      : `You turn ${age} this year.`
-    : age < 0
-      ? `You have not been born yet.`
-      : age === 0
-        ? `You turn 1 on your first ${theirs}.`
-        : `You have been alive for ${age} ${age === 1 ? "year" : "years"}.`;
-  const worlds: string[] = [];
-  if (older.length > 0) worlds.push(`You are older than ${landmarkList(older)}.`);
-  if (younger.length > 0) worlds.push(`${landmarkList(younger)} ${younger.length === 1 ? "was" : "were"} already here when you arrived.`);
-  // "Save your card" came off, September 22, 2026: the picture was not good
-  // enough to ask anybody to keep. The card page stays in the code and its
-  // address sends a reader to the date page. Bring the link back here.
-  const card = "";
-  let note: string;
-  if (own) {
-    // The song strip starts in 1959, so a reader born before that has no
-    // number one to be promised. Say so plainly rather than promise a row the
-    // page does not have.
-    note = birthYear < FIRST_CHART_YEAR
-      ? `The charts this site uses begin in ${FIRST_CHART_YEAR}, so there is no number one song for the week you were born. Below: everyone who shares ${name} and everything that ever happened on your date.`
-      : `Below: everyone who shares ${name} and everything that ever happened on your date. <a href="/${slug(month, day)}/comb/#comb-songs">The number one song the week you were born</a> is on the comb.`;
-  } else if (known) {
-    note = `This is ${name}, not your date. Below, each year says how old you were on ${name} that year. <a href="/${slug(b.month!, b.day!)}/">Go to ${theirs}</a>.`;
-  } else {
-    note = `Below, each year says roughly how old you were on ${name}. Add your month and day and the site can tell your own date from every other one. <a href="#birthday">Add them</a>.`;
-  }
-  // The year itself is never printed, here or anywhere on the page. The age
-  // and the decade already say as much as the reader chose to show.
-  const kicker = own ? `Your ${name}` : known ? `Your birthday is ${theirs}` : "Your birthday";
-  return `<section class="me" aria-label="Your birthday">
-<p class="mekicker">${kicker}</p>
-<p class="meage">${ageLine}</p>
-<p class="meworld">Born in the ${decade}. ${worlds.join(" ")}</p>
-<p class="menote">${note}</p>
-</section>`;
-}
-
-export function renderBirthdayBar(big: boolean = false): string {
-  return `<form class="bbar${big ? " bbig" : ""}" method="post" action="/year" aria-label="See your birthday">
-${birthdayForm(big ? "When is your birthday?" : "See your own birthday", big ? "See who shares it, the number one song the week you were born, and what the world looked like when you arrived." : "")}
-</form>`;
-}
-
-/**
- * The picker as a popup, for a date page where it should not sit between the
- * title and the hive. A link opens it, a dark backdrop and a close button
- * shut it, and all of that is one `:target` rule and no script, which is what
- * the rest of the page's interaction is too. The link is a plain anchor to
- * the overlay's id; closing is an anchor back to no id at all.
- */
-/*
- * Under the hive, not over it, since September 23, 2026: docs/the-wall.md
- * section 30. A stranger's first screen was the date, then a question about
- * their birthday, then the board, and a question about a birthday before
- * anything else reads as the harvesting the first strangers accused the site
- * of. The board comes first; the way to your own date is the first thing
- * after it.
- */
-export function renderBirthdayModal(): string {
-  return `<p class="bopenrow"><a class="bopen" href="#birthday">See your own birthday</a></p>
-<div class="bmodal" id="birthday">
-<a class="bscrim" href="#" aria-label="Close" tabindex="-1"></a>
-<form class="bbar bcard" method="post" action="/year" aria-label="See your birthday">
-<a class="bx" href="#" aria-label="Close">&times;</a>
-${birthdayForm("When is your birthday?", "See who shares it, the number one song the week you were born, and what the world looked like when you arrived.")}
-</form>
-</div>`;
-}
-
 export function renderDayPage(
-  page: DayPage,
-  songs: SongOfTheYear[] = [],
-  facts: Fact[] = [],
-  events: DayEvent[] = [],
-  everything: CulturalEvent[] = [],
-  /**
-   * What this date's own people remembered, when it has sealed.
-   *
-   * Null for every open date and for every date nobody has answered, which is
-   * almost all of them, and those pages are exactly the pages they were.
-   *
-   * Baked in at build time rather than read on request, and that is not a
-   * shortcut. A sealed date can never take another answer, so its order can
-   * never change again: the moment it seals the page becomes a fixed thing,
-   * and a fixed thing belongs in the file rather than in a query on every
-   * read. It also keeps the promise the server makes, which is that an
-   * ordinary page view calls nothing.
-   */
-  memory: Map<string, MemoryCount> | null = null,
-  /**
-   * Every lead line on the site, by "kind:id". Passed whole rather than per
-   * date because the build reads the table once, the same as the facts and the
-   * events, and a map lookup is cheaper than 366 filters.
-   *
-   * Empty is the normal state and every page is exactly the page it was.
-   */
-  leadLines: Map<string, string> = new Map(),
-  /**
-   * The years Wikipedia's editors picked as this date's biggest, by "month-day".
-   * Empty is the normal state until the importer has run and every page is
-   * exactly the page it was.
-   */
-  selected: Selected = new Map(),
-  /**
-   * The wall for this month and day, the newest year that has one, or null
-   * when no wall exists yet, which leaves the page exactly the page it was.
-   * Baked in like everything else: the rectangles are stored by the server
-   * side allocator and an ordinary page view calls nothing.
-   * docs/the-wall.md.
-   */
+  date: { month: number; day: number },
   wall: WallDay | null = null,
-  /**
-   * Pictures the build holds for this date's subjects beyond the covers and
-   * faces it lists itself: the events' lead pictures in the project's bucket,
-   * event-pictures.ts. Empty until the worker has fetched them.
-   */
-  morePictures: Picture[] = [],
+  pictures: Picture[] = [],
 ): string {
-  // A row nobody wrote does not go on a page.
-  //
-  // 326 of the 357 published culture rows were an imported title and nothing
-  // else, which renders as a game's name followed by "is released". On
-  // September 11 that section was Guitar Hero 5, Mini Ninjas, Lego Star Wars
-  // II, Super Mario Maker and Android Pay, and it was the loudest thing on a
-  // page that said nothing at all about the date.
-  //
-  // docs/internet-culture.md gives the test: if the sentence could sit on a
-  // Wikipedia date page without looking out of place, it does not belong here.
-  // "Mini Ninjas is released" is that sentence exactly.
-  //
-  // Nothing is deleted and nothing is being said about the game. The row waits
-  // in the panel and it is back the moment somebody writes one line about it,
-  // which is the same bargain as a lead line: the writing is the bar, because
-  // the writing is the thing a reader came for.
-  //
-  // Here rather than in fetchCulturalEvents, so the page and anything else
-  // holding these rows agree about what is on it, and so it can be tested
-  // without a network.
-  const culture = everything.filter((row) => (row.context ?? "").trim() !== "");
-
-  const bigLines = selected.get(selectedKey(page.month, page.day)) ?? new Map<number, string>();
-
-  const name = `${monthName(page.month)} ${page.day}`;
-  const canonical = `${SITE}/${slug(page.month, page.day)}/`;
-  const count = page.people.length;
-  // The lede describes the day, not the people on it, and that is the whole
-  // September 6 change to this page.
-  //
-  // It used to read "The people most looked up on this day", above a list
-  // ordered by exactly that. notability_score is attention and infamy is
-  // attention, so on five dates the first row was a serial killer or a
-  // dictator: Ted Bundy on November 24, Charles Manson on November 12, Ed Gein
-  // on August 27, John Wayne Gacy on March 17, Benito Mussolini on July 29.
-  // DayLine.swift had already worked this out and taken the names off the
-  // app's celebration screens, and the fix was never carried here.
-  //
-  // The data half of that is fixed in 20260906240000. This half is the more
-  // important one, because a word list only catches people whose description
-  // says what they did, and Wikidata calls Bashar al-Assad a politician.
-  //
-  // It is also the better page. A ranked list of names is the one thing
-  // Famous Birthdays already wins at with fifteen years of authority and the
-  // same public data, and it is the least distinctive thing here. What is
-  // distinctive sits below it. The description a few lines down worked this
-  // out for search results months ago and said so in its own comment. Nobody
-  // applied it to the page.
-  //
-  // Worded so it does not contain the string "What happened on <date>". That
-  // is the timeline section's own heading, and a test asserts that heading is
-  // absent on a date with nothing in it. A lede that quoted it would have made
-  // that test pass or fail for the wrong reason forever after.
-  // The sentence that used to sit under the heading is gone. A reader looking
-  // at the date in sixty point type does not need to be told the page is
-  // about that date, the counts below it already say what it holds, and a
-  // summary with a colon and a list of three is the most recognisable rhythm
-  // in machine writing. The meta description below is its own sentence and is
-  // what a search result needs.
-  const songLine = songs.length > 0
-    ? ` And the number one song on ${name} in every year since ${songs[songs.length - 1]?.year}.`
-    : "";
-  // The description is what a search result shows, so the facts go in front
-  // of the names when there are any: the names are what every other site in
-  // this category already says.
-  // Built here rather than inside the section, because the description a
-  // search result shows has to count the same rows the page ends up with.
-  // Culture rows join the one list. They had their own section for a while,
-  // because sorted by year among Wikipedia's crusades and treaties a page
-  // about a birthday opened on 878; pickHighlights now puts the date's
-  // biggest first and the year order is what remains under it. On a date
-  // with a hive these rows are also filed as wall stories by the worker, and
-  // the feed under the hive draws those instead.
-  const chronological = buildTimeline(facts, events, monthName(page.month), page.day, culture)
-    .map((row) => {
-      const written = leadLines.get(leadKey(row.kind, row.id));
-      return written === undefined ? row : { ...row, leadLine: written };
-    });
-
-  // One row per selection, not every row that happens to share its year.
-  //
-  // Year alone put three 1888 rows in the top six on September 8: the Football
-  // League's first season, which Wikipedia selected, plus a submarine test and
-  // the Great Herding, which it did not. Half the cards on the page became one
-  // year. So each selection claims the row it is actually about and nothing
-  // else, and a selection matching nothing claims nothing.
-  const big = new Set<TimelineRow>();
-  for (const [year, line] of bigLines) {
-    const match = bestMatch(line, year, chronological);
-    if (match !== null) big.add(match);
-  }
-  const timelineRows = chronological.map((row) =>
-    big.has(row) ? { ...row, selected: true } : row);
-  // The one place on this site where what readers did changes what a page
-  // looks like, and deliberately the last place: only after a date can never
-  // take another answer.
-  const timeline = memory === null ? timelineRows : byMemory(timelineRows, memory);
-  // Three sources, counted apart, because the credit at the foot names who
-  // found what and a curated row is not a searched one. Counting a person's
-  // checked sentence as something a model turned up is the kind of wrong that
-  // is invisible to us and obvious to the person who wrote it.
-  const curatedCount = timeline.filter((row) => row.curated === true).length;
-  const searched = timeline.filter((row) => row.curated !== true && row.sourceUrl !== null).length;
-  const factLine = timeline.length > 0
-    ? ` What happened on ${name}, in ${timeline.length} sourced things.`
-    : "";
-  // Now in the order the page itself uses, which is what that comment above
-  // asked for and did not get.
-  const whoLine = count > 0 ? ` And who was born on it.` : "";
-  const description = timeline.length > 0 || songs.length > 0
-    ? `${name}, and everything that was true about it.${factLine}${songLine}${whoLine}`.trim()
-    : `Who was born on ${name}.`;
-
-  const { previous, next } = neighbours(page.month, page.day);
-
+  const name = `${monthName(date.month)} ${date.day}`;
+  const canonical = `${SITE}/${slug(date.month, date.day)}/`;
+  const { previous, next } = neighbours(date.month, date.day);
   // The square where the date has a board, the wide card everywhere else.
-  //
-  // What travels is the thing worth travelling: a link to a date with a hive
-  // on it should show the hive. A date with no board has no square worth
-  // showing over the card it already has, and today that is 362 of the 366.
-  //
-  // Named, because it is a real cost: a square is center cropped to a strip
-  // by the platforms that draw a wide preview, which takes the date off the
-  // top and the state line off the bottom and leaves the board. It is shown
-  // whole by the ones that draw a squarer thumbnail, which is where a link
-  // pasted into a message usually lands.
-  const hived = wall !== null && wall.stories.some((s) => s.rect !== null && (s.status === "placed" || s.status === "false"));
+  const hived = hasBoard(wall);
   const image: PreviewImage = hived
-    ? { url: `${SITE}/og/${slug(page.month, page.day)}-square.png`, width: SQUARE, height: SQUARE }
-    : `${SITE}/og/${slug(page.month, page.day)}.png`;
-
-  // The two dates either side, named in the head as well as linked in the
-  // page. This is how a search engine learns that the 366 are one ordered run
-  // rather than 366 unrelated pages that happen to look alike.
+    ? { url: `${SITE}/og/${slug(date.month, date.day)}-square.png`, width: SQUARE, height: SQUARE }
+    : `${SITE}/og-home.png`;
+  const description = hived
+    ? `The hive for ${name}: what people buzzed as the things that will still matter in ten years, sealed at midnight Eastern.`
+    : `The hive for ${name}. Every day, people buzz what will still matter in ten years, and at midnight Eastern the day seals for good.`;
   const sequence = `<link rel="prev" href="${SITE}/${slug(previous.month, previous.day)}/">
 <link rel="next" href="${SITE}/${slug(next.month, next.day)}/">
 `;
+  const hue = dayHue(date.month);
+  const shortName = `${monthName(date.month).slice(0, 3)} ${date.day}`;
 
-  const picked = pickHighlights(timeline);
-  const rest = theRest(timeline, picked);
-  const hue = dayHue(page.month);
-  const shortName = `${monthName(page.month).slice(0, 3)} ${page.day}`;
-
-  return `${head(`Born on ${name}`, description, canonical, image, !isReady(page, facts), "", sequence)}
-<div class="day on-${slug(page.month, page.day)}" style="--day:${hue.day};--day-soft:${hue.soft}">
+  // noindex until the date has a board: an empty promise is not a page
+  // worth a search result.
+  return `${head(`The hive for ${name}`, description, canonical, image, !hived, "", sequence)}
+<div class="day on-${slug(date.month, date.day)}" style="--day:${hue.day};--day-soft:${hue.soft}">
 ${siteBar(`<span class="barnav">
 <a class="arrow" href="/${slug(previous.month, previous.day)}/" title="${monthName(previous.month)} ${previous.day}" aria-label="${monthName(previous.month)} ${previous.day}">&lsaquo;</a>
 <span class="here">${shortName}</span>
@@ -2723,18 +1334,16 @@ ${siteBar(`<span class="barnav">
 </span>
 `)}
 <h1>${name}</h1>
-${pictureRules([...picturesFor(songs, page.people), ...morePictures])}
-${wallSection(wall, name, Date.now(), { date: { month: page.month, day: page.day } })}
-${meMarker()}
-${museumSection(page, name, [...picked, ...rest], songs, combPreview(wall, name, Date.now(), false))}
-${renderBirthdayModal()}
-${songs.length > 0 ? `<p class="credit">Chart positions are from the ${escapeHtml(CHART_NAME)}, compiled by Wikipedia and released under Creative Commons Attribution ShareAlike. ${songs.some((song) => song.hasArtwork) ? "Cover art comes from the iTunes Search API. " : ""}Birthed is not affiliated with Billboard, Wikipedia or Apple.</p>` : ""}
-${feedCredits(timeline, name, searched, timeline.length - searched - curatedCount, curatedCount)}
-${count === 0 ? `<p class="credit">Nobody imported for this date yet.</p>` : `<p class="credit">Names, years and descriptions of the ${count} people come from Wikidata, under Creative Commons Zero. Credit to Wikipedia and Wikidata.</p>`}
+${pictureRules(pictures)}
+${wallSection(wall, name, Date.now(), { date: { month: date.month, day: date.day } })}
 </div>
 <p class="signed">Made by <a href="/about/">Jason Evan Page</a>, one person. No ads, nothing for sale.</p>
-${jsonLd(page, canonical)}
 ${FOOT}`;
+}
+
+/** Whether a hive has anything on its board: a placed tile, or one stamped false. */
+export function hasBoard(wall: WallDay | null): boolean {
+  return wall !== null && wall.stories.some((s) => s.rect !== null && (s.status === "placed" || s.status === "false"));
 }
 
 /**
@@ -2851,28 +1460,6 @@ function partsOf(wallDate: string): { month: number; day: number } {
  * three open dates, the same as the date page. noindex, because it is a
  * view of the date page and not a second page about the date.
  */
-/**
- * Every picture the build has on disk for a date's subjects: a cover for
- * each number one that has one, a face for each person who has one. Keyed
- * the way the worker keys the story, so the rule finds the tile.
- */
-export function picturesFor(songs: SongOfTheYear[], people: Person[], facesOnDisk: ReadonlySet<string> | null = null): Picture[] {
-  const out: Picture[] = [];
-  for (const song of songs) {
-    if (song.hasArtwork === true) out.push({ subject: `song:${song.chartDate}`, path: `/covers/${coverName(song.song, song.artist)}.jpg` });
-  }
-  for (const person of people) {
-    // The database saying a person has a picture is not the file being
-    // here: the column is filled by the importer and the files arrive with
-    // npm run faces, and between the two a tile drew the scrim for a face
-    // with nothing under it. Checked against the folder, the way the covers
-    // are, when the caller has listed it.
-    const file = `${faceName(person.qid)}.jpg`;
-    if (person.hasImage === true && (facesOnDisk === null || facesOnDisk.has(file))) out.push({ subject: `person:${person.qid}`, path: `/faces/${file}` });
-  }
-  return out;
-}
-
 export function renderHivePage(day: WallDay, month: number, d: number, pictures: Picture[] = []): string {
   const name = `${monthName(month)} ${d}`;
   const canonical = `${SITE}${hivePath(month, d)}`;
@@ -2885,27 +1472,6 @@ ${siteBar(`<span class="barnav"><a class="here" href="/${slug(month, d)}/">${esc
 `)}
 ${pictureRules(pictures)}
 ${wallSection(day, name, Date.now(), { hive: true, date: { month, day: d } })}
-</div>
-${FOOT}`;
-}
-
-/**
- * The comb: every row of a date's feed on its own page, grouped by kind.
- * Baked from the newest year's wall like the hive page, and swapped live by
- * serve.ts while the date is open, between the same markers. Indexed, since
- * the rows are the date's history and the date page no longer carries them.
- */
-export function renderCombPage(day: WallDay, month: number, d: number, pictures: Picture[] = []): string {
-  const name = `${monthName(month)} ${d}`;
-  const hue = dayHue(month);
-  return `${head(`Every story on ${name}, ${day.year}`,
-    `Everything with a birthday on ${name}: what happened, who was born, what was number one and the day's news, each with its source.`,
-    `${SITE}${combPath(month, d)}`, `${SITE}/og/${slug(month, d)}.png`)}
-<div class="day wcombday on-${slug(month, d)}" style="--day:${hue.day};--day-soft:${hue.soft}">
-${siteBar(`<span class="barnav"><a class="here" href="/${slug(month, d)}/">${escapeHtml(name)}</a></span>
-`)}
-${pictureRules(pictures.filter((p) => !p.subject.startsWith("story:")))}
-${wallSection(day, name, Date.now(), { comb: true, date: { month, day: d } })}
 </div>
 ${FOOT}`;
 }

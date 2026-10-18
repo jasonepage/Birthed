@@ -449,8 +449,48 @@ the game: the board, your buzzes, the crown and the seal countdown. The
 song prompt, the archive, the comb, the birthday box and the suggestion box
 come off the page and are not baked for search either. Then a first drama
 set. `docs/strip-to-the-hive.md` holds the plan, the live numbers it was
-judged on and the recommended set. **Nothing in it is built until Nathan
-says go.**
+judged on and the recommended set.
+
+- **The strip, built October 18, 2026, the same day, on Nathan's go.** The
+  date page is the site bar, the date, the hive with its seal countdown, the
+  one line of how to play, your buzzes left, the board, the crown, and the
+  ways on (Pick between two, the full screen hive, How the hive works,
+  Everything you have buzzed). Nothing else is rendered or baked: no
+  museum, no song prompt, no comb, no birthday box, no suggestion box, no
+  structured data and no script. `renderDayPage(date, wall, pictures)` is
+  the whole signature now.
+- **Pick between two is the only way off the board.** Unbuzzed, the board
+  is the day's news; the worker still files about 390 history and people
+  stories a date, and `pickList` draws from all of them. Do not stop the
+  history seeder or Pick runs dry on a slow news day.
+- **The routes that went:** the song search, pick and undo, the suggestion
+  search, pick and undo, `/find` and `/year`. Each now answers a post with
+  a 303 to the date it named (`RETIRED_POSTS` in `serve.ts`), and `/year`
+  clears the old `by` cookie, which nothing reads any more. `/<date>/comb/`
+  redirects to the date. `/cover/<track>.jpg` stays, for the songs on
+  sealed hives. `/<date>/yours.png` is always the shared square.
+- **The bar is Today and About.** Every date and Random came off, because
+  most dates have no hive yet. `/calendar/` and `/random/` still answer.
+- **A date with no board carries noindex** and the site's own share card
+  (`og-home.png`); a date with a board is indexed and shares its square.
+- **The build reads the walls, the stored pictures and the chart weeks,
+  and nothing else.** No people, facts, events, culture rows, lead lines,
+  selections or sealed memory. Faces and covers are worked out from the
+  tiles' own subjects (`boardPictures` in `build.ts`), and only the ones a
+  board draws are copied into the deploy instead of all 176 megabytes of
+  `static/faces` and `static/covers`. A person or number one tile placed
+  after a deploy draws its colour until the next one.
+- **The stylesheet lost about 53 kilobytes of source** for the removed
+  modules; a date page with eight tiles is about 72 kilobytes baked.
+- **`og.ts` still reads people and facts** for the wide share card the
+  full screen hive page names, and still renders 732 pictures. It no
+  longer renders the readers' own per birth year pictures. Trimming it to
+  squares for hived dates is the next build saving and changes the
+  expected set `og-ci.ts` caches against.
+- **Not run against the live project.** Tested on fixtures, 378 web tests,
+  and looked at in Chromium at 390 and 1280 pixels wide with the live board
+  of October 18 copied in. The first Buzz button sits 373 pixels down on a
+  phone. A data change still needs a manual deploy after this pushes.
 
 ### The three biggest costs, cut October 11, 2026
 

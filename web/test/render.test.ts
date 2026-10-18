@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ASK_SLOTS, FIRST_CHART_YEAR, askCandidates, renderDayPage, renderCalendarPage, renderCombPage, renderHivePage, renderRecord, renderRobots, renderSitemap, escapeHtml, isReady, renderMePanel, meMarker, withMe, stripCss} from "../src/render.js";
+import { renderDayPage, renderCalendarPage, renderHivePage, renderRecord, renderRobots, renderSitemap, escapeHtml, stripCss } from "../src/render.js";
 import type { RecordRow } from "../src/wall.js";
 import { everyDate, neighbours, slug } from "../src/model.js";
 
@@ -15,77 +15,31 @@ const page = {
 
 test("the page names the date in the title and the heading", () => {
   const html = renderDayPage(page);
-  assert.ok(html.includes("<title>Born on September 4</title>"));
+  assert.ok(html.includes("<title>The hive for September 4</title>"));
   assert.ok(html.includes("<h1>September 4</h1>"));
-  assert.ok(!html.includes("2 notable people"), "the row count is not the number of people who share a date");
-  // The summary sentence that used to sit under the heading is deliberately
-  // not there. It told a reader what the heading already told them, in the
-  // one rhythm that reads as machine written.
-  assert.ok(!html.includes("Everything that was true about September 4:"));
-  // The search result still gets a sentence of its own. This fixture has no
-  // facts and no songs, so it is the plain one.
-  assert.match(html, /<meta name="description" content="Who was born on September 4\.">/);
+  // The search result still gets a sentence of its own, about the game.
+  assert.match(html, /<meta name="description" content="The hive for September 4\. Every day, people buzz what will still matter in ten years, and at midnight Eastern the day seals for good\.">/);
 });
-
-test("the hive comes before the question about your birthday", () => {
-  // docs/the-wall.md section 30, September 23, 2026. A question about a
-  // birthday above the board read as the harvesting; the board comes first.
+test("the date page is the hive and nothing else, October 18, 2026", () => {
+  // docs/strip-to-the-hive.md. The song prompt, the archive, the comb, the
+  // birthday box and the suggestion box came off, and none of it is baked
+  // for search either.
   const html = renderDayPage(page);
   const hive = html.indexOf("<!--wall:start-->");
-  const ask = html.indexOf('class="bopenrow"');
-  assert.ok(hive > 0 && ask > 0, "both are on the page");
-  assert.ok(hive < ask, "the hive is above the birthday link");
-  assert.ok(html.indexOf("<h1>") < hive, "and the date's name is still above the hive");
+  assert.ok(html.indexOf("<h1>") < hive, "the date's name, then the hive");
+  for (const gone of [
+    'class="museum"', 'id="museum"', "The archive", "Born on September 4", "Number ones by year", // the archive
+    'id="song"', "What song is in your head", // the song prompt
+    'id="comb"', "Open the comb", // the comb
+    'class="bopenrow"', 'action="/year"', "<!--me:start-->", "You have been alive", // the birthday box
+    'id="suggest"', "What else mattered today?", 'action="/suggest', // the suggestion box
+    "application/ld+json", "<script", // no structured data, no script
+    "Anton Bruckner", // the people the page used to carry
+  ]) assert.ok(!html.includes(gone), `${gone} is still on the date page`);
 });
-
-test("the page does not lead with the list of names", () => {
-  // The regression this guards is not cosmetic. The list is ordered by
-  // notability_score, which is attention, and infamy is attention, so leading
-  // with it put Ted Bundy at the top of November 24 and a serial killer or a
-  // dictator at the top of four other dates. The data screen in
-  // 20260906240000 catches the ones whose description says what they did, and
-  // Wikidata calls Bashar al-Assad a politician, so the ordering must not be
-  // the first thing on the page even when the screen is working.
-  const html = renderDayPage(page, [], [
-    { id: "t", month: 9, day: 4, fact: "Something sourced happened.", category: "event",
-      sourceUrl: "https://example.org/september-4" },
-  ]);
-  // The museum, docs/the-wall.md section 32: what happened, then who was
-  // born, both under the hive, never the first thing.
-  const people = html.indexOf('id="m-person-');
-  const happened = html.indexOf('id="m-birth_fact-t"');
-  assert.ok(people > 0, "the people are still on the page");
-  assert.ok(happened > 0, "the timeline is still on the page");
-  assert.ok(happened < people, "what happened on the date comes before who was born on it");
-  assert.ok(html.indexOf("<!--wall:end-->") < happened, "and both come after the hive");
-});
-
-test("the lede never claims the list is ranked by attention", () => {
-  const html = renderDayPage(page);
-  assert.ok(!html.includes("most looked up"));
-});
-
-test("a name from the data cannot inject markup", () => {
-  const html = renderDayPage(page);
-  assert.ok(!html.includes("<script>Hildur"));
-  assert.ok(html.includes("&lt;script&gt;"));
+test("escapeHtml escapes everything a source could use to inject markup", () => {
   assert.equal(escapeHtml(`<a href="x">&</a>`), "&lt;a href=&quot;x&quot;&gt;&amp;&lt;/a&gt;");
 });
-
-test("a person's row says the birth year in words under the name, and no range", () => {
-  // The museum's people are a name and a line under it, section 32, not a
-  // year column: the year column belongs to what happened.
-  const html = renderDayPage(page);
-  assert.ok(html.includes('<span class="bmeta">born 1824, died 1896, Austrian composer</span>'));
-  assert.ok(html.includes('<span class="bmeta">born 1982</span>'));
-  assert.ok(!html.includes("1824 to 1896"), "a range reads as a span of work, not a life");
-});
-
-test("a death year is shown, just not in the aligned column", () => {
-  const html = renderDayPage(page);
-  assert.ok(html.includes("died 1896"));
-});
-
 test("every page links to the day before and the day after", () => {
   const html = renderDayPage(page);
   assert.ok(html.includes('href="/september-3/"'));
@@ -102,19 +56,11 @@ test("February 29 has a page", () => {
   assert.equal(everyDate().length, 366);
 });
 
-test("the page carries structured data a search engine can read", () => {
-  const html = renderDayPage(page);
-  assert.ok(html.includes('<script type="application/ld+json">'));
-  assert.ok(html.includes('"@type":"ItemList"'));
-  assert.ok(html.includes('"sameAs":"https://www.wikidata.org/wiki/Q1"'));
+test("a date with no hive yet says when one opens, and is kept out of search until it has a board", () => {
+  const html = renderDayPage({ month: 3, day: 3 });
+  assert.ok(html.includes('class="wall wpromise"'), "the promise of the hive");
+  assert.ok(html.includes('<meta name="robots" content="noindex">'), "an empty promise is not a search result");
 });
-
-test("an empty date says so rather than rendering a blank list", () => {
-  const html = renderDayPage({ month: 3, day: 3, people: [] });
-  assert.ok(html.includes("Nobody imported for this date yet."));
-  assert.ok(!html.includes("<ol>"));
-});
-
 test("the sitemap lists the front door, support, privacy and all 366 dates", () => {
   const xml = renderSitemap();
   assert.equal((xml.match(/<loc>/g) ?? []).length, 369);
@@ -125,12 +71,11 @@ test("the sitemap lists the front door, support, privacy and all 366 dates", () 
 
 import { renderShareCard } from "../src/share.js";
 
-test("every page points at its own share image", () => {
+test("a date with no board points at the site's own share image", () => {
   const html = renderDayPage(page);
-  assert.ok(html.includes('<meta property="og:image" content="https://birthed.app/og/september-4.png">'));
+  assert.ok(html.includes('<meta property="og:image" content="https://birthed.app/og-home.png">'));
   assert.ok(html.includes('<meta name="twitter:card" content="summary_large_image">'));
 });
-
 test("a date with a hive offers the square to a link preview, and every other date the wide card", () => {
   const story = {
     id: "11111111-2222-3333-4444-555555555555", wallDate: "2026-09-04", submittedAt: "2026-09-04T05:00:00Z",
@@ -140,28 +85,30 @@ test("a date with a hive offers the square to a link preview, and every other da
   };
   const day = { wallDate: "2026-09-04", year: 2026, month: 9, day: 4, opensAt: "2026-09-03T04:00:00Z", liveAt: "2026-09-04T04:00:00Z", closesAt: "2026-09-06T04:00:00Z", closedAt: "2026-09-06T04:00:00Z", stories: [story] };
 
-  // Before: every date, hive or no hive, offered the same wide card.
+  // A date with no board offers the site's own card.
   const plain = renderDayPage(page);
-  assert.ok(plain.includes('<meta property="og:image" content="https://birthed.app/og/september-4.png">'));
+  assert.ok(plain.includes('<meta property="og:image" content="https://birthed.app/og-home.png">'));
   assert.ok(plain.includes('<meta property="og:image:width" content="1200">'));
   assert.ok(plain.includes('<meta property="og:image:height" content="630">'));
 
   // After, on a date whose board has tiles on it.
-  const hived = renderDayPage(page, [], [], [], [], null, new Map(), new Map(), day);
+  const hived = renderDayPage(page, day);
   assert.ok(hived.includes('<meta property="og:image" content="https://birthed.app/og/september-4-square.png">'));
   assert.ok(hived.includes('<meta property="og:image:width" content="1080">'));
   assert.ok(hived.includes('<meta property="og:image:height" content="1080">'));
   assert.ok(hived.includes('<meta name="twitter:image" content="https://birthed.app/og/september-4-square.png">'));
 
   // A hive row with nothing placed on it is not a hive to show.
-  const bare = renderDayPage(page, [], [], [], [], null, new Map(), new Map(), { ...day, stories: [] });
-  assert.ok(bare.includes('<meta property="og:image" content="https://birthed.app/og/september-4.png">'));
+  const bare = renderDayPage(page, { ...day, stories: [] });
+  assert.ok(bare.includes('<meta property="og:image" content="https://birthed.app/og-home.png">'));
+  assert.ok(bare.includes('<meta name="robots" content="noindex">'), "and it stays out of search");
+  assert.ok(!hived.includes('<meta name="robots" content="noindex">'), "a board is a page worth finding");
 });
 
 test("the square's side is the same number in the card and in the head", () => {
   // render.ts keeps its own copy, because share.ts already imports render.ts
   // and importing back makes a cycle around a constant read at module load.
-  const hived = renderDayPage(page, [], [], [], [], null, new Map(), new Map(), {
+  const hived = renderDayPage(page, {
     wallDate: "2026-09-04", year: 2026, month: 9, day: 4, opensAt: "2026-09-03T04:00:00Z",
     liveAt: "2026-09-04T04:00:00Z", closesAt: "2026-09-06T04:00:00Z", closedAt: null,
     stories: [{
@@ -486,41 +433,35 @@ import { calendar, isLeapYear, renderAdd, renderHome, renderPrivacy, renderSuppo
 import { asHighlight, pickHighlights, type Fact } from "../src/facts.js";
 import { redirectFor } from "../src/serve.js";
 
-test("the front door reaches the calendar, and the two pages people need", () => {
-  // The twelve grids came off the foot of this page on September 10, 2026:
-  // with Every date in the bar they were the calendar page twice. Every date
-  // is one link away, on /calendar/, which the next tests hold to all 366.
+test("the front door reaches the two pages people need, and no grid of dates", () => {
   const html = renderHome();
-  assert.ok(html.includes('href="/calendar/"'));
   assert.equal((html.match(/href="\/[a-z]+-\d+\/"/g) ?? []).length, 0, "no grid of dates on the front door");
   assert.ok(html.includes('href="/support/"'));
   assert.ok(html.includes('href="/privacy/"'));
 });
-
-test("the front door offers a random day and today, and neither is a page", () => {
+test("the front door offers today, and it is not a page", () => {
   const html = renderHome();
-  assert.ok(html.includes('href="/random/"'));
   assert.ok(html.includes('href="/today/"'));
-  // Both are answered by a redirect. If either ever became a file, the built
-  // site would have a page nothing links to it correctly and this would say so.
+  // Every date and Random came off the bar on October 18, 2026; both
+  // addresses still answer for anybody holding a link.
+  assert.ok(!html.includes('href="/random/"'));
   assert.equal(redirectFor("/random/") === null, false);
   assert.equal(redirectFor("/today/") === null, false);
 });
-
 test("an icon only link still has a name when its words are hidden", () => {
   // Under 430 pixels the stylesheet hides the words in these two links. A
   // link whose remaining content is a decorative svg has no accessible name
   // at all unless one is on the link itself.
   const html = renderHome();
   assert.ok(html.includes('class="pill" href="/today/" title="Today\'s date" aria-label='));
-  assert.ok(html.includes('class="pill" href="/random/" title="A random day of the year" aria-label='));
+  assert.ok(html.includes('class="pill" href="/about/" title="About Birthed" aria-label='));
 });
 
 test("the about page explains how to play and asks for nothing", () => {
   // September 22, 2026: the front door is today's date now, and every date
   // page has its own See your own birthday button. The About page is the
   // rules, so it no longer asks for a birthday or offers a second Random.
-  const html = renderHome(2026);
+  const html = renderHome();
   assert.ok(!html.includes('action="/year"'), "no birthday form");
   assert.ok(!html.includes("Surprise me"), "the bar already has Random day");
   assert.ok(html.includes("How to play"));
@@ -599,7 +540,7 @@ test("every page says nothing is collected, except the page that collects", () =
   assert.ok(!collecting.includes(claim), "/add takes a birthday and must not claim otherwise");
 
   for (const [name, html] of [
-    ["about", renderHome(2026, [])],
+    ["about", renderHome()],
     ["support", renderSupport()],
     ["privacy", renderPrivacy()],
   ] as const) {
@@ -652,165 +593,6 @@ const facts = [
     sourceUrl: "https://www.example.org/a?b=1&c=2",
   },
 ];
-
-test("a date page carries its found facts and the page each came from", () => {
-  const html = renderDayPage(page, [], facts);
-  assert.match(html, /<ul class="wlist hist mlist">/);
-  // The date comes off the front and becomes the anchor in the margin. It
-  // used to be printed inside every sentence, on a page titled with it.
-  assert.ok(html.includes("Ford unveiled the Edsel."));
-  assert.ok(!html.includes("On September 4, 1957, Ford"), "the page's own date is not repeated per row");
-  assert.match(html, /<span class="fyr">1957<\/span>/);
-  assert.ok(html.includes("en.wikipedia.org"));
-  assert.ok(html.includes("The 2 with a source link under them were found by Google's Gemini"));
-});
-
-test("Wikipedia's own events join the researched ones, newest first", () => {
-  const events = [
-    { id: "t", month: 9, day: 4, year: 1888, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
-      description: "George Eastman registers the trademark Kodak." },
-  ];
-  const html = renderDayPage(page, [], facts, events);
-  assert.ok(html.includes("George Eastman registers the trademark Kodak."));
-  assert.ok(html.includes("The other 1 is from the September 4 article on Wikipedia"));
-  // 1888 is older than the 1957 fact, so it comes last in the list. The feed
-  // reads from now backwards as of 8 September 2026; see the sort in
-  // buildTimeline for why.
-  //
-  // Measured inside the feed rather than across the whole page. The opening
-  // band now names one thing above it, drawn from the same rows, so a raw
-  // indexOf over the document answers a question about the tiles instead of a
-  // question about the ordering.
-  const feed = html.slice(html.indexOf('<ul class="wlist hist mlist">'));
-  assert.ok(
-    feed.indexOf("Edsel") < feed.indexOf("Kodak"),
-    "the list is ordered by year, newest first, not by which source it came from",
-  );
-  // One credit for each source that is actually on the page, and the
-  // Wikipedia rows do not each carry their own host line.
-  assert.match(html, /Creative Commons Attribution ShareAlike/);
-  assert.match(html, /Google's Gemini/);
-});
-
-test("the same event from both sources is printed once", () => {
-  const events = [
-    { id: "t", month: 9, day: 4, year: 1957, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
-      description: "Ford unveils the Edsel to the public." },
-  ];
-  const html = renderDayPage(page, [], facts, events);
-  assert.ok(html.includes("The 2 with a source link under them"), "the duplicate is dropped, not added");
-  // Counting the word will not do: the fixture's own source address contains
-  // it. What must not survive is Wikipedia's second telling of the event.
-  assert.ok(!html.includes("Ford unveils the Edsel to the public."));
-  assert.ok(html.includes("Ford unveiled the Edsel."), "the researched one is the one kept");
-});
-
-test("a page with no researched facts still has a section when Wikipedia does", () => {
-  const events = [
-    { id: "t", month: 9, day: 4, year: 1888, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
-      description: "George Eastman registers the trademark Kodak." },
-  ];
-  const html = renderDayPage(page, [], [], events);
-  assert.match(html, /<ul class="wlist hist mlist">/);
-  assert.ok(html.includes("George Eastman registers the trademark Kodak."));
-  assert.ok(!html.includes("Google's Gemini"), "no Gemini credit when no Gemini rows");
-  assert.match(html, /Creative Commons Attribution ShareAlike/);
-});
-
-test("a description stops repeating the year the row already prints", () => {
-  const dead = {
-    month: 9,
-    day: 4,
-    people: [
-      { qid: "Q9", name: "Rishi Kapoor", birthYear: 1952, deathYear: 2020,
-        description: "Indian film actor (1951\u20132020)", monthlyViews: 900 },
-    ],
-  };
-  const html = renderDayPage(dead);
-  assert.ok(html.includes("Indian film actor"));
-  // Wikidata's own data disagreed with itself here: the birth date says 1952
-  // and the description said 1951, so the page printed both next to each other.
-  assert.ok(!html.includes("1951"), "the prose copy of the years goes, the structured one stays");
-  assert.ok(html.includes("born 1952, died 2020, Indian film actor"));
-});
-
-test("the source host is shown without the www, which nobody reads", () => {
-  const html = renderDayPage(page, [], facts);
-  assert.ok(html.includes(">example.org<"));
-  assert.ok(!html.includes(">www.example.org<"));
-});
-
-test("a fact from the model cannot inject markup", () => {
-  const html = renderDayPage(page, [], facts);
-  assert.ok(!html.includes("<script>alert(1)</script>"));
-  assert.ok(html.includes("&lt;script&gt;alert(1)&lt;/script&gt;"));
-  assert.ok(html.includes("b=1&amp;c=2"), "the ampersand in a source address is escaped too");
-});
-
-test("a date with no facts yet has no heading standing over nothing", () => {
-  const html = renderDayPage(page, [], []);
-  assert.ok(!html.includes("What happened on September 4"));
-  assert.ok(!html.includes('class="feed"'));
-});
-
-test("the description leads with the facts, because the names are what everyone else has", () => {
-  const html = renderDayPage(page, [], facts);
-  assert.ok(html.includes("What happened on September 4, in 2 sourced things."));
-});
-
-test("nothing on a date page is written to somebody born that day", () => {
-  // A stranger who typed the date into a search box was not born on it, so a
-  // fact that says "your birthday" is simply false here. The voice is set in
-  // the Edge Function; this is the assertion that notices if it changes back.
-  //
-  // Sliced from the facts list rather than from the first "What happened on",
-  // which is in the meta description up in the head. Starting there put the
-  // whole inlined stylesheet inside the section being read, so this test was
-  // also asserting that no CSS comment anywhere on the site contains the word
-  // "you". It caught one, and the comment was about dropdown chevrons.
-  const html = renderDayPage(page, [], facts);
-  const start = html.indexOf('<ul class="wlist hist mlist">');
-  // The reader's own mark on a row they buzzed, "You buzzed this", is the
-  // page talking to the person holding it, not a fact written to somebody
-  // born that day, so it is left out of what is read here.
-  const section = html.slice(start, html.indexOf("</ul>", start)).replace(/<span class="mmine">[^<]*<\/span>/g, "").replace(/ aria-label="[^"]*"/g, "");
-  assert.ok(start > 0 && section.length > 0, "the facts list is on the page to be read");
-  assert.ok(!/\byour?\b/i.test(section), "the facts section must not address a reader");
-});
-
-test("a date with nobody on it is ready when it has facts instead", () => {
-  // January 1 has nobody and never will: Wikidata files a year-only birth date
-  // as January 1, and the importer's precision filter correctly refuses all of
-  // them. Holding one of the most searched dates of the year out of the
-  // sitemap forever, on a head count it cannot meet, is the rule misfiring.
-  const nobody = { month: 1, day: 1, people: [] };
-  const twelve = Array.from({ length: 12 }, (_, index) => ({
-    id: "t", month: 1, day: 1, fact: `On January 1, thing number ${index} happened.`,
-    category: "event", sourceUrl: "https://en.wikipedia.org/wiki/January_1",
-  }));
-  assert.equal(isReady(nobody, twelve), true);
-  assert.equal(isReady(nobody, twelve.slice(0, 3)), false, "a few facts is not a page");
-  assert.equal(isReady(nobody), false);
-});
-
-test("facts do not rescue a page whose people were never ranked", () => {
-  // The other 171 are not thin, they have about fifty people each and no
-  // pageviews, so they are ordered by how many languages have an article,
-  // which fills a page with footballers. That is a worker run, not a rule
-  // change, and facts must not paper over it.
-  const unranked = {
-    month: 6, day: 8,
-    people: Array.from({ length: 10 }, (_, i) => ({
-      qid: `Q${i}`, name: `Person ${i}`, birthYear: 1960 + i,
-      deathYear: null, description: null, monthlyViews: 0,
-    })),
-  };
-  const plenty = Array.from({ length: 12 }, (_, index) => ({
-    id: "t", month: 6, day: 8, fact: `On June 8, thing number ${index} happened.`,
-    category: "event", sourceUrl: "https://en.wikipedia.org/wiki/June_8",
-  }));
-  assert.equal(isReady(unranked, plenty), false);
-});
 
 // The page a shared birthday lands on. The tests that matter here are about
 // what it does not do: appear in search, and put a birthday in a query.
@@ -927,7 +709,7 @@ test("the date page and the about page are signed", () => {
   const baked = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
   assert.match(baked, /\.signed \{ display: none;/, "still today's date only, by today.css");
 
-  const about = renderHome(2026, []);
+  const about = renderHome();
   assert.ok(about.includes("Who made this"));
   assert.ok(about.includes("Jason Evan Page"));
   assert.ok(about.includes("It costs me money to run and it does not make any."));
@@ -1007,24 +789,6 @@ test("the label the script rewrites holds nothing but its own words", () => {
     !html.includes("childNodes[0].nodeValue"),
     "nothing reaches into a particular child node of the label",
   );
-});
-
-test("every song year is its own address on the date page", () => {
-  const songs = [
-    { year: 1990, song: "Vision of Love", artist: "Mariah Carey", chartDate: "1990-09-08" },
-    { year: 1989, song: "Cold Hearted", artist: "Paula Abdul", chartDate: "1989-09-09" },
-  ];
-  const html = renderDayPage(page, songs);
-  // The long tail query is "number one song on September 5 1990", and the
-  // answer is already on this page. The anchor is what makes that row
-  // linkable without generating a page for every day and year.
-  // The tile carries an animation delay now, so the opening tag no longer
-  // ends at the id. Matched without the closing bracket: what this guards is
-  // that the year is an address, not what else the tag carries.
-  assert.match(html, /<li class="mrow msong" id="1990"/);
-  assert.match(html, /<a class="wart" href="#1990"/);
-  assert.match(html, /<li class="mrow msong" id="1989"/);
-  assert.match(html, /\.mrow \{ scroll-margin-top/);
 });
 
 // ---------------------------------------------------------------------------
@@ -1210,16 +974,16 @@ test("the same seed deals the same hand, and a different one does not", () => {
 });
 
 test("no facts is a missing section rather than a heading over nothing", () => {
-  const html = renderHome(2026, []);
+  const html = renderHome();
   assert.ok(!html.includes("Every date has a day like this in it"));
   // And the page still works.
-  assert.ok(html.includes('href="/calendar/"') && html.includes("How to play"));
+  assert.ok(html.includes("How to play"));
 });
 
 test("the front door still runs nothing", () => {
   // The site sends default-src 'none'. Every piece of behaviour on this page
   // is a link, a fragment or a stylesheet rule, and it has to stay that way.
-  const html = renderHome(2026, pickHighlights([HIGHLIGHT_FACT], 6, 1));
+  const html = renderHome();
   assert.ok(!html.includes("<script"));
   assert.ok(!html.includes("onclick"));
 });
@@ -1229,32 +993,6 @@ const MONTH_WORDS = [
   "July", "August", "September", "October", "November", "December",
 ];
 
-
-test("the page carries every event, folded in the museum, and none of them is left out", () => {
-  // The reason this matters is not tidiness. The whole list is what answers a
-  // search for any one of these events, so a page that showed six and dropped
-  // thirty seven would be a page that stopped answering thirty seven queries.
-  // Closed is a display state; absent is a different page.
-  const many = Array.from({ length: 20 }, (unused, index) => ({
-    id: `t${index}`,
-    month: 9,
-    day: 4,
-    year: 1500 + index * 25,
-    sourceUrl: "https://en.wikipedia.org/wiki/September_4",
-    description: `the thing that happened in ${1500 + index * 25}`,
-  }));
-  // Folded again, October 5, 2026, docs/the-wall.md section 32: the museum
-  // sits under the game and every part of it is closed, so it never competes
-  // with the hive. Closed is a display state; every row is still in the page,
-  // which is what the search plan needs. Absent is still a different page.
-  const html = renderDayPage(page, [], [], many);
-  const history = html.slice(html.indexOf('<details class="mgroup" id="history">'), html.indexOf("</details>", html.indexOf('id="history"')));
-  assert.ok(history.length > 0, "the history is one folded group");
-  assert.ok(history.includes("20 things, 1500 to 1975"), "and its summary counts it");
-  for (const event of many) {
-    assert.ok(html.includes(event.description), `${event.year} is not on the page at all`);
-  }
-});
 
 test("a date page can be moved off in both directions without reaching the foot", () => {
   const html = renderDayPage(page);
@@ -1268,47 +1006,26 @@ test("a date page can be moved off in both directions without reaching the foot"
   assert.ok(!html.includes('<nav class="pager cards">'));
   assert.ok(html.includes('<link rel="prev" href="https://birthed.app/september-3/">'));
   assert.ok(html.includes('<link rel="next" href="https://birthed.app/september-5/">'));
-  // The index of all 366 is its own page now, linked from the bar.
-  assert.ok(bar.includes('href="/calendar/"'));
-  assert.ok(bar.includes("<span>Every date</span>"));
+  // Every date came off the bar on October 18, 2026: most dates have no
+  // hive yet. The page still answers at /calendar/.
+  assert.ok(!bar.includes('href="/calendar/"'));
   assert.ok(!html.includes('class="everyday"'));
 });
 
-test("Today, Every date, Random and About are four of the same control, each with its own mark and its word", () => {
+test("Today and About are two of the same control, each with its own mark and its word", () => {
   const html = renderDayPage(page);
   const bar = html.slice(html.indexOf('<span class="barend">'), html.indexOf("</span>\n</div>"));
   const pills = bar.match(/<a class="pill[ "]/g) ?? [];
-  assert.equal(pills.length, 4, "four matching pills, not one pill and bare words");
-  assert.equal((bar.match(/<svg class="ic"/g) ?? []).length, 4, "a drawn mark on each, not an emoji");
-  const words = ["Today", "Every date", "Random", "About"];
+  assert.equal(pills.length, 2, "two matching pills since October 18, 2026");
+  assert.equal((bar.match(/<svg class="ic"/g) ?? []).length, 2, "a drawn mark on each, not an emoji");
+  const words = ["Today", "About"];
   for (const word of words) assert.ok(bar.includes(`<span>${word}</span>`), `the word ${word} stays next to its mark`);
-  // In that order: the same words in the same order on every page is what
-  // makes a site read as one site. September 22, 2026.
   const at = words.map((word) => bar.indexOf(`<span>${word}</span>`));
   assert.deepEqual([...at].sort((a, b) => a - b), at, "the pills are in one order");
-  // The way to the app is the About page and nowhere else, September 22, 2026.
+  assert.ok(!bar.includes("Every date") && !bar.includes("Random"), "the two that led to empty pages are gone");
   assert.ok(!bar.includes("testflight.apple.com"), "no app pill in the bar");
   assert.ok(!html.includes("testflight.apple.com"), "no way to the app on a date page at all");
-  assert.ok(!bar.includes('class="get"') && !bar.includes('class="dice"'), "the old shapes are gone");
 });
-
-test("every page draws the same bar", () => {
-  const bar = (html: string) => html.slice(html.indexOf('<span class="barend">'), html.indexOf("</span>\n</div>"));
-  const day = bar(renderDayPage(page));
-  const wallDay = { wallDate: "2026-09-04", year: 2026, month: 9, day: 4, opensAt: "2026-09-03T04:00:00Z", liveAt: "2026-09-04T04:00:00Z", closesAt: "2026-09-06T04:00:00Z", closedAt: null, stories: [] };
-  for (const [name, html] of [
-    ["about", renderHome(2026)],
-    ["calendar", renderCalendarPage(2026)],
-    ["support", renderSupport()],
-    ["privacy", renderPrivacy()],
-    ["hive", renderHivePage(wallDay, 9, 4)],
-    ["comb", renderCombPage(wallDay, 9, 4)],
-  ] as const) {
-    assert.equal(bar(html), day, `${name} carries the date page's bar`);
-    assert.ok(!html.includes("Back to the day") && !html.includes("Random day"), `${name} has no second set of words`);
-  }
-});
-
 test("every date wears the honey, and the brand pink is not it", () => {
   // Until September 22, 2026 each month had its own hue. One look now, the
   // live hive's, so the second colour on every date page is the honey and
@@ -1319,7 +1036,7 @@ test("every date wears the honey, and the brand pink is not it", () => {
   // this page is one of the three taking answers today.
   assert.match(september, /<div class="day [^"]*" style="--day:var\(--honey\);--day-soft:var\(--honey-lite\)"/);
   assert.match(september, /class="day on-september-4"/);
-  const march = renderDayPage({ month: 3, day: 12, people: [] });
+  const march = renderDayPage({ month: 3, day: 12 });
   const hueOf = (html: string) => /--day:([^;"]+)/.exec(html)?.[1];
   assert.equal(hueOf(september), hueOf(march), "one second colour on every page");
   assert.ok(!september.includes("--day:#EF5680"), "the pink is the wordmark and nothing else");
@@ -1333,9 +1050,9 @@ test("the 366 date pages say in their heads that they are one ordered run", () =
 });
 
 test("the year wraps at both ends rather than running off it", () => {
-  const newYear = renderDayPage({ month: 1, day: 1, people: [] });
+  const newYear = renderDayPage({ month: 1, day: 1 });
   assert.match(newYear, /<link rel="prev" href="https:\/\/birthed\.app\/december-31\/">/);
-  const lastDay = renderDayPage({ month: 12, day: 31, people: [] });
+  const lastDay = renderDayPage({ month: 12, day: 31 });
   assert.match(lastDay, /<link rel="next" href="https:\/\/birthed\.app\/january-1\/">/);
 });
 
@@ -1359,35 +1076,6 @@ const cultural = (over = {}) => ({
   ...over,
 });
 
-test("a row dated to when it spread says so, and explains itself once", () => {
-  const html = renderDayPage(page, [], [], [], [cultural({ dateKind: "went_viral" })]);
-  assert.ok(html.includes("when it spread, not when it was posted"),
-    "the honest label is the differentiator and it has to reach the page");
-  assert.ok(html.includes("the original posting is gone or was never recorded"),
-    "a label a reader cannot interpret is decoration, so the page defines it once");
-});
-
-test("an exact posting date and a shutdown are labelled too", () => {
-  const posted = renderDayPage(page, [], [], [], [cultural({ dateKind: "posted" })]);
-  assert.ok(posted.includes("the exact day it was posted"));
-  const ended = renderDayPage(page, [], [], [], [cultural({ dateKind: "ended" })]);
-  assert.ok(ended.includes("the day it ended"));
-});
-
-test("an ordinary dated event carries no label at all", () => {
-  // "happened" is the case a reader already assumes. Printing it on most of
-  // the page would make the labels wallpaper and cost the other two their
-  // weight, which is the whole reason they are worth printing.
-  const html = renderDayPage(page, [], [], [], [cultural({ dateKind: "happened" })]);
-  assert.ok(!html.includes('class="datenote"'), "the ordinary case is not annotated");
-  assert.ok(!html.includes("the original posting is gone"), "and it does not drag in the footnote");
-});
-
-test("a row from before the column existed is not annotated either", () => {
-  const html = renderDayPage(page, [], [], [], [cultural({})]);
-  assert.ok(!html.includes('class="datenote"'));
-});
-
 // ---------------------------------------------------------------------------
 // The words are on the page.
 //
@@ -1401,35 +1089,6 @@ test("a row from before the column existed is not annotated either", () => {
 // were caught by a test asserting the absence of something. This one reached
 // production because nothing asserted the presence of anything.
 
-test("the event sentence is actually rendered, not just its card", () => {
-  const events = [
-    { id: "t", month: 9, day: 4, year: 1888, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
-      description: "George Eastman registers the trademark Kodak." },
-  ];
-  const html = renderDayPage(page, [], facts, events);
-  assert.ok(html.includes("George Eastman registers the trademark Kodak."),
-    "the sentence must be in the markup");
-  assert.equal(html.includes(".said {\n  display: none"), false,
-    "and nothing may blanket-hide the class it is rendered in");
-});
-
-test("no class that carries a sentence is hidden by default", () => {
-  const html = renderDayPage(page, [], facts, [
-    { id: "t", month: 9, day: 4, year: 1888, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
-      description: "George Eastman registers the trademark Kodak." },
-  ], [cultural({})]);
-  const style = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
-
-  // Named rather than derived. A general rule tried first and produced a false
-  // alarm on .pick, which IS hidden and IS revealed, by a generated per-year
-  // selector the pattern could not see. A test that cries wolf gets deleted by
-  // the next person, so this one names the classes that carry words instead.
-  for (const name of ["said", "ctx", "n", "w", "x", "tbig", "tsub", "mtx"]) {
-    const hidden = new RegExp(`\\.${name}\\s*\\{[^}]*display:\\s*none`);
-    assert.equal(hidden.test(style), false,
-      `.${name} carries text on this page and something hides it`);
-  }
-});
 
 
 
@@ -1437,201 +1096,13 @@ test("no class that carries a sentence is hidden by default", () => {
 
 
 
-test("the year control is hidden until a date is open, like the buttons", () => {
-  const html = renderDayPage(page);
-  // Matched loosely on purpose: the rule gained spacing and this test is
-  // about the control being hidden until a date is open, not about its margins.
-  assert.match(html, /\.yearask \{[^}]*display: none/);
-});
 
 
-// Two candidates from the same decade are one candidate as far as a reader is
-// concerned, because the question the card asks is about a time in their life.
-// Real sentences off the live September 8 page, pasted rather than invented,
-// because this is the bug they found. Fourteen rows on that date are from 1958
-// on and exactly one became a candidate, so that one card carried all five
-// rotation slots and the page never changed however many times anybody
-// reloaded it. Thirteen of them died on a 110 character limit written for the
-// share image, not on the word screens: Star Trek's first broadcast is 139
-// characters and McGwire's 62nd home run is 168. The survivor, at 94, was a
-// routine space station resupply flight. The shortest sentence on a date is
-// not the most memorable thing that happened on it, and a limit that admits
-// only the shortest admits only the dullest.
-// Every one of these is a real row from the live September 11 page. The screen
-// matched "bomb" and not "bombs", and "attack" and not "attacks", so on the
-// anniversary of the attacks one reload in five dealt "Russia tests the
-// largest conventional weapon ever, the Father of All Bombs" under the words
-// "Do you remember this one?". Singular forms only was a hole straight through
-// a screen whose entire job is to catch this, and the plural of a word for a
-// killing is still a word for a killing.
-// 326 of 357 published culture rows were an imported title and nothing else,
-// which renders as a game's name followed by "is released". The writing is the
-// bar, because the writing is the thing a reader came for.
-test("a culture row with nothing written about it is not on the page", () => {
-  const page = { month: 9, day: 11, people: [] };
-  const withSentence = {
-    id: "1", month: 9, day: 11, year: 2015, title: "Super Mario Maker is released",
-    context: "Nintendo shipped the level editor and people spent a decade making levels nobody could finish.",
-    sourceUrl: "https://example.com/1", category: "gaming", origin: "imported", dateKind: "happened",
-  };
-  const bare = {
-    id: "2", month: 9, day: 11, year: 2009, title: "Mini Ninjas is released",
-    context: null, sourceUrl: "https://example.com/2", category: "gaming",
-    origin: "imported", dateKind: "happened",
-  };
-  const html = renderDayPage(page, [], [], [], [withSentence, bare]);
-  assert.ok(html.includes("Nintendo shipped the level editor"), "a row somebody wrote about stays");
-  assert.equal(html.includes("Mini Ninjas"), false, "a bare title does not");
-});
-
-
-test("the day's biggest lead the list, and the rest still read newest first", () => {
-  const events = [
-    { id: "ny", month: 9, day: 8, year: 1664, sourceUrl: "https://e.com/1", description: "New Amsterdam was renamed New York." },
-    { id: "dull", month: 9, day: 8, year: 2000, sourceUrl: "https://e.com/2", description: "A routine resupply flight went up." },
-    { id: "mid", month: 9, day: 8, year: 1975, sourceUrl: "https://e.com/3", description: "Something in 1975." },
-    { id: "old", month: 9, day: 8, year: 1400, sourceUrl: "https://e.com/4", description: "Something in 1400." },
-  ];
-  const big = new Map([["9-8", new Map([[1664, "New Amsterdam was renamed New York in honour of the Duke of York"]])]]);
-  const html = renderDayPage({ month: 9, day: 8, people: [] }, [], [], events, [], null, new Map(), big);
-
-  const feed = html.slice(html.indexOf('<ul class="wlist hist mlist">'));
-  assert.ok(feed.indexOf("New York") < feed.indexOf("resupply"),
-    "the selected row leads even though it is the oldest thing here");
-
-  // Nothing about the selection is printed. It decides order and says nothing.
-  // (The birthday picker's placeholder option carries a "selected" attribute,
-  // so the guard is the curation wording, not the bare word.)
-  assert.equal(html.includes("Wikipedia's editors"), false);
-  assert.equal(html.includes("the day's selection"), false);
-  assert.equal(html.includes("selected anniversar"), false);
-});
-
-
-test("a plural does not walk a heavy row onto the card", () => {
-  const rows = [
-    { kind: "historical_event" as const, id: "bomb", year: 2007, text: "Russia tests the largest conventional weapon ever, the Father of All Bombs.", sourceUrl: "https://e.com/1", category: null, dateKind: null },
-    { kind: "historical_event" as const, id: "att", year: 2001, text: "Nineteen members of al-Qaeda execute the September 11 attacks, a series of coordinated terrorist attacks.", sourceUrl: "https://e.com/2", category: null, dateKind: null },
-    { kind: "historical_event" as const, id: "fire", year: 2012, text: "A total of 315 people are killed in two garment factory fires in Pakistan.", sourceUrl: "https://e.com/3", category: null, dateKind: null },
-    { kind: "historical_event" as const, id: "ok", year: 1997, text: "NASA's Mars Global Surveyor reaches Mars.", sourceUrl: "https://e.com/4", category: null, dateKind: null },
-  ];
-  const texts = askCandidates(rows).map((r) => r.text);
-  assert.ok(texts.some((t) => t.includes("Mars Global Surveyor")), "the one row that may lead does");
-  assert.equal(texts.length, 1, "and it is the only candidate on the date");
-  for (const word of ["Bombs", "attacks", "killed"]) {
-    assert.ok(!texts.some((t) => t.includes(word)), word + " never leads a birthday page");
-  }
-});
-
-test("the real September 8 rows fill the rotation instead of starving it", () => {
-  const rows = [
-    { kind: "historical_event" as const, id: "s0", year: 1966, text: "UNESCO proclaimed International Literacy Day to highlight the importance of literacy for people and communities globally.", sourceUrl: "https://en.wikipedia.org/wiki/September_8", category: null, dateKind: null },
-    { kind: "historical_event" as const, id: "s1", year: 2016, text: "NASA launched the OSIRIS-REx spacecraft on a mission to travel to asteroid Bennu and collect sample material to return to Earth.", sourceUrl: "https://en.wikipedia.org/wiki/September_8", category: null, dateKind: null },
-    { kind: "historical_event" as const, id: "s2", year: 1960, text: "In Huntsville, Alabama, US President Dwight D. Eisenhower formally dedicates the Marshall Space Flight Center (NASA had already activated the facility on July 1).", sourceUrl: "https://en.wikipedia.org/wiki/September_8", category: null, dateKind: null },
-    { kind: "historical_event" as const, id: "s3", year: 1966, text: "The science fiction television series Star Trek made its broadcast television debut in the United States on NBC with the episode The Man Trap.", sourceUrl: "https://en.wikipedia.org/wiki/September_8", category: null, dateKind: null },
-    { kind: "historical_event" as const, id: "s4", year: 1971, text: "In Washington, D.C., the John F. Kennedy Center for the Performing Arts is inaugurated, with the opening feature being the premiere of Leonard Bernstein's Mass.", sourceUrl: "https://en.wikipedia.org/wiki/September_8", category: null, dateKind: null },
-    { kind: "historical_event" as const, id: "s5", year: 1974, text: "Watergate scandal: US President Gerald Ford signs the pardon of Richard Nixon for any crimes Nixon may have committed while in office.", sourceUrl: "https://en.wikipedia.org/wiki/September_8", category: null, dateKind: null },
-    { kind: "historical_event" as const, id: "s6", year: 1986, text: "Nicholas Daniloff, a correspondent for U.S. News & World Report, is indicted on charges of espionage by the Soviet Union.", sourceUrl: "https://en.wikipedia.org/wiki/September_8", category: null, dateKind: null },
-    { kind: "historical_event" as const, id: "s7", year: 1998, text: "Mark McGwire of the St. Louis Cardinals hit his 62nd home run of the season, breaking the Major League Baseball single-season home run record set by Roger Maris in 1961.", sourceUrl: "https://en.wikipedia.org/wiki/September_8", category: null, dateKind: null },
-    { kind: "historical_event" as const, id: "s8", year: 2000, text: "NASA launches Space Shuttle Atlantis on STS-106 to resupply the International Space Station.", sourceUrl: "https://en.wikipedia.org/wiki/September_8", category: null, dateKind: null },
-    { kind: "historical_event" as const, id: "s9", year: 2017, text: "Syrian civil war: The Syrian Democratic Forces (SDF) announce the beginning of the Deir ez-Zor campaign, with the stated aim of eliminating the Islamic State (IS) from all areas north and east of the Euphrates.", sourceUrl: "https://en.wikipedia.org/wiki/September_8", category: null, dateKind: null },
-  ];
-  const picked = askCandidates(rows);
-  assert.equal(picked.length, ASK_SLOTS, "every slot has its own card");
-
-  const texts = picked.map((row) => row.text);
-  assert.ok(texts.some((t) => t.includes("McGwire")), "the row the proposal assumed would lead is one now");
-
-  // And here is the limit of doing this with arithmetic, written down rather
-  // than tuned away. The best row on this date, by any reader's judgement, is
-  // Star Trek going out for the first time in 1966. It is not here. It is
-  // outside the 1985 to 2015 window, so it scores below five in-window rows,
-  // and inside its own decade the scorer prefers International Literacy Day
-  // anyway because that sentence is eighteen characters shorter.
-  //
-  // Nothing measurable about those two sentences says which one people
-  // remember. No constant added here fixes it, and one tuned until Star Trek
-  // won would be fitted to this one date. That is the argument for a person
-  // writing the lead line, not for another number.
-  assert.ok(!texts.some((t) => t.includes("Star Trek")), "recorded, not endorsed");
-
-  // The word screens are untouched. A civil war is still never a candidate,
-  // whatever room the card has.
-  assert.ok(!texts.some((t) => t.includes("Syrian")), "a war is not a card, at any length");
-
-  // And no two from the same ten years while there is anything else left.
-  const decades = picked.map((row) => Math.floor((row.year ?? 0) / 10));
-  assert.equal(new Set(decades).size, decades.length, "one per decade");
-});
-
-// The judgement the scorer cannot make, kept where a person can put it. The
-// row keeps its own sentence and its own source; this is the card's wording.
-test("a written lead line leads its date, in the words a person wrote", () => {
-  const events = [
-    { id: "trek", month: 9, day: 4, year: 1966, sourceUrl: "https://en.wikipedia.org/wiki/September_8",
-      description: "The science fiction television series Star Trek made its broadcast television debut in the United States on NBC with the episode The Man Trap." },
-    { id: "dull", month: 9, day: 4, year: 2000, sourceUrl: "https://en.wikipedia.org/wiki/September_8",
-      description: "NASA launches Space Shuttle Atlantis on STS-106 to resupply the International Space Station." },
-  ];
-  const lines = new Map([["historical_event:trek", "Star Trek went out for the first time."]]);
-  const html = renderDayPage(page, [], [], events, [], null, lines);
-
-  // Without a line, Star Trek is 139 characters and out of the window, and the
-  // resupply flight leads. With one, it leads, and the row reads the line.
-  const feed = html.slice(html.indexOf('<ul class="wlist hist mlist">'));
-  assert.ok(feed.indexOf('id="m-historical_event-trek"') < feed.indexOf('id="m-historical_event-dull"'));
-  // Counted outside attributes: the museum's button names its row for a
-  // screen reader, "Buzz: Star Trek went out for the first time.", and that
-  // is a label on the row's own button, not a second copy of the row.
-  assert.equal(html.replace(/ aria-label="[^"]*"/g, "").split("Star Trek went out for the first time.").length, 2,
-    "the written line is on the page once, on its row");
-  assert.ok(!html.includes("made its broadcast television debut"), "and it stands in for the record, not beside it");
-});
-
-// A written line is eight words and could be gentle about anything. What the
-// card is really about is the row underneath it, so the word screens read that
-// and not the line.
-test("a lead line cannot walk a heavy row onto the card", () => {
-  const events = [
-    { id: "grim", month: 9, day: 4, year: 1999, sourceUrl: "https://en.wikipedia.org/wiki/September_8",
-      description: "A bombing at a school killed forty people." },
-  ];
-  const lines = new Map([["historical_event:grim", "A day people still talk about."]]);
-  const html = renderDayPage(page, [], [], events, [], null, lines);
-  assert.equal(html.includes('<section class="ask '), false, "no card, however the line is worded");
-});
-
-test("the candidates are spread across decades before the list is filled up", () => {
-  const rows = [
-    { kind: "historical_event" as const, id: "1", year: 1996, text: "One.", sourceUrl: "https://e.com/1", category: null, dateKind: null },
-    { kind: "historical_event" as const, id: "2", year: 1997, text: "Two.", sourceUrl: "https://e.com/2", category: null, dateKind: null },
-    { kind: "historical_event" as const, id: "3", year: 2004, text: "Three.", sourceUrl: "https://e.com/3", category: null, dateKind: null },
-  ];
-  const picked = askCandidates(rows, 2);
-  assert.equal(picked.length, 2);
-  const decades = picked.map((r) => Math.floor((r.year ?? 0) / 10));
-  assert.notEqual(decades[0], decades[1],
-    "one from each decade before a second from either");
-});
-
-test("the first ask stays away from years with no record beside them", () => {
-  const events = [
-    { id: "a", month: 9, day: 4, year: 1888, sourceUrl: "https://en.wikipedia.org/wiki/September_4",
-      description: "George Eastman registers the trademark Kodak." },
-  ];
-  const html = renderDayPage(page, [], [], events);
-  assert.equal(html.includes('<section class="ask '), false, "nothing from 1958 on, so no ask");
-  assert.ok(html.includes('id="m-historical_event-a"'), "and the row keeps its own anchor in the museum");
-});
 
 test("the about page explains what the site does before what is on a page", () => {
-  const html = renderHome(2026, []);
+  const html = renderHome();
   // The game first, since September 22, 2026: the front door is a date now.
   assert.ok(html.includes("Every date has a hive."));
-  // The underline needs its own colour named. The headline is painted with a
-  // gradient and its text colour is transparent, so an underline left on
-  // currentColor is drawn in transparent and nothing appears under the word.
-  assert.match(html, /\.brandword \{[^}]*text-decoration-color: #EF5680/);
   // The steps, in order, because the thing this site does is a sequence and a
   // reader who does not know it needs the order more than the detail.
   let at = 0;
@@ -1645,7 +1116,7 @@ test("the about page explains what the site does before what is on a page", () =
 });
 
 test("the about page no longer floats an app icon above the headline", () => {
-  const html = renderHome(2026, []);
+  const html = renderHome();
   assert.equal(html.includes("heroart"), false);
   assert.equal(html.includes("icon-192.png"), false, "the hero image is gone");
   // And the animation that only it used went with it, rather than being left
@@ -1659,12 +1130,12 @@ test("the four beats stack, rather than inheriting the flex row every list gets"
   // the site, so a card that does not override it turns its number, heading
   // and paragraph into three columns and wraps the heading one word to a line.
   // Nothing fails and nothing logs. It just looks like nobody designed it.
-  const html = renderHome(2026, []);
+  const html = renderHome();
   assert.match(html, /\.beats li \{[^}]*display: block/);
 });
 
 test("the link preview says what the site does, not what is on a page", () => {
-  const html = renderHome(2026, []);
+  const html = renderHome();
   // A description that disagreed with the page would be the one thing most
   // people read before deciding whether to open it.
   assert.match(html, /<meta name="description" content="Every date has a hive\./);
@@ -1714,101 +1185,18 @@ test("no animation on a date page plays when the reader asked for reduced motion
   assert.deepEqual(stray, [], "an animation sits outside the motion block");
   // The four the motion work added are present, by name, so this test cannot
   // pass by the block being empty.
-  for (const name of ["burn", "rise", "rail", "breathe"]) {
+  for (const name of ["burn", "rise", "breathe"]) {
     assert.ok(style.includes(`@keyframes ${name}`), `${name} keyframes are baked`);
   }
   assert.ok(style.includes(":target .mine { animation: rise"), "the reader's own mark lands after it");
-  assert.ok(style.includes(".afterword:target { animation: rise"), "the sentence at the top lands");
-  assert.ok(style.includes(".ask .rem button:nth-child(7) { animation-delay: 315ms; }"), "the three buttons arrive one beat apart");
   // The press state is a transform on :active and the transition that
   // softens it is switched off for reduced motion, in the reduce block.
-  assert.ok(style.includes(".rem button:active, .yeardecs label:active, .yg button:active { transform: scale(.96); }"));
+  assert.ok(style.includes(".rem button:active { transform: scale(.96); }"));
   const reduce = style.slice(style.indexOf("@media (prefers-reduced-motion: reduce)"));
-  assert.ok(reduce.includes(".rem button, .yeardecs label, .yg button { transition: none; }"));
+  assert.ok(reduce.includes(".rem button { transition: none; }"));
   // Nothing breathes in the baked sheet. Only today.css may start that, on an
   // open date.
   assert.equal(style.includes("animation: breathe"), false, "the dot only breathes when today.css says the date is open");
-});
-
-test("the reader's panel says Your only on the reader's own date, and prints no raw year", () => {
-  const now = new Date("2026-09-11T12:00:00Z");
-  const own = renderMePanel(9, 4, { year: 1991, month: 9, day: 4 }, now);
-  assert.ok(own.includes("Your September 4"));
-  assert.ok(own.includes("You have been alive for 35 years."));
-  assert.ok(own.includes("Born in the 1990s."));
-  assert.ok(own.includes("You are older than the PlayStation, Amazon and Google."));
-  // The exact birth year is never printed: the site keeps it off the page.
-  assert.ok(!own.includes("1991"));
-  assert.ok(!own.includes("Save your card"), "off for now, September 22, 2026");
-  // A younger reader gets both sides of the world line.
-  const young = renderMePanel(9, 4, { year: 2005, month: 9, day: 4 }, now);
-  assert.ok(young.includes("You are older than the iPhone, Bitcoin and Instagram."));
-  assert.ok(/were already here when you arrived\./.test(young));
-  // A birthday not yet reached this year is a year younger.
-  assert.ok(renderMePanel(12, 25, { year: 2010, month: 12, day: 25 }, now).includes("alive for 15 years"));
-});
-
-test("on somebody else's date the panel names the reader's own date and their real age", () => {
-  const now = new Date("2026-09-22T12:00:00Z");
-  // Hana's test, September 22, 2026: June 15, 1990, read on September 22.
-  const other = renderMePanel(9, 22, { year: 1990, month: 6, day: 15 }, now);
-  assert.ok(!other.includes("Your September 22"), "the page's date is not the reader's");
-  assert.ok(other.includes("Your birthday is June 15"));
-  assert.ok(other.includes("You have been alive for 36 years."));
-  assert.ok(other.includes('href="/june-15/"'), "and the way to their own date");
-  assert.ok(other.includes("This is September 22, not your date."));
-  assert.ok(!/the number one song the week you were born/i.test(other), "no week is promised on a date that is not theirs");
-  assert.ok(!/1990(?!s)/.test(other), "the decade, never the year");
-  // The age comes from the real birthday, not from the page: born December
-  // 25, 1990, the reader is 35 on September 22, 2026 whichever page is open.
-  assert.ok(renderMePanel(3, 1, { year: 1990, month: 12, day: 25 }, now).includes("alive for 35 years"));
-});
-
-test("a cookie from before the whole birthday was kept says only what a year can support", () => {
-  const now = new Date("2026-09-22T12:00:00Z");
-  const legacy = renderMePanel(9, 22, 1990, now);
-  assert.ok(!legacy.includes("Your September 22"));
-  assert.ok(legacy.includes("Your birthday"));
-  assert.ok(legacy.includes("You turn 36 this year."));
-  assert.ok(legacy.includes('href="#birthday"'), "and the way to add the month and day");
-  assert.ok(!/1990(?!s)/.test(legacy), "the decade, never the year");
-});
-
-test("the panel promises a number one song only to a reader the charts cover", () => {
-  const now = new Date("2026-09-11T12:00:00Z");
-  const on = (year: number) => renderMePanel(9, 4, { year, month: 9, day: 4 }, now);
-  // Born before the strip begins: told so plainly, and still pointed below.
-  const before = on(1950);
-  assert.ok(before.includes("The charts this site uses begin in 1959, so there is no number one song for the week you were born."));
-  assert.ok(before.includes("Below: everyone who shares September 4 and everything that ever happened on your date."));
-  assert.ok(!/the number one song the week you were born/i.test(before));
-  // 1958 is deliberately not imported, so it is on the wrong side of the line.
-  assert.ok(on(1958).includes("begin in 1959"));
-  // From the first chart year on, the promise stands.
-  const first = on(1959);
-  assert.ok(/the number one song the week you were born/i.test(first));
-  assert.ok(first.includes('href="/september-4/comb/#comb-songs"'), "and it is on the comb now");
-  assert.ok(!first.includes("begin in 1959"));
-  assert.ok(/the number one song the week you were born/i.test(on(1994)));
-});
-
-test("render.ts and build.ts agree on the first chart year", async () => {
-  // build.ts runs the build on import, so its constant is read from the
-  // source text rather than imported.
-  const source = await readFile(new URL("../../src/build.ts", import.meta.url), "utf8");
-  const match = /const FIRST_CHART_YEAR = (\d{4});/.exec(source);
-  assert.ok(match, "build.ts declares FIRST_CHART_YEAR");
-  assert.equal(FIRST_CHART_YEAR, Number(match![1]));
-  assert.equal(FIRST_CHART_YEAR, 1959);
-});
-
-test("withMe fills the marker, and leaves a page with no marker alone", () => {
-  const page = `<h1>x</h1>${meMarker()}<p>rest</p>`;
-  const filled = withMe(page, "<section class=\"me\">panel</section>");
-  assert.ok(filled.includes('<section class="me">panel</section>'));
-  assert.ok(!filled.includes("me:start"));
-  assert.equal(withMe("<h1>no marker</h1>", "<section>x</section>"), "<h1>no marker</h1>");
-  assert.equal(withMe(page, null), page);
 });
 
 
@@ -1816,142 +1204,12 @@ test("the stylesheet is sent without its comments, and nothing in it depends on 
   const html = renderDayPage(page);
   const style = html.slice(html.indexOf("<style>") + 7, html.indexOf("</style>"));
   assert.ok(!style.includes("/*"), "no comment reaches the page");
-  assert.ok(style.includes(".museum {") && style.includes(".mcomb {"), "and the rules are all still there");
+  assert.ok(style.includes(".wboard {") && style.includes(".wtile {"), "and the rules are all still there");
+  // The rules for what came off the date page on October 18, 2026 came off
+  // with it, docs/strip-to-the-hive.md.
+  for (const gone of [".museum", ".mcomb", ".sgq", ".tgask", ".bmodal", ".meage", ".wcombpage", ".wcells"]) {
+    assert.ok(!style.includes(gone), `${gone} is still in the stylesheet`);
+  }
   assert.equal(stripCss('a { content: "x"; } /* why */\n\n\n  b { color: red; }'), 'a { content: "x"; } \nb { color: red; }');
 });
 
-test("born on a date is two lists, legends keep their place, and nobody is in both", () => {
-  const person = (qid: string, name: string, views: number) => ({ qid, name, birthYear: 1990, deathYear: null, description: "a person", monthlyViews: views });
-  const legends = ["Beethoven", "Austen", "Clarke", "Dick", "Mead", "Coward"].map((n, i) => person(`L${i}`, n, 100 - i));
-  const now = [person("N0", "Theo James", 900), legends[0]!, person("N1", "Billy Gibbons", 800), legends[1]!, person("N2", "Krysten Ritter", 700), person("N3", "Quiet", 0)];
-  const html = renderDayPage({ month: 12, day: 16, people: legends, now });
-  const at = html.indexOf('class="mgroup bornlists" id="born"');
-  assert.ok(at > 0, "the section is on the page");
-  assert.ok(html.indexOf("<!--wall:start-->") < at, "and it comes after the hive");
-  const section = html.slice(at, html.indexOf("</details>", at));
-  const hot = section.slice(section.indexOf("Big right now"), section.indexOf("Legends"));
-  const old = section.slice(section.indexOf("Legends"), section.indexOf('class="mrest"'));
-  assert.ok(old.includes("Beethoven") && old.includes("Austen"), "a legend stays a legend");
-  assert.ok(!hot.includes("Beethoven") && !hot.includes("Austen"), "and is not repeated under attention");
-  assert.ok(hot.includes("Theo James") && hot.includes("Billy Gibbons") && hot.includes("Krysten Ritter"));
-  assert.ok(!hot.includes("Quiet"), "nobody with no views leads on attention");
-  assert.ok(!old.includes("Coward"), "five a side");
-  // Everybody past the ten is still in the page, under the two lists, once.
-  const rest = section.slice(section.indexOf('class="mrest"'));
-  assert.ok(rest.includes("Coward"), "the sixth legend is under everyone else");
-  assert.equal(html.split('id="m-person-L0"').length, 2, "and nobody is drawn twice");
-});
-
-test("a page built before the attention list existed shows the legends alone", () => {
-  const html = renderDayPage(page);
-  const at = html.indexOf('class="mgroup bornlists" id="born"');
-  assert.ok(at > 0);
-  const section = html.slice(at, html.indexOf("</details>", at));
-  assert.ok(!section.includes("Big right now"));
-  assert.ok(section.includes("Anton Bruckner"));
-  assert.ok(!section.includes("<script>"), "names are escaped");
-});
-
-// ---------------------------------------------------------------------------
-// One gimmick, museum below the fold. docs/the-wall.md section 32.
-// ---------------------------------------------------------------------------
-
-import { combPreview, replaceComb, replaceWall, wallSection, type WallDay as MuseumWallDay, type WallStory as MuseumStory } from "../src/wall.js";
-
-/** A date page with a little of everything: people on both lists, history, number ones and an open hive. */
-function fullDate(): { html: string; day: MuseumWallDay; songs: Array<{ year: number; song: string; artist: string; chartDate: string }>; events: Array<{ id: string; month: number; day: number; year: number; sourceUrl: string; description: string }> } {
-  const people = Array.from({ length: 12 }, (_, i) => ({ qid: `Q${100 + i}`, name: `Legend ${i}`, birthYear: 1800 + i, deathYear: 1880 + i, description: "a person of note", monthlyViews: 10 + i }));
-  const now = [{ qid: "Q900", name: "Famous Now", birthYear: 2001, deathYear: null, description: "a streamer", monthlyViews: 90000 }];
-  const full = { month: 10, day: 5, people, now };
-  const songs = [
-    { year: 1990, song: "Close to You", artist: "Maxi Priest", chartDate: "1990-10-06" },
-    { year: 1985, song: "Oh Sheila", artist: "Ready for the World", chartDate: "1985-10-05" },
-  ];
-  const events = Array.from({ length: 4 }, (_, i) => ({ id: `e${i}`, month: 10, day: 5, year: 1900 + i * 20, sourceUrl: "https://en.wikipedia.org/wiki/October_5", description: `The thing that happened in ${1900 + i * 20}` }));
-  const story = (id: string, overrides: Partial<MuseumStory>): MuseumStory => ({
-    id, wallDate: "2026-10-05", submittedAt: "2026-10-05T10:00:00Z", headline: `Story ${id}`, url: `https://www.example.org/${id}`, outlet: "example.org",
-    status: "pool", tier: "claimed", support: 0, priority: 0, placedAt: null, rect: null, falseAt: null, falseNote: null,
-    subjectKind: null, subjectId: null, sources: [], ...overrides,
-  });
-  const day: MuseumWallDay = {
-    wallDate: "2026-10-05", year: 2026, month: 10, day: 5,
-    opensAt: "2026-10-04T04:00:00Z", liveAt: "2026-10-05T04:00:00Z", closesAt: "2026-10-07T04:00:00Z", closedAt: null,
-    suggestions: true, answers: true,
-    stories: [
-      story("aaaaaaaa-0000-4000-8000-000000000001", { status: "placed", rect: { mx: 4, my: 4, w: 4, h: 4 }, support: 3, headline: "The news that took the board" }),
-      story("aaaaaaaa-0000-4000-8000-000000000002", { headline: "News that did not make the board" }),
-      story("aaaaaaaa-0000-4000-8000-000000000003", { subjectKind: "historical_event", subjectId: "e1", headline: "1920: The thing that happened in 1920" }),
-      story("aaaaaaaa-0000-4000-8000-000000000004", { subjectKind: "person", subjectId: "Q100", headline: "Legend 0, a person of note, born 1800" }),
-      story("aaaaaaaa-0000-4000-8000-000000000005", { subjectKind: "song", subjectId: "1990-10-06", headline: "1990: \"Close to You\" by Maxi Priest was the number one song" }),
-      story("aaaaaaaa-0000-4000-8000-000000000006", { subjectKind: "suggestion", subjectId: "Q7259", support: 2, headline: "Ada Lovelace: English mathematician", url: "https://en.wikipedia.org/wiki/Ada_Lovelace", outlet: "Wikipedia" }),
-    ],
-  };
-  const html = renderDayPage(full, songs, [], events, [], null, new Map(), new Map(), day);
-  return { html, day, songs, events };
-}
-
-test("the museum is all in the baked page, under the hive and outside the part the server swaps, so a crawler reads every row", () => {
-  const { html, songs, events } = fullDate();
-  const wallEnd = html.indexOf("<!--wall:end-->");
-  const museum = html.indexOf('<section class="museum" id="museum"');
-  assert.ok(wallEnd > 0 && museum > wallEnd, "below the game, outside the swapped section");
-  const end = html.indexOf("</section>", html.indexOf("<!--comb:end-->"));
-  const section = html.slice(museum, end);
-  // Every part the brief names, each one folded and each one there.
-  assert.ok(section.includes('<h2 class="mtitle" id="museum-h">October 5, every year</h2>'), "clearly the archive");
-  assert.ok(section.includes('<details class="mgroup" id="history">') && section.includes("October 5 in history"));
-  assert.ok(section.includes('<details class="mgroup bornlists" id="born">') && section.includes("Born on October 5"));
-  assert.ok(section.includes("<h4>Big right now</h4>") && section.includes("<h4>Legends</h4>"));
-  assert.ok(section.includes('<details class="mgroup" id="number-ones">') && section.includes("Number ones by year"));
-  assert.ok(section.includes('<section class="mcomb" id="comb"') && section.includes("Open the comb"), "the comb, as a handful and the way in");
-  assert.ok(!/<details[^>]*\sopen/.test(section), "every group is closed: it never competes with the hive");
-  assert.ok(!/\shidden[\s>]/.test(section), "closed, never hidden: the text is in the page");
-  // Every row, in full.
-  for (const e of events) assert.ok(section.includes(e.description), `${e.year} is in the page`);
-  // A dated row carries its year for the reader's own age above it, as the feed's did.
-  assert.ok(section.includes('<li class="mrow hist" id="m-historical_event-e1" data-y="1920" data-k="historical_event:e1">'));
-  for (let i = 0; i < 12; i += 1) assert.ok(section.includes(`>Legend ${i}</a>`), `Legend ${i} is in the page`);
-  assert.ok(section.includes(">Famous Now</a>"));
-  for (const s of songs) assert.ok(section.includes(`&quot;${s.song}&quot; by ${s.artist}`) && section.includes(`id="${s.year}"`));
-  // Every row carries the button a buzz goes through, baked switched off.
-  assert.equal((section.match(/<button class="mbuzz"/g) ?? []).length, events.length + 13 + songs.length);
-  assert.equal((html.match(/<form id="mbz"/g) ?? []).length, 1, "one form for all of them");
-});
-
-test("no content type is drawn twice on the date page, baked or live", () => {
-  const { html, day } = fullDate();
-  const now = Date.parse("2026-10-05T16:00:00Z");
-  const live = replaceComb(replaceWall(html, wallSection(day, "October 5", now, { interactive: true, date: { month: 10, day: 5 } }))!, combPreview(day, "October 5", now, true));
-  for (const page of [html, live]) {
-    for (const id of ["song", "suggest", "museum", "history", "born", "number-ones", "comb", "wallhead", "wcrown"]) {
-      assert.ok((page.match(new RegExp(`id="${id}"`, "g")) ?? []).length <= 1, `one ${id}`);
-    }
-    assert.ok(!page.includes("Today's feed") && !page.includes('id="feedhead"') && !page.includes('class="feed2"'), "the feed is cut");
-    assert.ok(!page.includes('<a class="wcomb"'), "the old comb card is gone; the preview replaced it");
-    assert.ok(!page.includes('id="wdecades"'), "the decade teams are the full screen hive's, not the date page's");
-  }
-  // Live, each story is drawn in exactly one place on the page.
-  const at = (id: string): number => (live.match(new RegExp(`id="(w|ws|wt)-${id}"`, "g")) ?? []).length;
-  assert.equal(at("aaaaaaaa-0000-4000-8000-000000000001"), 1, "the board's tile");
-  assert.equal(at("aaaaaaaa-0000-4000-8000-000000000002"), 1, "the news off the board, in the comb preview");
-  assert.equal(at("aaaaaaaa-0000-4000-8000-000000000006"), 1, "the suggestion, in Suggested today");
-  for (const museumStory of ["aaaaaaaa-0000-4000-8000-000000000003", "aaaaaaaa-0000-4000-8000-000000000004", "aaaaaaaa-0000-4000-8000-000000000005"]) {
-    assert.equal(at(museumStory), 0, "a museum kind is its museum row and nothing else");
-  }
-  assert.equal((live.match(/id="m-historical_event-e1"/g) ?? []).length, 1);
-  assert.equal((live.match(/id="m-person-Q100"/g) ?? []).length, 1);
-  assert.equal((live.replace(/ aria-label="[^"]*"/g, "").match(/The thing that happened in 1920/g) ?? []).length, 1, "the event's words once, outside its button's label");
-  // The live section switches the museum on and says how the rows stand.
-  assert.ok(live.includes(".mbuzz{display:inline-flex}"));
-  assert.ok(live.includes('data-k="historical_event:e1"'), "and the row carries the key its story is found by");
-});
-
-test("on a phone the first screen is the game: the song, then the hive, then the box, and the museum only after all of it", () => {
-  const { html, day } = fullDate();
-  const now = Date.parse("2026-10-05T16:00:00Z");
-  const live = replaceComb(replaceWall(html, wallSection(day, "October 5", now, { interactive: true, date: { month: 10, day: 5 } }))!, combPreview(day, "October 5", now, true));
-  const order = ["<h1>October 5</h1>", 'id="song"', 'class="wall"', 'class="wboard', 'id="wcrown"', 'id="suggest"', "Pick between two", '<section class="museum"', 'id="history"', 'id="born"', 'id="number-ones"', 'id="comb"', 'class="bopenrow"'];
-  const where = order.map((marker) => live.indexOf(marker));
-  where.forEach((w, i) => assert.ok(w > 0, `${order[i]} is on the page`));
-  for (let i = 1; i < where.length; i += 1) assert.ok(where[i - 1]! < where[i]!, `${order[i - 1]} comes before ${order[i]}`);
-});
