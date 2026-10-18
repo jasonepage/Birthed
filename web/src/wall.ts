@@ -402,7 +402,7 @@ export function pictureRules(pictures: Picture[]): string {
   // A pictured small tile is the picture and nothing else: its year is what
   // stands in when there is none. docs/the-wall.md section 27.
   const noYear = pictures.map((p) => `.wtile.small[data-subject="${safe(p.subject)}"] .wyr,.wtile.tiny[data-subject="${safe(p.subject)}"] .wyr`).join(",");
-  return `<style class="wpics">${each}${noYear}{display:none}${all}{color:var(--cream);--wink:var(--cream);--wbtn:var(--honey-lite);--wbtn-ink:var(--on-honey);--wmark:var(--honey-lite);justify-content:flex-end;--scrim:linear-gradient(to top,rgba(20,12,4,.94) 0%,rgba(20,12,4,.62) 48%,rgba(20,12,4,.18) 100%)}</style>`;
+  return `<style class="wpics">${each}${noYear}{display:none}${all}{color:var(--cream);--wink:var(--cream);--wbtn:var(--honey-lite);--wbtn-ink:var(--on-honey);--wmark:var(--honey-lite);--glyph:0;justify-content:flex-end;--scrim:linear-gradient(to top,rgba(20,12,4,.94) 0%,rgba(20,12,4,.62) 48%,rgba(20,12,4,.18) 100%)}</style>`;
 }
 
 /**
@@ -922,14 +922,23 @@ const TILE_BASE = 0.38;
 const FIT_MIN = 0.85;
 const FIT_MAX = 3;
 
-export function fitType(w: number, h: number, length: number): { fit: number; lines: number } {
+/**
+ * The ceiling on a poster tile, below: a tile at least six modules each way
+ * may set its headline larger than the ordinary ceiling, because the pie can
+ * hand one story most of the board and a headline capped for a six module
+ * tile left the rest of a sixteen module one empty. Nathan, October 18,
+ * 2026: "it simply cannot be blank, it looks like a glitch".
+ */
+export const POSTER_FIT_MAX = 5.5;
+
+export function fitType(w: number, h: number, length: number, ceiling: number = FIT_MAX): { fit: number; lines: number } {
   const room = Math.max(0.4, h - TILE_CHROME);
   const smallest = FIT_MIN * TILE_BASE;
   // Smallest first, keeping the last that fits. The answer is not monotonic:
   // a larger size takes fewer characters per line, so it can need a whole
   // extra line and stop fitting, and a size above that can fit again.
   let best: { size: number; lines: number } | null = null;
-  for (let size = smallest; size <= FIT_MAX * TILE_BASE + 1e-9; size += 0.01) {
+  for (let size = smallest; size <= ceiling * TILE_BASE + 1e-9; size += 0.01) {
     const perLine = Math.max(1, Math.floor(w / (CHAR_WIDTH * size)));
     const lines = Math.max(1, Math.ceil(length / perLine));
     if (lines * TILE_LINE_HEIGHT * size <= room) best = { size, lines };
@@ -1141,9 +1150,19 @@ function tile(story: WallStory, live: boolean, voice: Voice, view: Viewport, hiv
   // of tile, because a crown that only the big tiles could wear would be
   // missing on the very day a small tile takes it.
   const crown = crowned ? crownMark() : "";
+  // A poster: a big tile gets a kicker naming what kind of story it is, the
+  // kind's mark drawn large and faint in the corner, a warm ground and type
+  // allowed to grow until it fills the box. A tile with a picture draws the
+  // picture over all of it. October 18, 2026: a big tile with no picture was
+  // a headline in the top corner of an empty brown box.
+  const poster = size === "big" && rect.w >= 6 && rect.h >= 5;
+  const kind = tileKind(story);
   // The size and the line budget, fitted to the box and the sentence
-  // together. fitType says why the two used to be worked out apart.
-  const { fit, lines } = fitType(rect.w, rect.h, story.headline.length);
+  // together. fitType says why the two used to be worked out apart. A
+  // poster's kicker takes about two thirds of a module off the top.
+  const { fit, lines } = poster
+    ? fitType(rect.w, rect.h - 0.7, story.headline.length, POSTER_FIT_MAX)
+    : fitType(rect.w, rect.h, story.headline.length);
   // --i is the tile's place in the deal, for the stagger when the board
   // rises in. The same variable the covers and the feed rise on.
   // --tw is the tile's width in modules. Since the pie, docs/the-wall.md
@@ -1152,7 +1171,7 @@ function tile(story: WallStory, live: boolean, voice: Voice, view: Viewport, hiv
   // three quarters empty. The stylesheet grows the type with the width.
   const style = `grid-column:${rect.mx - view.ox + 1} / span ${rect.w};grid-row:${rect.my - view.oy + 1} / span ${rect.h};--lines:${lines};--fit:${fit};--tw:${rect.w};--i:${index}`;
   const stamp = outcomeStamp(story);
-  const classes = `wtile ${size} w-${story.tier}${rect.h <= 3 ? " wh3" : ""}${story.status === "false" ? " wfalse" : ""}${crowned ? " wcrowned" : ""}`;
+  const classes = `wtile ${size} w-${story.tier}${rect.h <= 3 ? " wh3" : ""}${story.status === "false" ? " wfalse" : ""}${crowned ? " wcrowned" : ""}${poster ? ` wposter wp-${kind}` : ""}`;
   // The tile's decade, docs/the-wall.md section 30, so a stylesheet can
   // find a team's tiles. Absent when the headline carries no year.
   const decade = decadeOf(story);
@@ -1183,8 +1202,10 @@ function tile(story: WallStory, live: boolean, voice: Voice, view: Viewport, hiv
   }
 
   const takes = live && story.status !== "false";
+  const kicker = poster ? `<span class="wkick" aria-hidden="true">${KIND_WORD[kind]}</span>` : "";
+  const glyph = poster ? `<span class="wglyph" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round">${KIND_MARK[kind]}</svg></span>` : "";
   return `<div class="${classes}" id="w-${story.id}" style="${style}"${subjectAttr(story)}${team} role="listitem">`
-    + `<a class="wh" href="${receipt}" title="${escapeHtml(label)} The receipt: every source, every quotation, every check.">${escapeHtml(story.headline)}</a>`
+    + `${glyph}<span class="wtop">${kicker}<a class="wh" href="${receipt}" title="${escapeHtml(label)} The receipt: every source, every quotation, every check.">${escapeHtml(story.headline)}</a></span>`
     + `${mine(voice)}${footer(story, takes, voice, hive)}${stamp}${crown}</div>`;
 }
 
@@ -2745,6 +2766,33 @@ a.whudname:hover { color: var(--honey-lite); }
   font-family: var(--serif); font-weight: 700; font-size: 11px; line-height: 1.2; text-wrap: pretty;
 }
 .wtile.big .wh { -webkit-line-clamp: 4; font-size: 13px; }
+/* The reader's own mark sits on the footer, never floating in the middle of
+   a tall tile. */
+.wtile.mid > .wmine, .wtile.big > .wmine { margin-top: auto; }
+.wtop { display: flex; flex-direction: column; min-height: 0; }
+/* The poster, October 18, 2026: a big tile with no picture is a front page,
+   not an empty box. A warm ground lit from the corner, the honeycomb faint
+   under it, the kind's mark drawn large and faint, and a kicker saying what
+   kind of story it is. A picture, when the tile has one, covers all of it,
+   and pictureRules sets --glyph to nought so the mark goes with it. */
+.wtile.wposter {
+  background:
+    radial-gradient(100% 80% at 100% 100%, rgba(244, 183, 64, .16), transparent 62%),
+    radial-gradient(70% 60% at 0% 0%, rgba(255, 243, 224, .05), transparent 70%),
+    linear-gradient(165deg, rgba(43, 31, 17, .94), rgba(26, 19, 11, .97) 70%),
+    url("/honeycomb.svg") 0 0 / 84px 144px repeat, #1A130B;
+}
+.wtile.wposter.w-reported { background-color: #1E160C; }
+.wtile > .wglyph {
+  position: absolute; z-index: 0; right: -3%; bottom: 9%; width: min(48%, 62cqi); aspect-ratio: 1 / 1;
+  color: var(--honey); opacity: calc(var(--glyph, 1) * .1); pointer-events: none;
+}
+.wglyph svg { display: block; width: 100%; height: 100%; }
+.wkick {
+  display: block; margin: 2px 0 .45em; font-family: var(--sans); font-weight: 800; letter-spacing: .14em; text-transform: uppercase;
+  font-size: clamp(8px, calc(9cqi * var(--tw, 6) / var(--side, 16)), 13px); color: var(--honey-lite);
+}
+.wtile.wposter.big { padding: clamp(6px, 1.6cqi, 16px) clamp(8px, 2cqi, 20px); }
 .wfoot { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; font-size: 9px; opacity: .9; margin-top: 3px; }
 .wtile.mid .wtile.wfalse { opacity: .55; }
 .wstamp {
@@ -2819,6 +2867,7 @@ a.whudname:hover { color: var(--honey-lite); }
    so the pie's biggest share reads as the biggest thing on the page rather
    than as the emptiest tile. --tw is the tile's width in modules, set on the
    tile; the minimum is four. */
+.wtile.wposter .wh { font-size: clamp(10px, calc(38cqi / var(--side, 16) * var(--fit, 1)), 92px) !important; letter-spacing: -.01em; }
 .wtile.mid .wh, .wtile.big .wh {
   font-size: clamp(10px, calc(38cqi / var(--side, 16) * var(--fit, 1)), 44px);
   -webkit-line-clamp: var(--lines, 3);

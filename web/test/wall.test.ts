@@ -279,7 +279,14 @@ test("a tile is drawn at the height it has, and the headline gets the lines it c
   const short = wallSection(day([story({ rect: { mx: 0, my: 0, w: 4, h: 3 } })]), "September 9", LIVE_NOW);
   assert.ok(short.includes("grid-row:1 / span 3;--lines:4;--fit:1.11;"));
   const tall = wallSection(day([story({ rect: { mx: 0, my: 0, w: 6, h: 5 } })]), "September 9", LIVE_NOW);
-  assert.ok(tall.includes("--lines:5;--fit:1.77;"), "taller and wider, so larger type");
+  assert.ok(/--lines:\d+;--fit:([0-9.]+);/.test(tall) && Number(/--fit:([0-9.]+);/.exec(tall)![1]) > 1.11, "taller and wider, so larger type");
+  // Six by five and up is a poster, October 18, 2026: a kicker over the
+  // headline, the kind's mark large in the corner, and the line budget fitted
+  // to the room the kicker leaves.
+  assert.ok(tall.includes("wposter wp-news"));
+  assert.ok(tall.includes('<span class="wkick" aria-hidden="true">In the news today</span>'));
+  assert.ok(tall.includes('<span class="wglyph" aria-hidden="true">'));
+  assert.ok(!short.includes("wposter"), "a small tile stays a tile");
 });
 
 // ---------------------------------------------------------------------------
