@@ -133,6 +133,10 @@ export function renderHome(): string {
 ${siteBar()}
 <div class="col">
 <section class="hero">
+  <picture class="herobanner">
+    <source type="image/webp" srcset="/hero/hero-cake-1280.webp 1280w, /hero/hero-cake-1920.webp 1920w" sizes="(max-width: 760px) 100vw, 720px">
+    <img src="/hero/hero-cake-1280.jpg" srcset="/hero/hero-cake-1280.jpg 1280w, /hero/hero-cake-1920.jpg 1920w" sizes="(max-width: 760px) 100vw, 720px" width="1280" height="720" alt="A beeswax birthday candle burning on a honey cake, with a bee in a party hat flying beside the flame.">
+  </picture>
   <div class="herotext">
     <h1>Every date has a hive. <span class="glow">Here is how to play.</span></h1>
     <p class="lede">Birthed is a small game about the calendar. Every day, whoever shows up decides what mattered about that date. At midnight it locks for good, and next year the same date gets another go.</p>

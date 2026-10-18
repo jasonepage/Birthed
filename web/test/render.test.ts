@@ -752,10 +752,11 @@ test("the form on the add page loads nothing", () => {
   const html = renderAdd(API);
   const style = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
   assert.ok(style.length > 0, "the stylesheet is inlined into the page");
-  // The fetches the stylesheet makes are the typeface and the honeycomb
-  // behind the board, both from this origin, since September 22, 2026.
-  // Nothing else, and nothing from anywhere else.
-  assert.ok(!style.replace(/url\("\/(fonts\/[^"]+|honeycomb\.svg)"\)/g, "").includes("url("), "nothing in the stylesheet fetches anything but the font and the honeycomb from here");
+  // The fetches the stylesheet makes are the typeface, the honeycomb behind
+  // the board since September 22, 2026, and the hero art behind a date with
+  // no hive since October 18, 2026, all from this origin. Nothing else, and
+  // nothing from anywhere else.
+  assert.ok(!style.replace(/url\("\/(fonts\/[^"]+|honeycomb\.svg|hero\/[a-z0-9-]+\.(webp|jpg))"\)/g, "").includes("url("), "nothing in the stylesheet fetches anything but the font, the honeycomb and the hero art from here");
   assert.match(style, /\.select::after\s*{[^}]*border-right/, "the chevron is drawn with borders");
 });
 
@@ -1213,3 +1214,31 @@ test("the stylesheet is sent without its comments, and nothing in it depends on 
   assert.equal(stripCss('a { content: "x"; } /* why */\n\n\n  b { color: red; }'), 'a { content: "x"; } \nb { color: red; }');
 });
 
+
+test("the hero art: the cake above the About headline, and the bees on a date with no hive yet", () => {
+  // design/hero, October 18, 2026. Served from this site, so the image
+  // policy stays 'self'. Not on a date with a board: the board is the page.
+  const about = renderHome();
+  assert.ok(about.includes('<picture class="herobanner">'));
+  assert.ok(about.includes('srcset="/hero/hero-cake-1280.webp 1280w, /hero/hero-cake-1920.webp 1920w"'));
+  assert.ok(about.includes('src="/hero/hero-cake-1280.jpg"') && about.includes('width="1280" height="720"'), "a JPEG fallback that holds its place");
+  assert.ok(about.indexOf("herobanner") < about.indexOf("<h1>"), "the art comes before the headline");
+  const empty = renderDayPage({ month: 3, day: 3 });
+  assert.ok(empty.includes('class="wboard wblank wart"'), "a date with no hive shows the bees");
+  assert.ok(!empty.includes("Everything below"), "nothing points at the archive that came off");
+  assert.ok(empty.includes('url("/hero/hero-bees-1280.jpg")'));
+});
+
+test("the hero art: the cake above the About headline, and the bees on a date with no hive yet", () => {
+  // design/hero, October 18, 2026. Served from this site, so the image
+  // policy stays 'self'. Not on a date with a board: the board is the page.
+  const about = renderHome();
+  assert.ok(about.includes('<picture class="herobanner">'));
+  assert.ok(about.includes('srcset="/hero/hero-cake-1280.webp 1280w, /hero/hero-cake-1920.webp 1920w"'));
+  assert.ok(about.includes('src="/hero/hero-cake-1280.jpg"') && about.includes('width="1280" height="720"'), "a JPEG fallback that holds its place");
+  assert.ok(about.indexOf("herobanner") < about.indexOf("<h1>"), "the art comes before the headline");
+  const empty = renderDayPage({ month: 3, day: 3 });
+  assert.ok(empty.includes('class="wboard wblank wart"'), "a date with no hive shows the bees");
+  assert.ok(!empty.includes("Everything below"), "nothing points at the archive that came off");
+  assert.ok(empty.includes('url("/hero/hero-bees-1280.jpg")'));
+});

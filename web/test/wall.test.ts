@@ -58,7 +58,7 @@ test("a date page without a hive yet says when its first one opens", () => {
   assert.ok(html.includes('class="wall wpromise"'));
   assert.ok(html.includes("September 9 has no hive yet. Its first one opens on September 8,"));
   // A blank board is drawn with the opening date on it, and no tiles.
-  assert.ok(html.includes('class="wboard wblank"'));
+  assert.ok(html.includes('class="wboard wblank wart"'), "with the bees on it since October 18, 2026");
   assert.ok(html.includes("First hive opens September 8,"));
   assert.ok(!html.includes('class="wtile'));
 });
