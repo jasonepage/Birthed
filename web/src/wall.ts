@@ -1466,8 +1466,8 @@ export function promise(name: string, month: number, day: number, now: number): 
   return `<section class="wall wpromise" aria-labelledby="wallhead">
 <p class="whead">${beeSvg()}<span class="section" id="wallhead">The hive for ${escapeHtml(name)}</span> <span class="wstate">Not open yet.</span></p>
 <p class="wlede">${escapeHtml(name)} has no hive yet. Its first one opens on ${opens} at midnight Eastern, takes the day's news and the buzzes people give it, and seals two days later, for good. Every date gets one a year, and they stack.</p>
-<div class="wboard wblank wart" role="img" aria-label="An empty hive with bees on the honeycomb. The first one for ${escapeHtml(name)} opens ${opens}.">
-<p class="wnothing"><b>First hive opens ${opens}</b><span>at midnight Eastern. Buzzing starts then.</span></p>
+<div class="wboard wblank" role="img" aria-label="An empty hive with a birthday candle on it. The first one for ${escapeHtml(name)} opens ${opens}.">
+<p class="wnothing"><img class="wcandle" src="/hero/candle.svg" alt="" width="1200" height="2290"><b>First hive opens ${opens}</b><span>at midnight Eastern. Buzzing starts then.</span></p>
 </div>
 </section>`;
 }
@@ -2280,22 +2280,9 @@ export const WALL_STYLE = `
     linear-gradient(90deg, rgba(255, 243, 224, .07) 1px, transparent 1px) 0 0 / calc(100% / 16) calc(100% / 16),
     var(--cell);
 }
-/* A date with no hive yet shows the bees on their honeycomb, October 18,
-   2026, design/hero: the art leaves the right side empty for words, so the
-   promise sits there. On a phone the board is taller and the words sit at
-   the foot over a shade. JPEG first for a browser without image-set. */
-.wboard.wblank.wart {
-  aspect-ratio: 21 / 9; border-color: var(--line-strong);
-  background: #0E0A06 url("/hero/hero-bees-1280.jpg") left center / cover no-repeat;
-  background-image: image-set(url("/hero/hero-bees-1280.webp") type("image/webp"), url("/hero/hero-bees-1280.jpg") type("image/jpeg"));
-}
-.wart .wnothing { justify-self: end; text-align: left; max-width: 37%; padding: 0 4% 0 0; color: var(--cream-2); }
-.wart .wnothing b { color: var(--cream); text-shadow: 0 2px 12px rgba(0, 0, 0, .6); }
-@media (max-width: 560px) {
-  .wboard.wblank.wart { aspect-ratio: 4 / 3; background-position: 22% center; }
-  .wart::after { content: ""; position: absolute; inset: 40% 0 0; border-radius: 0 0 16px 16px; background: linear-gradient(to top, rgba(14, 10, 6, .94), rgba(14, 10, 6, 0)); }
-  .wart .wnothing { position: relative; z-index: 1; align-self: end; justify-self: stretch; max-width: none; text-align: center; padding: 0 6% 18px; }
-}
+/* The candle from the hero art, design/hero, October 18, 2026, waiting on
+   the blank board of a date with no hive yet. */
+.wcandle { display: block; width: auto; height: clamp(64px, 22cqi, 120px); margin: 0 auto 10px; }
 .wnothing { grid-column: 1 / -1; grid-row: 1 / -1; align-self: center; justify-self: center; margin: 0; padding: 0 8%; text-align: center; font-size: 14px; line-height: 1.5; color: var(--dimmer); text-wrap: balance; max-width: 40ch; }
 .wnothing b { display: block; margin: 0 0 6px; font-family: var(--serif); font-weight: 800; font-size: clamp(20px, 5.4cqi, 30px); line-height: 1.15; color: #EFE0B8; }
 .wnothing span { display: block; }

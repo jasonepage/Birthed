@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { cacheDir, currentFingerprint, decide, expectedPictures, fingerprint, importsOf, walkImports } from "../src/og-ci.js";
+import { cacheDir, cardSample, currentFingerprint, decide, expectedPictures, fingerprint, importsOf, walkImports } from "../src/og-ci.js";
 
 test("the imports of a source file are read as src relative names, type imports included", () => {
   const source = `import { a } from "./model.js";\nimport type { B } from "./share.js";\nimport { c } from "node:fs";\nimport { d } from "playwright";\nimport { a as again } from "./model.js";`;
@@ -61,7 +61,7 @@ test("the cache folder is OG_CACHE_DIR, then Render's XDG_CACHE_HOME, then ~/.ca
   assert.ok(cacheDir({}).endsWith(join(".cache", "birthed-og")));
 });
 
-test("the fingerprint on disk follows the picture sources and the inlined pictures, and nothing else", () => {
+test("the fingerprint on disk follows the card files, what the cards draw and the inlined pictures, and nothing else", () => {
   const root = mkdtempSync(join(tmpdir(), "og-ci-"));
   try {
     mkdirSync(join(root, "src"));
@@ -69,19 +69,28 @@ test("the fingerprint on disk follows the picture sources and the inlined pictur
     mkdirSync(join(root, "static", "covers"), { recursive: true });
     writeFileSync(join(root, "src", "og.ts"), `import { r } from "./share.js";`);
     writeFileSync(join(root, "src", "share.ts"), `export const r = 1;`);
-    writeFileSync(join(root, "src", "serve.ts"), `export const unrelated = 1;`);
+    writeFileSync(join(root, "src", "wall.ts"), `export const page = 1;`);
     writeFileSync(join(root, "static", "faces", "a.jpg"), "face");
-    const first = currentFingerprint(root);
-    writeFileSync(join(root, "src", "serve.ts"), `export const unrelated = 2;`);
-    assert.equal(currentFingerprint(root), first, "a file the cards never import does not move it");
+    const first = currentFingerprint(root, "<card>");
+    writeFileSync(join(root, "src", "wall.ts"), `export const page = 2;`);
+    assert.equal(currentFingerprint(root, "<card>"), first, "a change to the date page that draws the same cards does not move it");
+    assert.notEqual(currentFingerprint(root, "<card changed>"), first, "a change that reaches a card does, from whichever file");
     writeFileSync(join(root, "src", "share.ts"), `export const r = 2;`);
-    const second = currentFingerprint(root);
-    assert.notEqual(second, first, "the template moving does");
+    const second = currentFingerprint(root, "<card>");
+    assert.notEqual(second, first, "the card file moving does");
     writeFileSync(join(root, "static", "covers", "b.jpg"), "cover");
-    assert.notEqual(currentFingerprint(root), second, "a new inlined picture does");
+    assert.notEqual(currentFingerprint(root, "<card>"), second, "a new inlined picture does");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("the sample the fingerprint hashes is real cards, and the same every time", () => {
+  const a = cardSample();
+  assert.equal(cardSample(), a, "nothing in it moves between two builds");
+  assert.ok(a.includes("<svg") || a.includes("<html") || a.includes("<div"), "it is the cards' own markup");
+  assert.ok(a.includes("The news of the day"), "the sample hive is drawn");
+  assert.ok(a.length > 2000);
 });
 
 test("the build step is the incremental one, and the generator alone is still reachable", () => {

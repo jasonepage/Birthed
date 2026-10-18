@@ -454,14 +454,23 @@ here as they land.
   right). Honey palette, amber and deep brown; the wordmark is the only
   pink, per the September 22 rule. Fraunces for the wordmark and tagline
   "Every date has a hive."
-- **Where the site uses them, wired in the same day.** The cake sits above
-  the About headline (`herobanner` in `pages.ts`, WebP with a JPEG
-  fallback). The bees fill the blank board of a date with no hive yet
-  (`wart` in `wall.ts`), with the opening date in the space the art leaves
-  on the right, or over a shade at the foot on a phone. `og-home.png`, the
-  share picture for the About page and every date with no board, is the
-  titled cake at 1200 by 630. Not on a date with a board: the board is the
-  page, and the first Buzz button stays in the first screen.
+- **Where the site uses them: two small pieces, not the pictures.** Nathan
+  asked for the art to be subtle, not pasted in. `design/hero/parts.py`
+  cuts the bee and the candle out of the same drawing code into
+  `web/static/hero/bee.svg` and `candle.svg`. The bee is the mascot
+  (`beeSvg` in `mascot.ts` now draws it as a picture) and flies off the end
+  of the About headline; the candle waits on the blank board of a date with
+  no hive yet. No background picture anywhere. The web-weight JPEG and WebP
+  copies came out of `web/static/hero`; the full pictures stay in
+  `design/hero`. `og-home.png`, the share picture for the About page and
+  every date with no board, is the titled cake at 1200 by 630.
+- **Deploys stopped taking six minutes for nothing.** `og-ci.ts` used to
+  fingerprint og.ts and everything it imports, and share.ts imports
+  render.ts and wall.ts, so every date page change downloaded Chromium and
+  shot all 732 share pictures. It now fingerprints og.ts, share.ts, the
+  HTML the cards draw for fixed sample dates (`cardSample`), and the
+  inlined covers and faces. A change that reaches a card still regenerates;
+  one that does not, skips.
 
 ### The pivot paused, and the strip, October 18, 2026
 

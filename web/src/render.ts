@@ -666,10 +666,10 @@ h2.plain { font-family: var(--serif); font-weight: 800; font-size: clamp(22px, 5
 .home .hero { margin: 8px 0 0; max-width: 760px; }
 .home .hero h1 { font-size: clamp(35px, 6.6vw, 60px); letter-spacing: -0.012em; }
 .herotext { min-width: 0; }
-/* The cake moment from design/hero, October 18, 2026, above the headline.
-   Width and height on the img hold its place while it loads. */
-.herobanner { display: block; margin: 4px 0 22px; border-radius: 20px; overflow: hidden; border: 1px solid var(--line); background: #0E0A06; aspect-ratio: 16 / 9; }
-.herobanner img { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* The bee from the hero art, design/hero, October 18, 2026, flying off the
+   end of the headline. Small on purpose: the art is a seasoning here. */
+.herobee { display: inline-block; width: 1.25em; height: auto; margin-left: .2em; vertical-align: -.05em; }
+@media (prefers-reduced-motion: no-preference) { .herobee { animation: beebob 2.6s ease-in-out infinite; } }
 /* The second half of the sentence, in honey italic: the live hive's own
    headline, "September 22. What will still matter?", said the same way. It
    was a pink to violet gradient clipped to the type, the one thing every

@@ -11,3 +11,9 @@ Final files:
 To regenerate (needs Python 3 with Playwright and Pillow, and fraunces-latin-wght-normal.woff2 copied in as fraunces.woff2 from web/static/fonts):
     python3 hero2.py cake cake.svg && python3 render.py cake.svg birthed-hero-cake.png 5244 2950
     python3 compose.py birthed-hero-cake.png birthed-appstore-5244x2950.png 5244 2950 bottom
+
+Single pieces for the website, October 18, 2026: parts.py cuts the bee in its party hat and the candle on its cake out of the same drawing code in hero2.py, each on a transparent ground, into web/static/hero/bee.svg and candle.svg:
+
+    python3 parts.py ../../web/static/hero
+
+The site uses those two and nothing bigger: the bee is the mascot beside every hive heading and at the end of the About headline, and the candle waits on the blank board of a date with no hive yet. The full pictures stay here for the App Store and for sharing.

@@ -11,10 +11,18 @@
 // folder Render preserves between builds, and generates only when the
 // fingerprint moves.
 //
-// What is fingerprinted: og.ts, every source file it imports, directly or
-// through another, and the covers and faces under static/ that the cards
+// What is fingerprinted, since October 18, 2026: og.ts and share.ts, the
+// two files that are the cards, the HTML the cards actually draw for a fixed
+// set of sample dates, and the covers and faces under static/ that the cards
 // inline as bytes. A change to any of those is a design change and
-// regenerates. A data change is not: new people on a date or a new hive do
+// regenerates.
+//
+// It used to be og.ts and every file it imports, through any depth. share.ts
+// imports render.ts and wall.ts for five small helpers, so every change to
+// the date page moved the fingerprint, downloaded Chromium and shot all 732
+// pictures, and a deploy took about six minutes for pictures that came out
+// byte for byte the same. Hashing what the cards draw instead catches every
+// change that reaches a card, from whichever file, and nothing else. A data change is not: new people on a date or a new hive do
 // not move the fingerprint, so a deploy that should refresh the pictures for
 // data alone sets OG_FORCE=1.
 //
@@ -37,10 +45,14 @@ import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statS
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
-import { everyDate, slug } from "./model.js";
+import { everyDate, slug, type DayPage } from "./model.js";
+import { renderShareCard, renderSquare } from "./share.js";
+import type { WallDay, WallStory } from "./wall.js";
 
 /** The entry point of the picture code, relative to src/. */
 export const ENTRY = "og.ts";
+/** The files that are the cards themselves, relative to src/. Their imports are covered by cardSample. */
+export const CARD_SOURCES = ["og.ts", "share.ts"];
 /** The folders under static/ whose files the cards inline. */
 export const STATIC_INPUTS = ["covers", "faces"];
 /** The file in the cache that names the fingerprint the kept set was drawn from. */
@@ -140,12 +152,53 @@ function filesUnder(dir: string): string[] {
   return out.sort();
 }
 
+/**
+ * What the cards draw for a fixed set of sample dates: a date with a sealed
+ * hive of every kind of tile, a date with people and a line of history, and
+ * a date with nothing. Every helper the cards borrow from render.ts and
+ * wall.ts shows up in this HTML, so a change there that reaches a card moves
+ * it, and a change that does not, does not. Nothing here reads the clock in
+ * a way that changes the answer: the sample hive has sealed.
+ */
+export function cardSample(): string {
+  const people = [
+    { qid: "Q1", name: "Sample Person", birthYear: 1950, deathYear: null, description: "a person of note", monthlyViews: 10 },
+    { qid: "Q2", name: "Second Person", birthYear: 1890, deathYear: 1960, description: "another", monthlyViews: 5 },
+  ];
+  const page: DayPage = { month: 9, day: 22, people };
+  const story = (id: string, headline: string, x: number, y: number, w: number, h: number, extra: Partial<WallStory>): WallStory => ({
+    id, wallDate: "2026-09-22", submittedAt: "2026-09-22T05:00:00Z", headline, url: `https://example.org/${id}`, outlet: "example.org",
+    status: "placed", tier: "claimed", support: 1, priority: 0, placedAt: "2026-09-22T05:00:00Z", rect: { mx: x, my: y, w, h },
+    falseAt: null, falseNote: null, subjectKind: null, subjectId: null, sources: [], ...extra,
+  });
+  const day: WallDay = {
+    wallDate: "2026-09-22", year: 2026, month: 9, day: 22,
+    opensAt: "2026-09-21T04:00:00Z", liveAt: "2026-09-22T04:00:00Z", closesAt: "2026-09-24T04:00:00Z", closedAt: "2026-09-24T04:00:00Z",
+    stories: [
+      story("aaaaaaaa-0000-4000-8000-000000000001", "The news of the day", 0, 0, 8, 6, { support: 5, tier: "reported" }),
+      story("aaaaaaaa-0000-4000-8000-000000000002", "1862: Something that happened", 8, 0, 8, 4, { subjectKind: "historical_event", subjectId: "1", tier: "seen_direct" }),
+      story("aaaaaaaa-0000-4000-8000-000000000003", "Sample Person, a person of note, born 1950", 8, 4, 4, 4, { subjectKind: "person", subjectId: "Q1" }),
+      story("aaaaaaaa-0000-4000-8000-000000000004", "1990: \"A Song\" by A Band was the number one song", 12, 4, 4, 4, { subjectKind: "song", subjectId: "1990-09-22" }),
+    ],
+  };
+  const hive = { day, pictures: new Map([["person:Q1", "data:image/jpeg;base64,AA=="]]) };
+  const line = { year: 1862, text: "Something that happened." };
+  return [
+    renderShareCard(page, null, hive), renderSquare(page, null, hive),
+    renderShareCard(page, line, null), renderSquare(page, line, null),
+    renderShareCard({ month: 1, day: 1, people: [] }, null, null), renderSquare({ month: 1, day: 1, people: [] }, null, null),
+  ].join("\n");
+}
+
 /** The fingerprint of the picture sources as they are on disk now, from web/. */
-export function currentFingerprint(root: string = process.cwd()): string {
+export function currentFingerprint(root: string = process.cwd(), cards: string = cardSample()): string {
   const src = join(root, "src");
-  const read = (file: string) => readFileSync(join(src, file), "utf8");
   const inputs: Array<{ name: string; bytes: Uint8Array }> = [];
-  for (const file of walkImports(read)) inputs.push({ name: `src/${file}`, bytes: readFileSync(join(src, file)) });
+  for (const file of CARD_SOURCES) {
+    const full = join(src, file);
+    if (existsSync(full)) inputs.push({ name: `src/${file}`, bytes: readFileSync(full) });
+  }
+  inputs.push({ name: "cards", bytes: Buffer.from(cards, "utf8") });
   for (const folder of STATIC_INPUTS) {
     const dir = join(root, "static", folder);
     for (const full of filesUnder(dir)) {

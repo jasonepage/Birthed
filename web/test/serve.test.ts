@@ -530,7 +530,7 @@ test("a tap posts to the database, comes back to the date with its word, sets th
   assert.ok(page.includes('id="wkept"'), "the sentence for the word is on the page");
   assert.ok(page.includes('<audio class="wbuzzsound" src="/buzz.wav" autoplay'), "a buzz that counted is heard");
   assert.match(landed.headers.get("content-security-policy") ?? "", /media-src 'self'/, "and the header lets it play from here");
-  assert.ok(page.includes('<svg class="bee"'), "the bee is on the page");
+  assert.ok(page.includes('<img class="bee" src="/hero/bee.svg"'), "the bee is on the page");
   assert.ok(page.includes('.wleft::after{content:"Two buzzes left today."}'), "the count is this browser's own");
   assert.ok(page.includes("#w-11111111-1111-1111-1111-111111111111 .wmine{display:block}"), "the tapped story carries the reader's mark");
   assert.ok(!page.includes('action="/unboost"'), "no Undo without the story the query string names");
