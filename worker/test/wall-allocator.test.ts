@@ -627,7 +627,7 @@ test("one buzz makes its tile the biggest without shrinking the rest to nothing"
   const quiet = [...sizes].filter(([id]) => id !== "one").map(([, a]) => a);
   assert.ok(quiet.length >= 6, `the news stays on the board, got ${quiet.length}`);
   assert.ok(sizes.get("one")! > Math.max(...quiet), "the buzzed story is still the biggest");
-  assert.ok(sizes.get("one")! < 128, `and no longer most of the board, got ${sizes.get("one")}`);
+  assert.ok(sizes.get("one")! <= Math.round(BOARD_MODULES * BOARD_MODULES / 3), `a solo buzz takes a third of the board at most, got ${sizes.get("one")}`);
   assert.ok(Math.min(...quiet) >= 3 * MIN_MODULES, `an unbuzzed tile is big enough to read, got ${Math.min(...quiet)}`);
 });
 

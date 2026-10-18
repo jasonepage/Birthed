@@ -2334,7 +2334,43 @@ export interface ReceiptOptions {
    * stored-pictures.ts. The tile shows the picture without a word; the
    * receipt is where the words go, the way the sources are.
    */
-  credit?: { credit: string; commonsUrl: string | null; licenseUrl: string | null } | null;
+  credit?: { credit: string; commonsUrl: string | null; licenseUrl: string | null; path?: string } | null;
+}
+
+/**
+ * What the story says, in the source's own words, for the top of the
+ * receipt, or null. Nathan, October 18, 2026: a reader should be able to
+ * read the story without leaving. It costs nothing: the feed's own summary
+ * is already stored as the quotation every check matches on the page. A
+ * quotation that only repeats the headline (the date's history, a person's
+ * line) says nothing new and is left out.
+ */
+export function storySummary(story: Pick<WallStory, "headline" | "sources">): { text: string; outlet: string } | null {
+  const fold = (t: string): string => t.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  for (const source of story.sources) {
+    const q = source.quotation.trim();
+    if (q.length < 40) continue;
+    if (fold(q) === fold(story.headline) || fold(story.headline).includes(fold(q)) || fold(q).startsWith(fold(story.headline))) continue;
+    return { text: q.length > 600 ? `${q.slice(0, 600).replace(/\s+\S*$/, "")}…` : q, outlet: source.outlet };
+  }
+  return null;
+}
+
+/**
+ * Where a story stands in the game, one line: the crown, the distance to
+ * it, its place on the board, or what one buzz would do for it.
+ */
+export function standingLine(story: WallStory, day: WallDay, voice: Voice = BEE): string {
+  if (story.status === "false") return "Shown false. It keeps its place and takes no buzzes.";
+  const crown = crownFor(day);
+  const onWall = day.stories.filter((s) => s.rect !== null && (s.status === "placed" || s.status === "false"));
+  const ranked = [...onWall].sort((a, b) => b.support - a.support || (b.rect!.w * b.rect!.h) - (a.rect!.w * a.rect!.h));
+  const place = ranked.findIndex((s) => s.id === story.id);
+  const where = place >= 0 ? `Number ${place + 1} of ${ranked.length} on the board.` : `Off the board. One ${voice.one} puts it on at the next redraw.`;
+  if (crown.holder === story.id) return `Wears the crown with ${units(crown.count, voice)}. ${where}`;
+  if (crown.holder === null) return `The first ${voice.one} on this hive takes the crown. ${where}`;
+  const need = Math.max(1, crown.count - Math.max(0, story.support) + 1);
+  return `${units(need, voice)} from the crown. ${where}`;
 }
 
 function creditBlock(credit: ReceiptOptions["credit"]): string {
@@ -2360,24 +2396,44 @@ export function storyBody(story: WallStory, day: WallDay, now: number = Date.now
   const falseNote = story.status === "false" && story.falseNote
     ? `<p class="wfalsenote">${escapeHtml(story.falseNote)}</p>`
     : "";
-  // The one control, the count and the sentences, the same as a tile: a
-  // reader who followed a headline here to read the sources should not have
-  // to go back to vote on what they just read. The mark lands on this
-  // element by id, the way it lands on a tile.
-  const control = live
-    ? `<div class="wfacts wreceiptbuzz" id="w-${story.id}">${buzzForm(story, voice, "receipt")}${mine(voice)}</div>
-${countLine(day, now, voice)}${afterwords(voice, `${monthName(month)} ${d}`, options.undo ?? null, "receipt")}`
-    : `<p class="wfacts" id="w-${story.id}">${mine(voice)}</p>`;
+  // The receipt as a story page first, October 18, 2026: the picture, what
+  // kind of story it is, the headline, what it says in the source's own
+  // words, and a game card with where it stands and the button. The tier,
+  // the times and the sources follow, as the record.
+  const kind = tileKind(story);
+  const picture = options.credit?.path
+    ? `<figure class="whero"><img src="${escapeHtml(options.credit.path)}" alt="" decoding="async"><figcaption>${escapeHtml(options.credit.credit)}</figcaption></figure>`
+    : "";
+  const summary = storySummary(story);
+  const told = summary === null
+    ? ""
+    : `<blockquote class="wsummary"><p>${escapeHtml(summary.text)}</p><cite>${escapeHtml(summary.outlet)}</cite></blockquote>`;
+  const outlets = [...new Set(story.sources.map((x) => x.outlet))];
+  const allowance = live ? allowanceOn(day, now) : 0;
+  const pips = live ? `<span class="wpips" aria-hidden="true">${"<i></i>".repeat(allowance)}</span>` : "";
+  const play = `<div class="wplay${story.id === crownFor(day).holder ? " wplaycrown" : ""}">
+<div class="wplayscore"><span class="wplaybig">${Math.max(0, story.support)}</span><span class="wplaysay">${story.support === 1 ? voice.one : voice.many}</span></div>
+<div class="wplaymid"><p class="wplayline">${escapeHtml(standingLine(story, day, voice))}</p>${live ? `<div class="wplayrow">${pips}<span class="wcount"><span class="wleft"></span></span></div>` : `<p class="wplayline wplaydim">${takingBoosts(day, now) ? "Open the date to buzz." : "This hive has sealed."}</p>`}</div>
+${live ? `<div class="wfacts wreceiptbuzz" id="w-${story.id}">${buzzForm(story, voice, "receipt")}${mine(voice)}</div>` : `<p class="wfacts" id="w-${story.id}">${mine(voice)}</p>`}
+</div>${live ? `
+<style>.wleft::after{content:"${tapsLeftSentence(freshLeft(day, now), allowance, voice, nextRefillWords(now, day.wallDate, allowance))}"}${pipRule(freshLeft(day, now))}</style>
+${afterwords(voice, `${monthName(month)} ${d}`, options.undo ?? null, "receipt")}` : ""}`;
   return `<p class="wback"><a href="/${slug(month, d)}/">&larr; ${escapeHtml(monthName(month))} ${d}</a> &middot; the hive for ${escapeHtml(longDate(day))}</p>
+${picture}
+<p class="wkick wstorykick">${KIND_WORD[kind]}${outlets.length > 1 ? ` &middot; ${outlets.length} outlets` : ""}</p>
 <h1 class="wtitle">${escapeHtml(story.headline)}</h1>
-<p class="wlink"><a href="${escapeHtml(story.url)}" rel="nofollow noopener">${escapeHtml(story.url)}</a></p>
+${told}
+<p class="wreadon"><a href="${escapeHtml(story.url)}" rel="nofollow noopener">Read it on ${escapeHtml(story.outlet)} <span aria-hidden="true">&rarr;</span></a></p>
+${play}
+${falseNote}
+<div class="wrecord">
 <p class="wfacts">${chip(story.tier)} ${escapeHtml(tierMeaning(story.tier))} A tier is not a verdict.</p>
 <p class="wfacts">${units(story.support, voice) === "" ? "Nobody has backed it yet." : `${units(story.support, voice)}.`} Submitted ${escapeHtml(eastern(story.submittedAt))}.${story.placedAt ? ` Placed ${escapeHtml(eastern(story.placedAt))}.` : ""}</p>
 <p class="wfacts">${status}</p>
-${control}
-${falseNote}
+<p class="wlink"><a href="${escapeHtml(story.url)}" rel="nofollow noopener">${escapeHtml(story.url)}</a></p>
+</div>
 ${shareBlock({ url: `https://birthed.app/${slug(month, d)}/wall/${story.id}/`, title: story.headline, lead: "Send this story:" })}
-${creditBlock(options.credit ?? null)}
+${picture === "" ? creditBlock(options.credit ?? null) : ""}
 <h2 class="section">Sources</h2>
 ${story.subjectKind === "answer"
     ? `<p class="wnote">Somebody picked this song from Apple's catalogue as the song in their head on ${escapeHtml(longDate(day))}. The title, the artist and the year are Apple's, read from Apple when it was picked. Nobody typed them.</p>`
@@ -2736,6 +2792,41 @@ a.whudname:hover { color: var(--honey-lite); }
 .wback { font-size: 13px; color: var(--dimmer); margin: 0 0 14px; }
 .wback a { color: var(--dim); text-decoration: none; border-bottom: 1px solid var(--line); }
 .wtitle { font-size: clamp(26px, 6vw, 40px); }
+/* The receipt as a story page, October 18, 2026. */
+.whero { position: relative; margin: 0 0 16px; border-radius: 16px; overflow: hidden; border: 1px solid var(--line-strong); aspect-ratio: 16 / 9; background: var(--cell); }
+.whero img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.whero figcaption { position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 12px 7px; font-size: 11px; color: rgba(255, 243, 224, .78); background: linear-gradient(to top, rgba(12, 8, 4, .82), transparent); }
+.wstorykick { margin: 0 0 8px; }
+.wsummary { margin: 4px 0 14px; padding: 14px 16px; border-left: 3px solid var(--honey); border-radius: 0 12px 12px 0; background: rgba(244, 183, 64, .06); }
+.wsummary p { margin: 0; font-family: var(--serif); font-size: clamp(17px, 2.4vw, 20px); line-height: 1.5; color: var(--cream); }
+.wsummary cite { display: block; margin: 8px 0 0; font-style: normal; font-size: 12.5px; font-weight: 700; color: var(--dim); }
+.wreadon { margin: 0 0 18px; }
+.wreadon a { font-weight: 700; color: var(--honey-lite); text-decoration: none; border-bottom: 1px solid rgba(244, 183, 64, .4); }
+.wreadon a:hover { border-bottom-color: var(--honey-lite); }
+.wplay {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px; margin: 0 0 18px; padding: 14px 16px;
+  border-radius: 16px; border: 1px solid var(--line-strong);
+  background: linear-gradient(180deg, rgba(244, 183, 64, .11), rgba(244, 183, 64, .025) 60%), var(--cell);
+  box-shadow: inset 0 1px 0 rgba(255, 232, 180, .08), 0 10px 26px rgba(0, 0, 0, .35);
+}
+.wplay.wplaycrown { border-color: var(--honey); box-shadow: 0 0 0 1px var(--honey), 0 0 22px rgba(244, 183, 64, .25); }
+.wplayscore { display: flex; flex-direction: column; align-items: center; min-width: 56px; }
+.wplaybig { font-family: var(--serif); font-weight: 900; font-size: 40px; line-height: 1; color: var(--honey-lite); font-variant-numeric: tabular-nums; }
+.wplaysay { font-size: 10.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--dimmer); }
+.wplaymid { min-width: 0; }
+.wplayline { margin: 0; font-size: 14px; font-weight: 700; color: var(--cream-2); line-height: 1.4; }
+.wplaydim { margin-top: 4px; font-weight: 600; color: var(--dim); font-size: 13px; }
+.wplayrow { display: flex; align-items: center; gap: 8px; margin: 6px 0 0; flex-wrap: wrap; }
+.wplayrow .wcount { margin: 0; font-size: 13px; }
+.wplay .wreceiptbuzz { margin: 0; flex-direction: column; align-items: center; gap: 4px; }
+.wplay .wbuzz button { font-size: 18px; padding: 12px 26px; border-radius: 999px; box-shadow: 0 0 18px rgba(244, 183, 64, .35); }
+@media (max-width: 520px) {
+  .wplay { grid-template-columns: auto 1fr; }
+  .wplay .wreceiptbuzz, .wplay > .wfacts { grid-column: 1 / -1; }
+  .wplay .wbuzz, .wplay .wbuzz button { width: 100%; }
+}
+.wrecord { margin: 0 0 6px; padding: 12px 0 0; border-top: 1px solid var(--line); }
+.wrecord .wfacts { font-size: 13.5px; color: var(--dim); }
 .wlink { font-size: 14px; word-break: break-all; margin: 0 0 12px; }
 .wlink a { color: var(--dim); }
 .wfacts { margin: 0 0 6px; font-size: 15px; color: var(--cream-2); }

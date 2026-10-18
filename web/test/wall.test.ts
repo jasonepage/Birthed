@@ -1020,3 +1020,32 @@ test("Surprise me is a button under an open board and a link under every receipt
   const page = renderStoryPage(s, day([s, story({ id: "bbbbbbbb-0000-0000-0000-000000000009", rect: null, status: "pool" })]));
   assert.ok(page.includes(`/september-9/surprise/?not=${s.id}`), "and the receipt offers another");
 });
+
+// ---------------------------------------------------------------------------
+// The receipt as a story page, October 18, 2026
+// ---------------------------------------------------------------------------
+
+import { standingLine, storySummary } from "../src/wall.js";
+
+test("the summary is the feed's own words, and never just the headline again", () => {
+  const src = (quotation: string) => ({ id: "x", url: "https://example.org/a", outlet: "example.org", owner: "Example", headline: "h", quotation, verifiedAt: null, addedAt: "2026-10-18T00:00:00Z", checks: [] });
+  const told = storySummary({ headline: "Gaza Family Reunion", sources: [src("Separated by war for more than a year, a captain attempts to reunite families torn apart.")] });
+  assert.deepEqual(told, { text: "Separated by war for more than a year, a captain attempts to reunite families torn apart.", outlet: "example.org" });
+  assert.equal(storySummary({ headline: "1905: Albert Einstein publishes the third of his Annus Mirabilis papers.", sources: [src("1905: Albert Einstein publishes the third of his Annus Mirabilis papers.")] }), null);
+  assert.equal(storySummary({ headline: "Short", sources: [src("Too short to say much.")] }), null);
+});
+
+test("a receipt says where its story stands in the game", () => {
+  const leader = story({ id: "aaaaaaaa-0000-0000-0000-000000000011", rect: { mx: 0, my: 0, w: 8, h: 8 }, support: 2 });
+  const other = story({ id: "aaaaaaaa-0000-0000-0000-000000000012", rect: { mx: 8, my: 0, w: 4, h: 4 }, support: 0 });
+  const off = story({ id: "aaaaaaaa-0000-0000-0000-000000000013", rect: null, status: "overflow", support: 0 });
+  const d = day([leader, other, off]);
+  d.boosts = [{ id: 1, storyId: leader.id, units: 1, castAt: "2026-09-09T12:00:00Z" }, { id: 2, storyId: leader.id, units: 1, castAt: "2026-09-09T13:00:00Z" }];
+  assert.equal(standingLine(leader, d), "Wears the crown with 2 buzzes. Number 1 of 2 on the board.");
+  assert.equal(standingLine(other, d), "3 buzzes from the crown. Number 2 of 2 on the board.");
+  assert.equal(standingLine(off, d), "3 buzzes from the crown. Off the board. One buzz puts it on at the next redraw.");
+  const page = renderStoryPage(off, d, LIVE_NOW, { interactive: true, credit: { credit: "Picture: the publisher's.", commonsUrl: null, licenseUrl: null, path: "https://example.supabase.co/storage/v1/object/public/pictures/x.jpg" } });
+  assert.ok(page.includes('<figure class="whero"><img src="https://example.supabase.co/storage/v1/object/public/pictures/x.jpg"'));
+  assert.ok(page.includes('class="wplay"') && page.includes('<form class="wbuzz"'));
+  assert.ok(page.indexOf('class="wplay"') < page.indexOf("Sources"), "the game card is above the record");
+});
