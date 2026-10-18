@@ -469,8 +469,12 @@ ul.facts .src { margin: 7px 0 0; font-size: 13px; }
 ul.facts .src a { color: ${QUIET}; text-decoration: none; }
 ul.facts .src a:hover { color: ${ACCENT}; text-decoration: underline; }
 
-footer { margin: 40px 0 0; color: ${QUIET}; font-size: 13px; }
+/* The footer, condensed October 18, 2026: the links, one line on what is
+   kept, one line of credit, all small, under a hairline. */
+footer { margin: 44px 0 0; padding: 16px 0 0; border-top: 1px solid var(--line); color: ${QUIET}; font-size: 12px; line-height: 1.5; }
+footer p { margin: 0 0 6px; max-width: 72ch; }
 footer .nothing { color: var(--dim); }
+footer .credit { color: var(--dimmer); }
 footer a { color: var(--dim); }
 /* The year as twelve calendars. Seven columns, so a row is a week and the page
    reads the way a wall calendar does instead of as a column of 366 lines. */
@@ -494,8 +498,9 @@ footer a { color: var(--dim); }
    seven on a narrow tablet lands under the size a thumb can hit. */
 @media (pointer: coarse) { .cal .days a, .cal .days .pad { min-height: 40px; } }
 p.calnote { color: ${QUIET}; font-size: 13px; margin: 22px 0 0; }
-footer .sitelinks { color: var(--dim); font-size: 14px; }
+footer .sitelinks { color: var(--dimmer); font-size: 13px; font-weight: 600; margin-bottom: 8px; }
 footer .sitelinks a { color: ${ACCENT}; text-decoration: none; }
+footer .sitelinks a:hover { text-decoration: underline; }
 .btn {
   display: inline-block; margin: 6px 0 0; padding: 12px 20px; border-radius: 999px;
   background: var(--honey); color: var(--on-honey); font-weight: 700; text-decoration: none; font-size: 15px;
@@ -1151,8 +1156,7 @@ ${extraHead}<style>${PAGE_STYLE}</style>
 <body${bodyClass ? ` class="${bodyClass}"` : ""}><div class="wrap${bodyClass ? ` ${bodyClass}` : ""}">`;
 }
 
-const CREDIT = `<p>Names, years and descriptions come from <a href="https://www.wikidata.org">Wikidata</a>, released under <a href="https://creativecommons.org/publicdomain/zero/1.0/">Creative Commons Zero</a>. Credit to Wikipedia and Wikidata.</p>
-<p>Birthed is not affiliated with Wikipedia, Wikidata or the Wikimedia Foundation.</p>`;
+const CREDIT = `<p class="credit">Names, years and descriptions come from <a href="https://www.wikidata.org">Wikidata</a> under <a href="https://creativecommons.org/publicdomain/zero/1.0/">Creative Commons Zero</a>, with credit to Wikipedia and Wikidata. Birthed is not affiliated with Wikipedia, Wikidata or the Wikimedia Foundation.</p>`;
 
 const SITELINKS = `<p class="sitelinks"><a href="/">Today</a> · <a href="/about/">About</a> · <a href="/support/">Support</a> · <a href="/privacy/">Privacy</a></p>`;
 
@@ -1194,7 +1198,7 @@ const SITELINKS = `<p class="sitelinks"><a href="/">Today</a> · <a href="/about
  */
 export const FOOT = `<footer>
 ${SITELINKS}
-<p class="nothing">No account, no sign up, and nothing on this page is loaded from another company. Buzz something and one random string is kept in a cookie, so the same browser gets its few buzzes a day and no more. That is the whole of what is kept about you.</p>
+<p class="nothing">No account and no sign up, and nothing on this page loads from another company. Buzz once and one random string is kept in a cookie, so this browser gets its few buzzes a day. That is all that is kept about you.</p>
 ${CREDIT}
 </footer>`;
 
