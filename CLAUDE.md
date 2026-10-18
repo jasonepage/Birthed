@@ -440,6 +440,18 @@ here as they land.
   Not run against the live feeds; the next tick is the test, and the line
   to look for is "folded under a story already filed".
 
+### The pivot paused, and the strip, October 18, 2026
+
+Nathan's directive. The October 14 slices that point the hive at
+artificial intelligence news are paused after slice 1; the site stays
+general. Slices 0 and 1 stand. The next job is to strip the date page to
+the game: the board, your buzzes, the crown and the seal countdown. The
+song prompt, the archive, the comb, the birthday box and the suggestion box
+come off the page and are not baked for search either. Then a first drama
+set. `docs/strip-to-the-hive.md` holds the plan, the live numbers it was
+judged on and the recommended set. **Nothing in it is built until Nathan
+says go.**
+
 ### The three biggest costs, cut October 11, 2026
 
 Nathan's instruction. Three changes, each committed on its own, none pushed
