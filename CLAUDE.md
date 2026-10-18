@@ -501,8 +501,10 @@ judged on and the recommended set.
   clears the old `by` cookie, which nothing reads any more. `/<date>/comb/`
   redirects to the date. `/cover/<track>.jpg` stays, for the songs on
   sealed hives. `/<date>/yours.png` is always the shared square.
-- **The bar is Today and About.** Every date and Random came off, because
-  most dates have no hive yet. `/calendar/` and `/random/` still answer.
+- **The bar is Today, Random and About.** Every date came off, because
+  most dates have no hive yet, and `/calendar/` still answers. Random came
+  off for the same reason and came back the same day, landing only on a
+  sealed hive; see the scoreboard entry below.
 - **A date with no board carries noindex** and the site's own share card
   (`og-home.png`); a date with a board is indexed and shares its square.
 - **The build reads the walls, the stored pictures and the chart weeks,
@@ -523,6 +525,38 @@ judged on and the recommended set.
   and looked at in Chromium at 390 and 1280 pixels wide with the live board
   of October 18 copied in. The first Buzz button sits 373 pixels down on a
   phone. A data change still needs a manual deploy after this pushes.
+
+### The scoreboard, October 18, 2026
+
+Nathan's calls, the same day as the strip: make the header a game, cut the
+grey text at the bottom, bring the dice back, and say how stories reach the
+hive.
+
+- **The date page's header is a scoreboard** (`scoreboard` in
+  `web/src/wall.ts`): live or sealed, the seal clock, your buzzes as pips,
+  the crown and the title fight, and the goal. A sealed hive shows who won
+  the crown and the final count. The date page still runs no script.
+- **The seal clock ticks with CSS alone.** `tickStyle` writes three
+  registered integers and animations started part way through, so it
+  begins where the clock stood when the section was drawn and stops on
+  nought. The live section is cached for twenty seconds, so the clock can
+  be that far behind and never ahead. It needs `@property`, which every
+  current browser has.
+- **The title fight is arithmetic on the buzz rows**: the closest
+  challenger and one more than the gap, because a tie never moves the
+  crown (`titleFight`, the same counts the crown replays).
+- **Under the board** the crown's history folds into one line
+  (`crownLog`); the full screen hive keeps `crownBlock` and its ids,
+  which its script writes into.
+- **Random lands only on a sealed hive.** The build writes `sealed.json`,
+  every date with a board and when it seals; `/random/` picks among those
+  whose seal has passed, and lands on today before any has.
+- **The footer is two short lines.** The cookie line and the credit are
+  unchanged in substance. The rule in the comment on `FOOT` still holds:
+  anything new kept about a reader goes in that line in the same commit.
+- **About explains how a story gets on the hive**, and Support answers it
+  and the title fight. Nothing on the site says news lands "as it
+  breaks" any more: the tick is hourly.
 
 ### The three biggest costs, cut October 11, 2026
 
