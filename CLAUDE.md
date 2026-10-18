@@ -440,6 +440,21 @@ here as they land.
   Not run against the live feeds; the next tick is the test, and the line
   to look for is "folded under a story already filed".
 
+### The hero art, October 18, 2026
+
+- **The brand art lives in two places.** `web/static/hero/` holds the
+  web-weight versions (1920 and 1280 wide, WebP and JPEG), served at
+  `/hero/<name>` because everything under `web/static` is copied to the
+  site root on build. `design/hero/` holds the full size PNGs, the three
+  App Store Connect sizes (5244 by 2950, 3840 by 2560, 1920 by 1280), the
+  SVG sources and the Python that generates and titles them; its README
+  says how to regenerate.
+- **Two pictures, one story each.** The cake moment (beeswax candle,
+  honey cake, one bee) and the bees on honeycomb (text space on the
+  right). Honey palette, amber and deep brown; the wordmark is the only
+  pink, per the September 22 rule. Fraunces for the wordmark and tagline
+  "Every date has a hive." Nothing on birthed.app references the files yet.
+
 ### The pivot paused, and the strip, October 18, 2026
 
 Nathan's directive. The October 14 slices that point the hive at
