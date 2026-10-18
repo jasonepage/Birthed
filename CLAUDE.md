@@ -558,6 +558,15 @@ hive.
   and the title fight. Nothing on the site says news lands "as it
   breaks" any more: the tick is hourly.
 
+- **A big tile with no picture is a poster**, six modules or more each
+  way: a kicker, a warm ground, the kind's mark large and faint, and type
+  up to `POSTER_FIT_MAX`. No generated pictures, ever: a made up image on a
+  real news story reads as a photograph of what happened.
+- **The question is "what mattered today", not "in ten years".** Nathan's
+  call: the ten year framing read as solemn. The goal line, Pick between
+  two, About, Support, the descriptions and the share cards all changed.
+  The iOS app's `HiveCopy` was not touched and still says the old line.
+
 ### The three biggest costs, cut October 11, 2026
 
 Nathan's instruction. Three changes, each committed on its own, none pushed
