@@ -263,7 +263,7 @@ export function liveHiveSection(day: WallDay, name: string, now: number, options
 <span class="wawake"><span class="wlivedot" id="wlivedot"></span><span id="wliveword">The hive is awake</span></span>
 <span class="wseal">Seals in <b id="wclock">${seals}</b> &middot; <b id="wtotal">${total}</b> ${total === 1 ? voice.one : voice.many} so far</span>
 </div>
-<h2 class="section wlivehead" id="wallhead">${escapeHtml(name)}. <em>What will still matter?</em></h2>
+<h2 class="section wlivehead" id="wallhead">${escapeHtml(name)}. <em>What mattered today?</em></h2>
 <p class="wlivesub">Everything with a birthday on ${escapeHtml(name)} is here. What people ${voice.past} grows and lights up. At midnight Eastern it seals, for good.</p>
 <div class="wbudget"><span class="wdots" id="wdots" aria-hidden="true">${dots}</span><p class="wcount"><span class="wleft wset" id="wleft">${sentence}</span></p></div>
 ${afterwords(voice, name, null, "hive", true)}

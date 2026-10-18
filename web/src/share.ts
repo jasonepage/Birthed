@@ -101,7 +101,7 @@ function hiveCard(page: DayPage, hive: CardHive): string {
   const few = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
   const word = (n: number): string => few[n] ?? String(n);
   const line = sealed
-    ? `What ${onWall.length === 1 ? "one story" : `${onWall.length} stories`} people here thought would still matter. Sealed for good.`
+    ? `What ${onWall.length === 1 ? "one story" : `${onWall.length} stories`} people here crowned as what mattered. Sealed for good.`
     : backed > 0
       ? `${onWall.length} stories on the hive, ${word(backed)} of them ${voice.past}. Open until midnight Eastern.`
       : `${onWall.length} stories on the hive. Open until midnight Eastern. What people ${voice.past === "buzzed" ? "buzz" : "back"} gets bigger.`;
@@ -364,7 +364,7 @@ function squareLine(hive: CardHive, voice: Voice): string {
   const backed = onWall.filter((s) => s.support > 0).length;
   const few = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
   const word = (n: number): string => few[n] ?? String(n);
-  if (sealed) return `What ${onWall.length === 1 ? "one story" : `${onWall.length} stories`} people here thought would still matter. Sealed for good.`;
+  if (sealed) return `What ${onWall.length === 1 ? "one story" : `${onWall.length} stories`} people here crowned as what mattered. Sealed for good.`;
   if (backed > 0) return `${onWall.length} stories, ${word(backed)} of them ${voice.past}. Open until midnight Eastern.`;
   return `${onWall.length} stories. Open until midnight Eastern. What people ${voice.past === "buzzed" ? "buzz" : "back"} gets bigger.`;
 }

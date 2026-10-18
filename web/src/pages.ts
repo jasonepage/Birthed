@@ -111,7 +111,7 @@ export function renderHome(): string {
     // they read before deciding. It said what is on a page. It now says what
     // the site does, because the page itself no longer leads with the feature
     // list either and the two should not disagree.
-    "Every date has a hive. Everything with a birthday on it is on one feed, whoever turns up buzzes what they think will still matter, and at midnight it seals for good. History is written the day it happens. Birthed keeps what mattered.",
+    "Every date has a hive. Everything with a birthday on it is on one feed, whoever turns up crowns what mattered, and at midnight it seals for good. History is written the day it happens. Birthed keeps what mattered.",
     canonical,
     // The card. Every date page has had one since it was built and the home
     // page never did, so this was the one page on the site that shared as a
@@ -151,7 +151,7 @@ ${sampleHive()}
   </li>
   <li>
     <h3>Spend your three buzzes</h3>
-    <p><span class="bzz" aria-hidden="true"><i></i><i></i><i></i></span>You get three a day. Tap Buzz on the stories you think people will still care about. Each buzz makes that story's tile bigger. Nobody keeps a score of you, there is no downvote, and there is no way to say a thing did not matter.</p>
+    <p><span class="bzz" aria-hidden="true"><i></i><i></i><i></i></span>You get three a day. Tap Buzz on the stories you think mattered most today. Each buzz makes that story's tile bigger. Nobody keeps a score of you, there is no downvote, and there is no way to say a thing did not matter.</p>
   </li>
   <li>
     <h3>Yesterday gets one more</h3>
@@ -511,7 +511,7 @@ ${siteBar()}
 <p>No. The website has no accounts and no sign up. The first time you buzz something, the site keeps one random string in a cookie, so your browser gets its few buzzes a day and no more. That is all it keeps, and the <a href="/privacy/">privacy page</a> says exactly what it is.</p>
 
 <h3>What is a buzz?</h3>
-<p>A buzz is a vote that a story will still matter years from now. Each one makes that story's tile on the hive bigger. You get three a day, one per story. The day after a date, you get one more to spend on its hive. There is no downvote and no score.</p>
+<p>A buzz is a vote that a story mattered today. Each one makes that story's tile on the hive bigger. You get three a day, one per story. The day after a date, you get one more to spend on its hive. There is no downvote and no score.</p>
 
 <h3>What is the hive, and what does sealed mean?</h3>
 <p>Every date has a hive: one board holding everything with a birthday on that date, from what happened on it in history to today's news. A date's hive opens at midnight Eastern time when the date begins, takes buzzes that day and the next, and seals at the midnight that ends the next day. Sealed means permanent. Nothing on the board changes after that, and next year the same date gets a new hive beside it.</p>

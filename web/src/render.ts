@@ -1337,8 +1337,8 @@ export function renderDayPage(
     ? { url: `${SITE}/og/${slug(date.month, date.day)}-square.png`, width: SQUARE, height: SQUARE }
     : `${SITE}/og-home.png`;
   const description = hived
-    ? `The hive for ${name}: what people buzzed as the things that will still matter in ten years, sealed at midnight Eastern.`
-    : `The hive for ${name}. Every day, people buzz what will still matter in ten years, and at midnight Eastern the day seals for good.`;
+    ? `The hive for ${name}: what people crowned as what mattered that day, sealed at midnight Eastern.`
+    : `The hive for ${name}. Every day, people crown what mattered, and at midnight Eastern the day seals for good.`;
   const sequence = `<link rel="prev" href="${SITE}/${slug(previous.month, previous.day)}/">
 <link rel="next" href="${SITE}/${slug(next.month, next.day)}/">
 `;
@@ -1487,7 +1487,7 @@ export function renderHivePage(day: WallDay, month: number, d: number, pictures:
   const canonical = `${SITE}${hivePath(month, d)}`;
   const hue = dayHue(month);
   return `${head(`The hive for ${name}, ${day.year}`,
-    `The Birthed hive for ${name}, ${day.year}: what people think will still matter about it, sized by how many buzzed each story.`,
+    `The Birthed hive for ${name}, ${day.year}: what people crowned as what mattered, sized by how many buzzed each story.`,
     canonical, `${SITE}/og/${slug(month, d)}.png`, true, "hivepage")}
 <div class="day wsq on-${slug(month, d)}" style="--day:${hue.day};--day-soft:${hue.soft}">
 ${siteBar(`<span class="barnav"><a class="here" href="/${slug(month, d)}/">${escapeHtml(name)}</a></span>

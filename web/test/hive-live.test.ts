@@ -120,7 +120,7 @@ test("the live section carries the data, the allocator and the script, and nothi
   assert.ok(html.includes("Two buzzes left today."), "the reader's own count is on the page before the script runs");
   assert.ok(html.includes('class="wdot"') && html.includes('class="wdot wspent"'), "three buzzes, one spent");
   assert.ok(html.includes("The swarm, right now"));
-  assert.ok(html.includes('<em>What will still matter?</em>'));
+  assert.ok(html.includes('<em>What mattered today?</em>'));
   assert.ok(!html.includes("\u2014"), "no em dashes");
 });
 

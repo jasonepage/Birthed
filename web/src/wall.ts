@@ -1640,7 +1640,7 @@ export function crownTook(day: WallDay, storyId: string, now: number): string | 
 }
 
 /** The one line above an open board, docs/the-wall.md section 30. */
-export const HOW_TO = "Buzz what people will still care about in ten years. Each buzz makes its tile bigger.";
+export const HOW_TO = "Crown what mattered today. Each buzz makes its tile bigger.";
 
 /** The most a reader may type into the field. The input says so and the server holds it to the same. */
 export const ASK_MAX = 120;

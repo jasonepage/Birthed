@@ -18,7 +18,7 @@ test("the page names the date in the title and the heading", () => {
   assert.ok(html.includes("<title>The hive for September 4</title>"));
   assert.ok(html.includes("<h1>September 4</h1>"));
   // The search result still gets a sentence of its own, about the game.
-  assert.match(html, /<meta name="description" content="The hive for September 4\. Every day, people buzz what will still matter in ten years, and at midnight Eastern the day seals for good\.">/);
+  assert.match(html, /<meta name="description" content="The hive for September 4\. Every day, people crown what mattered, and at midnight Eastern the day seals for good\.">/);
 });
 test("the date page is the hive and nothing else, October 18, 2026", () => {
   // docs/strip-to-the-hive.md. The song prompt, the archive, the comb, the

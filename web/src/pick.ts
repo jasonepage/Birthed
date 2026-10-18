@@ -1,7 +1,7 @@
 // This or that, docs/the-wall.md section 30, decided September 23, 2026.
 //
-// Two stories side by side and one question: which will people still care
-// about in ten years. One tap spends one buzz and the next pair comes up. A
+// Two stories side by side and one question: which mattered more today.
+// (Until October 18, 2026: which will people still care about in ten years.) One tap spends one buzz and the next pair comes up. A
 // stranger who lands on the date page is handed forty tiles and has to shop
 // them to spend one tap; this page hands them two and a question, which is
 // the first thing they can do in two seconds.
@@ -37,7 +37,7 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
-export const PICK_QUESTION = "Which will people still care about in ten years?";
+export const PICK_QUESTION = "Which mattered more today?";
 
 /** The most pairs a hand made address may ask for. Past the end is "seen every pair", not a crash. */
 export const PICK_MAX = 9999;
@@ -179,7 +179,7 @@ ${side(pair.b, voice, live, left, p, month, d, "b")}
   }
 
   const count = live ? `<p class="wcount"><span class="wleft wset">${tapsLeftSentence(left, allowance, voice, nextRefillWords(now, day.wallDate, allowance))}</span></p>` : `<p class="wcount">This hive is not taking ${voice.many} right now.</p>`;
-  return `${head(`Pick one on ${name}`, `Two stories from ${name}'s hive and one question: which will people still care about in ten years?`, `${SITE}${pickPath(month, d)}`, undefined, true, "pickpage")}
+  return `${head(`Pick one on ${name}`, `Two stories from ${name}'s hive and one question: which mattered more today?`, `${SITE}${pickPath(month, d)}`, undefined, true, "pickpage")}
 <div class="day wstory wpick" style="--day:${hue.day};--day-soft:${hue.soft}">
 ${siteBar(`<span class="barnav"><a class="here" href="/${slug(month, d)}/">${escapeHtml(name)}</a></span>
 `)}
