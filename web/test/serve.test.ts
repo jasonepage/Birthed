@@ -1384,3 +1384,26 @@ test("a link to a date's comb lands on the date", () => {
   assert.equal(redirectFor("/october-5/comb"), "/october-5/");
   assert.equal(redirectFor("/octember-5/comb/"), null);
 });
+
+// ---------------------------------------------------------------------------
+// The date page cuts its own board, October 18, 2026
+// ---------------------------------------------------------------------------
+
+import { recut } from "../src/serve.js";
+
+test("an open board is cut again from its counts, so one buzz never keeps most of the board", () => {
+  const base = { wallDate: "2026-10-18", submittedAt: "2026-10-18T05:00:00Z", url: "https://example.org/x", tier: "claimed" as const, priority: 0, placedAt: "2026-10-18T05:01:00Z", falseAt: null, falseNote: null, subjectKind: null, subjectId: null, sources: [] };
+  const stories = Array.from({ length: 9 }, (_, i) => ({
+    ...base, id: `aaaaaaaa-0000-4000-8000-00000000000${i}`, headline: `Story ${i}`, outlet: `o${i}.com`,
+    status: "placed" as const, support: i === 0 ? 1 : 0,
+    // The worker's last cut: the one buzzed story at 16 by 13.
+    rect: i === 0 ? { mx: 0, my: 0, w: 16, h: 13 } : { mx: (i - 1) * 2, my: 13, w: 2, h: 3 },
+  }));
+  const day = { wallDate: "2026-10-18", year: 2026, month: 10, day: 18, opensAt: "2026-10-17T04:00:00Z", liveAt: "2026-10-18T04:00:00Z", closesAt: "2026-10-20T04:00:00Z", closedAt: null, stories, boosts: [] };
+  const cut = recut(day, new Map());
+  const one = cut.stories[0]!.rect!;
+  assert.ok(one.w * one.h <= 256 / 3, `a third of the board at most, got ${one.w * one.h}`);
+  const rest = cut.stories.slice(1).filter((s) => s.rect !== null);
+  assert.ok(rest.length >= 6 && rest.every((s) => s.rect!.w * s.rect!.h >= 12), "the others are big enough to read");
+  assert.equal(recut({ ...day, stories: [{ ...stories[0]!, status: "false" as const }, ...stories.slice(1)] }, new Map()).stories[1]!.rect, stories[1]!.rect, "a board with a story stamped false stays the worker's");
+});

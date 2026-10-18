@@ -26,6 +26,7 @@
 import { randomBytes } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { readFile, readdir, stat } from "node:fs/promises";
+import { hiveAllocator, type HiveStoryInput } from "./hive-allocator.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { extname, join, normalize, resolve, sep } from "node:path";
 
@@ -1599,7 +1600,23 @@ async function liveWall(
       day: wall,
     };
   }
-  const read = wall;
+  // The date page's board, cut now from the counts as they stand, October
+  // 18, 2026. It used to draw the rectangles the worker stored at its last
+  // hourly tick, so a buzz, a reset or a change to the pie took up to an
+  // hour, or a worker deploy, to show. The same allocator the live hive runs
+  // in the browser, on the same numbers.
+  let read = wall;
+  if (takingBoosts(wall, now) && wall.stories.length > 0) {
+    const known = scoreCache.get(wallDate);
+    let scores: Map<string, number>;
+    if (known !== undefined && now - known.at < WALL_FRESH_MS) {
+      scores = known.scores;
+    } else {
+      scores = await fetchSnapshotScores(projectBase(), key, wallDate, WALL_TIMEOUT_MS);
+      scoreCache.set(wallDate, { at: now, scores });
+    }
+    read = recut(wall, scores);
+  }
   // The story a buzz just counted for, resolved against this wall. One that
   // is not on the date is dropped rather than refused, the way a find's is:
   // the button is a convenience and its absence costs the reader the window,
@@ -1609,14 +1626,45 @@ async function liveWall(
   // Every story's picture was written into every date page, which on
   // September 22, 2026 was 207 kilobytes of rules for rows that draw no
   // picture.
-  const drawn = picturedSubjects(wall);
-  const shown = [...pictures, ...answerPictures(wall)].filter((p) => drawn.has(p.subject));
+  const drawn = picturedSubjects(read);
+  const shown = [...pictures, ...answerPictures(read)].filter((p) => drawn.has(p.subject));
   const name = `${monthName(month)} ${day}`;
   return {
-    section: pictureRules(shown) + (hive ? hiveDaysNav(month, day, now) : "") + wallSection(wall, name, now, {
+    section: pictureRules(shown) + (hive ? hiveDaysNav(month, day, now) : "") + wallSection(read, name, now, {
       interactive: true, hive, date: { month, day }, undo, anniversary, yours,
     }),
-    day: wall,
+    day: read,
+  };
+}
+
+/**
+ * An open board cut again from its counts: every story that has earned a
+ * place goes to the pie with its buzzes and its score, and the stories come
+ * back with the rectangles the pie gives them. A story the pie leaves off is
+ * overflow. A board carrying a story stamped false is the worker's growth
+ * engine's, and comes back as it was. Pure.
+ */
+export function recut(day: WallDay, scores: ReadonlyMap<string, number>): WallDay {
+  const inputs: HiveStoryInput[] = [];
+  for (const s of day.stories) {
+    if (s.status === "false") return day;
+    if (s.status !== "placed" && s.status !== "overflow") continue;
+    inputs.push({ id: s.id, tier: s.tier, support: s.support, score: scores.get(s.id) ?? 0, priority: s.priority, placedAt: s.placedAt ?? s.submittedAt, anchor: null, subjectKind: s.subjectKind, outlet: s.outlet });
+  }
+  if (inputs.length === 0) return day;
+  const result = hiveAllocator().allocate(inputs);
+  if (result === null) return day;
+  const at = new Map(result.placed.map((p) => [p.id, p]));
+  const fresh = new Set(inputs.map((i) => i.id));
+  return {
+    ...day,
+    stories: day.stories.map((s) => {
+      if (!fresh.has(s.id)) return s;
+      const p = at.get(s.id);
+      return p === undefined
+        ? { ...s, status: "overflow" as const, rect: null }
+        : { ...s, status: "placed" as const, rect: { mx: p.mx, my: p.my, w: p.w, h: p.h } };
+    }),
   };
 }
 
