@@ -25,14 +25,14 @@
 
 import { randomBytes } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { readFile, stat } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { extname, join, normalize, resolve, sep } from "node:path";
 
 import { everyDate, monthName, slug } from "./model.js";
 import { TODAY, renderCardPage, renderRecord, renderStoryPage } from "./render.js";
 import { SHARE_SCRIPT_SOURCE } from "./share-button.js";
-import { answerPictures, easternMidnight, emptyWallDay, fetchWallDay, hiveDaysNav, openWallDates, pictureRules, picturedSubjects, keptAt, replaceWall, hivePath, takingBoosts, wallKey, wallMarks, wallSection, withChecks, type Anniversary, type RecordRow, type TapBack, type WallDay } from "./wall.js";
+import { answerPictures, pickSurprise, easternMidnight, emptyWallDay, fetchWallDay, hiveDaysNav, openWallDates, pictureRules, picturedSubjects, keptAt, replaceWall, hivePath, takingBoosts, wallKey, wallMarks, wallSection, withChecks, type Anniversary, type RecordRow, type TapBack, type WallDay } from "./wall.js";
 import { fetchSnapshotScores, liveHiveSection, type Standing } from "./hive-live.js";
 import { pickFor, pickIndexFrom, pickPath, renderPickPage, PICK_MAX } from "./pick.js";
 import { fetchPictureFor, fetchPicturesFor, type StoredPicture } from "./stored-pictures.js";
@@ -1270,6 +1270,25 @@ async function handle(
   // receipts cost nothing extra to draw live, and the buzz control is on
   // them for the reader who came to read the sources before deciding. A
   // sealed date's receipt is the baked file, which is final.
+  // Surprise me, October 18, 2026: a random story from the date. An open
+  // date draws from the live hive, so the news filed since the deploy is in
+  // the draw; any other date draws from the receipts baked for it. Never
+  // stored, or every reader after the first would get the same story.
+  const surprise = method === "GET" || method === "HEAD" ? surpriseFor(path) : null;
+  if (surprise !== null) {
+    const skip = new URLSearchParams(query ?? "").get("not");
+    const live = await liveWall(surprise.month, surprise.day, Date.now(), false, false);
+    let id = live === null || live === undefined ? null : pickSurprise(live.day.stories, Math.random, skip);
+    if (id === null) {
+      const baked = await readdir(join(root, slug(surprise.month, surprise.day), "wall")).catch(() => [] as string[]);
+      id = pickSurprise(baked.filter((name) => UUID.test(name)).map((name) => ({ id: name, status: "pool" as const, rect: null })), Math.random, skip);
+    }
+    const at = slug(surprise.month, surprise.day);
+    response.writeHead(302, { Location: id === null ? `/${at}/` : `/${at}/wall/${id}/`, "Cache-Control": "no-store", ...securityFor(path) });
+    response.end();
+    return;
+  }
+
   const receipt = method === "GET" || method === "HEAD" ? receiptFor(path) : null;
   if (receipt !== null) {
     const now = Date.now();
@@ -1611,6 +1630,16 @@ export function withWall(html: string, section: string | null): string {
 export function forgetWalls(): void {
   wallCache.clear();
   scoreCache.clear();
+}
+
+/** The date Surprise me names, or null: "/october-18/surprise/". */
+export function surpriseFor(requestPath: string): { month: number; day: number } | null {
+  const match = /^\/([a-z]+-\d{1,2})\/surprise\/?$/.exec(requestPath);
+  if (match === null) return null;
+  for (const d of everyDate()) {
+    if (slug(d.month, d.day) === match[1]) return { month: d.month, day: d.day };
+  }
+  return null;
 }
 
 /** The receipt a request path names, or null: "/september-9/wall/<uuid>/". */

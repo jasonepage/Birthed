@@ -2128,7 +2128,11 @@ ${yoursLine(options.yours, voice)}
   // anything that is not on the board goes through Pick between two.
   const pick = live ? `<a class="wdo" href="/${slug(month, d)}/pick/">Pick between two</a>` : "";
   const reads = `<a class="wread" href="/about/">How it works</a>${options.yours === true ? `<a class="wread" href="/yours/">Your buzzes</a>` : ""}`;
-  const ways = `${pick === "" && full === "" ? "" : `<p class="wways">${pick}${full}</p>`}<p class="wways wwaysread">${reads}</p>`;
+  // Surprise me, October 18, 2026: a random story from the date, most
+  // often one that is not on the board, so the rest of the day is one tap
+  // away and not only two at a time through Pick between two.
+  const surprise = onWall.length > 0 ? `<a class="wview wsurprise" href="${surprisePath(month, d)}">${DIE}Surprise me</a>` : "";
+  const ways = `${pick === "" && full === "" && surprise === "" ? "" : `<p class="wways">${pick}${surprise}${full}</p>`}<p class="wways wwaysread">${reads}</p>`;
   const log = crownLog(day, crown, now);
   const small = log === "" && legend === "" && save === "" ? "" : `<div class="wafter">${log}${onWall.length > 0 ? legend : ""}${save}</div>`;
 
@@ -2382,6 +2386,30 @@ ${story.sources.map((source, i) => sourceBlock(source, i, story.subjectKind === 
 ${relatedBlock(story, day, voice)}`;
 }
 
+/** Where Surprise me lives for a date: a random story's receipt, by redirect. */
+export function surprisePath(month: number, day: number): string {
+  return `/${slug(month, day)}/surprise/`;
+}
+
+/**
+ * The story Surprise me lands on, or null. Nathan, October 18, 2026: the
+ * small tiles were too small to want to open, and the rest of the date was
+ * out of sight. So it prefers a story that is not on the board, which is
+ * the one a reader could not have found by looking, and never lands on a
+ * story stamped false, nor on the one it was asked to skip. Pure.
+ */
+export function pickSurprise(stories: ReadonlyArray<Pick<WallStory, "id" | "status" | "rect">>, random: () => number = Math.random, skip: string | null = null): string | null {
+  const fair = stories.filter((s) => s.status !== "false" && s.id !== skip);
+  if (fair.length === 0) return null;
+  const off = fair.filter((s) => s.rect === null || (s.status !== "placed"));
+  const from = off.length > 0 ? off : fair;
+  const index = Math.min(from.length - 1, Math.max(0, Math.floor(random() * from.length)));
+  return from[index]!.id;
+}
+
+/** A die, the mark on Surprise me. */
+const DIE = `<svg class="wdie" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="4.6"/><circle cx="8.4" cy="8.4" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="15.6" cy="15.6" r="1.4" fill="currentColor" stroke="none"/></svg>`;
+
 /**
  * The rest of the same hive, under a receipt. Hana's walkthrough, September
  * 22, 2026: a story page was a dead end, and the only way on was back to the
@@ -2402,7 +2430,7 @@ export function relatedBlock(story: WallStory, day: WallDay, voice: Voice = BEE,
 <ul class="wlist wrelated">
 ${others.map((s) => `<li><a href="/${slug(month, d)}/wall/${s.id}/">${escapeHtml(s.headline)}</a> <span class="wmeta">${escapeHtml(s.outlet)}${s.support > 0 ? ` <span class="wn">${escapeHtml(units(s.support, voice))}</span>` : ""}</span></li>`).join("\n")}
 </ul>
-<p class="wnote"><a href="/${slug(month, d)}/">Everything on ${escapeHtml(monthName(month))} ${d}</a></p>`;
+<p class="wnote"><a href="/${slug(month, d)}/">Everything on ${escapeHtml(monthName(month))} ${d}</a> · <a href="${surprisePath(month, d)}?not=${story.id}">Another random story from ${escapeHtml(monthName(month))} ${d}</a></p>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -2951,6 +2979,9 @@ a.whudname:hover { color: var(--honey-lite); }
 .wways a.wdo { background: linear-gradient(180deg, var(--honey-lite), var(--honey)); color: var(--on-honey); border-color: var(--honey); box-shadow: 0 0 14px rgba(244, 183, 64, .25); }
 .wways a.wdo:hover { filter: brightness(1.06); }
 .wways a.wview { background: transparent; border-color: var(--honey); }
+.wways a.wsurprise { gap: 7px; }
+.wways a.wsurprise .wdie { flex: none; }
+@media (prefers-reduced-motion: no-preference) { .wways a.wsurprise:hover .wdie { transform: rotate(18deg); transition: transform .2s; } }
 .wways.wwaysread { margin-top: 6px; gap: 2px 14px; }
 .wways.wwaysread a.wread { min-height: 32px; padding-top: 4px; padding-bottom: 4px; font-size: 14px; }
 .wways a.wread { background: transparent; border-color: transparent; padding-left: 6px; padding-right: 6px; font-weight: 600; color: var(--dim); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 4px; }

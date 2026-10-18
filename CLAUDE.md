@@ -567,6 +567,28 @@ hive.
   two, About, Support, the descriptions and the share cards all changed.
   The iOS app's `HiveCopy` was not touched and still says the old line.
 
+- **The unbuzzed stories weigh three buzzes between them** (`UNBUZZED_WEIGHT`
+  and `pieWeights` in `worker/src/wall/allocator.ts`, copied into
+  `web/src/hive-allocator.ts`). One buzz used to take most of the board and
+  leave the rest at two by two. Now the first buzz makes its tile the
+  biggest without erasing the others, and the crowd takes the board as
+  buzzes pile up. It changes the September 11 rule that a tile is purely
+  its share of the buzzes; the order is untouched, one buzz still beats
+  every score.
+- **The day's news is ordered by coverage, not arrival**
+  (`worker/src/wall/coverage.ts`, read into the scores in `scoresFor`). A
+  word in headlines from two or more outlets is a topic, weighed by
+  outlets times headlines; a story is scored by its biggest topic, newer
+  wins among equals, and one tile a topic. Found the day the riots in
+  France ran under seven headlines from three newsrooms and none reached
+  the board, because the first eight items after midnight held it all day.
+  Needs the worker redeployed; the next hourly tick re-cuts the open
+  boards. Named limits: one word can tie two different stories, and a name
+  in every story counts as coverage.
+- **Surprise me** (`/<date>/surprise/`, `pickSurprise`): a random story from
+  the date, preferring one off the board, from the live hive on an open
+  date and from the baked receipts otherwise. Every receipt offers another.
+
 ### The three biggest costs, cut October 11, 2026
 
 Nathan's instruction. Three changes, each committed on its own, none pushed

@@ -770,6 +770,36 @@ export function cutBands(areas: number[]): Rect[] {
 }
 
 /**
+ * What the stories nobody has buzzed hold between them once somebody has
+ * buzzed anything: the share this many buzzes would. October 18, 2026,
+ * Nathan, looking at the live board: one buzz on one story took most of the
+ * board and left eight news tiles at two by two, "too small to even
+ * consider". Under the old rule the unbuzzed tiles weighed nothing the
+ * moment one buzz landed. Now they weigh three buzzes together, so the
+ * first buzz makes its tile the biggest without erasing the rest, and as
+ * buzzes pile up the crowd's choices take the board: at three buzzes the
+ * buzzed stories hold half the spare room, at thirty about nine tenths.
+ */
+export const UNBUZZED_WEIGHT = 3;
+
+/**
+ * The pie's weights, in the order given. With no buzz on the date, by score.
+ * With any, a buzzed story weighs its buzzes and the unbuzzed share
+ * UNBUZZED_WEIGHT between them, by score when they have one and evenly when
+ * they do not. One buzz still beats every score: the order is untouched.
+ */
+export function pieWeights(chosen: ReadonlyArray<Pick<StoryInput, "support" | "score">>): number[] {
+  const anyBuzz = chosen.some((s) => s.support > 0);
+  if (!anyBuzz) return chosen.map((s) => Math.max(0, s.score ?? 0));
+  const quiet = chosen.filter((s) => s.support <= 0);
+  const scoreSum = quiet.reduce((n, s) => n + Math.max(0, s.score ?? 0), 0);
+  return chosen.map((s) => {
+    if (s.support > 0) return s.support;
+    return scoreSum > 0 ? (UNBUZZED_WEIGHT * Math.max(0, s.score ?? 0)) / scoreSum : UNBUZZED_WEIGHT / quiet.length;
+  });
+}
+
+/**
  * Places every story that has earned a place, as a pie.
  *
  * Membership is chosen the way it always was, backed first and then by
@@ -821,8 +851,7 @@ export function allocate(stories: StoryInput[]): Allocation {
 
   // The shares. By buzzes when there are any; by points when there are none,
   // so a board nobody has touched is still meaningful rather than even.
-  const anyBuzz = chosen.some((s) => s.support > 0);
-  const weights = chosen.map((s) => (anyBuzz ? Math.max(0, s.support) : Math.max(0, s.score ?? 0)));
+  const weights = pieWeights(chosen);
   const areas = shares(weights, BOARD_MODULES * BOARD_MODULES, MIN_MODULES);
 
   // Biggest first, top left, so the board reads in the order the shares do.

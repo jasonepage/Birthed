@@ -4,6 +4,8 @@ import { test } from "node:test";
 import {
   allocate,
   allocateByGrowth,
+  pieWeights,
+  UNBUZZED_WEIGHT,
   cutBands,
   proportional,
   shares,
@@ -598,11 +600,9 @@ test("a tile's size is its share of the date's buzzes, and it thins as others ar
   const before = allocate([story("a", { support: 5 }), story("b", { support: 1 }), story("c", { support: 0, subjectKind: null })]);
   full(before.placed);
   const areaOf = (out: Allocation, id: string): number => { const p = out.placed.find((x: Placement) => x.id === id)!; return p.w * p.h; };
-  assert.ok(areaOf(before, "a") > areaOf(before, "b") && areaOf(before, "b") > areaOf(before, "c"), `${before.placed.map((p) => `${p.id}=${p.w * p.h}`)}`);
-  // With three tiles the geometry cannot hand c exactly twelve, since a band
-  // is the board wide and at least three tall; it gets the least the cut
-  // allows, which is the honest-to-the-headline case section 18 names.
-  assert.ok(areaOf(before, "c") <= 2 * MIN_MODULES, `${areaOf(before, "c")}`);
+  // Since October 18, 2026 the unbuzzed stories hold UNBUZZED_WEIGHT buzzes
+  // between them, so c, alone and unbuzzed, weighs three: under a, over b.
+  assert.ok(areaOf(before, "a") > areaOf(before, "c") && areaOf(before, "c") > areaOf(before, "b"), `${before.placed.map((p) => `${p.id}=${p.w * p.h}`)}`);
   // b is backed four more times: a gives up modules. The promise that a
   // tile never shrinks is withdrawn in section 18, in writing.
   const after = allocate([story("a", { support: 5 }), story("b", { support: 5 }), story("c", { support: 0, subjectKind: null })]);
@@ -611,6 +611,31 @@ test("a tile's size is its share of the date's buzzes, and it thins as others ar
   // Equal shares, as near as the bands can cut them: two of 128 owed, and the
   // third tile's band takes its rows from both.
   assert.ok(Math.abs(areaOf(after, "a") - areaOf(after, "b")) <= 2 * BOARD_MODULES, `${areaOf(after, "a")} against ${areaOf(after, "b")}`);
+});
+
+test("one buzz makes its tile the biggest without shrinking the rest to nothing", () => {
+  // The live board of October 18, 2026: one buzz on one news story, eight
+  // more news stories nobody had buzzed. Under the old weights the eight got
+  // four modules each and the one got 224.
+  const out = allocate([
+    story("one", { support: 1, subjectKind: null, outlet: "a.com" }),
+    ...Array.from({ length: 8 }, (_, i) => story(`n${i}`, { subjectKind: null, outlet: `o${i % 4}.com`, placedAt: 1000 + i })),
+  ]);
+  full(out.placed);
+  noOverlap(out.placed);
+  const sizes = new Map(out.placed.map((p) => [p.id, p.w * p.h]));
+  const quiet = [...sizes].filter(([id]) => id !== "one").map(([, a]) => a);
+  assert.ok(quiet.length >= 6, `the news stays on the board, got ${quiet.length}`);
+  assert.ok(sizes.get("one")! > Math.max(...quiet), "the buzzed story is still the biggest");
+  assert.ok(sizes.get("one")! < 128, `and no longer most of the board, got ${sizes.get("one")}`);
+  assert.ok(Math.min(...quiet) >= 3 * MIN_MODULES, `an unbuzzed tile is big enough to read, got ${Math.min(...quiet)}`);
+});
+
+test("the unbuzzed weigh three buzzes between them, split by score when they have one", () => {
+  assert.deepEqual(pieWeights([{ support: 2, score: 0 }, { support: 0, score: 0 }, { support: 0, score: 0 }]), [2, 1.5, 1.5]);
+  assert.deepEqual(pieWeights([{ support: 1, score: 0 }, { support: 0, score: 30 }, { support: 0, score: 10 }]), [1, 2.25, 0.75]);
+  assert.deepEqual(pieWeights([{ support: 0, score: 30 }, { support: 0, score: 10 }]), [30, 10], "with no buzz on the date, the score alone");
+  assert.equal(UNBUZZED_WEIGHT, 3);
 });
 
 test("with no buzzes the shares follow the points, and the biggest tile is top left", () => {

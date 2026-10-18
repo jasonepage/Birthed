@@ -30,6 +30,7 @@ var HiveAllocator = (function () {
   var MIN_W = 2;
   var MIN_H = 2;
   var MIN_MODULES = MIN_W * MIN_H;
+  var UNBUZZED_WEIGHT = 3;
   var MAX_PLACED = 60;
   var UNBACKED_PLACED = 40;
   var WIDTH_PREFERENCE = 1.5;
@@ -290,8 +291,16 @@ var HiveAllocator = (function () {
       if (!isBacked) unbackedPlaced += 1;
     }
     if (chosen.length === 0) return { placed: [], overflow: overflow.concat(shelved) };
+    // pieWeights in worker/src/wall/allocator.ts: once anybody has buzzed,
+    // the unbuzzed stories hold UNBUZZED_WEIGHT buzzes between them.
     var anyBuzz = chosen.some(function (s) { return s.support > 0; });
-    var weights = chosen.map(function (s) { return anyBuzz ? Math.max(0, s.support) : Math.max(0, s.score || 0); });
+    var quiet = chosen.filter(function (s) { return s.support <= 0; });
+    var scoreSum = quiet.reduce(function (n, s) { return n + Math.max(0, s.score || 0); }, 0);
+    var weights = chosen.map(function (s) {
+      if (!anyBuzz) return Math.max(0, s.score || 0);
+      if (s.support > 0) return s.support;
+      return scoreSum > 0 ? (UNBUZZED_WEIGHT * Math.max(0, s.score || 0)) / scoreSum : UNBUZZED_WEIGHT / quiet.length;
+    });
     var areas = shares(weights, BOARD_MODULES * BOARD_MODULES, MIN_MODULES);
     var order = chosen.map(function (s, i) { return { s: s, area: areas[i] }; })
       .sort(function (a, b) { return b.area - a.area || chosen.indexOf(a.s) - chosen.indexOf(b.s); });

@@ -38,6 +38,7 @@ import { HostSilence, fetchPage, ownerOf, pageContains, type Fetched, type Owner
 import { eligibleForWall, tierFor } from "./pool.js";
 import { NEVER_CHECKED, dueForCheck, shouldRecord, summarize } from "./recheck.js";
 import { scoreEvents, type ReachRow, type ScoredEventRow } from "./points.js";
+import { coverageScores } from "./coverage.js";
 import { outletOf } from "./url.js";
 
 // ---------------------------------------------------------------------------
@@ -396,8 +397,15 @@ export async function scoresFor(db: Db, wallDate: string, log: (line: string) =>
     // One buzz beats all of this; the allocator weights by support wherever
     // anybody has buzzed.
     const rated = await rows<{ id: string; interest: number }>(db, `wall_stories?select=id,interest&wall_date=eq.${wallDate}&interest=not.is.null`);
+    // The day's news, by how much of the day's news it is part of, October
+    // 18, 2026 (coverage.ts). Without it every news story scored nothing and
+    // the first eight the feeds sent after midnight held the board all day.
+    // An editor's score, where one is left from before the model came off,
+    // still wins.
+    const news = await rows<{ id: string; headline: string; outlet: string; submitted_at: string }>(db, `wall_stories?select=id,headline,outlet,submitted_at&wall_date=eq.${wallDate}&subject_kind=is.null`);
+    for (const [id, score] of coverageScores(news.map((n) => ({ id: n.id, headline: n.headline, outlet: n.outlet, submittedAt: n.submitted_at })))) scores.set(`story:${id}`, score);
     for (const r of rated) scores.set(`story:${r.id}`, r.interest * 10);
-    log(`wall scores ${wallDate}: ${scores.size - rated.length} history rows scored, ${urls.length} name an article, ${measured} of those measured, ${rated.length} stories scored by the editor`);
+    log(`wall scores ${wallDate}: ${scores.size - rated.length - news.length} history rows scored, ${urls.length} name an article, ${measured} of those measured, ${news.length} news stories scored by coverage, ${rated.length} by the editor`);
     return scores;
   } catch (error: unknown) {
     log(`wall scores ${wallDate}: could not be read, so the board is ordered by priority alone this run: ${error instanceof Error ? error.message : error}`);

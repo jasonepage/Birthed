@@ -988,3 +988,35 @@ test("the build draws a face or a cover only for a tile on the board, and only w
     { subject: "song:1990-10-06", path: "/covers/abc123.jpg" },
   ]);
 });
+
+// ---------------------------------------------------------------------------
+// Surprise me, October 18, 2026
+// ---------------------------------------------------------------------------
+
+import { pickSurprise, surprisePath } from "../src/wall.js";
+import { surpriseFor } from "../src/serve.js";
+
+test("Surprise me prefers a story off the board, never a false one, never the one it was told to skip", () => {
+  const on = { id: "on", status: "placed" as const, rect: { mx: 0, my: 0, w: 4, h: 4 } };
+  const off = { id: "off", status: "overflow" as const, rect: null };
+  const pooled = { id: "pooled", status: "pool" as const, rect: null };
+  const lie = { id: "lie", status: "false" as const, rect: { mx: 4, my: 0, w: 2, h: 2 } };
+  const seen = new Set<string>();
+  for (let i = 0; i < 20; i++) seen.add(pickSurprise([on, off, pooled, lie], () => i / 20)!);
+  assert.deepEqual([...seen].sort(), ["off", "pooled"]);
+  assert.equal(pickSurprise([on, off], () => 0.99, "off"), "on", "with the only one off the board skipped, the board will do");
+  assert.equal(pickSurprise([lie]), null);
+  assert.equal(pickSurprise([on, off], () => 1), "off", "a roll of one stays in range");
+});
+
+test("Surprise me is a button under an open board and a link under every receipt", () => {
+  assert.equal(surprisePath(10, 18), "/october-18/surprise/");
+  assert.deepEqual(surpriseFor("/october-18/surprise/"), { month: 10, day: 18 });
+  assert.deepEqual(surpriseFor("/october-18/surprise"), { month: 10, day: 18 });
+  assert.equal(surpriseFor("/february-31/surprise/"), null);
+  const s = story({ rect: { mx: 0, my: 0, w: 4, h: 3 } });
+  const live = wallSection(day([s]), "September 9", LIVE_NOW, { interactive: true });
+  assert.ok(live.includes('href="/september-9/surprise/"') && live.includes("Surprise me"));
+  const page = renderStoryPage(s, day([s, story({ id: "bbbbbbbb-0000-0000-0000-000000000009", rect: null, status: "pool" })]));
+  assert.ok(page.includes(`/september-9/surprise/?not=${s.id}`), "and the receipt offers another");
+});
