@@ -77,7 +77,7 @@ test("a tile sits at its stored anchor and size, and links to its receipt", () =
   assert.ok(html.includes("40 buzzes"));
   // One tier on the board, so no key to three: the tile's colour is its tier.
   assert.ok(!html.includes('class="wlegend"'));
-  assert.ok(html.replace(/<[^>]+>/g, "").includes("Open. Seals at midnight Eastern ending September 10, 2026"));
+  assert.ok(html.replace(/<[^>]+>/g, "").includes("Seals at midnight Eastern ending September 10, 2026, then permanent."));
   assert.ok(html.includes('<em class="wkey">Seals</em>'), "the coined words are set apart");
 });
 
@@ -379,10 +379,11 @@ test("the countdown names the night the hive seals, because the date and the day
   // "Seals in about 30 hours, at midnight Eastern", which read as tonight.
   const d = day([story({ rect: { mx: 3, my: 5, w: 4, h: 3 } })]);
   const first = wallSection(d, "September 9", LIVE_NOW, { interactive: true });
-  assert.ok(first.includes('<b>Open.</b> <em class="wkey">Seals</em> at midnight Eastern ending Thursday, September 10, in about 32 hours, then <em class="wkey">permanent</em>.'));
+  assert.ok(first.includes('<p class="whudwhen">At midnight Eastern ending Thursday, September 10. Then it is <em class="wkey">permanent</em>.</p>'));
+  assert.ok(first.includes('<em class="wkey">Seals</em> in <b class="wtick" role="timer" aria-label="about 32 hours">'), "the clock says the hours to a screen reader");
   const last = wallSection(d, "September 9", Date.parse("2026-09-10T22:00:00Z"), { interactive: true });
-  assert.ok(last.includes('<em class="wkey">Seals</em> tonight at midnight Eastern, in about 6 hours, then'));
-  assert.ok(!first.includes("Seals</em> tonight"), "never tonight on the date itself");
+  assert.ok(last.includes('<p class="whudwhen">Tonight at midnight Eastern.'));
+  assert.ok(!first.includes("Tonight at midnight"), "never tonight on the date itself");
 });
 
 // ---------------------------------------------------------------------------
@@ -943,7 +944,7 @@ test("the baked section carries no forms, and the interactive one carries one bu
   assert.ok(!live.includes(pooled.id) && !live.includes(spilled.id), "what is off the board is reached through Pick between two");
   assert.ok(live.includes('href="/september-9/pick/"'), "and the way there is on the page");
   assert.ok(live.includes(`<a class="wh" href="${storyPath(onWall)}"`), "the headline is the link to the receipt");
-  assert.ok(live.includes(`<p class="wlede">${HOW_TO}</p>`), "the how-to is above the board");
+  assert.ok(live.includes(`<p class="wlede"><b class="wgoal">Goal</b> ${HOW_TO}</p>`), "the how-to is above the board");
   assert.ok(live.indexOf('class="wlede"') < live.indexOf('class="wboard'), "above it, not under it");
   assert.ok(!baked.includes('class="wlede"'), "a page with nothing to spend says nothing about spending");
   assert.ok(live.includes("Three buzzes left today."));

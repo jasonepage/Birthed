@@ -106,7 +106,7 @@ test("the block: nothing before the date, nothing with no buzzes, the line and t
   // section 32: one scoreboard there is the crown. The full screen hive keeps them.
   const page = wallSection(day(stories), "September 23", NOW, { interactive: true, date: { month: 9, day: 23 } });
   assert.ok(!page.includes('id="wdecades"') && !page.includes("wdecadeline"), "not on the date page");
-  assert.ok(page.includes('id="wcrown"'), "the crown is");
+  assert.ok(page.includes('wcrowncell'), "the crown is, in the scoreboard");
   const html = wallSection(day(stories), "September 23", NOW, { interactive: true, hive: true, date: { month: 9, day: 23 } });
   assert.ok(html.includes('<p class="wdecadeline" id="wdecadeline">The 1940s (Boomers) lead September 23 with 3 of 7 buzzes.</p>'));
   assert.ok(html.includes('<span class="wdecade">1940s <b>3</b></span> <span class="wdecade">1950s <b>2</b></span> <span class="wdecade">1860s <b>1</b></span>'));

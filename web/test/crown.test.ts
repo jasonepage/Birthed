@@ -7,7 +7,7 @@ import { test } from "node:test";
 import { HIVE_CROWN_JS, boostFrom, crownClock, crownLine, crownOf, crownSaid, hiveCrown, noCrownYet, type WallBoost } from "../src/crown.js";
 import { HIVE_LIVE_JS, liveHiveSection } from "../src/hive-live.js";
 import { renderPrivacy } from "../src/pages.js";
-import { BEE, crownBlock, crownFor, crownName, fetchWall, fetchWallDay, wallSection, type WallDay, type WallStory } from "../src/wall.js";
+import { BEE, clockText, crownBlock, crownFor, crownName, fetchWall, fetchWallDay, pipRule, tickStyle, titleFight, wallMarks, wallSection, type WallDay, type WallStory } from "../src/wall.js";
 
 const A = "aaaaaaaa-0000-4000-8000-000000000001";
 const B = "bbbbbbbb-0000-4000-8000-000000000002";
@@ -259,30 +259,28 @@ test("a sealed hive keeps its last crown and its list forever", () => {
   assert.ok(!html.includes("<form"), "a sealed hive still carries no forms");
 });
 
-test("on the date page the holder's tile wears the crown, the others do not, and the list sits under the board", () => {
+test("on the date page the holder's tile wears the crown, the scoreboard names it above the board, and its history folds under", () => {
   const d = day([buzz(1, A, "2026-09-23T08:27:57Z")]);
   const html = wallSection(d, "September 23", OPEN_NOW, { interactive: true, date: { month: 9, day: 23 } });
-  assert.equal((html.match(/wcrownmark/g) ?? []).length, 2, "one mark on the tile and one in the heading, and no more");
+  assert.equal((html.match(/Wears the crown\./g) ?? []).length, 2, "both on the tile, its label and its mark: the scoreboard and the history draw the crown and say nothing twice");
   assert.ok(/class="wtile[^"]*wcrowned[^"]*"[^>]*id="w-aaaaaaaa/.test(html));
-  assert.ok(html.includes("Wears the crown."));
-  assert.ok(html.indexOf('class="wboard') < html.indexOf('id="wcrown"'), "under the board");
-  assert.ok(html.indexOf('id="wcrown"') < html.indexOf('class="wafter"'), "before what follows the board");
+  const board = html.indexOf('class="wboard');
+  const hud = html.indexOf('class="whud');
+  assert.ok(hud > -1 && hud < board, "the scoreboard is above the board");
+  assert.ok(html.slice(hud, board).includes(`<a class="whudname" href="#w-${A}">Typhoid Mary</a>`), "and names the holder, linked to its tile");
+  assert.ok(html.indexOf('class="wcrownlog"') > board, "the history is under the board");
   assert.ok(html.includes("4:27 am Eastern: Typhoid Mary took the crown."));
 });
 
-test("a story that leads from off the board is named under the board until the tick gives it a tile", () => {
-  // The feed that drew it as a crowned row is gone, docs/the-wall.md
-  // section 32; the crown under the board still names it, and its row in
-  // the museum carries the buzz.
+test("a story that leads from off the board is named until the tick gives it a tile", () => {
   const d = day([buzz(1, B, "2026-09-23T08:27:57Z")]);
   d.stories[1]!.status = "pool";
   d.stories[1]!.rect = null;
   const html = wallSection(d, "September 23", OPEN_NOW, { interactive: true, date: { month: 9, day: 23 } });
   assert.ok(!/class="wtile[^"]*wcrowned"/.test(html), "no tile wears it");
-  assert.ok(!html.includes(`<li id="w-${B}"`), "and there is no feed row to wear it");
-  const crown = html.slice(html.indexOf('id="wcrown"'));
-  assert.ok(crown.includes("Bruce Springsteen"), "the crown names it");
-  assert.ok(crown.includes("4:27 am Eastern: Bruce Springsteen took the crown."));
+  assert.ok(html.includes('<span class="whudname">Bruce Springsteen</span>'), "the scoreboard names it, with no link to a tile it does not have");
+  const log = html.slice(html.indexOf('class="wcrownlog"'));
+  assert.ok(log.includes("4:27 am Eastern: Bruce Springsteen took the crown."));
 });
 
 test("a headline's own characters cannot break the list or the tile", () => {
@@ -300,8 +298,9 @@ test("a day read before the crown existed has no crown and no list, not a crash"
   const d = day([]);
   delete (d as { boosts?: unknown }).boosts;
   const html = wallSection(d, "September 23", OPEN_NOW, { interactive: true, date: { month: 9, day: 23 } });
-  assert.ok(html.includes("No crown yet."));
+  assert.ok(html.includes("Up for grabs"));
   assert.ok(!html.includes("wcrowned"));
+  assert.ok(!html.includes('class="wcrownlog"'), "no history to fold");
 });
 
 // ---------------------------------------------------------------------------
@@ -472,4 +471,42 @@ test("the privacy page says what the crown list shows", () => {
   const html = renderPrivacy();
   assert.ok(html.includes("the crown"));
   assert.ok(html.includes("names nobody"));
+});
+
+// ---------------------------------------------------------------------------
+// The scoreboard over the date page's board, October 18, 2026
+// ---------------------------------------------------------------------------
+
+test("the title fight names the closest challenger and the buzzes it needs, because a tie does not take the crown", () => {
+  const level = day([buzz(1, A, "2026-09-23T08:00:00Z"), buzz(2, B, "2026-09-23T09:00:00Z")]);
+  assert.deepEqual(titleFight(level, crownFor(level)), { id: B, count: 1, need: 1 });
+  const ahead = day([buzz(1, A, "2026-09-23T08:00:00Z"), buzz(2, A, "2026-09-23T08:30:00Z"), buzz(3, A, "2026-09-23T08:40:00Z"), buzz(4, B, "2026-09-23T09:00:00Z")]);
+  assert.deepEqual(titleFight(ahead, crownFor(ahead)), { id: B, count: 1, need: 3 });
+  const alone = day([buzz(1, A, "2026-09-23T08:00:00Z")]);
+  assert.equal(titleFight(alone, crownFor(alone)), null);
+  const html = wallSection(ahead, "September 23", OPEN_NOW, { interactive: true, date: { month: 9, day: 23 } });
+  assert.ok(html.includes(`<a class="whudname" href="#w-${B}">Bruce Springsteen</a><span class="whudsub">3 buzzes from the crown</span>`));
+  const one = wallSection(alone, "September 23", OPEN_NOW, { interactive: true, date: { month: 9, day: 23 } });
+  assert.ok(one.includes("Any story with 2 buzzes takes it"));
+});
+
+test("the seal clock ticks with no script, from where it stood, and stops on nought", () => {
+  assert.equal(clockText(32 * 3600 + 17 * 60 + 9), "32:17:09");
+  assert.equal(clockText(-5), "0:00:00");
+  const style = tickStyle(32 * 3600 + 17 * 60 + 9);
+  assert.ok(style.includes("--wh:32;--wm:17;--ws:9"), "it starts where the clock stands");
+  assert.ok(style.includes("wts 60s steps(60,jump-none) -50s 1938 forwards"), "the seconds run out exactly at the seal");
+  assert.ok(style.includes("wtm 3600s steps(60,jump-none) -2570s 33 forwards"));
+  assert.ok(style.includes("wth 118800s steps(33,jump-none) -2570s 1 forwards"));
+  assert.ok(!tickStyle(59).includes("wth"), "under an hour there is no hour to step");
+  assert.ok(!style.includes("<script"));
+});
+
+test("the pips dim what a reader has spent, in the shared section and in the reader's own marks", () => {
+  assert.equal(pipRule(2), ".wpips i:nth-child(n+3){background:#35291A;box-shadow:none;transform:scale(.8)}");
+  const d = day([]);
+  const html = wallSection(d, "September 23", OPEN_NOW, { interactive: true, date: { month: 9, day: 23 } });
+  assert.ok(html.includes('<span class="wpips" aria-hidden="true"><i></i><i></i><i></i></span>'));
+  assert.ok(html.includes(pipRule(3)));
+  assert.ok(wallMarks({ left: 1, allowance: 3, backed: [] }, d, OPEN_NOW).includes(pipRule(1)));
 });

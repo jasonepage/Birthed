@@ -1854,6 +1854,190 @@ function liveStateLine(day: WallDay, now: number): string {
   return `<b>Open.</b> ${key("Seals")} ${when}, in ${hoursUntil(closes, now)}, then ${key("permanent")}.`;
 }
 
+// ---------------------------------------------------------------------------
+// The scoreboard over the date page's board, October 18, 2026
+// ---------------------------------------------------------------------------
+
+/**
+ * Buzzes per story, from the buzz rows, for the stories that can hold the
+ * crown: the same count the crown's replay keeps, so the scoreboard and the
+ * crown can never disagree about who leads.
+ */
+export function crownCounts(day: Pick<WallDay, "stories" | "boosts">): Map<string, number> {
+  const eligible = new Set(day.stories.filter((s) => s.status !== "false").map((s) => s.id));
+  const counts = new Map<string, number>();
+  for (const b of day.boosts ?? []) {
+    if (!eligible.has(b.storyId)) continue;
+    counts.set(b.storyId, (counts.get(b.storyId) ?? 0) + b.units);
+  }
+  return counts;
+}
+
+/**
+ * The title fight: the story with the most buzzes after the crown's, and how
+ * many more it needs to take it. A tie does not move the crown, so it needs
+ * one more than the gap. Null with no crown, or with nothing else buzzed.
+ */
+export function titleFight(day: Pick<WallDay, "stories" | "boosts">, crown: Crown): { id: string; count: number; need: number } | null {
+  if (crown.holder === null) return null;
+  let best: { id: string; count: number } | null = null;
+  for (const [id, count] of crownCounts(day)) {
+    if (id === crown.holder || count <= 0) continue;
+    if (best === null || count > best.count) best = { id, count };
+  }
+  if (best === null) return null;
+  return { ...best, need: crown.count - best.count + 1 };
+}
+
+/** A name cut at a word, for a cell in the scoreboard. */
+function cut(text: string, limit: number = 52): string {
+  return text.length > limit ? `${text.slice(0, limit).replace(/\s+\S*$/, "")}…` : text;
+}
+
+/** Seconds as h:mm:ss, the way the seal clock reads. */
+export function clockText(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  const pad = (n: number): string => String(n).padStart(2, "0");
+  return `${Math.floor(s / 3600)}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`;
+}
+
+/**
+ * The seal clock, ticking with no script. Three registered integers, the
+ * hours, minutes and seconds, are each stepped down by a CSS animation that
+ * starts part way through, so the clock begins where it stood when the
+ * section was drawn and stops on 0:00:00. The date page runs no script and
+ * this keeps it that way. The section is shared and cached for twenty
+ * seconds, so the clock can be that far behind, never ahead.
+ */
+export function tickStyle(seconds: number): string {
+  const t = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const s = t % 60;
+  const intoMinute = 59 - s;
+  const intoHour = (59 - m) * 60 + intoMinute;
+  const rules = [
+    `@keyframes wts{from{--ws:59}to{--ws:0}}`,
+    `@keyframes wtm{from{--wm:59}to{--wm:0}}`,
+    `.wtick::after{--wh:${h};--wm:${m};--ws:${s};animation:wts 60s steps(60,jump-none) -${intoMinute}s ${h * 60 + m + 1} forwards,wtm 3600s steps(60,jump-none) -${intoHour}s ${h + 1} forwards${h > 0 ? `,wth ${(h + 1) * 3600}s steps(${h + 1},jump-none) -${intoHour}s 1 forwards` : ""}}`,
+  ];
+  if (h > 0) rules.splice(2, 0, `@keyframes wth{from{--wh:${h}}to{--wh:0}}`);
+  return `<style>${rules.join("")}</style>`;
+}
+
+/** The crown's drawing alone, for a label that already says the word. */
+function crownIcon(): string {
+  return crownMark().replace(/<span class="sr">[^<]*<\/span>/, "").replace(/ title="[^"]*"/, "");
+}
+
+/** The look of a spent buzz in the pips, written into the per reader rule. */
+const SPENT_PIP = "background:#35291A;box-shadow:none;transform:scale(.8)";
+
+/** The rule that dims the pips a reader has spent. */
+export function pipRule(left: number): string {
+  return `.wpips i:nth-child(n+${Math.max(0, left) + 1}){${SPENT_PIP}}`;
+}
+
+/**
+ * The scoreboard. What used to be four lines of prose between the date and
+ * the board, as one panel a player reads at a glance: whether the hive is
+ * live and the clock to the seal, what you have left to spend, who wears
+ * the crown, who is closest to taking it, and the one line of what to do.
+ * Nathan, October 18, 2026: "a Roblox developer would improve it 100x".
+ * The coined words, seals and permanent, are still set apart, because the
+ * clock line is what teaches them.
+ */
+export function scoreboard(day: WallDay, now: number, onWall: WallStory[], crown: Crown, voice: Voice, interactive: boolean): string {
+  const key = (word: string): string => `<em class="wkey">${word}</em>`;
+  const closes = day.closedAt ?? day.closesAt;
+  const notYet = now < Date.parse(day.liveAt);
+  const live = takingBoosts(day, now);
+  const names = new Map(day.stories.map((s) => [s.id, crownName(s)]));
+  const placed = new Set(onWall.map((s) => s.id));
+  const nameOf = (id: string): string => {
+    const name = escapeHtml(cut(names.get(id) ?? "a story in the feed"));
+    return placed.has(id) ? `<a class="whudname" href="#w-${id}">${name}</a>` : `<span class="whudname">${name}</span>`;
+  };
+  const cell = (label: string, body: string, extra: string = ""): string =>
+    `<div class="whudcell${extra}"><span class="whudk">${label}</span>${body}</div>`;
+
+  if (notYet) {
+    return `<div class="whud whudsoon">
+<p class="whudtop"><span class="wbadge wsoon">Soon</span><span class="whudclock">Opens tonight at midnight Eastern. That is ${hoursUntil(day.liveAt, now)} from now.</span></p>
+</div>`;
+  }
+
+  if (!live) {
+    const total = [...crownCounts(day).values()].reduce((a, b) => a + b, 0);
+    const backed = onWall.filter((s) => s.support > 0).length;
+    const after = new Date(Date.UTC(day.year, day.month - 1, day.day + 1));
+    const ending = `${monthName(after.getUTCMonth() + 1)} ${after.getUTCDate()}, ${after.getUTCFullYear()}`;
+    const winner = crown.holder === null
+      ? cell(`${crownIcon()} The crown`, `<span class="whudname">Nobody took it</span>`)
+      : cell(`${crownIcon()} Won the crown`, `${nameOf(crown.holder)}<span class="whudsub">${units(crown.count, voice)}</span>`, " wcrowncell");
+    const final = cell("Final count", total === 0
+      ? `<span class="whudbig">0</span><span class="whudsub">Nobody ${voice.past} this hive before it sealed</span>`
+      : `<span class="whudbig">${total}</span><span class="whudsub">${total === 1 ? voice.one : voice.many} on ${backed === 1 ? "1 story" : `${backed} stories`}</span>`);
+    const older = Date.parse(closes) <= OLD_BOARD_SEALED_BY
+      ? `\n<p class="whudnote">Hives that sealed before September 22, 2026 put at most eight stories nobody had ${voice.past} on the board, so they are smaller than today's.</p>`
+      : "";
+    return `<div class="whud whuddone">
+<p class="whudtop"><span class="wbadge wdone">Sealed</span><span class="whudclock">Sealed at midnight Eastern ending ${ending}. ${key("Permanent")}.</span></p>
+<div class="whudgrid">${winner}${final}</div>${older}
+</div>`;
+  }
+
+  // Live.
+  const lastDay = easternDateOf(Date.parse(closes) - 60_000);
+  const [y, mo, d] = lastDay.split("-").map(Number) as [number, number, number];
+  const weekday = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][new Date(Date.UTC(y, mo - 1, d)).getUTCDay()]!;
+  const when = lastDay === easternDateOf(now) ? "Tonight at midnight Eastern" : `At midnight Eastern ending ${weekday}, ${monthName(mo)} ${d}`;
+  const seconds = (Date.parse(closes) - now) / 1000;
+  const clock = `${key("Seals")} in <b class="wtick" role="timer" aria-label="${hoursUntil(closes, now)}"></b>${tickStyle(seconds)}`;
+  const top = interactive
+    ? `<p class="whudtop"><span class="wbadge wlivebadge"><i></i>Live</span><span class="whudclock">${clock}</span></p>
+<p class="whudwhen">${when}. Then it is ${key("permanent")}.</p>`
+    : `<p class="whudtop"><span class="wbadge wlivebadge"><i></i>Open</span><span class="whudclock">${stateLine(day, now).replace(/^<b>Open\.<\/b> /, "")}</span></p>`;
+
+  const allowance = allowanceOn(day, now);
+  const mine = interactive
+    ? cell("Your buzzes", `<span class="wpips" aria-hidden="true">${"<i></i>".repeat(allowance)}</span><p class="wcount"><span class="wleft"></span></p><style>.wleft::after{content:"${tapsLeftSentence(freshLeft(day, now), allowance, voice, nextRefillWords(now, day.wallDate, allowance))}"}${pipRule(freshLeft(day, now))}</style>`, " wminecell")
+    : "";
+  const crowned = crown.holder === null
+    ? cell(`${crownIcon()} The crown`, `<span class="whudname">Up for grabs</span><span class="whudsub">The first ${voice.one} takes it</span>`, " wcrowncell")
+    : cell(`${crownIcon()} The crown`, `${nameOf(crown.holder)}<span class="whudsub">${units(crown.count, voice)}</span>`, " wcrowncell");
+  const fight = titleFight(day, crown);
+  const challenger = crown.holder === null
+    ? ""
+    : fight === null
+      ? cell("Title fight", `<span class="whudname">No challenger yet</span><span class="whudsub">Any story with ${units(crown.count + 1, voice)} takes it</span>`, " wfightcell")
+      : cell("Title fight", `${nameOf(fight.id)}<span class="whudsub">${units(fight.need, voice)} from the crown</span>`, " wfightcell");
+  const goal = interactive ? `\n<p class="wlede"><b class="wgoal">Goal</b> ${HOW_TO}</p>` : "";
+  return `<div class="whud whudlive">
+${top}
+<div class="whudgrid">${mine}${crowned}${challenger}</div>${goal}
+</div>`;
+}
+
+/**
+ * The crown's changes of hands on the date page, folded under one line,
+ * since the scoreboard above the board already says who wears it. Nothing
+ * when it has never changed hands. The full screen hive keeps crownBlock.
+ */
+export function crownLog(day: WallDay, crown: Crown, now: number): string {
+  if (now < Date.parse(day.liveAt) || crown.changes.length === 0) return "";
+  const names = new Map(day.stories.map((s) => [s.id, crownName(s)]));
+  const nameOf = (id: string): string => names.get(id) ?? "a story in the feed";
+  const items = crown.changes.map((c) => `<li>${escapeHtml(crownLine(c, nameOf))}</li>`).join("\n");
+  const n = crown.changes.length;
+  return `<details class="wcrownlog">
+<summary>${crownIcon()}Crown history <span>${n === 1 ? "1 change" : `${n} changes`}</span></summary>
+<ol class="wcrownlist">
+${items}
+</ol>
+</details>`;
+}
+
 function wallBody(day: WallDay | null, name: string, now: number, options: WallOptions): string {
   if (day === null) {
     if (options.date === undefined || options.hive) return "";
@@ -1897,7 +2081,7 @@ ${tiles}${empty}
     : "";
 
   // The three chips and one clause, only when the colours differ. September 22, 2026.
-  const legend = !tiersDiffer(onWall) ? "" : `<p class="wlegend"><span class="wchip w-seen_direct" title="${escapeHtml(tierMeaning("seen_direct"))}">Seen directly</span> <span class="wchip w-reported" title="${escapeHtml(tierMeaning("reported"))}">Reported</span> <span class="wchip w-claimed" title="${escapeHtml(tierMeaning("claimed"))}">Claimed</span> <span class="wlegendsay">Colour is how well a story is sourced, not whether it is true.</span></p>`;
+  const legend = !tiersDiffer(onWall) ? "" : `<p class="wlegend" title="Colour is how well a story is sourced, not whether it is true."><span class="wlegendsay">Sourcing</span> <span class="wchip w-seen_direct" title="${escapeHtml(tierMeaning("seen_direct"))}">Seen directly</span> <span class="wchip w-reported" title="${escapeHtml(tierMeaning("reported"))}">Reported</span> <span class="wchip w-claimed" title="${escapeHtml(tierMeaning("claimed"))}">Claimed</span></p>`;
 
   if (hive) {
     // The full screen hive keeps the decade teams, which left the date page
@@ -1921,21 +2105,18 @@ ${yoursLine(options.yours, voice)}
   // what is left to spend, the board, the crown, and the ways on. The song
   // prompt, the suggestion box, the museum and the comb came off; a buzz on
   // anything that is not on the board goes through Pick between two.
-  const lede = live ? HOW_TO : "";
-  const under = closed
-    ? `<p class="wnote wunder">${escapeHtml(sealedLine(day, onWall, voice))} Every story is a link to its source.</p>`
-    : "";
   const pick = live ? `<a class="wdo" href="/${slug(month, d)}/pick/">Pick between two</a>` : "";
-  const ways = `<p class="wways">${pick}${full}</p><p class="wways wwaysread"><a class="wread" href="/about/">How the hive works</a>${options.yours === true ? `<a class="wread" href="/yours/">Everything you have ${voice.past}</a>` : ""}</p>`;
+  const reads = `<a class="wread" href="/about/">How it works</a>${options.yours === true ? `<a class="wread" href="/yours/">Your buzzes</a>` : ""}`;
+  const ways = `${pick === "" && full === "" ? "" : `<p class="wways">${pick}${full}</p>`}<p class="wways wwaysread">${reads}</p>`;
+  const log = crownLog(day, crown, now);
+  const small = log === "" && legend === "" && save === "" ? "" : `<div class="wafter">${log}${onWall.length > 0 ? legend : ""}${save}</div>`;
 
   return `<section class="wall" aria-labelledby="wallhead">
-<p class="whead">${beeSvg()}<span class="section" id="wallhead">The hive for ${escapeHtml(longDate(day))}</span> <span class="wstate">${options.interactive === true ? liveStateLine(day, now) : stateLine(day, now)}</span></p>
-${lede === "" ? "" : `<p class="wlede">${lede}</p>`}
-${countLine(day, now, voice, live)}${afterwords(voice, name, options.undo ?? null, "day", false, took)}
+<p class="whead">${beeSvg()}<span class="section" id="wallhead">The hive for ${escapeHtml(longDate(day))}</span></p>
+${scoreboard(day, now, onWall, crown, voice, options.interactive === true)}
+${afterwords(voice, name, options.undo ?? null, "day", false, took)}
 ${board}
-${crownBlock(day, crown, voice, now)}
-<div class="wafter">${onWall.length > 0 ? legend : ""}${save}</div>
-${under}${ways}
+${ways}${small}
 </section>
 ${anniversaryBlock(options.anniversary ?? [], day, voice)}`;
 }
@@ -1963,7 +2144,7 @@ export function wallMarks(standing: { left: number; allowance: number; backed: s
   const rules: string[] = [];
   if (takingBoosts(day, now)) {
     const sentence = tapsLeftSentence(standing.left, standing.allowance, voiceOf(day), nextRefillWords(now, day.wallDate, standing.allowance));
-    rules.push(`.wleft::after{content:"${sentence}"}`);
+    rules.push(`.wleft::after{content:"${sentence}"}`, pipRule(standing.left));
   }
   for (const id of standing.backed) {
     if (!/^[0-9a-f-]{36}$/.test(id)) continue;
@@ -2246,6 +2427,82 @@ export const WALL_STYLE = `
 .wstate .wkey { font-style: normal; color: var(--cream); text-decoration: underline; text-decoration-color: var(--honey); text-decoration-thickness: 2px; text-underline-offset: 3px; }
 .wlede { margin: 0 0 12px; color: var(--dim); font-size: 15px; line-height: 1.4; max-width: 58ch; text-wrap: pretty; }
 .wunder { margin: 8px 0 0; max-width: 62ch; }
+/* The scoreboard, October 18, 2026. What sat between the date and the
+   board as four lines of prose is one panel read at a glance: live or
+   sealed, the clock to the seal, the buzzes a reader has left as pips, the
+   crown and the title fight, and the goal. The clock ticks with no script:
+   three registered integers stepped down by animations (tickStyle). */
+@property --wh { syntax: "<integer>"; inherits: false; initial-value: 0; }
+@property --wm { syntax: "<integer>"; inherits: false; initial-value: 0; }
+@property --ws { syntax: "<integer>"; inherits: false; initial-value: 0; }
+.wall:not(.whive) > .whead { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
+.wall:not(.whive) > .whead .bee { width: 30px; }
+.whud {
+  margin: 0 0 14px; padding: 12px 14px 13px; border-radius: 16px;
+  background: linear-gradient(180deg, rgba(244, 183, 64, .11), rgba(244, 183, 64, .025) 60%), var(--cell);
+  border: 1px solid var(--line-strong);
+  box-shadow: inset 0 1px 0 rgba(255, 232, 180, .08), 0 10px 26px rgba(0, 0, 0, .35);
+}
+.whudtop { margin: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; font-size: 14px; font-weight: 700; color: var(--cream-2); line-height: 1.35; }
+.whudtop .wkey, .whudwhen .wkey { font-style: normal; color: var(--cream); text-decoration: underline; text-decoration-color: var(--honey); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.wbadge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; line-height: 1.4; }
+.wlivebadge { color: #1C0E04; background: var(--ember); box-shadow: 0 0 14px rgba(255, 122, 69, .35); }
+.wlivebadge i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+@media (prefers-reduced-motion: no-preference) { .wlivebadge i { animation: wbeat 1.4s ease-in-out infinite; } }
+@keyframes wbeat { 50% { opacity: .25; } }
+.wdone { color: var(--cream); background: var(--line-strong); }
+.wsoon { color: var(--honey-lite); border: 1px solid var(--honey); }
+.whudclock { display: inline; }
+.wtick { font-family: var(--serif); font-weight: 800; font-size: 22px; line-height: 1; color: var(--honey-lite); font-variant-numeric: tabular-nums lining-nums; letter-spacing: .01em; }
+.wtick::after { counter-reset: h var(--wh) m var(--wm) s var(--ws); content: counter(h) ":" counter(m, decimal-leading-zero) ":" counter(s, decimal-leading-zero); }
+.whudwhen { margin: 3px 0 0; font-size: 12.5px; color: var(--dim); }
+.whudgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 11px 0 0; }
+.whudgrid:empty { display: none; }
+.whudcell { min-width: 0; padding: 8px 10px 9px; border-radius: 12px; background: rgba(0, 0, 0, .28); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 3px; }
+.whudk { display: flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--dimmer); }
+.whudk .wcrownmark { display: inline-block; width: 13px; height: 13px; color: var(--honey-lite); }
+.whudk .wcrownmark svg { display: block; width: 100%; height: 100%; }
+.whudname { font-family: var(--serif); font-weight: 800; font-size: 15px; line-height: 1.22; color: var(--cream); text-decoration: none; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+a.whudname:hover { color: var(--honey-lite); }
+.whudsub { font-size: 12.5px; font-weight: 700; color: var(--honey-lite); }
+.whudbig { font-family: var(--serif); font-weight: 900; font-size: 26px; line-height: 1; color: var(--honey-lite); }
+.wcrowncell { border-color: rgba(244, 183, 64, .5); background: linear-gradient(180deg, rgba(244, 183, 64, .12), rgba(244, 183, 64, .04)); }
+.wfightcell .whudsub { color: var(--ember); }
+.wminecell { grid-column: 1 / -1; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 4px 10px; }
+.wminecell .whudk { flex: none; }
+.wpips { display: inline-flex; gap: 5px; }
+.wpips i { display: block; width: 17px; height: 19px; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: radial-gradient(circle at 35% 30%, var(--honey-lite), var(--honey) 70%); transition: transform .3s; }
+.wminecell .wcount { margin: 0; font-size: 13px; font-weight: 700; color: var(--cream-2); }
+.whud .wlede { margin: 10px 0 0; font-size: 13.5px; line-height: 1.4; color: var(--dim); }
+.wgoal { display: inline-block; margin-right: 6px; padding: 1px 7px; border-radius: 6px; font-size: 10.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--on-honey); background: var(--honey); vertical-align: 1px; }
+.whudnote { margin: 8px 0 0; font-size: 12px; color: var(--dimmer); }
+@media (max-width: 639px) {
+  .whud { padding: 10px 12px 11px; margin-bottom: 12px; }
+  .whudwhen { font-size: 12px; }
+  .whudgrid { gap: 6px; margin-top: 9px; }
+  .whudcell { padding: 7px 9px 8px; }
+  .wminecell { flex-wrap: nowrap; gap: 8px; }
+  .wminecell .wcount { font-size: 12.5px; }
+  .whudname { font-size: 14px; }
+  .whud .wlede { margin-top: 8px; font-size: 12.5px; }
+}
+@media (min-width: 640px) {
+  .whudgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .whuddone .whudgrid { grid-template-columns: 2fr 1fr; }
+  .wminecell { grid-column: auto; flex-direction: column; align-items: flex-start; }
+}
+/* What is under the board on the date page: the ways on in one row, and
+   the crown's history and the colour key folded small under it. */
+.wcrownlog { font-size: 13px; color: var(--dim); }
+.wcrownlog summary { cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--cream-2); list-style: none; }
+.wcrownlog summary::-webkit-details-marker { display: none; }
+.wcrownlog summary::after { content: "+"; color: var(--dimmer); font-weight: 800; }
+.wcrownlog[open] summary::after { content: "\\2212"; }
+.wcrownlog summary span { color: var(--dimmer); font-weight: 600; }
+.wcrownlog summary .wcrownmark { display: inline-block; width: 14px; height: 14px; color: var(--honey-lite); }
+.wcrownlog summary .wcrownmark svg { display: block; width: 100%; height: 100%; }
+.wcrownlog .wcrownlist { margin: 6px 0 0; }
+.wlegendsay { font-weight: 700; color: var(--dimmer); }
 /* The board is the live hive's board, September 22, 2026: dark honeycomb
    under dark cells with cream headlines and honey buttons. The date page
    used to draw the same stories as pale wax tiles with dark type, so the
@@ -2266,6 +2523,10 @@ export const WALL_STYLE = `
 @media (max-width: 760px) {
   .wall:not(.whive) .wboard { width: calc(100% + 40px); max-width: none; margin-left: -20px; margin-right: -20px; border-radius: 0; }
   .day .daybar { margin-left: -20px; margin-right: -20px; padding-left: 20px; padding-right: 20px; }
+  /* The full screen hive's column is padded 16 pixels, not 20, so the bar
+     bled four pixels past the screen and the page scrolled sideways on a
+     phone. Found in the October 18, 2026 audit. */
+  .hivepage .day .daybar { margin-left: -16px; margin-right: -16px; padding-left: 16px; padding-right: 16px; }
 }
 /* The empty board. A faint grid of the modules nothing has filled, the
    centre cleared for the words, so a hive that has not opened, or sealed
@@ -2641,7 +2902,8 @@ export const WALL_STYLE = `
 .wways a.wdo { background: linear-gradient(180deg, var(--honey-lite), var(--honey)); color: var(--on-honey); border-color: var(--honey); box-shadow: 0 0 14px rgba(244, 183, 64, .25); }
 .wways a.wdo:hover { filter: brightness(1.06); }
 .wways a.wview { background: transparent; border-color: var(--honey); }
-.wways.wwaysread { margin-top: 8px; gap: 4px 18px; }
+.wways.wwaysread { margin-top: 6px; gap: 2px 14px; }
+.wways.wwaysread a.wread { min-height: 32px; padding-top: 4px; padding-bottom: 4px; font-size: 14px; }
 .wways a.wread { background: transparent; border-color: transparent; padding-left: 6px; padding-right: 6px; font-weight: 600; color: var(--dim); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 4px; }
 .wways a.wread:hover { background: transparent; color: var(--honey-lite); text-decoration-color: var(--honey-lite); }
 .wunder { margin: 12px 0 0; font-size: 14px; }
