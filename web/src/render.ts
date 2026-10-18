@@ -714,6 +714,16 @@ h2.plain { font-family: var(--serif); font-weight: 800; font-size: clamp(22px, 5
   color: ${ACCENT}; font-size: 12.5px; font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
+/* How a story gets on the hive, October 18, 2026: the same cards as the
+   beats, joined down a honey line, each with when it happens. */
+.flowsay { margin: 8px 0 0; }
+.flow { list-style: none; margin: 18px 0 0; padding: 0 0 0 22px; position: relative; display: grid; gap: 12px; }
+.flow::before { content: ""; position: absolute; left: 7px; top: 14px; bottom: 14px; width: 2px; border-radius: 2px; background: linear-gradient(180deg, var(--honey), rgba(244, 183, 64, .15)); }
+.flow li { display: block; position: relative; background: var(--cell); border: 1px solid var(--line); border-radius: 16px; padding: 15px 18px 17px; }
+.flow li::before { content: ""; position: absolute; left: -21px; top: 19px; width: 12px; height: 13px; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: var(--honey); }
+.flowk { display: block; margin: 0 0 4px; font-size: 10.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: ${ACCENT}; }
+.flow h3 { margin: 0 0 6px; font-size: 17px; line-height: 1.3; }
+.flow p { margin: 0; color: var(--dim); font-size: 14.5px; line-height: 1.6; }
 .beats h3 { margin: 0 0 8px; font-size: 17px; line-height: 1.3; letter-spacing: -0.005em; }
 .beats p { margin: 0; color: var(--dim); font-size: 14.5px; line-height: 1.62; }
 

@@ -147,11 +147,11 @@ ${sampleHive()}
 <ol class="beats">
   <li>
     <h3>Open a date</h3>
-    <p>Today is the one that is live. Today's news lands on its board as it breaks. Pick between two brings up the rest of the date, what happened on it in history, who was born on it and what was number one, two at a time.</p>
+    <p>Today is the one that is live. Today's news lands on its board within the hour. Pick between two brings up the rest of the date, what happened on it in history, who was born on it and what was number one, two at a time.</p>
   </li>
   <li>
     <h3>Spend your three buzzes</h3>
-    <p><span class="bzz" aria-hidden="true"><i></i><i></i><i></i></span>You get three a day. Tap Buzz on the stories you think people will still care about. Each buzz makes that story's tile bigger. No score, no downvote, and no way to say a thing did not matter.</p>
+    <p><span class="bzz" aria-hidden="true"><i></i><i></i><i></i></span>You get three a day. Tap Buzz on the stories you think people will still care about. Each buzz makes that story's tile bigger. Nobody keeps a score of you, there is no downvote, and there is no way to say a thing did not matter.</p>
   </li>
   <li>
     <h3>Yesterday gets one more</h3>
@@ -169,11 +169,46 @@ ${sampleHive()}
 </section>
 
 <section class="col how">
+<h2 class="plain">How a story gets on the hive</h2>
+<p class="fine flowsay">Nobody writes the stories and nobody picks the winners. They come from two places, and buzzes decide the rest.</p>
+<ol class="flow">
+  <li>
+    <span class="flowk">Every hour</span>
+    <h3>The news lands</h3>
+    <p>Birthed reads the public feeds of news sites and files each new story under today. The same story from five outlets is one tile, with all five under it. Most headlines that are opinion, lists, reviews or shopping are left out.</p>
+  </li>
+  <li>
+    <span class="flowk">Already there</span>
+    <h3>The date's past waits in the pool</h3>
+    <p>What happened on the date in history, who was born on it and what was number one are all filed too, from Wikipedia and Wikidata. They wait off the board until somebody buzzes them. Pick between two shows them two at a time.</p>
+  </li>
+  <li>
+    <span class="flowk">You</span>
+    <h3>A buzz pulls a story up</h3>
+    <p>Before anybody buzzes, the day's news fills the board. After that, a tile's size is its share of the day's buzzes. One buzz beats any ranking, so a story from 1905 can push today's headline off. Your mark shows at once; the board redraws every hour.</p>
+  </li>
+  <li>
+    <span class="flowk">All day</span>
+    <h3>The crown changes hands</h3>
+    <p>The most buzzed story wears the crown. A tie does not take it, so the challenger needs one more buzz than the leader. The scoreboard over the board shows who is closest.</p>
+  </li>
+  <li>
+    <span class="flowk">Midnight Eastern</span>
+    <h3>It seals</h3>
+    <p>The night after the date, the board freezes as it stands, with the crown on whoever held it. That is the record, for good.</p>
+  </li>
+</ol>
+<p class="fine">A tile's colour is how well it is sourced, not whether it is true: <b>seen directly</b>, <b>reported</b> once two different owners' pages check out, or <b>claimed</b>. Tap any headline for its receipt: every source, the quotation and every check.</p>
+</section>
+
+<section class="col how">
 <h2 class="plain">The rules, short</h2>
 <ul class="rules">
   <li><b>3</b> buzzes a day</li>
   <li><b>1</b> buzz per story</li>
   <li><b>Bigger tile</b> means more buzzes</li>
+  <li><b>Most buzzed</b> wears the crown</li>
+  <li><b>Midnight Eastern</b> seals it for good</li>
   <li><b>Every tile</b> links to its source</li>
   <li><b>No</b> sign up, no ads, nothing to buy</li>
 </ul>
@@ -491,7 +526,13 @@ ${siteBar()}
 <p>They are not. Your buzzes stay on their hives and still count. What your browser forgets, if its cookies are cleared, is which ones were yours, so your marks and the list at <a href="/yours/">birthed.app/yours</a> start empty again. There is no account to sign in to and get them back.</p>
 
 <h3>Where do the stories come from?</h3>
-<p>From the source, in the source's own words. History comes from Wikipedia's date pages, people from Wikidata, songs from the Billboard Hot 100 as compiled by Wikipedia, and the day's news from the public feeds of news sites. Tap any headline to see its receipt: every source, the quotation, and every check run on it.</p>
+<p>From the source, in the source's own words. History comes from Wikipedia's date pages, people from Wikidata, songs from the Billboard Hot 100 as compiled by Wikipedia, and the day's news from the public feeds of news sites, read every hour. Tap any headline to see its receipt: every source, the quotation, and every check run on it.</p>
+
+<h3>How does a story get on the board?</h3>
+<p>Before anybody buzzes, the day's news fills it. The date's history and people wait off the board until somebody buzzes one, which you can do from Pick between two. After that, every tile's size is its share of the day's buzzes, so a story can grow, shrink, or lose its place to one people buzzed more. The board redraws every hour. The <a href="/about/">About page</a> walks through it.</p>
+
+<h3>What are the crown and the title fight?</h3>
+<p>The crown is on the most buzzed story. A tie does not move it, so the story in second needs one more buzz than the leader to take it. The title fight on the scoreboard names that story and how many buzzes it needs. When the hive seals, whoever holds the crown keeps it.</p>
 
 <h3>I told the website my birthday before. Is it still kept?</h3>
 <p>Not any more. Until October 18, 2026 the website could keep your birthday in a cookie in your browser to draw your own page. Nothing reads that cookie now. To clear it from this browser straight away, press this button.</p>

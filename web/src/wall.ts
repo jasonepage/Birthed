@@ -1880,7 +1880,7 @@ function wallBody(day: WallDay | null, name: string, now: number, options: WallO
       ? `<b>Opens at midnight Eastern</b><span>That is ${hoursUntil(day.liveAt, now)} from now. What people ${voice.past} lands here.</span>`
       : closed
         ? `<b>Nothing reached the hive</b><span>Nothing reached the hive before it sealed.</span>`
-        : `<b>Nothing on the hive yet</b><span>The day's news lands here as it breaks. Pick between two to bring something else up.</span>`}</p>`
+        : `<b>Nothing on the hive yet</b><span>The day's news lands here within the hour. Pick between two to bring something else up.</span>`}</p>`
     : "";
   const hindsight = closed ? hindsightLine(day) : null;
   const board = `<div class="wboard${onWall.length === 0 ? " wblank" : ""}${closed ? " wsealed" : ""}" role="list" aria-label="The hive, ${onWall.length} stories" style="--side:${view.side}">
