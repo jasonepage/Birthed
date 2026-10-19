@@ -38,6 +38,7 @@ import { shareBlock } from "./share-button.js";
 import { beeSvg } from "./mascot.js";
 import { boostFrom, crownLine, crownMark, crownOf, crownSaid, noCrownYet, type Crown, type WallBoost } from "./crown.js";
 import { REFILLS_ON, arrivedBy, nextRefillWords } from "./refills.js";
+import { TRIAL_WORDS, buriedOf, crownWithBurials, trialsAt, type TrialState } from "./trial.js";
 import { decadeLine, decadeOf, decadeStanding } from "./decades.js";
 import { suggestionName } from "./suggest.js";
 import { coverPath, songsFrom, type SongInfo } from "./song-prompt.js";
@@ -132,6 +133,18 @@ function outcomeFrom(o: Omit<OutcomeRow, "story_id">): WallOutcome {
   return { anniversary: o.anniversary, outcome: o.outcome, note: o.note, recordedAt: o.recorded_at };
 }
 
+/** One sting, as the website's role may read it: never the caller. */
+export interface WallSting { id: number; storyId: string; castAt: string }
+
+/** A sting row from the database, or null for anything not shaped like one. */
+export function stingFrom(row: unknown): WallSting | null {
+  if (typeof row !== "object" || row === null) return null;
+  const r = row as Record<string, unknown>;
+  const id = Number(r.id);
+  if (!Number.isFinite(id) || typeof r.story_id !== "string" || typeof r.cast_at !== "string" || Number.isNaN(Date.parse(r.cast_at))) return null;
+  return { id, storyId: r.story_id, castAt: r.cast_at };
+}
+
 export interface WallDay {
   wallDate: string;
   year: number;
@@ -149,6 +162,13 @@ export interface WallDay {
    * day built by a fixture that predates the crown; treated as none.
    */
   boosts?: WallBoost[];
+  /**
+   * The day's sting rows, October 19, 2026, without the caller. Trials,
+   * burials and immunity are replayed from these and the buzz rows
+   * (trial.ts). Absent or empty before the sting migration, which is a hive
+   * where nothing was ever stung.
+   */
+  stings?: WallSting[];
   /**
    * The songs the day's answers name, by Apple track number, from
    * wall_songs. docs/the-wall.md section 31. Absent on a day built by a
@@ -266,6 +286,21 @@ export async function fetchWall(url: string, key: string): Promise<WallDay[]> {
       boosts = await rows<unknown>(url, key, "wall_boosts?select=id,story_id,wall_date,units,cast_at&order=cast_at.asc,id.asc");
     }
   }
+  // The stings, October 19, 2026. Before the sting migration the table is
+  // not there and the read is refused, which is a calendar nobody stung.
+  let stingRows: unknown[] = [];
+  try {
+    stingRows = await rows<unknown>(url, key, "wall_stings?select=id,story_id,wall_date,cast_at&order=cast_at.asc,id.asc");
+  } catch {
+    stingRows = [];
+  }
+  const stingsByDate = new Map<string, WallSting[]>();
+  for (const raw of stingRows) {
+    const st = stingFrom(raw);
+    const wallDate = (raw as { wall_date?: unknown }).wall_date;
+    if (st === null || typeof wallDate !== "string") continue;
+    stingsByDate.set(wallDate, [...(stingsByDate.get(wallDate) ?? []), st]);
+  }
   const songs = answers
     ? songsFrom(await rows<unknown>(url, key, "wall_songs?select=track_id,title,artist,album,released,explicit,artwork_url&order=track_id.asc"))
     : new Map<string, SongInfo>();
@@ -322,6 +357,7 @@ export async function fetchWall(url: string, key: string): Promise<WallDay[]> {
     opensAt: d.opens_at, liveAt: d.live_at, closesAt: d.closes_at, closedAt: d.closed_at,
     stories: storiesByDate.get(d.wall_date) ?? [],
     boosts: boostsByDate.get(d.wall_date) ?? [],
+    stings: stingsByDate.get(d.wall_date) ?? [],
     songs, answers, suggestions,
   }));
 }
@@ -546,6 +582,22 @@ export async function fetchWallDay(url: string, key: string, wallDate: string, t
     const boostRows = (await boostsResponse.json()) as unknown;
     const boosts = Array.isArray(boostRows) ? boostRows.map(boostFrom).filter((b): b is WallBoost => b !== null) : [];
 
+    // The day's stings, October 19, 2026. A read that fails, which before
+    // the sting migration it does, is a hive nobody stung.
+    let stings: WallSting[] = [];
+    try {
+      const stingsResponse = await fetch(
+        `${url}/rest/v1/wall_stings?select=id,story_id,cast_at&wall_date=eq.${wallDate}&order=cast_at.asc,id.asc`,
+        { headers, signal: controller.signal },
+      );
+      if (stingsResponse.ok) {
+        const raw = (await stingsResponse.json()) as unknown;
+        stings = Array.isArray(raw) ? raw.map(stingFrom).filter((x): x is WallSting => x !== null) : [];
+      }
+    } catch {
+      stings = [];
+    }
+
     // The songs the day's answers name. One small read, only when there are
     // any, and a read that fails costs the covers and the album names and
     // nothing else: the board falls back to the headline.
@@ -566,7 +618,7 @@ export async function fetchWallDay(url: string, key: string, wallDate: string, t
     return {
       wallDate: d.wall_date, ...parts(d.wall_date),
       opensAt: d.opens_at, liveAt: d.live_at, closesAt: d.closes_at, closedAt: d.closed_at,
-      boosts, songs, answers, suggestions,
+      boosts, stings, songs, answers, suggestions,
       stories: stories.map((s) => storyFrom(s, (s.wall_sources ?? []).map((src) => ({
         id: src.id, url: src.url, outlet: src.outlet, owner: src.owner, headline: src.headline, quotation: src.quotation,
         verifiedAt: src.verified_at, addedAt: src.added_at,
@@ -982,6 +1034,22 @@ function buzzForm(story: WallStory, voice: Voice, back: TapBack = "day"): string
 }
 
 /**
+ * The other verb, October 19, 2026: one sting, posted to the same /boost
+ * with k=sting. Small and dark beside the honey Buzz, so the page still
+ * leans toward building up rather than tearing down.
+ */
+function stingForm(story: WallStory, back: TapBack = "day"): string {
+  return `<form class="wsting" method="post" action="/boost">${tapFields(story, back)}<input type="hidden" name="k" value="sting">`
+    + `<button type="submit" title="Sting it: this one does not matter" aria-label="${escapeHtml(`Sting: ${story.headline}`)}">Sting</button></form>`;
+}
+
+/** Taking a sting back, inside its thirty seconds. */
+function unstingForm(story: WallStory, back: TapBack = "day"): string {
+  return `<form class="wundo" method="post" action="/unboost">${tapFields(story, back)}<input type="hidden" name="k" value="sting">`
+    + `<button type="submit" aria-label="${escapeHtml(`Undo that sting: ${story.headline}`)}">Undo</button></form>`;
+}
+
+/**
  * The one control that takes a buzz back: the same shape as the buzz form,
  * posting to /unboost, carrying the same three fields plus where to come
  * back to.
@@ -1040,13 +1108,15 @@ export function kindMark(kind: TileKind): string {
   return `<span class="wkind wk-${kind}" title="${KIND_WORD[kind]}"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${KIND_MARK[kind]}</svg><span class="sr">${KIND_WORD[kind]}.</span></span>`;
 }
 
-function footer(story: WallStory, live: boolean, voice: Voice, hive: boolean): string {
+function footer(story: WallStory, live: boolean, voice: Voice, hive: boolean, trial: TrialState | null = null): string {
   const count = units(story.support, voice);
+  // The sting sits after the buzz, on a story that can still be stung.
+  const sting = live && !hive && trial?.phase !== "buried" ? stingForm(story, "day") : "";
   // The control first, then the count it changes, then the outlet, cut with
   // an ellipsis when the tile is narrow. No tier chip: the tile's colour is
   // its tier, the legend says so, and a chip beside the outlet was what
   // pushed a phone tile down to one line of headline.
-  return `<span class="wfoot">${kindMark(tileKind(story))}${live ? buzzForm(story, voice, hive ? "hive" : "day") : ""}${count === "" ? "" : `<span class="wn">${count}</span>`}<span class="wo">${escapeHtml(story.outlet)}</span></span>`;
+  return `<span class="wfoot">${kindMark(tileKind(story))}${live ? buzzForm(story, voice, hive ? "hive" : "day") : ""}${sting}${count === "" ? "" : `<span class="wn">${count}</span>`}<span class="wo">${escapeHtml(story.outlet)}</span></span>`;
 }
 
 /**
@@ -1138,7 +1208,22 @@ export function hindsightLine(day: Pick<WallDay, "stories">): string | null {
   return `${YEARS_ON[latest] ?? `${latest} years on`}: ${partsOut.join(", ")}.`;
 }
 
-function tile(story: WallStory, live: boolean, voice: Voice, view: Viewport, hive: boolean, index: number = 0, crowned: boolean = false): string {
+/**
+ * The trial on a tile, October 19, 2026: the words, the score both sides
+ * can see, and the minutes to the verdict. Nothing for a story with no
+ * trial; a small mark for one that just survived.
+ */
+export function trialBar(trial: TrialState | null, now: number): string {
+  if (trial === null) return "";
+  if (trial.phase === "immune") return `<span class="wimmunebar" title="${TRIAL_WORDS.immune}. Stings bounce off it for now.">Survived a trial</span>`;
+  if (trial.phase !== "trial" || trial.endsAt === null) return "";
+  const minutes = Math.max(1, Math.ceil((Date.parse(trial.endsAt) - now) / 60_000));
+  return `<span class="wtrialbar" role="status"><b>${TRIAL_WORDS.trial}</b>`
+    + `<span class="wtrialscore"><span class="wtb">Buzz ${trial.buzzes}</span> <span class="wts">Sting ${trial.stings}</span></span>`
+    + `<span class="wtrialclock">Verdict in ${minutes} min</span></span>`;
+}
+
+function tile(story: WallStory, live: boolean, voice: Voice, view: Viewport, hive: boolean, index: number = 0, crowned: boolean = false, trial: TrialState | null = null, now: number = Date.now()): string {
   const rect = story.rect!;
   const size = tileClass(rect);
   const count = units(story.support, voice);
@@ -1169,9 +1254,11 @@ function tile(story: WallStory, live: boolean, voice: Voice, view: Viewport, hiv
   // section 18, a tile can be a quarter of the board or the whole of it,
   // and a headline set for a four module tile leaves a sixteen module one
   // three quarters empty. The stylesheet grows the type with the width.
-  const style = `grid-column:${rect.mx - view.ox + 1} / span ${rect.w};grid-row:${rect.my - view.oy + 1} / span ${rect.h};--lines:${lines};--fit:${fit};--tw:${rect.w};--i:${index}`;
+  // The trial bar takes about two lines of the headline's room.
+  const room = trial?.phase === "trial" ? Math.max(1, lines - 2) : trial?.phase === "immune" ? Math.max(1, lines - 1) : lines;
+  const style = `grid-column:${rect.mx - view.ox + 1} / span ${rect.w};grid-row:${rect.my - view.oy + 1} / span ${rect.h};--lines:${room};--fit:${fit};--tw:${rect.w};--i:${index}`;
   const stamp = outcomeStamp(story);
-  const classes = `wtile ${size} w-${story.tier}${rect.h <= 3 ? " wh3" : ""}${story.status === "false" ? " wfalse" : ""}${crowned ? " wcrowned" : ""}${poster ? ` wposter wp-${kind}` : ""}`;
+  const classes = `wtile ${size} w-${story.tier}${rect.h <= 3 ? " wh3" : ""}${story.status === "false" ? " wfalse" : ""}${crowned ? " wcrowned" : ""}${poster ? ` wposter wp-${kind}` : ""}${trial?.phase === "trial" ? " wtrial" : ""}${trial?.phase === "immune" ? " wimmune" : ""}`;
   // The tile's decade, docs/the-wall.md section 30, so a stylesheet can
   // find a team's tiles. Absent when the headline carries no year.
   const decade = decadeOf(story);
@@ -1198,7 +1285,8 @@ function tile(story: WallStory, live: boolean, voice: Voice, view: Viewport, hiv
     const inner = `<span class="wh wsh">${escapeHtml(story.headline)}</span>`
       + `<span class="wyr">${escapeHtml(year ?? story.outlet)}</span>`
       + (count === "" ? "" : `<span class="wn">${count}</span>`);
-    return `<a class="${classes}${year === null ? " wnoyr" : ""}" id="w-${story.id}" href="${receipt}" style="${style}"${subjectAttr(story)}${team} title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${inner}${stamp}${crown}</a>`;
+    const small = trial?.phase === "trial" ? `<span class="wtrialtag" title="${TRIAL_WORDS.trial}: buzz ${trial.buzzes}, sting ${trial.stings}">Trial</span>` : "";
+    return `<a class="${classes}${year === null ? " wnoyr" : ""}" id="w-${story.id}" href="${receipt}" style="${style}"${subjectAttr(story)}${team} title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${inner}${small}${stamp}${crown}</a>`;
   }
 
   const takes = live && story.status !== "false";
@@ -1206,7 +1294,7 @@ function tile(story: WallStory, live: boolean, voice: Voice, view: Viewport, hiv
   const glyph = poster ? `<span class="wglyph" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round">${KIND_MARK[kind]}</svg></span>` : "";
   return `<div class="${classes}" id="w-${story.id}" style="${style}"${subjectAttr(story)}${team} role="listitem">`
     + `${glyph}<span class="wtop">${kicker}<a class="wh" href="${receipt}" title="${escapeHtml(label)} The receipt: every source, every quotation, every check.">${escapeHtml(story.headline)}</a></span>`
-    + `${mine(voice)}${footer(story, takes, voice, hive)}${stamp}${crown}</div>`;
+    + `${trialBar(trial, now)}${mine(voice)}<span class="wstungmark">You stung this</span>${footer(story, takes, voice, hive, trial)}${stamp}${crown}</div>`;
 }
 
 /**
@@ -1348,6 +1436,8 @@ export interface WallOptions {
    * reaches a server. docs/the-wall.md, the last entry in section 16.
    */
   undo?: WallStory | null;
+  /** The story a sting just landed on, for its thirty second Undo. October 19, 2026. */
+  stingUndo?: WallStory | null;
   /**
    * What this browser backed on this same day in earlier years, newest
    * first. docs/the-wall.md section 15.
@@ -1581,7 +1671,7 @@ function countLine(day: WallDay, now: number, voice: Voice, live: boolean = true
  * included, because a tap can be refused on a date that closed after the
  * page was served, and that reader lands on the baked page.
  */
-export function afterwords(voice: Voice, name: string, undo: WallStory | null = null, back: TapBack = "day", live: boolean = false, took: string | null = null): string {
+export function afterwords(voice: Voice, name: string, undo: WallStory | null = null, back: TapBack = "day", live: boolean = false, took: string | null = null, stingUndo: WallStory | null = null): string {
   const v = voice;
   // The crown, when the buzz that just counted took it. Jason's call,
   // September 23, 2026: the list under the board says it two lines down,
@@ -1621,6 +1711,13 @@ export function afterwords(voice: Voice, name: string, undo: WallStory | null = 
 <p class="wsaid" id="wmiss">Nothing filed for ${escapeHtml(name)} says that. Nothing was spent. On today's hive you can suggest it: search for it in the box under the board.</p>
 <p class="wsaid" id="wblank">Those words are too common to search on. Try a name, a place or what happened. Nothing was spent.</p>
 <p class="wsaid" id="wnofind">The hive could not be searched just now: either it has sealed, or this end could not reach it. Nothing was spent. Try it again.</p>
+<div class="wsaid wsaidsting" id="wstung"><p>Stung. That was your one sting today. Three stings put a story on trial, and the hive decides at the next redraw.</p>${stingUndo === null ? "" : `<div class="wundoline">${unstingForm(stingUndo, back)}<span class="wundonote">Thirty seconds, for a sting you did not mean.</span></div>`}</div>
+<p class="wsaid" id="walreadystung">You already stung that one, on this browser. Nothing was spent.</p>
+<p class="wsaid" id="wsided">You ${v.past} that one. A story gets your ${v.one} or your sting, never both. Pick a side.</p>
+<p class="wsaid" id="wstingspent">That is your one sting for today. It comes back tomorrow.</p>
+<p class="wsaid" id="wimmune">${TRIAL_WORDS.immune}. Stings bounce off it for six hours. Nothing was spent.</p>
+<p class="wsaid" id="wburied">${TRIAL_WORDS.buried}. Nothing moves it now, and nothing was spent.</p>
+<p class="wsaid" id="wunstung">Sting taken back. You have it again.</p>
 </div>`;
 }
 
@@ -1748,8 +1845,31 @@ export function sealedLine(day: Pick<WallDay, "closesAt" | "closedAt">, onWall: 
  * The crown as it stands on this day, from the buzz rows and the stories.
  * docs/the-wall.md section 30. A day with no rows read has no crown.
  */
-export function crownFor(day: Pick<WallDay, "stories" | "boosts">): Crown {
-  return crownOf(day.boosts ?? [], day.stories);
+export function crownFor(day: Pick<WallDay, "stories" | "boosts"> & Partial<Pick<WallDay, "stings" | "closesAt" | "closedAt">>, now: number = Date.now()): Crown {
+  // With no sting on the day, exactly the crown it always was.
+  if ((day.stings ?? []).length === 0 || day.closesAt === undefined) return crownOf(day.boosts ?? [], day.stories);
+  // A story the hive buries loses the crown at the moment it is buried,
+  // October 19, 2026. trial.ts says how.
+  const states = trialsFor({ stories: day.stories, boosts: day.boosts, stings: day.stings, closesAt: day.closesAt, closedAt: day.closedAt ?? null }, now);
+  const burials = new Map<string, string>();
+  for (const [id, st] of states) if (st.phase === "buried" && st.buriedAt !== null) burials.set(id, st.buriedAt);
+  const eligible = new Set(day.stories.filter((x) => x.status !== "false").map((x) => x.id));
+  const replay = crownWithBurials((day.boosts ?? []).map((b) => ({ storyId: b.storyId, at: b.castAt, units: b.units })), eligible, burials);
+  return { holder: replay.holder, count: replay.count, changes: replay.changes };
+}
+
+/**
+ * Every story's trial on a day at an instant, October 19, 2026: clear, on
+ * trial, immune or buried, with its buzzes and its stings. A replay of the
+ * rows (trial.ts), so the same at any time for any reader.
+ */
+export function trialsFor(day: Pick<WallDay, "stories" | "boosts" | "stings" | "closesAt" | "closedAt">, now: number = Date.now()): Map<string, TrialState> {
+  return trialsAt(
+    (day.boosts ?? []).map((b) => ({ storyId: b.storyId, at: b.castAt, units: b.units })),
+    (day.stings ?? []).map((x) => ({ storyId: x.storyId, at: x.castAt })),
+    now,
+    day.closedAt ?? day.closesAt,
+  );
 }
 
 /**
@@ -2022,7 +2142,7 @@ export function scoreboard(day: WallDay, now: number, onWall: WallStory[], crown
 
   const allowance = allowanceOn(day, now);
   const mine = interactive
-    ? cell("Your buzzes", `<span class="wpips" aria-hidden="true">${"<i></i>".repeat(allowance)}</span><p class="wcount"><span class="wleft"></span></p><style>.wleft::after{content:"${tapsLeftSentence(freshLeft(day, now), allowance, voice, nextRefillWords(now, day.wallDate, allowance))}"}${pipRule(freshLeft(day, now))}</style>`, " wminecell")
+    ? cell("Your buzzes", `<span class="wpips" aria-hidden="true">${"<i></i>".repeat(allowance)}</span><p class="wcount"><span class="wleft"></span> <span class="wstingleft"></span></p><style>.wstingleft::after{content:"One sting left today."}.wleft::after{content:"${tapsLeftSentence(freshLeft(day, now), allowance, voice, nextRefillWords(now, day.wallDate, allowance))}"}${pipRule(freshLeft(day, now))}</style>`, " wminecell")
     : "";
   const crowned = crown.holder === null
     ? cell(`${crownIcon()} The crown`, `<span class="whudname">Up for grabs</span><span class="whudsub">The first ${voice.one} takes it</span>`, " wcrowncell")
@@ -2067,12 +2187,16 @@ function wallBody(day: WallDay | null, name: string, now: number, options: WallO
   const live = options.interactive === true && takingBoosts(day, now);
   const hive = options.hive === true;
   const voice = voiceOf(day);
-  const onWall = day.stories.filter((s) => s.rect !== null && (s.status === "placed" || s.status === "false"));
+  // The trials, October 19, 2026. A buried story leaves the board for the
+  // graveyard under it, whatever rectangle it was last given.
+  const trials = trialsFor(day, now);
+  const onWall = day.stories.filter((s) => s.rect !== null && (s.status === "placed" || s.status === "false") && trials.get(s.id)?.phase !== "buried");
   const view = viewportFor(onWall.map((s) => s.rect!));
-  const crown = crownFor(day);
+  const crown = crownFor(day, now);
   // The crown sentence for the buzz that just counted, if it took it.
   const took = options.undo === undefined || options.undo === null ? null : crownTook(day, options.undo.id, now);
-  const tiles = onWall.map((s, index) => tile(s, live, voice, view, hive, index, s.id === crown.holder)).join("\n");
+  const tiles = onWall.map((s, index) => tile(s, live, voice, view, hive, index, s.id === crown.holder, trials.get(s.id) ?? null, now)).join("\n");
+  const grave = graveyard(day, trials, voice);
   const notYet = now < Date.parse(day.liveAt);
   const closed = !takingBoosts(day, now) && !notYet;
   const { month, day: d } = parts(day.wallDate);
@@ -2091,7 +2215,7 @@ function wallBody(day: WallDay | null, name: string, now: number, options: WallO
   const board = `<div class="wboard${onWall.length === 0 ? " wblank" : ""}${closed ? " wsealed" : ""}" role="list" aria-label="The hive, ${onWall.length} stories" style="--side:${view.side}">
 ${tiles}${empty}
 </div>${hindsight === null ? "" : `
-<p class="whindsight">${escapeHtml(hindsight)} <span class="whindsightsay">The board is as it sealed. The marks are what happened since.</span></p>`}`;
+<p class="whindsight">${escapeHtml(hindsight)} <span class="whindsightsay">The board is as it sealed. The marks are what happened since.</span></p>`}${grave === "" ? "" : `\n${grave}`}`;
 
   const full = onWall.length > 0 && !hive
     ? `<a class="wfull wview" href="${hivePath(month, d)}">Open the hive full screen</a>`
@@ -2109,7 +2233,7 @@ ${tiles}${empty}
     // on October 5, 2026: one scoreboard there is the crown. Section 32.
     return `<section class="wall whive" aria-labelledby="wallhead">
 <h2 class="section" id="wallhead">${escapeHtml(longDate(day))}</h2>
-${countLine(day, now, voice, live)}${afterwords(voice, name, options.undo ?? null, "hive", false, took)}
+${countLine(day, now, voice, live)}${afterwords(voice, name, options.undo ?? null, "hive", false, took, options.stingUndo ?? null)}
 ${board}
 ${decadesBlock(day, name, voice, now)}
 ${crownBlock(day, crown, voice, now)}${closed ? `
@@ -2139,7 +2263,7 @@ ${yoursLine(options.yours, voice)}
   return `<section class="wall" aria-labelledby="wallhead">
 <p class="whead">${beeSvg()}<span class="section" id="wallhead">The hive for ${escapeHtml(longDate(day))}</span></p>
 ${scoreboard(day, now, onWall, crown, voice, options.interactive === true)}
-${afterwords(voice, name, options.undo ?? null, "day", false, took)}
+${afterwords(voice, name, options.undo ?? null, "day", false, took, options.stingUndo ?? null)}
 ${board}
 ${ways}${small}
 </section>
@@ -2165,8 +2289,18 @@ ${anniversaryBlock(options.anniversary ?? [], day, voice)}`;
  * one reader's alone. The identifiers come out of our own database and are
  * used inside a selector, so anything not shaped like a uuid is dropped.
  */
-export function wallMarks(standing: { left: number; allowance: number; backed: string[] }, day: WallDay, now: number): string {
+export function wallMarks(standing: { left: number; allowance: number; backed: string[]; stingsLeft?: number; stung?: string | null }, day: WallDay, now: number): string {
   const rules: string[] = [];
+  // The sting, October 19, 2026: how many this browser has left, and its
+  // mark on the story it stung. Generated text and an identifier, nothing
+  // of a source's.
+  if (takingBoosts(day, now) && typeof standing.stingsLeft === "number") {
+    rules.push(`.wstingleft::after{content:"${standing.stingsLeft > 0 ? "One sting left today." : "Sting used today."}"}`);
+    if (standing.stingsLeft <= 0) rules.push(`.wsting button{opacity:.35}`);
+  }
+  if (typeof standing.stung === "string" && /^[0-9a-f-]{36}$/.test(standing.stung)) {
+    rules.push(`#w-${standing.stung} .wstungmark{display:block}#w-${standing.stung}{outline:3px solid #8E8E8E;outline-offset:-3px}`);
+  }
   if (takingBoosts(day, now)) {
     const sentence = tapsLeftSentence(standing.left, standing.allowance, voiceOf(day), nextRefillWords(now, day.wallDate, standing.allowance));
     rules.push(`.wleft::after{content:"${sentence}"}`, pipRule(standing.left));
@@ -2334,6 +2468,8 @@ export interface ReceiptOptions {
    * stored-pictures.ts. The tile shows the picture without a word; the
    * receipt is where the words go, the way the sources are.
    */
+  /** The story a sting just landed on, for its Undo. October 19, 2026. */
+  stingUndo?: WallStory | null;
   credit?: { credit: string; commonsUrl: string | null; licenseUrl: string | null; path?: string } | null;
 }
 
@@ -2360,17 +2496,25 @@ export function storySummary(story: Pick<WallStory, "headline" | "sources">): { 
  * Where a story stands in the game, one line: the crown, the distance to
  * it, its place on the board, or what one buzz would do for it.
  */
-export function standingLine(story: WallStory, day: WallDay, voice: Voice = BEE): string {
+export function standingLine(story: WallStory, day: WallDay, voice: Voice = BEE, now: number = Date.now()): string {
   if (story.status === "false") return "Shown false. It keeps its place and takes no buzzes.";
-  const crown = crownFor(day);
+  // The trial comes first: it is the most urgent thing about a story.
+  const trial = trialsFor(day, now).get(story.id) ?? null;
+  if (trial?.phase === "buried") return `${TRIAL_WORDS.buried}: ${trial.stings === 1 ? "1 sting" : `${trial.stings} stings`} to ${units(trial.buzzes, voice) || `no ${voice.many}`}. It lies in the graveyard under the board.`;
+  if (trial?.phase === "trial" && trial.endsAt !== null) {
+    const minutes = Math.max(1, Math.ceil((Date.parse(trial.endsAt) - now) / 60_000));
+    return `${TRIAL_WORDS.trial}. ${voice.button} ${trial.buzzes}, sting ${trial.stings}. Verdict in ${minutes} min: more stings than ${voice.many} buries it.`;
+  }
+  const immune = trial?.phase === "immune" ? ` ${TRIAL_WORDS.immune}.` : "";
+  const crown = crownFor(day, now);
   const onWall = day.stories.filter((s) => s.rect !== null && (s.status === "placed" || s.status === "false"));
   const ranked = [...onWall].sort((a, b) => b.support - a.support || (b.rect!.w * b.rect!.h) - (a.rect!.w * a.rect!.h));
   const place = ranked.findIndex((s) => s.id === story.id);
   const where = place >= 0 ? `Number ${place + 1} of ${ranked.length} on the board.` : `Off the board. One ${voice.one} puts it on at the next redraw.`;
-  if (crown.holder === story.id) return `Wears the crown with ${units(crown.count, voice)}. ${where}`;
-  if (crown.holder === null) return `The first ${voice.one} on this hive takes the crown. ${where}`;
+  if (crown.holder === story.id) return `Wears the crown with ${units(crown.count, voice)}. ${where}${immune}`;
+  if (crown.holder === null) return `The first ${voice.one} on this hive takes the crown. ${where}${immune}`;
   const need = Math.max(1, crown.count - Math.max(0, story.support) + 1);
-  return `${units(need, voice)} from the crown. ${where}`;
+  return `${units(need, voice)} from the crown. ${where}${immune}`;
 }
 
 function creditBlock(credit: ReceiptOptions["credit"]): string {
@@ -2413,11 +2557,11 @@ export function storyBody(story: WallStory, day: WallDay, now: number = Date.now
   const pips = live ? `<span class="wpips" aria-hidden="true">${"<i></i>".repeat(allowance)}</span>` : "";
   const play = `<div class="wplay${story.id === crownFor(day).holder ? " wplaycrown" : ""}">
 <div class="wplayscore"><span class="wplaybig">${Math.max(0, story.support)}</span><span class="wplaysay">${story.support === 1 ? voice.one : voice.many}</span></div>
-<div class="wplaymid"><p class="wplayline">${escapeHtml(standingLine(story, day, voice))}</p>${live ? `<div class="wplayrow">${pips}<span class="wcount"><span class="wleft"></span></span></div>` : `<p class="wplayline wplaydim">${takingBoosts(day, now) ? "Open the date to buzz." : "This hive has sealed."}</p>`}</div>
-${live ? `<div class="wfacts wreceiptbuzz" id="w-${story.id}">${buzzForm(story, voice, "receipt")}${mine(voice)}</div>` : `<p class="wfacts" id="w-${story.id}">${mine(voice)}</p>`}
+<div class="wplaymid"><p class="wplayline">${escapeHtml(standingLine(story, day, voice, now))}</p>${live ? `<div class="wplayrow">${pips}<span class="wcount"><span class="wleft"></span></span></div>` : `<p class="wplayline wplaydim">${takingBoosts(day, now) ? "Open the date to buzz." : "This hive has sealed."}</p>`}</div>
+${live ? `<div class="wfacts wreceiptbuzz" id="w-${story.id}">${trialsFor(day, now).get(story.id)?.phase === "buried" ? "" : `${buzzForm(story, voice, "receipt")}${stingForm(story, "receipt")}`}${mine(voice)}<span class="wstungmark">You stung this</span></div>` : `<p class="wfacts" id="w-${story.id}">${mine(voice)}</p>`}
 </div>${live ? `
 <style>.wleft::after{content:"${tapsLeftSentence(freshLeft(day, now), allowance, voice, nextRefillWords(now, day.wallDate, allowance))}"}${pipRule(freshLeft(day, now))}</style>
-${afterwords(voice, `${monthName(month)} ${d}`, options.undo ?? null, "receipt")}` : ""}`;
+${afterwords(voice, `${monthName(month)} ${d}`, options.undo ?? null, "receipt", false, null, options.stingUndo ?? null)}` : ""}`;
   return `<p class="wback"><a href="/${slug(month, d)}/">&larr; ${escapeHtml(monthName(month))} ${d}</a> &middot; the hive for ${escapeHtml(longDate(day))}</p>
 ${picture}
 <p class="wkick wstorykick">${KIND_WORD[kind]}${outlets.length > 1 ? ` &middot; ${outlets.length} outlets` : ""}</p>
@@ -2465,6 +2609,29 @@ export function pickSurprise(stories: ReadonlyArray<Pick<WallStory, "id" | "stat
 
 /** A die, the mark on Surprise me. */
 const DIE = `<svg class="wdie" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="4.6"/><circle cx="8.4" cy="8.4" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="15.6" cy="15.6" r="1.4" fill="currentColor" stroke="none"/></svg>`;
+
+/**
+ * The graveyard, October 19, 2026: every story the hive buried that day,
+ * small and gray under the board, with the score that buried it. Part of
+ * the sealed record: a sealed hive draws it from the same rows forever.
+ */
+export function graveyard(day: WallDay, trials: ReadonlyMap<string, TrialState>, voice: Voice = BEE): string {
+  const ids = buriedOf(trials);
+  if (ids.length === 0) return "";
+  const byId = new Map(day.stories.map((x) => [x.id, x]));
+  const rows = ids.flatMap((id) => {
+    const story = byId.get(id);
+    const t = trials.get(id)!;
+    if (story === undefined) return [];
+    return [`<li id="w-${story.id}"><a href="${storyPath(story)}">${escapeHtml(story.headline)}</a><span class="wgravescore">${t.stings === 1 ? "1 sting" : `${t.stings} stings`} to ${units(t.buzzes, voice) || `no ${voice.many}`}</span></li>`];
+  });
+  return `<div class="wgrave" aria-labelledby="wgravehead">
+<p class="wgravehead" id="wgravehead">${TRIAL_WORDS.buried} <span>${rows.length}</span></p>
+<ul class="wgravelist">
+${rows.join("\n")}
+</ul>
+</div>`;
+}
 
 /**
  * The rest of the same hive, under a receipt. Hana's walkthrough, September
@@ -2972,6 +3139,53 @@ a.whudname:hover { color: var(--honey-lite); }
 .wbuzz button:disabled { background: #35291A; color: var(--dimmer); cursor: default; filter: none; }
 .wbuzz button:hover { filter: brightness(1.15); }
 .wbuzz button:focus-visible { outline: 2px solid var(--wink, var(--on-honey)); outline-offset: 2px; }
+/* The sting, October 19, 2026. The other verb, dark beside the honey one. */
+.wsting { display: inline; margin: 0; flex: none; }
+.wsting button {
+  margin: 0; padding: 1px 7px; border: 1px solid rgba(255, 243, 224, .28); border-radius: 999px; cursor: pointer;
+  background: #241D17; color: #D9CFC2; font: inherit; font-weight: 800; line-height: 1.3;
+}
+.wsting button:hover { background: #3A2E25; border-color: #B9AC9C; }
+.wsting button:focus-visible { outline: 2px solid var(--wink, var(--on-honey)); outline-offset: 2px; }
+.wplay .wsting button { font-size: 15px; padding: 10px 18px; }
+.wplay .wreceiptbuzz { flex-direction: row; flex-wrap: wrap; justify-content: center; }
+.wstungmark { display: none; font-weight: 800; color: #B9AC9C; font-size: clamp(8px, calc(30cqi / var(--side, 16)), 13px); line-height: 1.3; flex: none; }
+/* On trial: the tile goes gray and cracked, and the trial bar is the one
+   thing on it in colour. Both sides see the score. */
+.wtile.wtrial { background-color: #1E1B18; color: #D2C9BC; border: 1px dashed #8A7F72; box-shadow: inset 4px 0 0 #6E6559; }
+.wtile.wtrial::before { filter: grayscale(1) brightness(.62); }
+.wtile.wtrial::after {
+  background:
+    linear-gradient(118deg, transparent 47.8%, rgba(255, 243, 224, .22) 48.2%, transparent 48.9%),
+    linear-gradient(64deg, transparent 61.6%, rgba(255, 243, 224, .16) 62%, transparent 62.6%),
+    linear-gradient(152deg, transparent 72%, rgba(255, 243, 224, .12) 72.4%, transparent 73%),
+    var(--scrim, linear-gradient(rgba(0, 0, 0, .25), rgba(0, 0, 0, .25)));
+}
+.wtrialbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; margin: 4px 0 0; padding: 4px 7px; border-radius: 8px;
+  background: rgba(20, 8, 6, .82); border: 1px solid #C0503A; color: #FFE3D6; font-size: clamp(9px, calc(28cqi / var(--side, 16)), 13px); line-height: 1.3;
+}
+.wtrialbar b { color: #FF8A6B; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
+.wtrialscore { font-weight: 800; font-variant-numeric: tabular-nums; }
+.wtrialscore .wtb { color: var(--honey-lite); }
+.wtrialscore .wts { color: #FFB4A0; }
+.wtrialclock { color: #E9D8CF; opacity: .9; }
+.wtrialtag { position: absolute; left: 3px; top: 3px; z-index: 3; padding: 0 4px; border-radius: 4px; background: #C0503A; color: #FFF3E0; font-size: 9px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
+.wimmunebar { display: inline-block; align-self: flex-start; margin: 3px 0 0; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--honey); color: var(--honey-lite); font-size: clamp(8px, calc(24cqi / var(--side, 16)), 11px); font-weight: 800; }
+@media (prefers-reduced-motion: no-preference) {
+  .wtile.wtrial .wtrialbar b { animation: wbeat 1.6s ease-in-out infinite; }
+}
+/* The graveyard: what the hive buried today, small and gray, still there. */
+.wgrave { margin: 10px 0 0; padding: 10px 12px; border-radius: 12px; background: #17130F; border: 1px solid #3A322A; }
+.wgravehead { margin: 0 0 6px; font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #9A8F82; }
+.wgravehead span { margin-left: 6px; color: #6E655A; }
+.wgravelist { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.wgravelist li { display: inline-flex; align-items: baseline; gap: 6px; max-width: 100%; padding: 4px 9px; border-radius: 8px; background: #221D18; border: 1px solid #332B24; font-size: 12.5px; filter: grayscale(1); }
+.wgravelist a { color: #A79C8F; text-decoration: line-through; text-decoration-color: rgba(167, 156, 143, .45); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 34ch; }
+.wgravelist a:hover { color: #D2C9BC; }
+.wgravescore { flex: none; font-size: 11px; color: #7E7468; font-weight: 700; }
+.wsaidsting { border-color: #6E655A; }
+.wsaid#wstung:target, .wsaid#walreadystung:target, .wsaid#wsided:target, .wsaid#wstingspent:target, .wsaid#wimmune:target, .wsaid#wburied:target, .wsaid#wunstung:target { display: block; }
 /* The reader's own mark, revealed by wallMarks on the stories this browser
    backed. A line of its own inside the tile, so it covers nothing and costs
    the reader one line of a headline they already read. */

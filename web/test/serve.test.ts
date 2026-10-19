@@ -412,8 +412,11 @@ import { readTap, receiptFor, tappedFrom } from "../src/serve.js";
 
 test("a posted tap is a story and a date, and nothing else gets through", () => {
   assert.deepEqual(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9"), {
-    storyId: "11111111-1111-1111-1111-111111111111", month: 9, day: 9, back: "day", pick: 0,
+    storyId: "11111111-1111-1111-1111-111111111111", month: 9, day: 9, back: "day", pick: 0, kind: "buzz",
   });
+  // The sting, October 19, 2026: the same post with k=sting, and anything else in k is a buzz.
+  assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&k=sting")!.kind, "sting");
+  assert.equal(readTap("s=11111111-1111-1111-1111-111111111111&m=9&d=9&k=bite")!.kind, "buzz");
   // The museum's buttons named a row by key; the museum came off on October
   // 18, 2026, docs/strip-to-the-hive.md, and a post with only a key is no tap.
   assert.equal(readTap("k=person:Q937&m=9&d=9&v=museum"), null);

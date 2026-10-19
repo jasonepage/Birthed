@@ -589,6 +589,48 @@ hive.
   the date, preferring one off the board, from the live hive on an open
   date and from the baked receipts otherwise. Every receipt offers another.
 
+### The sting, October 19, 2026
+
+Nathan's spec: the board's second verb. Built the same day.
+
+- **One sting a day per browser (or app install), across every open hive,**
+  separate from the buzzes. Same identity as a buzz (the `bt` token on the
+  web, App Attest in the app), the same per address limit, the same thirty
+  second Undo. Posted to the same `/boost` and `/unboost` with `k=sting`; no
+  new route and no new page.
+- **Pick a side.** A caller who buzzed a story cannot sting it, and the
+  other way round: `wall_stings_before_insert` and the new
+  `wall_boosts_one_side` trigger, plus a word from the server first.
+- **The trial is a replay, not a column.** `web/src/trial.ts`, copied byte
+  for byte to `worker/src/wall/trial.ts` and held there by
+  `worker/test/wall-trial-copy.test.ts`. Three stings since the last trial
+  open one, ending at the next top of the hour (or the seal, if sooner).
+  More stings than buzzes then (gross buzzes, all day) buries the story;
+  a tie or more buzzes survives and is immune for six hours. Rows never
+  change, so the graveyard of a sealed hive is the same forever: that is
+  how the sealed record includes it without storing it.
+- **What the database does not enforce:** immunity and burial. It cannot
+  run the replay. The site answers both in words before it asks, and the
+  replay ignores a sting cast during immunity and anything cast at a buried
+  story, so a direct caller gains nothing.
+- **The crown goes to most buzzes, gross.** A buried crown holder loses it
+  at the moment of burial to whoever then has the most buzzes, the first to
+  reach that count winning a tie (`crownWithBurials`). With no sting on a
+  day the crown is exactly what it was.
+- **On the page:** a tile on trial goes gray and cracked with "ON TRIAL:
+  the hive is deciding", the buzz and sting score and the minutes to the
+  verdict. A survivor wears "Survived a trial". The buried leave the board
+  for the graveyard strip under it (`graveyard` in `wall.ts`), on the date
+  page, the full screen hive and the sealed page. The receipt says where
+  the trial stands and carries the sting.
+- **Not done, named:** the full screen hive's script runs no trial (no trial
+  bar there, no sting button, and its crown replay drops a buried story's
+  buzzes entirely); the iOS app has no sting; the sealed share picture
+  does not draw the graveyard.
+- **To turn on:** apply `20261019000000_the_sting.sql`. Until then every
+  sting read fails quietly and the site behaves exactly as before, except
+  that the Sting button is drawn and answers that it could not save.
+
 ### The three biggest costs, cut October 11, 2026
 
 Nathan's instruction. Three changes, each committed on its own, none pushed

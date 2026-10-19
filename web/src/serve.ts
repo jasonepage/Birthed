@@ -33,7 +33,7 @@ import { extname, join, normalize, resolve, sep } from "node:path";
 import { everyDate, monthName, slug } from "./model.js";
 import { TODAY, renderCardPage, renderRecord, renderStoryPage } from "./render.js";
 import { SHARE_SCRIPT_SOURCE } from "./share-button.js";
-import { answerPictures, pickSurprise, easternMidnight, emptyWallDay, fetchWallDay, hiveDaysNav, openWallDates, pictureRules, picturedSubjects, keptAt, replaceWall, hivePath, takingBoosts, wallKey, wallMarks, wallSection, withChecks, type Anniversary, type RecordRow, type TapBack, type WallDay } from "./wall.js";
+import { answerPictures, graveyard, pickSurprise, trialsFor, easternMidnight, emptyWallDay, fetchWallDay, hiveDaysNav, openWallDates, pictureRules, picturedSubjects, keptAt, replaceWall, hivePath, takingBoosts, wallKey, wallMarks, wallSection, withChecks, type Anniversary, type RecordRow, type TapBack, type WallDay } from "./wall.js";
 import { fetchSnapshotScores, liveHiveSection, type Standing } from "./hive-live.js";
 import { pickFor, pickIndexFrom, pickPath, renderPickPage, PICK_MAX } from "./pick.js";
 import { fetchPictureFor, fetchPicturesFor, type StoredPicture } from "./stored-pictures.js";
@@ -639,6 +639,8 @@ export interface Tap {
   back: TapBack;
   /** The pair the pick page was showing, carried back so the reader lands on the same place in the list. Nought elsewhere. */
   pick: number;
+  /** Which verb: a buzz, or since October 19, 2026 a sting (k=sting). */
+  kind: "buzz" | "sting";
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -662,7 +664,7 @@ export function readTap(body: string): Tap | null {
   // top of the list rather than refused: the index is a place to come back
   // to and nothing the database is told.
   const pick = Number.isInteger(p) && p >= 0 && p <= PICK_MAX ? p : 0;
-  return { storyId, month, day, back: v === "hive" || v === "receipt" || v === "pick" ? v : "day", pick };
+  return { storyId, month, day, back: v === "hive" || v === "receipt" || v === "pick" ? v : "day", pick, kind: form.get("k") === "sting" ? "sting" : "buzz" };
 }
 
 /**
@@ -677,7 +679,9 @@ export type Tapped =
   // ride the same query string as a tap's word, for the same reason: it is
   // what permits the one fresh wall read on the way back, so the reader lands
   // on the count that moved rather than the one everybody else saw.
-  | "undone" | "too_late";
+  | "undone" | "too_late"
+  // The sting's own, October 19, 2026.
+  | "stung" | "already_stung" | "sided" | "sting_spent" | "immune" | "buried" | "unstung";
 
 /** The addresses the date page used to post to, answered with a way back. October 18, 2026. */
 const RETIRED_POSTS: ReadonlySet<string> = new Set([
@@ -686,12 +690,15 @@ const RETIRED_POSTS: ReadonlySet<string> = new Set([
 
 const TAPPED = new Set<string>([
   "kept", "already", "spent", "not_yet", "closed", "false", "bad", "failed", "undone", "too_late",
+  "stung", "already_stung", "sided", "sting_spent", "immune", "buried", "unstung",
 ]);
 
 const TAP_FRAGMENT: Record<Tapped, string> = {
   kept: "wkept", already: "walready", spent: "wspent", not_yet: "wnotyet",
   closed: "wclosed", false: "wfalse", bad: "wfailed", failed: "wfailed",
   undone: "wundone", too_late: "wtoolate",
+  stung: "wstung", already_stung: "walreadystung", sided: "wsided", sting_spent: "wstingspent",
+  immune: "wimmune", buried: "wburied", unstung: "wunstung",
 };
 
 /**
@@ -770,6 +777,61 @@ async function castWebBoostAnswer(storyId: string, token: string): Promise<{ sai
   } catch {
     return { said: "failed", answer: null };
   }
+}
+
+/** One of the sting functions, answered in a word. October 19, 2026. */
+async function stingRpc(fn: "wall_cast_web_sting" | "wall_forget_sting", storyId: string, token: string): Promise<Tapped> {
+  const key = process.env.SUPABASE_ANON_KEY;
+  if (!key) return "failed";
+  try {
+    const response = await fetch(`${projectBase()}/rest/v1/rpc/${fn}`, {
+      method: "POST",
+      headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ story_id_in: storyId, voter_token_in: token }),
+    });
+    if (!response.ok) return "failed";
+    const answer = (await response.json()) as Record<string, unknown>;
+    const result = typeof answer?.result === "string" ? answer.result : "";
+    if (result === "no_story" || result === "bad_token") return "bad";
+    return TAPPED.has(result) ? result as Tapped : "failed";
+  } catch {
+    return "failed";
+  }
+}
+
+/** What one browser has done with its sting: how many left today, and which story on this hive it stung. */
+async function stingStanding(wallDate: string, token: string | null): Promise<{ stingsLeft: number; stung: string | null } | null> {
+  const key = process.env.SUPABASE_ANON_KEY;
+  if (!key || token === null) return null;
+  try {
+    const response = await fetch(`${projectBase()}/rest/v1/rpc/wall_web_sting_standing`, {
+      method: "POST",
+      headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ wall_date_in: wallDate, voter_token_in: token }),
+    });
+    // Before the sting migration the function is not there: no standing,
+    // and the page draws the shared sentence.
+    if (!response.ok) return null;
+    const answer = (await response.json()) as { stings_left?: unknown; stung?: unknown };
+    if (typeof answer?.stings_left !== "number") return null;
+    return { stingsLeft: answer.stings_left, stung: typeof answer.stung === "string" && UUID.test(answer.stung) ? answer.stung : null };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Where a story stands in its trial, read from the live hive, or null when
+ * the hive cannot be read. The database keeps the budget and the side; the
+ * trial is a replay of the rows (trial.ts), so the words for an immune or a
+ * buried story are this server's to say before it asks.
+ */
+export function trialWord(day: WallDay, storyId: string, kind: "buzz" | "sting", now: number): Tapped | null {
+  const t = trialsFor(day, now).get(storyId);
+  if (t === undefined) return null;
+  if (t.phase === "buried") return "buried";
+  if (kind === "sting" && t.phase === "immune") return "immune";
+  return null;
 }
 
 /**
@@ -991,8 +1053,21 @@ async function handle(
       return;
     }
     const onDatePage = tap.back === "day";
-    const read = onDatePage ? await liveWall(tap.month, tap.day, Date.now(), false, false) : null;
-    const { said, answer } = await castWebBoostAnswer(tap.storyId, token);
+    const read = await liveWall(tap.month, tap.day, Date.now(), false, false);
+    // The trial first, October 19, 2026: a buried story takes nothing, and
+    // an immune one takes no sting. Then pick a side: a buzz on a story this
+    // browser stung is refused in a word here, since the database would
+    // refuse it with an error the page could not explain.
+    const tried = read === null ? null : trialWord(read.day, tap.storyId, tap.kind, Date.now());
+    const standingNow = tap.kind === "buzz" && tried === null && read !== null ? await stingStanding(read.day.wallDate, tokenFromCookie(request.headers.cookie)) : null;
+    const sided = standingNow !== null && standingNow.stung === tap.storyId;
+    const { said, answer } = tried !== null
+      ? { said: tried, answer: null }
+      : sided
+        ? { said: "sided" as Tapped, answer: null }
+        : tap.kind === "sting"
+          ? { said: await stingRpc("wall_cast_web_sting", tap.storyId, token), answer: null }
+          : await castWebBoostAnswer(tap.storyId, token);
     // The live hive's script asks for the answer as JSON and draws it
     // itself, docs/the-wall.md section 21. Same tap, same token, same
     // cookie, same limit, same word; only the shape of the reply differs.
@@ -1030,7 +1105,7 @@ async function handle(
     // the fragment above never reaches this server on the way back and the
     // Undo button has to know what it is undoing. Only for a buzz that
     // counted: there is nothing to take back after any other word.
-    const on = said === "kept" ? `&on=${tap.storyId}` : "";
+    const on = said === "kept" || said === "stung" ? `&on=${tap.storyId}` : "";
     response.writeHead(303, {
       Location: `${where}${joiner}tapped=${said}${on}#${fragment}`,
       "Cache-Control": "no-store",
@@ -1070,7 +1145,9 @@ async function handle(
       response.end("No.\n");
       return;
     }
-    const { said, answer } = await forgetWebBoost(tap.storyId, token);
+    const { said, answer } = tap.kind === "sting"
+      ? { said: await stingRpc("wall_forget_sting", tap.storyId, token), answer: null }
+      : await forgetWebBoost(tap.storyId, token);
     if (wantsJson(request)) {
       response.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...SECURITY });
       response.end(JSON.stringify(jsonAnswer(said, answer)));
@@ -1311,16 +1388,17 @@ async function handle(
     const undoOn = tapped === "kept" ? tappedOnFrom(query) : null;
     if (wall !== undefined && wall !== null && story !== undefined) {
       const token = tokenFromCookie(request.headers.cookie);
-      const standing = token === null ? null : await wallStanding(wall.day.wallDate, token);
-      const marks = standing === null ? "" : wallMarks(standing, wall.day, now);
+      const [standing, stings] = token === null ? [null, null] : await Promise.all([wallStanding(wall.day.wallDate, token), stingStanding(wall.day.wallDate, token)]);
+      const marks = standing === null ? "" : wallMarks({ ...standing, ...(stings ?? {}) }, wall.day, now);
       const undo = undoOn !== null && undoOn === story.id ? story : null;
+      const stingUndo = tapped === "stung" && tappedOnFrom(query) === story.id ? story : null;
       response.writeHead(200, {
         "Content-Type": "text/html; charset=utf-8",
         // Never stored when the page carries anything that is one reader's
         // own, which is their marks or their Undo button. Deciding on the
         // marks alone would hand a shared cache a page with an Undo form on
         // it whenever the standing read failed.
-        "Cache-Control": marks === "" && undo === null ? "public, max-age=20, must-revalidate" : "no-store",
+        "Cache-Control": marks === "" && undo === null && stingUndo === null ? "public, max-age=20, must-revalidate" : "no-store",
         ...securityFor(path),
       });
       // The checks are read for this one story here, because the day's
@@ -1330,7 +1408,7 @@ async function handle(
       // The picture credit, one small read for the one story, because the
       // day's read carries no pictures either.
       const credit = method === "HEAD" ? null : await fetchPictureFor(projectBase(), key, story, WALL_TIMEOUT_MS);
-      response.end(method === "HEAD" ? undefined : renderStoryPage(told, wall.day, now, { interactive: true, undo, credit }) + marks + (tapped === "kept" ? BUZZ_SOUND : ""));
+      response.end(method === "HEAD" ? undefined : renderStoryPage(told, wall.day, now, { interactive: true, undo, stingUndo, credit }) + marks + (tapped === "kept" ? BUZZ_SOUND : ""));
       return;
     }
   }
@@ -1373,6 +1451,7 @@ async function handle(
     // The story a buzz just counted for, so the sentence that says it
     // counted can carry the Undo button for the one request that follows.
     const undoOn = readable && tapped === "kept" ? tappedOnFrom(query) : null;
+    const stingUndoOn = readable && tapped === "stung" ? tappedOnFrom(query) : null;
     const marked = token === null && tapped === null ? null : dateFor(path);
     if (marked !== null) {
       const now = Date.now();
@@ -1382,14 +1461,17 @@ async function handle(
       // marks are a style block on top, because the section they land on is
       // the shared one and they are one reader's alone. Section 13.
       const wallDate = openWallDates(now).get(wallKey(marked.month, marked.day));
-      const standing = wallDate !== undefined && token !== null ? await wallStanding(wallDate, token) : null;
+      const [standing, stings] = wallDate !== undefined && token !== null
+        ? await Promise.all([wallStanding(wallDate, token), stingStanding(wallDate, token)])
+        : [null, null];
       const wall = await liveWall(
         marked.month, marked.day, now, fresh, marked.hive, undoOn, standing?.anniversary ?? [], standing,
         // The way to this reader's own record, drawn for a browser carrying
         // the token and for no other. docs/the-wall.md section 25.
         token !== null,
+        stingUndoOn,
       );
-      const marks = wall !== null && standing !== null ? wallMarks(standing, wall.day, now) : "";
+      const marks = wall !== null && standing !== null ? wallMarks({ ...standing, ...(stings ?? {}) }, wall.day, now) : "";
       // A token alone is reason enough to draw this reader their own page,
       // since September 21, 2026: the link to this browser's own record is on
       // it, and a page carrying it is one reader's own like the marks and is
@@ -1547,6 +1629,8 @@ async function liveWall(
    * every such request is answered no-store by the caller.
    */
   yours: boolean = false,
+  /** The story a sting just landed on, for its Undo. October 19, 2026. */
+  stingUndoOn: string | null = null,
 ): Promise<{ section: string; day: WallDay } | null> {
   const key = process.env.SUPABASE_ANON_KEY;
   if (!key) return null;
@@ -1595,8 +1679,13 @@ async function liveWall(
       scores = wall.stories.length === 0 ? new Map() : await fetchSnapshotScores(projectBase(), key, wallDate, WALL_TIMEOUT_MS);
       scoreCache.set(wallDate, { at: now, scores });
     }
+    // The full screen hive leaves the buried out of its board and shows
+    // them under it, October 19, 2026. Its script runs no trial: the trial
+    // bar and the sting live on the date page's tiles.
+    const trials = trialsFor(wall, now);
+    const standingHive = { ...wall, stories: wall.stories.filter((s) => trials.get(s.id)?.phase !== "buried") };
     return {
-      section: pictureRules([...pictures, ...answerPictures(wall)]) + hiveDaysNav(month, day, now) + liveHiveSection(wall, `${monthName(month)} ${day}`, now, { project: projectBase(), key, standing, scores, anniversary, yours }),
+      section: pictureRules([...pictures, ...answerPictures(wall)]) + hiveDaysNav(month, day, now) + liveHiveSection(standingHive, `${monthName(month)} ${day}`, now, { project: projectBase(), key, standing, scores, anniversary, yours }) + graveyard(wall, trials),
       day: wall,
     };
   }
@@ -1615,13 +1704,14 @@ async function liveWall(
       scores = await fetchSnapshotScores(projectBase(), key, wallDate, WALL_TIMEOUT_MS);
       scoreCache.set(wallDate, { at: now, scores });
     }
-    read = recut(wall, scores);
+    read = recut(wall, scores, now);
   }
   // The story a buzz just counted for, resolved against this wall. One that
   // is not on the date is dropped rather than refused, the way a find's is:
   // the button is a convenience and its absence costs the reader the window,
   // never the page.
   const undo = undoOn === null ? null : read.stories.find((s) => s.id === undoOn) ?? null;
+  const stingUndo = stingUndoOn === null ? null : read.stories.find((s) => s.id === stingUndoOn) ?? null;
   // Only the pictures something on this page draws: the tiles on the board.
   // Every story's picture was written into every date page, which on
   // September 22, 2026 was 207 kilobytes of rules for rows that draw no
@@ -1631,7 +1721,7 @@ async function liveWall(
   const name = `${monthName(month)} ${day}`;
   return {
     section: pictureRules(shown) + (hive ? hiveDaysNav(month, day, now) : "") + wallSection(read, name, now, {
-      interactive: true, hive, date: { month, day }, undo, anniversary, yours,
+      interactive: true, hive, date: { month, day }, undo, stingUndo, anniversary, yours,
     }),
     day: read,
   };
@@ -1644,18 +1734,21 @@ async function liveWall(
  * overflow. A board carrying a story stamped false is the worker's growth
  * engine's, and comes back as it was. Pure.
  */
-export function recut(day: WallDay, scores: ReadonlyMap<string, number>): WallDay {
+export function recut(day: WallDay, scores: ReadonlyMap<string, number>, now: number = Date.now()): WallDay {
   const inputs: HiveStoryInput[] = [];
+  // A story the hive buried is in the graveyard, never on the board.
+  const trials = trialsFor(day, now);
   for (const s of day.stories) {
     if (s.status === "false") return day;
     if (s.status !== "placed" && s.status !== "overflow") continue;
+    if (trials.get(s.id)?.phase === "buried") continue;
     inputs.push({ id: s.id, tier: s.tier, support: s.support, score: scores.get(s.id) ?? 0, priority: s.priority, placedAt: s.placedAt ?? s.submittedAt, anchor: null, subjectKind: s.subjectKind, outlet: s.outlet });
   }
   if (inputs.length === 0) return day;
   const result = hiveAllocator().allocate(inputs);
   if (result === null) return day;
   const at = new Map(result.placed.map((p) => [p.id, p]));
-  const fresh = new Set(inputs.map((i) => i.id));
+  const fresh = new Set(day.stories.filter((s) => s.status === "placed" || s.status === "overflow").map((s) => s.id));
   return {
     ...day,
     stories: day.stories.map((s) => {

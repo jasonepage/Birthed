@@ -39,6 +39,7 @@ import { eligibleForWall, tierFor } from "./pool.js";
 import { NEVER_CHECKED, dueForCheck, shouldRecord, summarize } from "./recheck.js";
 import { scoreEvents, type ReachRow, type ScoredEventRow } from "./points.js";
 import { coverageScores } from "./coverage.js";
+import { trialsAt } from "./trial.js";
 import { outletOf } from "./url.js";
 
 // ---------------------------------------------------------------------------
@@ -182,6 +183,8 @@ export interface Snapshot {
      * the same as the allocator does.
      */
     scores: Record<string, number>;
+    /** The stories the hive had buried when this was taken. October 19, 2026. */
+    buried?: string[];
   };
 }
 
@@ -222,6 +225,12 @@ export function settle(
   now: string,
   /** The curation panel's points by "kind:id", from scoreEvents. Optional so the tests that are not about order need not build one. */
   scores: Map<string, number> = new Map(),
+  /**
+   * The stories the hive has buried by now, October 19, 2026 (trial.ts).
+   * They go to no board: a placed one gives its rectangle up and waits as
+   * overflow, and the date page draws it in the graveyard.
+   */
+  buried: ReadonlySet<string> = new Set(),
 ): Settled {
   // The editor's score for the story itself, when it has one, September 22,
   // 2026; the panel's points for its subject stand in until then. Keyed by
@@ -251,6 +260,15 @@ export function settle(
   for (const story of stories) {
     const its = byStory.get(story.id) ?? [];
     const rect = rectOf(story);
+
+    if (buried.has(story.id) && story.status !== "false") {
+      if (story.status === "placed") {
+        const u = touch(story.id);
+        u.status = "overflow";
+        u.anchor_mx = null; u.anchor_my = null; u.w_modules = null; u.h_modules = null;
+      }
+      continue;
+    }
 
     if (story.status === "false") {
       // Stamped. Keeps its exact rectangle, earns nothing, grows nowhere.
@@ -335,6 +353,7 @@ export function settle(
       })),
       overflow: result.overflow,
       scores: scoresOut,
+      buried: [...buried],
     },
   };
 
@@ -410,6 +429,32 @@ export async function scoresFor(db: Db, wallDate: string, log: (line: string) =>
   } catch (error: unknown) {
     log(`wall scores ${wallDate}: could not be read, so the board is ordered by priority alone this run: ${error instanceof Error ? error.message : error}`);
     return new Map();
+  }
+}
+
+/**
+ * The stories the hive has buried on a date by an instant, October 19,
+ * 2026: the trial replayed from the buzz rows and the sting rows
+ * (trial.ts). A read that fails, which it does before the sting migration,
+ * is nothing buried, and the board is cut as it was.
+ */
+export async function buriedOn(db: Db, day: Pick<DayRow, "wall_date" | "closes_at" | "closed_at">, at: string, log: (line: string) => void = () => {}): Promise<Set<string>> {
+  try {
+    const stings = await rows<{ story_id: string; cast_at: string }>(db, `wall_stings?select=story_id,cast_at&wall_date=eq.${day.wall_date}&order=cast_at.asc,id.asc`);
+    if (stings.length === 0) return new Set();
+    const boosts = await rows<{ story_id: string; units: number; cast_at: string }>(db, `wall_boosts?select=story_id,units,cast_at&wall_date=eq.${day.wall_date}&order=cast_at.asc,id.asc`);
+    const states = trialsAt(
+      boosts.map((b) => ({ storyId: b.story_id, at: b.cast_at, units: b.units })),
+      stings.map((x) => ({ storyId: x.story_id, at: x.cast_at })),
+      Date.parse(at),
+      day.closed_at ?? day.closes_at,
+    );
+    const buried = new Set([...states].filter(([, st]) => st.phase === "buried").map(([id]) => id));
+    if (buried.size > 0) log(`wall trials ${day.wall_date}: ${buried.size} buried by the hive`);
+    return buried;
+  } catch (error: unknown) {
+    log(`wall trials ${day.wall_date}: could not be read, so nothing is buried this run: ${error instanceof Error ? error.message.slice(0, 120) : error}`);
+    return new Set();
   }
 }
 
@@ -517,7 +562,7 @@ export async function run(db: Db, options: { now?: Date; date?: string; dry?: bo
       for (const batch of chunk(checks, 200)) await insert(db, "wall_checks", batch);
     }
 
-    const settled = settle(day, stories, sources, owners, at, await scoresFor(db, day.wall_date, log));
+    const settled = settle(day, stories, sources, owners, at, await scoresFor(db, day.wall_date, log), await buriedOn(db, day, at, log));
     report.graduated += settled.stories.filter((u) => u.placed_at !== undefined && u.status === "placed").length;
     report.overflow += settled.stories.filter((u) => u.status === "overflow").length;
     report.retiered += settled.stories.filter((u) => u.tier !== undefined).length;
