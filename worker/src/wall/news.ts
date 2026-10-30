@@ -537,7 +537,21 @@ export async function run(db: Db, options: { now?: Date; dry?: boolean; userAgen
     // that story; the fold below is what puts a page under a story.
     const filed = await rows<{ id: string; url_key: string; headline: string; outlet: string; tier: string; submitted_at: string; support: number; priority: number; subject_kind: string | null; status: string }>(
       db, `wall_stories?select=id,url_key,headline,outlet,tier,submitted_at,support,priority,subject_kind,status&wall_date=eq.${wallDate}`);
-    const sourced = await rows<{ url_key: string }>(db, `wall_sources?select=url_key,story:wall_stories!inner(wall_date)&story.wall_date=eq.${wallDate}`);
+    // The sources are read by the story ids just fetched, a hundred at a
+    // time, the way hindsight.ts reads them. Until October 29, 2026 this was
+    // one request joining wall_sources to wall_stories on the date
+    // (`story:wall_stories!inner(wall_date)&story.wall_date=eq.<date>`),
+    // and the planner answered it by walking every row of wall_sources and
+    // scanning the date's stories once per row: 44,591 sources times the
+    // 649 stories of October 29 was 9.2 seconds against the 8 second
+    // statement timeout, so the tick died on this line every hour from
+    // 11 AM Pacific with the worker unchanged since October 19. Reading by
+    // story_id hits wall_sources_by_story and costs the date's own rows.
+    const sourced: Array<{ url_key: string }> = [];
+    for (let i = 0; i < filed.length; i += 100) {
+      const ids = filed.slice(i, i + 100).map((r) => r.id).join(",");
+      sourced.push(...await rows<{ url_key: string }>(db, `wall_sources?select=url_key&story_id=in.(${ids})`));
+    }
     const already = new Set([...filed.map((r) => r.url_key), ...sourced.map((r) => r.url_key)]);
     const mine = await withPageQuotations(planned.filter((p) => p.wallDate === wallDate && !already.has(p.urlKey)), undefined, console.log);
     if (mine.length === 0) {
