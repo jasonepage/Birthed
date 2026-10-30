@@ -589,6 +589,57 @@ hive.
   the date, preferring one off the board, from the live hive on an open
   date and from the baked receipts otherwise. Every receipt offers another.
 
+### Two outages, October 29, 2026
+
+Nathan's report, the same day: the wall cron failing every hour since
+11 AM Pacific, and October 18 and 19 still saying "Open" ten days after
+they sealed. Found from the Supabase logs, which say the same thing the
+Render log does, and fixed in two commits.
+
+- **The tick died on one read, and the worker had not changed.** Every
+  hourly run from 18:01 UTC answered 500 on
+  `wall_sources?select=url_key,story:wall_stories!inner(wall_date)&story.wall_date=eq.2026-10-29`,
+  which is "canceling statement due to statement timeout" in the Postgres
+  log. `EXPLAIN ANALYZE` on the live project: 9.16 seconds against the
+  8 second timeout, because the planner walked all 44,591 `wall_sources`
+  rows and, for each one, scanned the date's stories through
+  `wall_stories_by_date` and threw 644 of 649 away, eight million buffer
+  hits. October 29 had the most stories of any date so far, which is what
+  tipped a query that had been slowing for weeks over the line with no
+  deploy. `news.ts` now reads the sources by the story ids it already has,
+  a hundred at a time, through `wall_sources_by_story`, the way
+  `hindsight.ts` always did. Do not join `wall_sources` to `wall_stories`
+  on the date through the automatic interface; the planner has no index
+  that serves it.
+- **Nothing on the tick was ever a poison feed item, and the database is
+  not read-only.** Buzzes kept landing all afternoon. The database is
+  631 megabytes, which is over the 500 megabyte free tier allowance, and
+  that is a separate conversation to have before it becomes an outage of
+  its own.
+- **A sealed date is drawn from `closes_at` at request time.** Until now
+  `liveWall` read the project only for the three open dates and served
+  every other date exactly as built. The last deploy was October 19 at
+  19:07 UTC, while October 18 and 19 were both still open (a date closes
+  at midnight Eastern ending the day after), so their pages were baked
+  saying "Open" and nothing ever drew them again. `newestPastWallDate` in
+  `serve.ts` names a closed date's newest past hive, it is read once an
+  hour instead of every twenty seconds because it cannot change, and a
+  past date with nothing filed is still the page as built. The baked
+  `noindex` and share card on a date that had no board at build time
+  stand until the next deploy; this fix changes `web/**`, so the push
+  that carries it is that deploy.
+- **A full screen hive that was never baked is drawn on request.**
+  `build.ts` writes `/<date>/hive/` only for dates with a wall row at build
+  time, so October 21 onward had no file and answered 404 while live. The
+  server now renders `renderHivePage` from the same read and swaps the live
+  section in, and a date with no hive is still a 404.
+- **A tap on a sealed date is refused before the database is asked.**
+  `/boost` answers "closed" from `openWallDates`; the database's own check
+  on `closes_at` still stands behind it.
+- **Still build time, named:** `sealed.json`, which Random draws from, is
+  written at build and will not know a hive sealed after the deploy until
+  the next one.
+
 ### The sting, October 19, 2026
 
 Nathan's spec: the board's second verb. Built the same day.

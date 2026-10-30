@@ -261,15 +261,15 @@ test("the dot breathes only on an open date, and only for readers who allow moti
 // The wall, fresh while its date is open. docs/the-wall.md section 12.
 // ---------------------------------------------------------------------------
 
-import { forgetWalls, withWall } from "../src/serve.js";
+import { forgetWalls, newestPastWallDate, withWall } from "../src/serve.js";
 import { WALL_END, WALL_START, openWallDates, replaceWall } from "../src/wall.js";
 
 /** A date page as build.ts writes it: markers, with a baked wall between them. */
 const BAKED = `<html><body><h1>A day</h1>${WALL_START}<section class="wall">baked</section>${WALL_END}<p>feed</p></body></html>`;
 
-function wallRows(wallDate: string): { day: unknown[]; stories: unknown[] } {
+function wallRows(wallDate: string, sealed: boolean = false): { day: unknown[]; stories: unknown[] } {
   return {
-    day: [{ wall_date: wallDate, opens_at: "2026-01-01T05:00:00Z", live_at: "2026-01-02T05:00:00Z", closes_at: "2099-01-01T05:00:00Z", closed_at: null }],
+    day: [{ wall_date: wallDate, opens_at: "2026-01-01T05:00:00Z", live_at: "2026-01-02T05:00:00Z", closes_at: sealed ? "2026-01-04T04:00:00Z" : "2099-01-01T05:00:00Z", closed_at: null }],
     stories: [{
       id: "11111111-1111-1111-1111-111111111111", wall_date: wallDate, submitted_at: "2026-01-02T12:00:00Z",
       headline: "Fresh headline from the live read", url: "https://example.org/fresh", outlet: "example.org",
@@ -297,7 +297,7 @@ test("the open wall dates are yesterday, today and tomorrow, Eastern, keyed by m
   assert.deepEqual([...openWallDates(Date.parse("2028-02-28T20:00:00Z")).values()], ["2028-02-27", "2028-02-28", "2028-02-29"]);
 });
 
-test("an open date page reads the wall at request time, falls back to the baked wall when the read fails, and a closed date calls nothing", async (t) => {
+test("an open date page reads the wall at request time, falls back to the baked wall when the read fails, and a sealed date is drawn from closes_at", async (t) => {
   const root = resolve("test-site-wall");
   await rm(root, { recursive: true, force: true });
   const open = openWallDates();
@@ -316,7 +316,8 @@ test("an open date page reads the wall at request time, falls back to the baked 
   const previousKey = process.env.SUPABASE_ANON_KEY;
   process.env.SUPABASE_ANON_KEY = "test-key";
   const calls: string[] = [];
-  let mode: "ok" | "down" | "slow" = "ok";
+  let mode: "ok" | "down" | "slow" | "empty" = "ok";
+  let sealedRows = false;
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input);
     if (!url.includes("supabase")) return realFetch(input, init);
@@ -325,8 +326,10 @@ test("an open date page reads the wall at request time, falls back to the baked 
     if (mode === "slow") {
       await new Promise((_, reject) => init?.signal?.addEventListener("abort", () => reject(new Error("aborted"))));
     }
-    const rows = wallRows(openDate);
-    return new Response(JSON.stringify(url.includes("wall_days") ? rows.day : rows.stories), {
+    if (mode === "empty") return new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } });
+    const rows = sealedRows ? wallRows(newestPastWallDate(closedMonth, 1)!, true) : wallRows(openDate);
+    const body = url.includes("wall_days") ? rows.day : url.includes("wall_stories") ? rows.stories : [];
+    return new Response(JSON.stringify(body), {
       status: 200, headers: { "Content-Type": "application/json" },
     });
   }) as typeof fetch;
@@ -389,13 +392,42 @@ test("an open date page reads the wall at request time, falls back to the baked 
   assert.equal(await slow.text(), BAKED);
   assert.ok(Date.now() - started < 10_000);
 
-  // A closed date never asks.
+  // A date outside the open window asks once, for its newest past hive,
+  // and the answer says Sealed from closes_at, however the page was baked.
+  // October 29, 2026: until then a closed date never asked, so a page baked
+  // while its hive was open said "Open" until the next deploy.
   forgetWalls();
   mode = "ok";
   calls.length = 0;
-  const closed = await realFetch(`${base}/${closedSlug}/`);
-  assert.equal(await closed.text(), BAKED);
-  assert.deepEqual(calls, []);
+  sealedRows = true;
+  const closed = await (await realFetch(`${base}/${closedSlug}/`)).text();
+  assert.ok(closed.includes("Fresh headline from the live read"), "the sealed hive is drawn from the project");
+  assert.ok(closed.includes(">Sealed<"), "and it says Sealed");
+  assert.ok(!closed.includes(">Open<"));
+  assert.ok(!closed.includes(">baked<"));
+  const askedFor = calls.find((c) => c.includes("wall_days"))!;
+  assert.ok(askedFor.includes(`wall_date=eq.${newestPastWallDate(closedMonth, 1)}`), `asks for the newest past occurrence: ${askedFor}`);
+  assert.equal(calls.filter((c) => c.includes("wall_days")).length, 1);
+  // And not again for an hour.
+  await realFetch(`${base}/${closedSlug}/`);
+  assert.equal(calls.filter((c) => c.includes("wall_days")).length, 1, "a sealed hive is read once an hour");
+
+  // The full screen hive of a date that was never baked is drawn from the
+  // same read instead of answering 404. October 29, 2026.
+  const hive = await realFetch(`${base}/${closedSlug}/hive/`);
+  assert.equal(hive.status, 200);
+  const hiveHtml = await hive.text();
+  assert.ok(hiveHtml.includes("Fresh headline from the live read"));
+  assert.ok(hiveHtml.includes("whivesealed"), "the full screen hive says it sealed");
+  assert.ok(!hiveHtml.includes("wbuzz-form") && !hiveHtml.includes("hive-live"), "and runs nothing and takes no buzz");
+  // A past date with nothing filed is still the page as built, and its hive is still a 404.
+  forgetWalls();
+  sealedRows = false;
+  mode = "empty";
+  assert.equal(await (await realFetch(`${base}/${closedSlug}/`)).text(), BAKED);
+  assert.equal((await realFetch(`${base}/${closedSlug}/hive/`)).status, 404);
+  mode = "ok";
+  calls.length = 0;
 
   // No key, no read, the page as built.
   forgetWalls();
@@ -1409,4 +1441,13 @@ test("an open board is cut again from its counts, so one buzz never keeps most o
   const rest = cut.stories.slice(1).filter((s) => s.rect !== null);
   assert.ok(rest.length >= 6 && rest.every((s) => s.rect!.w * s.rect!.h >= 12), "the others are big enough to read");
   assert.equal(recut({ ...day, stories: [{ ...stories[0]!, status: "false" as const }, ...stories.slice(1)] }, new Map()).stories[1]!.rect, stories[1]!.rect, "a board with a story stamped false stays the worker's");
+});
+
+test("the newest past occurrence of a month and day is this year's once it has passed, else last year's, and February 29 is the last leap year", () => {
+  const now = Date.parse("2026-10-30T02:00:00Z"); // October 29, 10 PM Eastern.
+  assert.equal(newestPastWallDate(10, 18, now), "2026-10-18");
+  assert.equal(newestPastWallDate(10, 28, now), "2026-10-28");
+  assert.equal(newestPastWallDate(10, 29, now), "2025-10-29", "today itself is not past; the open window owns it");
+  assert.equal(newestPastWallDate(12, 25, now), "2025-12-25");
+  assert.equal(newestPastWallDate(2, 29, now), "2024-02-29");
 });

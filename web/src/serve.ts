@@ -31,9 +31,9 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { extname, join, normalize, resolve, sep } from "node:path";
 
 import { everyDate, monthName, slug } from "./model.js";
-import { TODAY, renderCardPage, renderRecord, renderStoryPage } from "./render.js";
+import { TODAY, renderCardPage, renderHivePage, renderRecord, renderStoryPage } from "./render.js";
 import { SHARE_SCRIPT_SOURCE } from "./share-button.js";
-import { answerPictures, graveyard, pickSurprise, trialsFor, easternMidnight, emptyWallDay, fetchWallDay, hiveDaysNav, openWallDates, pictureRules, picturedSubjects, keptAt, replaceWall, hivePath, takingBoosts, wallKey, wallMarks, wallSection, withChecks, type Anniversary, type RecordRow, type TapBack, type WallDay } from "./wall.js";
+import { answerPictures, graveyard, pickSurprise, trialsFor, easternDateOf, easternMidnight, emptyWallDay, fetchWallDay, hiveDaysNav, openWallDates, pictureRules, picturedSubjects, keptAt, replaceWall, hivePath, takingBoosts, wallKey, wallMarks, wallSection, withChecks, type Anniversary, type RecordRow, type TapBack, type WallDay } from "./wall.js";
 import { fetchSnapshotScores, liveHiveSection, type Standing } from "./hive-live.js";
 import { pickFor, pickIndexFrom, pickPath, renderPickPage, PICK_MAX } from "./pick.js";
 import { fetchPictureFor, fetchPicturesFor, type StoredPicture } from "./stored-pictures.js";
@@ -1053,7 +1053,12 @@ async function handle(
       return;
     }
     const onDatePage = tap.back === "day";
-    const read = await liveWall(tap.month, tap.day, Date.now(), false, false);
+    // A date outside the open window is sealed, or not yet live, and the
+    // database would refuse the tap with "closed". Since October 29, 2026
+    // liveWall reads a sealed date's hive too, so the answer is given here
+    // first and a tap on a sealed date touches nothing.
+    const openNow = openWallDates(Date.now()).get(wallKey(tap.month, tap.day));
+    const read = openNow === undefined ? null : await liveWall(tap.month, tap.day, Date.now(), false, false);
     // The trial first, October 19, 2026: a buried story takes nothing, and
     // an immune one takes no sting. Then pick a side: a buzz on a story this
     // browser stung is refused in a word here, since the database would
@@ -1061,7 +1066,9 @@ async function handle(
     const tried = read === null ? null : trialWord(read.day, tap.storyId, tap.kind, Date.now());
     const standingNow = tap.kind === "buzz" && tried === null && read !== null ? await stingStanding(read.day.wallDate, tokenFromCookie(request.headers.cookie)) : null;
     const sided = standingNow !== null && standingNow.stung === tap.storyId;
-    const { said, answer } = tried !== null
+    const { said, answer } = openNow === undefined
+      ? { said: "closed" as Tapped, answer: null }
+      : tried !== null
       ? { said: tried, answer: null }
       : sided
         ? { said: "sided" as Tapped, answer: null }
@@ -1528,6 +1535,30 @@ async function handle(
     return;
   }
 
+  // The full screen hive of a date whose page was never baked. build.ts
+  // writes a hive page for every date that had a wall row at build time,
+  // and nothing else; a date that opened after the last deploy had no file
+  // under /<date>/hive/ and answered 404 while its board was live. October
+  // 29, 2026: /october-28/hive/ and /october-29/hive/, nine days after the
+  // deploy of October 19. The page is drawn here from the same render the
+  // build uses and the live section is swapped in the way it is for a baked
+  // one; a date with no hive still gets the real 404 below.
+  const unbaked = method === "GET" || method === "HEAD" ? dateFor(path) : null;
+  if (unbaked !== null && unbaked.hive) {
+    const live = await liveWall(unbaked.month, unbaked.day, Date.now(), false, true, null, [], null, false);
+    if (live !== null) {
+      const html = withWall(renderHivePage(live.day, unbaked.month, unbaked.day, []), live.section);
+      response.writeHead(200, {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "public, max-age=20, must-revalidate",
+        Vary: "Cookie",
+        ...securityFor(path),
+      });
+      response.end(method === "HEAD" ? undefined : html);
+      return;
+    }
+  }
+
   // A real 404, with the status to match. Answering an unknown path with 200
   // is how a site teaches a crawler that every misspelling of a date is a
   // page worth having.
@@ -1590,6 +1621,33 @@ export const KEPT_SAID = `<style>#wkept{display:block}</style>`;
 // ---------------------------------------------------------------------------
 
 const WALL_FRESH_MS = 20_000;
+/**
+ * How long a sealed date's wall is kept before it is read again. A sealed
+ * hive never changes, so an hour costs nothing but the first reader's wait
+ * after a restart, and it keeps a crawler walking 366 dates from asking the
+ * project 366 times a minute.
+ */
+const WALL_SEALED_FRESH_MS = 60 * 60_000;
+
+/**
+ * The newest past occurrence of a month and day by the Eastern calendar,
+ * for a date outside the open window: this year's if it has passed, else
+ * last year's. February 29 falls back to the last leap year. October 29,
+ * 2026: this is what lets a sealed date be drawn from closes_at at request
+ * time. Until then a date outside the open window was served exactly as
+ * built, so a page baked while its hive was open said "Open" until the
+ * next deploy, and birthed.app has deployed on a push to web/** only, so
+ * October 18 and 19 said it for ten days.
+ */
+export function newestPastWallDate(month: number, day: number, now: number = Date.now()): string | null {
+  const [y, m, d] = easternDateOf(now).split("-").map(Number) as [number, number, number];
+  const passed = month < m || (month === m && day < d);
+  for (let year = passed ? y : y - 1; year >= y - 8; year--) {
+    const candidate = new Date(Date.UTC(year, month - 1, day));
+    if (candidate.getUTCMonth() + 1 === month && candidate.getUTCDate() === day) return candidate.toISOString().slice(0, 10);
+  }
+  return null;
+}
 const WALL_TIMEOUT_MS = 3000;
 
 const wallCache = new Map<string, { at: number; day: WallDay | null; pictures: StoredPicture[] }>();
@@ -1634,8 +1692,14 @@ async function liveWall(
 ): Promise<{ section: string; day: WallDay } | null> {
   const key = process.env.SUPABASE_ANON_KEY;
   if (!key) return null;
-  const wallDate = openWallDates(now).get(wallKey(month, day));
-  if (wallDate === undefined) return null;
+  // A date in the open window is read every twenty seconds. Any other date
+  // is its newest past hive, read once an hour, so the page says Sealed
+  // from closes_at at request time rather than from whatever the clock said
+  // at the last deploy. October 29, 2026.
+  const open = openWallDates(now).get(wallKey(month, day));
+  const wallDate = open ?? newestPastWallDate(month, day, now);
+  if (wallDate === null) return null;
+  const freshFor = open !== undefined ? WALL_FRESH_MS : WALL_SEALED_FRESH_MS;
   // The live board, docs/the-wall.md section 21: the full screen hive of a
   // date that is taking buzzes, and nothing else. The same rule the header
   // is widened by, so a page that carries the script is a page allowed to
@@ -1650,7 +1714,7 @@ async function liveWall(
   // the swapped section, so a live tile is never a bare tile because the
   // deploy came before the news.
   let pictures: StoredPicture[] = [];
-  if (!fresh && cached !== undefined && now - cached.at < WALL_FRESH_MS) {
+  if (!fresh && cached !== undefined && now - cached.at < freshFor) {
     wall = cached.day;
     pictures = cached.pictures;
   } else {
@@ -1658,9 +1722,12 @@ async function liveWall(
       // No row yet is not a failure: it is tomorrow before anything has
       // landed, and tomorrow's page draws an empty square with the hour it
       // opens rather than nothing. A read that fails is null, and null is
-      // the page as built.
-      wall = (await fetchWallDay(projectBase(), key, wallDate, WALL_TIMEOUT_MS)) ?? emptyWallDay(wallDate);
-      pictures = wall.stories.length === 0 ? [] : await fetchPicturesFor(projectBase(), key, wall.stories, WALL_TIMEOUT_MS);
+      // the page as built. A past date with no row, or with nothing filed
+      // on it, is the page as built too: there is no hive to seal.
+      const read = await fetchWallDay(projectBase(), key, wallDate, WALL_TIMEOUT_MS);
+      wall = read ?? (open !== undefined ? emptyWallDay(wallDate) : null);
+      if (wall !== null && open === undefined && wall.stories.length === 0) wall = null;
+      pictures = wall === null || wall.stories.length === 0 ? [] : await fetchPicturesFor(projectBase(), key, wall.stories, WALL_TIMEOUT_MS);
     } catch {
       wall = null;
     }
