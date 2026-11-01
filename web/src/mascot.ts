@@ -12,18 +12,18 @@ export function beeSvg(className: string = ""): string {
   // served from this site, so the image policy stays 'self'. A picture rather
   // than inline markup: the drawing carries its own gradients, and the same
   // ids written into a page three times would collide.
-  return `<img class="bee${className ? ` ${className}` : ""}" src="/hero/bee.svg" alt="" width="418" height="306" decoding="async">`;
+  return `<img class="bee${className ? ` ${className}` : ""}" src="/hero/bee-signal.svg" alt="" width="320" height="220" decoding="async">`;
 }
 
 export const MASCOT_STYLE = `
-.bee { display: inline-block; flex: none; width: 36px; height: auto; vertical-align: -8px; }
-.whead .bee { width: 34px; margin-right: 6px; vertical-align: -6px; }
+.bee { display: inline-block; flex: none; width: 40px; height: auto; vertical-align: -8px; filter: drop-shadow(0 5px 12px rgba(0, 0, 0, .34)); }
+.whead .bee { width: 38px; margin-right: 5px; vertical-align: -7px; }
 
-.wsaid .bee { width: 38px; margin-right: 8px; vertical-align: -9px; }
-@keyframes beebob { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-3px) rotate(3deg); } }
+.wsaid .bee { width: 42px; margin-right: 7px; vertical-align: -9px; }
+@keyframes beebob { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-2px) rotate(1deg); } }
 @keyframes beefly {
-  0% { opacity: 0; transform: translate(-70px, -26px) rotate(-18deg) scale(.7); }
-  60% { opacity: 1; transform: translate(6px, 2px) rotate(8deg) scale(1.05); }
+  0% { opacity: 0; transform: translate(-48px, -18px) rotate(-12deg) scale(.82); }
+  60% { opacity: 1; transform: translate(4px, 1px) rotate(3deg) scale(1.03); }
   100% { opacity: 1; transform: none; }
 }
 @media (prefers-reduced-motion: no-preference) {

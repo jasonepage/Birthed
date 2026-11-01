@@ -1227,7 +1227,7 @@ test("the hero art is a seasoning: the bee on the About headline, the candle on 
   // from this site, never a picture behind a page. Not on a date with a
   // board beyond the small bee: the board is the page.
   const about = renderHome();
-  assert.ok(about.includes('<img class="herobee" src="/hero/bee.svg" alt=""'), "the bee flies off the headline");
+  assert.ok(about.includes('<img class="herobee" src="/hero/bee-signal.svg" alt=""'), "the bee flies off the headline");
   assert.ok(!about.includes("hero-cake") && !about.includes("<picture"), "and no banner");
   const empty = renderDayPage({ month: 3, day: 3 });
   assert.ok(empty.includes('<img class="wcandle" src="/hero/candle.svg" alt=""'), "the candle waits on the blank board");

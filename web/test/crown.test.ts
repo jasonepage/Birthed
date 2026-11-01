@@ -503,7 +503,7 @@ test("the seal clock ticks with no script, from where it stood, and stops on nou
 });
 
 test("the pips dim what a reader has spent, in the shared section and in the reader's own marks", () => {
-  assert.equal(pipRule(2), ".wpips i:nth-child(n+3){background:#35291A;box-shadow:none;transform:scale(.8)}");
+  assert.equal(pipRule(2), ".wpips i:nth-child(n+3){background:#35291A;box-shadow:none;transform:scale(.82);opacity:.36}");
   const d = day([]);
   const html = wallSection(d, "September 23", OPEN_NOW, { interactive: true, date: { month: 9, day: 23 } });
   assert.ok(html.includes('<span class="wpips" aria-hidden="true"><i></i><i></i><i></i></span>'));

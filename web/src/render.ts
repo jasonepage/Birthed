@@ -222,6 +222,7 @@ const STYLE = `
   padding: 7px 12px 7px 10px; min-height: 30px; box-sizing: border-box;
 }
 .pill:hover { color: var(--cream); border-color: var(--day-soft, var(--honey-lite)); }
+.pill:focus-visible { outline: 2px solid var(--signal); outline-offset: 3px; }
 .pill .ic { display: block; flex: none; }
 /* The card page: the picture as wide as the column, never wider. */
 .cardimg { display: block; width: 100%; max-width: 540px; height: auto; margin: 16px 0 0; border-radius: 14px; background: var(--cell); }
@@ -276,7 +277,12 @@ a.tile:hover { border-color: var(--day-soft, var(--honey-lite)); }
 * { box-sizing: border-box; }
 body {
   margin: 0; color: var(--cream);
-  background: var(--bg) radial-gradient(140% 900px at 50% -20%, var(--bg-glow) 0%, var(--bg) 100%) no-repeat;
+  background:
+    radial-gradient(90% 720px at 18% -12%, rgba(244, 183, 64, .14), transparent 64%),
+    radial-gradient(72% 620px at 88% -18%, rgba(99, 217, 230, .08), transparent 68%),
+    linear-gradient(rgba(99, 217, 230, .018) 1px, transparent 1px) 0 0 / 48px 48px,
+    linear-gradient(90deg, rgba(99, 217, 230, .018) 1px, transparent 1px) 0 0 / 48px 48px,
+    var(--bg);
   font: 17px/1.5 var(--sans);
   -webkit-font-smoothing: antialiased;
 }
@@ -673,7 +679,7 @@ h2.plain { font-family: var(--serif); font-weight: 800; font-size: clamp(22px, 5
 .herotext { min-width: 0; }
 /* The bee from the hero art, design/hero, October 18, 2026, flying off the
    end of the headline. Small on purpose: the art is a seasoning here. */
-.herobee { display: inline-block; width: 1.25em; height: auto; margin-left: .2em; vertical-align: -.05em; }
+.herobee { display: inline-block; width: 1.4em; height: auto; margin-left: .18em; vertical-align: -.08em; filter: drop-shadow(0 8px 18px rgba(0, 0, 0, .38)); }
 @media (prefers-reduced-motion: no-preference) { .herobee { animation: beebob 2.6s ease-in-out infinite; } }
 /* The second half of the sentence, in honey italic: the live hive's own
    headline, "September 22. What will still matter?", said the same way. It
@@ -703,9 +709,10 @@ h2.plain { font-family: var(--serif); font-weight: 800; font-size: clamp(22px, 5
 @media (min-width: 720px) { .beats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; } }
 .beats li {
   display: block; counter-increment: beat;
-  background: var(--cell); border: 1px solid var(--line); border-radius: 18px;
+  background: linear-gradient(145deg, rgba(99, 217, 230, .035), transparent 42%), var(--cell); border: 1px solid var(--line); border-radius: 16px;
   padding: 20px 22px 22px;
 }
+.beats li:hover { border-color: var(--signal-dim); }
 .beats li::before {
   content: counter(beat);
   display: inline-flex; align-items: center; justify-content: center;
@@ -720,7 +727,7 @@ h2.plain { font-family: var(--serif); font-weight: 800; font-size: clamp(22px, 5
 .flow { list-style: none; margin: 18px 0 0; padding: 0 0 0 22px; position: relative; display: grid; gap: 12px; }
 .flow::before { content: ""; position: absolute; left: 7px; top: 14px; bottom: 14px; width: 2px; border-radius: 2px; background: linear-gradient(180deg, var(--honey), rgba(244, 183, 64, .15)); }
 .flow li { display: block; position: relative; background: var(--cell); border: 1px solid var(--line); border-radius: 16px; padding: 15px 18px 17px; }
-.flow li::before { content: ""; position: absolute; left: -21px; top: 19px; width: 12px; height: 13px; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: var(--honey); }
+.flow li::before { content: ""; position: absolute; left: -21px; top: 19px; width: 12px; height: 13px; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: var(--signal); box-shadow: 0 0 12px rgba(99, 217, 230, .3); }
 .flowk { display: block; margin: 0 0 4px; font-size: 10.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: ${ACCENT}; }
 .flow h3 { margin: 0 0 6px; font-size: 17px; line-height: 1.3; }
 .flow p { margin: 0; color: var(--dim); font-size: 14.5px; line-height: 1.6; }
@@ -765,7 +772,8 @@ h2.plain { font-family: var(--serif); font-weight: 800; font-size: clamp(22px, 5
 }
 .btn.play:hover { filter: brightness(1.06); transform: translateY(-2px); }
 .bzz { display: inline-flex; gap: 5px; margin: 0 8px 0 0; vertical-align: -1px; }
-.bzz i { display: inline-block; width: 11px; height: 11px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, var(--honey-lite), var(--honey)); box-shadow: 0 0 8px rgba(244, 183, 64, 0.5); }
+.bzz i { display: inline-block; width: 12px; height: 13px; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: var(--honey); box-shadow: 0 0 8px rgba(244, 183, 64, 0.4); }
+.bzz i:nth-child(2) { background: var(--signal); box-shadow: 0 0 8px rgba(99, 217, 230, .32); }
 .rules { list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
 .rules li { display: inline-flex; align-items: baseline; gap: 6px; padding: 10px 16px; border-radius: 999px; background: var(--cell); border: 1px solid var(--line-strong); color: var(--cream-2); font-size: 14.5px; }
 .rules li b { color: var(--honey-lite); }

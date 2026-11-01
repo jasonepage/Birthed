@@ -28,6 +28,10 @@ export const HONEY = "#F4B740";
 export const HONEY_LITE = "#FFCF6B";
 /** Ember: live, now, today, a story somebody just buzzed. */
 export const EMBER = "#FF8A3D";
+/** A cool signal colour, reserved for the network and live collective state. */
+export const SIGNAL = "#63D9E6";
+/** The signal colour at rest on dark surfaces. */
+export const SIGNAL_DIM = "#23505A";
 /** Words on the dark. */
 export const CREAM = "#FFF3E0";
 /** Body copy, a step under the cream so headings still lead. */
@@ -64,6 +68,7 @@ export const THEME = `${FONT_FACES}
   --bg: ${BG}; --bg-glow: ${BG_GLOW};
   --cell: ${CELL}; --cell-2: ${CELL_2}; --line: ${LINE}; --line-strong: ${LINE_STRONG};
   --honey: ${HONEY}; --honey-lite: ${HONEY_LITE}; --ember: ${EMBER};
+  --signal: ${SIGNAL}; --signal-dim: ${SIGNAL_DIM};
   --cream: ${CREAM}; --cream-2: ${CREAM_2}; --dim: ${DIM}; --dimmer: ${DIMMER}; --on-honey: ${ON_HONEY};
   --pink: ${PINK};
   --serif: ${SERIF}; --sans: ${SANS};

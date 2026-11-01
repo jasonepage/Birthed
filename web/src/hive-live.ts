@@ -366,7 +366,7 @@ export function shareLine(supportBefore: number, supportAfter: number, totalBefo
  * project and nothing else.
  */
 export const HIVE_LIVE_STYLE = `
-.hivepage { background: radial-gradient(140% 100% at 50% -20%, #2A1D0C 0%, #120D08 58%) fixed; }
+.hivepage { background: radial-gradient(90% 82% at 22% -12%, rgba(244, 183, 64, .16), transparent 62%), radial-gradient(72% 70% at 84% -8%, rgba(99, 217, 230, .09), transparent 66%), #120D08 fixed; }
 /* Every page's bar runs the whole width of the window now, render.ts; the
    live page keeps only its date in the middle. */
 .hivepage .daybar .barnav .here { color: #FFF3E0; font-family: var(--serif); font-size: 15px; font-weight: 700; }
@@ -381,7 +381,7 @@ export const HIVE_LIVE_STYLE = `
 .wlivehive { scroll-margin-top: 64px; }
 .wawake { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
 .wlivedot { width: 8px; height: 8px; border-radius: 50%; background: var(--dimmer); flex: none; }
-.wlivedot.won { background: var(--ember); box-shadow: 0 0 10px var(--ember); }
+.wlivedot.won { background: var(--signal); box-shadow: 0 0 10px rgba(99, 217, 230, .72); }
 .wseal { font-variant-numeric: tabular-nums; font-size: 13px; color: var(--dim); }
 .wseal b { color: var(--cream); font-weight: 700; }
 .whive h2.wlivehead { font-family: var(--serif); font-optical-sizing: auto; font-weight: 800; font-size: clamp(28px, 5.4vw, 48px); line-height: 1.04; letter-spacing: -.01em; margin: 14px 0 0; text-wrap: balance; color: var(--cream); }
@@ -390,14 +390,15 @@ export const HIVE_LIVE_STYLE = `
 .wbudget { display: flex; align-items: center; gap: 12px; margin: 14px 0 8px; flex-wrap: wrap; }
 .wbudget .wcount { margin: 0; }
 .wdots { display: inline-flex; gap: 7px; }
-.wdot { width: 14px; height: 14px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, var(--honey-lite), var(--honey)); box-shadow: 0 0 10px rgba(244, 183, 64, .5); transition: transform .3s, background .3s, box-shadow .3s; }
-.wdot.wspent { background: #35291A; box-shadow: none; transform: scale(.78); }
+.wdot { position: relative; width: 16px; height: 18px; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: linear-gradient(145deg, var(--honey-lite), var(--honey)); box-shadow: 0 0 10px rgba(244, 183, 64, .34); transition: transform .3s, background .3s, box-shadow .3s, opacity .3s; }
+.wdot::after { content: ""; position: absolute; width: 4px; height: 4px; border-radius: 50%; left: 50%; top: 50%; transform: translate(-50%, -50%); background: var(--signal); }
+.wdot.wspent { background: #35291A; box-shadow: none; transform: scale(.8); opacity: .38; }
 .wleft.wset::after { content: none; }
 .wsaid.wshow { display: block; }
 .wboard.wlive {
   display: block; position: relative; aspect-ratio: 1 / 1; padding: 0; gap: 0; border-radius: 16px;
   border: 1px solid var(--line); box-shadow: none; overflow: hidden;
-  background: radial-gradient(circle at 50% 40%, rgba(255, 150, 50, .05), transparent 60%), url("/honeycomb.svg") 0 0 / 56px 96px repeat, #17110A;
+  background: radial-gradient(circle at 28% 32%, rgba(255, 150, 50, .07), transparent 54%), radial-gradient(circle at 78% 20%, rgba(99, 217, 230, .045), transparent 48%), url("/honeycomb.svg") 0 0 / 56px 96px repeat, #17110A;
 }
 .wboard.wlive.wblank { display: grid; }
 .wlive .wtile {
@@ -417,7 +418,7 @@ export const HIVE_LIVE_STYLE = `
   box-shadow: inset 0 0 calc(30px * var(--heat)) rgba(255, 175, 70, calc(.42 * var(--heat))), 0 0 calc(26px * var(--heat)) rgba(244, 150, 50, calc(.30 * var(--heat)));
   transition: box-shadow .6s ease, border-color .6s ease;
 }
-.wlive .wtile:hover .wcell { border-color: var(--honey); }
+.wlive .wtile:hover .wcell { border-color: var(--signal-dim); }
 /* The leader's edge follows the crown, docs/the-wall.md section 30, so the
    board has one leader: the most buzzed story, held on a tie. Until then
    it followed the pie's order, which breaks a tie by the editor's score. */

@@ -134,7 +134,7 @@ ${siteBar()}
 <div class="col">
 <section class="hero">
   <div class="herotext">
-    <h1>Every date has a hive. <span class="glow">Here is how to play.</span><img class="herobee" src="/hero/bee.svg" alt="" width="418" height="306"></h1>
+    <h1>Every date has a hive. <span class="glow">Here is how to play.</span><img class="herobee" src="/hero/bee-signal.svg" alt="" width="320" height="220"></h1>
     <p class="lede">Birthed is a small game about the calendar. Every day, whoever shows up decides what mattered about that date. At midnight it locks for good, and next year the same date gets another go.</p>
     <p class="actions"><a class="btn play" href="/today/">Play today's hive</a></p>
   </div>
