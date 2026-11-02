@@ -1,13 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 220" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240" role="img" aria-labelledby="title desc">
   <title id="title">Signal bee</title>
-  <desc id="desc">A simple abstract amber bee.</desc>
-  <g transform="rotate(-7 160 112)" stroke="#120D08" stroke-linejoin="round">
-    <path d="M119 94C89 65 84 35 105 24c23-12 50 15 61 59" fill="#FFF3E0" stroke-width="9"/>
-    <path d="M159 82c14-44 43-65 65-50 20 14 9 44-23 67" fill="#FFF3E0" stroke-width="9"/>
-    <path d="M55 103c15-27 47-43 85-43h48c51 0 91 27 91 61s-40 61-91 61h-48c-38 0-70-16-85-43l-31-18z" fill="#F4B740" stroke-width="10"/>
-    <path d="M95 75c-17 6-31 16-40 28l20 63c10 7 23 12 38 14L96 75zM142 60l18 122h39L184 60z" fill="#120D08" stroke="none"/>
-    <path d="m24 121-17-15v30z" fill="#120D08" stroke="none"/>
-    <path d="M232 75c10-20 24-31 42-33M244 82c20-13 39-16 56-8" fill="none" stroke-width="9" stroke-linecap="round"/>
-    <path d="M130 181v20M187 181v20" fill="none" stroke-width="9" stroke-linecap="round"/>
+  <desc id="desc">A bold abstract amber bee flying forward.</desc>
+  <defs>
+    <clipPath id="body"><path d="M86 116c9-38 43-61 91-61h35c55 0 96 28 96 66s-41 66-96 66h-35c-48 0-82-23-91-61l-34-5z"/></clipPath>
+  </defs>
+  <g transform="rotate(-8 184 121)" stroke="#120D08" stroke-linejoin="round">
+    <path d="M75 93C49 82 31 83 13 92M72 117c-31 0-52 7-68 20M80 142c-27 11-44 24-55 40" fill="none" stroke="#F4B740" stroke-width="8" stroke-linecap="round"/>
+    <path d="M135 83C102 52 100 20 126 13c29-8 54 26 55 71" fill="#FFF3E0" stroke-width="10"/>
+    <path d="M176 79c13-46 45-70 70-54 23 15 12 49-28 74" fill="#FFF3E0" stroke-width="10"/>
+    <path d="M86 116c9-38 43-61 91-61h35c55 0 96 28 96 66s-41 66-96 66h-35c-48 0-82-23-91-61l-34-5z" fill="#F4B740" stroke-width="11"/>
+    <g clip-path="url(#body)" stroke="none">
+      <path d="M101 45h39l25 153h-42zM168 45h43l18 153h-43z" fill="#120D08"/>
+      <path d="M89 69 69 166l34 17 21-127z" fill="#120D08"/>
+    </g>
+    <path d="m54 121-29-22 3 43z" fill="#120D08" stroke="none"/>
+    <path d="M258 72c10-22 26-35 47-37M272 80c22-14 44-17 63-8" fill="none" stroke-width="10" stroke-linecap="round"/>
+    <path d="M147 185c-1 14 5 23 18 28M211 187c3 13 12 20 26 22" fill="none" stroke-width="10" stroke-linecap="round"/>
   </g>
 </svg>

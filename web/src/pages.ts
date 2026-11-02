@@ -106,12 +106,12 @@ export function renderHome(): string {
   // pick a winner on its behalf.
   const canonical = `${SITE}/about/`;
   return `${head(
-    "About Birthed",
+    "Birthed | The daily hive",
     // What a link preview says, which for most people is the whole of what
     // they read before deciding. It said what is on a page. It now says what
     // the site does, because the page itself no longer leads with the feature
     // list either and the two should not disagree.
-    "Every date has a hive. Everything with a birthday on it is on one feed, whoever turns up crowns what mattered, and at midnight it seals for good. History is written the day it happens. Birthed keeps what mattered.",
+    "The day's reporting becomes one living board. You get three buzzes to decide what deserves space. At midnight, the board seals for good.",
     canonical,
     // The card. Every date page has had one since it was built and the home
     // page never did, so this was the one page on the site that shared as a
@@ -134,11 +134,15 @@ ${siteBar()}
 <div class="col">
 <section class="hero">
   <div class="herotext">
-    <h1>Every date has a hive. <span class="glow">Here is how to play.</span><img class="herobee" src="/hero/bee-signal.svg" alt="" width="320" height="220"></h1>
-    <p class="lede">Birthed is a small game about the calendar. Every day, whoever shows up decides what mattered about that date. At midnight it locks for good, and next year the same date gets another go.</p>
-    <p class="actions"><a class="btn play" href="/today/">Play today's hive</a></p>
+    <p class="heroeyebrow">The daily hive</p>
+    <h1>What will today be <span class="glow">remembered for?</span></h1>
+    <p class="lede">Birthed gathers the day's reporting into one living board. You get three buzzes to decide what deserves space. Every buzz grows a story. At midnight, the board seals for good.</p>
+    <p class="actions"><a class="btn play" href="/today/">Enter today's hive <span aria-hidden="true">&rarr;</span></a></p>
+    <p class="heroproof">No account. No ads. Every tile shows its sources.</p>
   </div>
+  <img class="herobee" src="/hero/bee-signal.svg" alt="" width="360" height="240">
 </section>
+<p class="herorule"><strong>3 buzzes.</strong><span>1 board.</span><span>Sealed at midnight Eastern.</span></p>
 ${sampleHive()}
 </div>
 

@@ -674,18 +674,33 @@ h2.plain { font-family: var(--serif); font-weight: 800; font-size: clamp(22px, 5
 /* One column. The app icon that used to float here is gone: it bobbed up and
    down beside a headline that now has a job to do, and an icon is what a page
    leads with when it has nothing to say yet. */
-.home .hero { margin: 8px 0 0; max-width: 760px; }
-.home .hero h1 { font-size: clamp(35px, 6.6vw, 60px); letter-spacing: -0.012em; }
+.home .hero {
+  display: grid; grid-template-columns: minmax(0, 1fr) 190px; gap: 18px;
+  align-items: center; margin: 18px 0 0; max-width: 760px;
+}
+.home .hero h1 { max-width: 11ch; margin: 0; font-size: clamp(40px, 7.2vw, 64px); line-height: .98; letter-spacing: -0.035em; }
 .herotext { min-width: 0; }
-/* The bee from the hero art, design/hero, October 18, 2026, flying off the
-   end of the headline. Small on purpose: the art is a seasoning here. */
-.herobee { display: inline-block; width: 1.4em; height: auto; margin-left: .18em; vertical-align: -.08em; filter: drop-shadow(0 8px 18px rgba(0, 0, 0, .38)); }
+/* A signal mark, not a mascot. It has enough scale to own the front door but
+   stays out of the sentence, where it used to read as an emoji. */
+.herobee { display: block; width: min(100%, 190px); height: auto; filter: drop-shadow(0 14px 24px rgba(0, 0, 0, .42)); }
 @media (prefers-reduced-motion: no-preference) { .herobee { animation: beebob 2.6s ease-in-out infinite; } }
 /* The second half of the sentence, in honey italic: the live hive's own
    headline, "September 22. What will still matter?", said the same way. It
    was a pink to violet gradient clipped to the type, the one thing every
    generated landing page has, September 22, 2026. */
 .glow { color: var(--honey); font-style: italic; font-weight: 600; }
+.heroeyebrow {
+  margin: 0 0 14px; color: var(--honey); font-size: 11px; font-weight: 850;
+  letter-spacing: .2em; text-transform: uppercase;
+}
+.home .hero .lede { max-width: 57ch; margin: 22px 0 0; font-size: 17px; line-height: 1.58; }
+.heroproof { margin: 13px 0 0; color: var(--quiet); font-size: 12.5px; }
+.herorule {
+  display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 30px 0 0;
+  padding: 13px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  color: var(--dim); font-size: 13px; letter-spacing: .015em;
+}
+.herorule strong { color: var(--honey); }
 
 /* Four beats, numbered, because what this site does is a sequence and a reader
    who does not already know it needs the order more than the detail.
@@ -854,7 +869,10 @@ p.calkey .sw.today { background: none; box-shadow: inset 0 0 0 2px ${TODAY}; }
 @media (max-width: 600px) {
   .months { grid-template-columns: 1fr; gap: 10px; }
   .cal .days a { font-size: 16px; border-radius: 12px; }
-  .home .hero { margin-top: 4px; }
+  .home .hero { display: block; position: relative; margin-top: 12px; }
+  .home .hero h1 { padding-right: 56px; font-size: clamp(39px, 12vw, 54px); }
+  .herobee { position: absolute; top: 32px; right: -22px; width: 105px; }
+  .herorule { gap: 6px 12px; margin-top: 24px; }
   .wrap.home { padding-left: 16px; padding-right: 16px; }
 
 }

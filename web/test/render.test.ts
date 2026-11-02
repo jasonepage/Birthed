@@ -1110,7 +1110,9 @@ const cultural = (over = {}) => ({
 test("the about page explains what the site does before what is on a page", () => {
   const html = renderHome();
   // The game first, since September 22, 2026: the front door is a date now.
-  assert.ok(html.includes("Every date has a hive."));
+  assert.ok(html.includes("What will today be"));
+  assert.ok(html.includes("3 buzzes."));
+  assert.ok(html.includes("Every tile shows its sources."));
   // The steps, in order, because the thing this site does is a sequence and a
   // reader who does not know it needs the order more than the detail.
   let at = 0;
@@ -1146,7 +1148,7 @@ test("the link preview says what the site does, not what is on a page", () => {
   const html = renderHome();
   // A description that disagreed with the page would be the one thing most
   // people read before deciding whether to open it.
-  assert.match(html, /<meta name="description" content="Every date has a hive\./);
+  assert.match(html, /<meta name="description" content="The day&#39;s reporting becomes one living board\./);
 });
 
 
