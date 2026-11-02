@@ -2718,7 +2718,7 @@ export const WALL_STYLE = `
 .whudtop { margin: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; font-size: 14px; font-weight: 700; color: var(--cream-2); line-height: 1.35; }
 .whudtop .wkey, .whudwhen .wkey { font-style: normal; color: var(--cream); text-decoration: underline; text-decoration-color: var(--honey); text-decoration-thickness: 2px; text-underline-offset: 3px; }
 .wbadge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; line-height: 1.4; }
-.wlivebadge { color: #071719; background: var(--signal); box-shadow: 0 0 14px rgba(99, 217, 230, .28); }
+.wlivebadge { color: #1C0E04; background: var(--ember); box-shadow: 0 0 14px rgba(255, 122, 69, .35); }
 .wlivebadge i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 @media (prefers-reduced-motion: no-preference) { .wlivebadge i { animation: wbeat 1.4s ease-in-out infinite; } }
 @keyframes wbeat { 50% { opacity: .25; } }
@@ -2744,7 +2744,7 @@ a.whudname:hover { color: var(--honey-lite); }
 .wminecell .whudk { flex: none; }
 .wpips { display: inline-flex; gap: 7px; }
 .wpips i { position: relative; display: block; width: 18px; height: 20px; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: linear-gradient(145deg, var(--honey-lite), var(--honey)); box-shadow: 0 0 10px rgba(244, 183, 64, .28); transition: transform .3s, opacity .3s; }
-.wpips i::after { content: ""; position: absolute; width: 5px; height: 5px; border-radius: 50%; left: 50%; top: 50%; transform: translate(-50%, -50%); background: var(--signal); box-shadow: 0 0 6px rgba(99, 217, 230, .7); }
+.wpips i::after { content: ""; position: absolute; width: 5px; height: 5px; border-radius: 50%; left: 50%; top: 50%; transform: translate(-50%, -50%); background: var(--on-honey); }
 .wminecell .wcount { margin: 0; font-size: 13px; font-weight: 700; color: var(--cream-2); }
 .whud .wlede { margin: 10px 0 0; font-size: 13.5px; line-height: 1.4; color: var(--dim); }
 .wgoal { display: inline-block; margin-right: 6px; padding: 1px 7px; border-radius: 6px; font-size: 10.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--on-honey); background: var(--honey); vertical-align: 1px; }
@@ -2784,7 +2784,7 @@ a.whudname:hover { color: var(--honey-lite); }
   display: grid; grid-template-columns: repeat(var(--side, 16), minmax(0, 1fr)); grid-template-rows: repeat(var(--side, 16), minmax(0, 1fr));
   gap: 4px; width: 100%; max-width: 100%; aspect-ratio: 1 / 1; margin: 0 auto;
   padding: 4px; box-sizing: border-box; border-radius: 16px; border: 1px solid var(--line);
-  background: radial-gradient(circle at 28% 32%, rgba(255, 150, 50, .07), transparent 54%), radial-gradient(circle at 78% 20%, rgba(99, 217, 230, .045), transparent 48%), url("/honeycomb.svg") 0 0 / 56px 96px repeat, #17110A;
+  background: radial-gradient(circle at 28% 32%, rgba(255, 150, 50, .07), transparent 54%), radial-gradient(circle at 78% 20%, rgba(244, 183, 64, .035), transparent 48%), url("/honeycomb.svg") 0 0 / 56px 96px repeat, #17110A;
 }
 /* On a phone the board runs edge to edge, because a gutter either side of
    the one picture on the page is forty pixels of nothing. The sticky bar

@@ -2,14 +2,14 @@
   <title id="title">Signal bee</title>
   <desc id="desc">An abstract amber bee built from simple geometric shapes.</desc>
   <g transform="rotate(-7 160 112)" stroke="#120D08" stroke-linejoin="round">
-    <path d="M119 94C89 65 84 35 105 24c23-12 50 15 61 59" fill="#DDF6F5" stroke-width="9"/>
-    <path d="M159 82c14-44 43-65 65-50 20 14 9 44-23 67" fill="#DDF6F5" stroke-width="9"/>
+    <path d="M119 94C89 65 84 35 105 24c23-12 50 15 61 59" fill="#FFF3E0" stroke-width="9"/>
+    <path d="M159 82c14-44 43-65 65-50 20 14 9 44-23 67" fill="#FFF3E0" stroke-width="9"/>
     <path d="M55 103c15-27 47-43 85-43h48c51 0 91 27 91 61s-40 61-91 61h-48c-38 0-70-16-85-43l-31-18z" fill="#F4B740" stroke-width="10"/>
     <path d="M95 75c-17 6-31 16-40 28l20 63c10 7 23 12 38 14L96 75zM142 60l18 122h39L184 60z" fill="#120D08" stroke="none"/>
     <path d="m24 121-17-15v30z" fill="#120D08" stroke="none"/>
     <path d="M232 75c10-20 24-31 42-33M244 82c20-13 39-16 56-8" fill="none" stroke-width="9" stroke-linecap="round"/>
-    <path d="M112 118h48l25 25" fill="none" stroke="#63D9E6" stroke-width="5" stroke-linecap="round"/>
-    <path d="m100 118 6-10h12l6 10-6 10h-12zM148 118l6-10h12l6 10-6 10h-12zM177 143l6-10h12l6 10-6 10h-12z" fill="#63D9E6" stroke-width="4"/>
+    <path d="M112 118h48l25 25" fill="none" stroke="#FFCF6B" stroke-width="5" stroke-linecap="round"/>
+    <path d="m100 118 6-10h12l6 10-6 10h-12zM148 118l6-10h12l6 10-6 10h-12zM177 143l6-10h12l6 10-6 10h-12z" fill="#FFCF6B" stroke-width="4"/>
     <path d="M130 181v20M187 181v20" fill="none" stroke-width="9" stroke-linecap="round"/>
   </g>
 </svg>
