@@ -1,17 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 220" role="img" aria-labelledby="title desc">
   <title id="title">Signal bee</title>
-  <desc id="desc">A simple amber bee with three connected signal cells.</desc>
-  <g transform="rotate(-8 160 110)">
-    <path d="M126 91C91 48 92 20 121 18c28-2 51 32 55 70" fill="#DDF6F5" stroke="#120D08" stroke-width="8" stroke-linejoin="round"/>
-    <path d="M156 83c8-52 34-75 61-64 28 12 19 49-18 79" fill="#DDF6F5" stroke="#120D08" stroke-width="8" stroke-linejoin="round"/>
-    <path d="M115 84c-45 0-77 24-77 58 0 36 38 59 93 59h61c49 0 90-30 90-68 0-34-35-57-83-57z" fill="#F4B740" stroke="#120D08" stroke-width="9" stroke-linejoin="round"/>
-    <path d="M85 91c-15 7-27 17-34 29l26 68c12 6 26 10 42 12L96 88zM137 78l18 123h34c10 0 20-1 29-4L198 76z" fill="#120D08"/>
-    <path d="M38 142 12 129l25-13z" fill="#120D08"/>
-    <path d="M233 87c13-18 28-27 44-27M246 94c22-10 40-10 54-1" fill="none" stroke="#120D08" stroke-width="8" stroke-linecap="round"/>
-    <circle cx="246" cy="119" r="4" fill="#120D08"/><circle cx="266" cy="119" r="4" fill="#120D08"/>
-    <path d="M247 137c8 6 16 6 24 0" fill="none" stroke="#120D08" stroke-width="5" stroke-linecap="round"/>
-    <path d="M120 111h43l24 34" fill="none" stroke="#63D9E6" stroke-width="4" stroke-linecap="round"/>
-    <path d="m108 111 6-10h12l6 10-6 10h-12zM153 111l6-10h12l6 10-6 10h-12zM179 145l6-10h12l6 10-6 10h-12z" fill="#63D9E6" stroke="#120D08" stroke-width="4"/>
-    <path d="M143 199c-2 11 5 17 20 18M193 198c4 10 14 14 28 10" fill="none" stroke="#120D08" stroke-width="8" stroke-linecap="round"/>
+  <desc id="desc">An abstract amber bee built from simple geometric shapes.</desc>
+  <g transform="rotate(-7 160 112)" stroke="#120D08" stroke-linejoin="round">
+    <path d="M119 94C89 65 84 35 105 24c23-12 50 15 61 59" fill="#DDF6F5" stroke-width="9"/>
+    <path d="M159 82c14-44 43-65 65-50 20 14 9 44-23 67" fill="#DDF6F5" stroke-width="9"/>
+    <path d="M55 103c15-27 47-43 85-43h48c51 0 91 27 91 61s-40 61-91 61h-48c-38 0-70-16-85-43l-31-18z" fill="#F4B740" stroke-width="10"/>
+    <path d="M95 75c-17 6-31 16-40 28l20 63c10 7 23 12 38 14L96 75zM142 60l18 122h39L184 60z" fill="#120D08" stroke="none"/>
+    <path d="m24 121-17-15v30z" fill="#120D08" stroke="none"/>
+    <path d="M232 75c10-20 24-31 42-33M244 82c20-13 39-16 56-8" fill="none" stroke-width="9" stroke-linecap="round"/>
+    <path d="M112 118h48l25 25" fill="none" stroke="#63D9E6" stroke-width="5" stroke-linecap="round"/>
+    <path d="m100 118 6-10h12l6 10-6 10h-12zM148 118l6-10h12l6 10-6 10h-12zM177 143l6-10h12l6 10-6 10h-12z" fill="#63D9E6" stroke-width="4"/>
+    <path d="M130 181v20M187 181v20" fill="none" stroke-width="9" stroke-linecap="round"/>
   </g>
 </svg>
