@@ -464,7 +464,7 @@ test("the about page explains how to play and asks for nothing", () => {
   const html = renderHome();
   assert.ok(!html.includes('action="/year"'), "no birthday form");
   assert.ok(!html.includes("Surprise me"), "the bar already has Random day");
-  assert.ok(html.includes("How to play"));
+  assert.ok(html.includes("The rules"));
   assert.ok(html.includes("Spend your three buzzes") && html.includes("Midnight seals it"));
   assert.ok(html.includes('<a class="btn play" href="/today/">'));
   assert.ok(!html.includes("<script"));
@@ -984,7 +984,7 @@ test("no facts is a missing section rather than a heading over nothing", () => {
   const html = renderHome();
   assert.ok(!html.includes("Every date has a day like this in it"));
   // And the page still works.
-  assert.ok(html.includes("How to play"));
+  assert.ok(html.includes("The rules"));
 });
 
 test("the front door still runs nothing", () => {
@@ -1110,7 +1110,7 @@ const cultural = (over = {}) => ({
 test("the about page explains what the site does before what is on a page", () => {
   const html = renderHome();
   // The game first, since September 22, 2026: the front door is a date now.
-  assert.ok(html.includes("Every date has a hive."));
+  assert.ok(html.includes("Today's hive"));
   // The steps, in order, because the thing this site does is a sequence and a
   // reader who does not know it needs the order more than the detail.
   let at = 0;

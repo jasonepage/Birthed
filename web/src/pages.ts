@@ -79,7 +79,7 @@ ${tile("6 / span 3", "1 / span 4", 3, "claimed", "Michael Faraday, British scien
 ${tile("1 / span 3", "5 / span 4", 3, "claimed", "1991: The Dead Sea Scrolls are made public for the first time.", "2 buzzes", "happened")}
 ${tile("4 / span 5", "5 / span 4", 5, "seen_direct", "1862: A preliminary Emancipation Proclamation is released by Abraham Lincoln.", "4 buzzes", "happened")}
 </div>
-<p class="wsamplesay">A hive, sealed. Each tile is a story with a birthday on the date, and its size is its share of the day's buzzes. Tap Buzz on a live hive and its story grows.</p>`;
+<p class="wsamplesay">Buzz a story and its tile grows. At midnight, the hive seals.</p>`;
 }
 
 function storeButton(): string {
@@ -134,16 +134,16 @@ ${siteBar()}
 <div class="col">
 <section class="hero">
   <div class="herotext">
-    <h1>Every date has a hive. <span class="glow">Here is how to play.</span><img class="herobee" src="/hero/bee-signal.svg" alt="" width="320" height="220"></h1>
-    <p class="lede">Birthed is a small game about the calendar. Every day, whoever shows up decides what mattered about that date. At midnight it locks for good, and next year the same date gets another go.</p>
-    <p class="actions"><a class="btn play" href="/today/">Play today's hive</a></p>
+    <h1>Today's hive<img class="herobee" src="/hero/bee-signal.svg" alt="" width="320" height="220"></h1>
+    <p class="lede">Three buzzes. Make the stories that matter grow.</p>
+    <p class="actions"><a class="btn play" href="/today/">Enter the live hive</a></p>
   </div>
 </section>
 ${sampleHive()}
 </div>
 
 <section class="col how">
-<h2 class="plain">How to play</h2>
+<h2 class="plain">The rules</h2>
 <ol class="beats">
   <li>
     <h3>Open a date</h3>

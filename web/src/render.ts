@@ -675,17 +675,18 @@ h2.plain { font-family: var(--serif); font-weight: 800; font-size: clamp(22px, 5
    down beside a headline that now has a job to do, and an icon is what a page
    leads with when it has nothing to say yet. */
 .home .hero { margin: 8px 0 0; max-width: 760px; }
-.home .hero h1 { font-size: clamp(35px, 6.6vw, 60px); letter-spacing: -0.012em; }
+.home .hero h1 { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; font-size: clamp(35px, 6.6vw, 60px); letter-spacing: -0.012em; }
 .herotext { min-width: 0; }
 /* The bee from the hero art, design/hero, October 18, 2026, flying off the
    end of the headline. Small on purpose: the art is a seasoning here. */
-.herobee { display: inline-block; width: 1.4em; height: auto; margin-left: .18em; vertical-align: -.08em; filter: drop-shadow(0 8px 18px rgba(0, 0, 0, .38)); }
+.herobee { display: inline-block; width: 1.15em; height: auto; filter: drop-shadow(0 8px 18px rgba(0, 0, 0, .38)); }
 @media (prefers-reduced-motion: no-preference) { .herobee { animation: beebob 2.6s ease-in-out infinite; } }
 /* The second half of the sentence, in honey italic: the live hive's own
    headline, "September 22. What will still matter?", said the same way. It
    was a pink to violet gradient clipped to the type, the one thing every
    generated landing page has, September 22, 2026. */
 .glow { color: var(--honey); font-style: italic; font-weight: 600; }
+.home .hero .lede { margin: 0; font-size: 16px; }
 
 /* Four beats, numbered, because what this site does is a sequence and a reader
    who does not already know it needs the order more than the detail.
@@ -739,11 +740,11 @@ h2.plain { font-family: var(--serif); font-weight: 800; font-size: clamp(22px, 5
    are before reading a word about them. Drawn with the board's own rules,
    which is the point: it is not a picture of the hive, it is the hive, with
    nothing to press. September 22, 2026. */
-.wboard.wsample { max-width: 360px; margin: 26px 0 0; pointer-events: none; }
+.wboard.wsample { max-width: 620px; margin: 28px 0 0; pointer-events: none; }
 .wsample .wtile { cursor: default; }
 .wsample .wtile .wh { font-size: clamp(12px, calc(38cqi / var(--side, 8) * var(--fit, 1)), 22px); }
 .wsample .wtile.big { justify-content: flex-end; gap: 10px; }
-.wsamplesay { margin: 8px 0 0; font-size: 13px; color: var(--dim); max-width: 520px; }
+.wsamplesay { margin: 10px 0 0; font-size: 13px; color: var(--dim); max-width: 520px; }
 .actions .btn { margin: 0; }
 .btn.brand {
   display: inline-flex; align-items: center; gap: 8px;
