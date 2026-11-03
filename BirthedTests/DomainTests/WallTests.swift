@@ -66,14 +66,14 @@ final class WallTests: XCTestCase {
 
     // MARK: The budget
 
-    func testThreeOnTheDayOneTheDayAfterNoneTheDayBefore() {
+    func testThreeOnEachOfTheThreeOpenHives() {
         let wall = wallDate(2026, 9, 9)
         XCTAssertEqual(WallBudget.allowance(castOn: wallDate(2026, 9, 9), wallDate: wall), 3)
-        XCTAssertEqual(WallBudget.allowance(castOn: wallDate(2026, 9, 10), wallDate: wall), 1)
-        XCTAssertEqual(WallBudget.allowance(castOn: wallDate(2026, 9, 8), wallDate: wall), 0)
+        XCTAssertEqual(WallBudget.allowance(castOn: wallDate(2026, 9, 10), wallDate: wall), 3)
+        XCTAssertEqual(WallBudget.allowance(castOn: wallDate(2026, 9, 8), wallDate: wall), 3)
         XCTAssertEqual(WallBudget.allowance(castOn: wallDate(2026, 9, 11), wallDate: wall), 0)
         // The day after December 31 is January 1 of the next year.
-        XCTAssertEqual(WallBudget.allowance(castOn: wallDate(2027, 1, 1), wallDate: wallDate(2026, 12, 31)), 1)
+        XCTAssertEqual(WallBudget.allowance(castOn: wallDate(2027, 1, 1), wallDate: wallDate(2026, 12, 31)), 3)
         XCTAssertEqual(WallBudget.dayAfter(wallDate(2028, 2, 28)), wallDate(2028, 2, 29))
     }
 
@@ -84,10 +84,8 @@ final class WallTests: XCTestCase {
         XCTAssertEqual(WallBudget.unitsLeft(wallDate: wall, now: onTheDay, spentToday: 1), 2)
         XCTAssertEqual(WallBudget.unitsLeft(wallDate: wall, now: onTheDay, spentToday: 3), 0)
         XCTAssertEqual(WallBudget.unitsLeft(wallDate: wall, now: onTheDay, spentToday: 5), 0)
-        // The day after, Eastern: one unit, whatever was spent yesterday.
-        XCTAssertEqual(WallBudget.unitsLeft(wallDate: wall, now: at("2026-09-10T20:00:00Z"), spentToday: 0), 1)
-        // The day before: nothing.
-        XCTAssertEqual(WallBudget.unitsLeft(wallDate: wall, now: at("2026-09-08T20:00:00Z"), spentToday: 0), 0)
+        XCTAssertEqual(WallBudget.unitsLeft(wallDate: wall, now: at("2026-09-10T20:00:00Z"), spentToday: 0), 3)
+        XCTAssertEqual(WallBudget.unitsLeft(wallDate: wall, now: at("2026-09-08T20:00:00Z"), spentToday: 0), 3)
     }
 
     func testTheBoundaryWhereTwoIsRefusedBecauseOneIsSpent() {
@@ -109,7 +107,7 @@ final class WallTests: XCTestCase {
     func testThePhasesFollowTheStoredInstantsAndServerTimeDecides() {
         let d = day()
         XCTAssertEqual(d.phase(now: at("2026-09-08T03:59:59Z")), .notYetOpen)
-        XCTAssertEqual(d.phase(now: at("2026-09-08T04:00:00Z")), .submissionsOnly)
+        XCTAssertEqual(d.phase(now: at("2026-09-08T04:00:00Z")), .live)
         XCTAssertEqual(d.phase(now: at("2026-09-09T04:00:00Z")), .live)
         XCTAssertEqual(d.phase(now: at("2026-09-11T03:59:59Z")), .live)
         // The same second the date closes: closed. Server time decides.

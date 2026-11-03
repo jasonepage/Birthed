@@ -205,26 +205,25 @@ test("a story nobody backed never prints a count of nothing", () => {
   assert.ok(!/0 (boosts|taps)/.test(page));
 });
 
-test("the day before takes no taps, the day after takes one, and a closed wall takes none", () => {
+test("yesterday, today and tomorrow each take three buzzes, and a closed wall takes none", () => {
   const d = day([story({ rect: { mx: 3, my: 5, w: 4, h: 3 } })]);
   const before = Date.parse("2026-09-08T20:00:00Z");
   const after = Date.parse("2026-09-10T20:00:00Z");
   const closed = Date.parse("2026-09-11T05:00:00Z");
-  assert.equal(takingBoosts(d, before), false);
+  assert.equal(takingBoosts(d, before), true);
   assert.equal(takingBoosts(d, LIVE_NOW), true);
   assert.equal(takingBoosts(d, after), true);
   assert.equal(takingBoosts(d, closed), false);
-  assert.equal(allowanceOn(d, before), 0);
+  assert.equal(allowanceOn(d, before), 3);
   assert.equal(allowanceOn(d, LIVE_NOW), 3);
-  assert.equal(allowanceOn(d, after), 1);
+  assert.equal(allowanceOn(d, after), 3);
   assert.equal(allowanceOn(d, closed), 0);
 
   const early = wallSection(d, "September 9", before, { interactive: true });
-  assert.ok(!early.includes("<form"), "no tap is offered before the date arrives");
-  assert.ok(early.replace(/<[^>]+>/g, "").includes("Opens tonight at midnight Eastern."));
+  assert.ok(early.includes("<form"), "tomorrow's hive takes buzzes while it is open");
   const late = wallSection(d, "September 9", after, { interactive: true });
   assert.ok(late.includes("<form"));
-  assert.ok(late.includes("One buzz left today on this date. It closes tonight."));
+  assert.ok(late.includes("Three buzzes left today."));
   const shut = wallSection(d, "September 9", closed, { interactive: true });
   assert.ok(!shut.includes("<form"));
   assert.ok(!shut.includes("buzzes left"));
@@ -235,8 +234,6 @@ test("the remaining count says what it means", () => {
   assert.equal(tapsLeftSentence(2, 3), "Two buzzes left today.");
   assert.equal(tapsLeftSentence(1, 3), "One buzz left today.");
   assert.equal(tapsLeftSentence(0, 3), "No buzzes left today.");
-  assert.equal(tapsLeftSentence(1, 1), "One buzz left today on this date. It closes tonight.");
-  assert.equal(tapsLeftSentence(0, 1), "No buzzes left today on this date.");
   assert.equal(tapsLeftSentence(2, 3, PLAIN), "Two taps left today.");
 });
 

@@ -135,7 +135,7 @@ ${siteBar()}
 <section class="hero">
   <div class="herotext">
     <h1>Today's hive<img class="herobee" src="/hero/bee-signal.svg" alt="" width="320" height="220"></h1>
-    <p class="lede">Three buzzes. Make the stories that matter grow.</p>
+    <p class="lede">Three buzzes for yesterday, today and tomorrow. Make the stories that matter grow.</p>
     <p class="actions"><a class="btn play" href="/today/">Enter the live hive</a></p>
   </div>
 </section>
@@ -147,15 +147,15 @@ ${sampleHive()}
 <ol class="beats">
   <li>
     <h3>Open a date</h3>
-    <p>Today is the one that is live. Today's news lands on its board within the hour. Pick between two brings up the rest of the date, what happened on it in history, who was born on it and what was number one, two at a time.</p>
+    <p>Yesterday, today and tomorrow are live. Today's news lands on today's board within the hour. Pick between two brings up the rest of a date, two at a time.</p>
   </li>
   <li>
-    <h3>Spend your three buzzes</h3>
-    <p><span class="bzz" aria-hidden="true"><i></i><i></i><i></i></span>You get three a day. Tap Buzz on the stories you think mattered most today. Each buzz makes that story's tile bigger. Nobody keeps a score of you, there is no downvote, and there is no way to say a thing did not matter.</p>
+    <h3>Three buzzes for each hive</h3>
+    <p><span class="bzz" aria-hidden="true"><i></i><i></i><i></i></span>Yesterday, today and tomorrow each have their own three. Tap Buzz on the stories you think matter. Each buzz makes that story's tile bigger. There is no downvote and no way to say a thing did not matter.</p>
   </li>
   <li>
-    <h3>Yesterday gets one more</h3>
-    <p>The day after a date, you get one more buzz to spend on its hive.</p>
+    <h3>All three stay open</h3>
+    <p>You can spend three buzzes on each open hive until it seals.</p>
   </li>
   <li>
     <h3>Midnight seals it</h3>
@@ -512,10 +512,10 @@ ${siteBar()}
 <p>No. The website has no accounts and no sign up. The first time you buzz something, the site keeps one random string in a cookie, so your browser gets its few buzzes a day and no more. That is all it keeps, and the <a href="/privacy/">privacy page</a> says exactly what it is.</p>
 
 <h3>What is a buzz?</h3>
-<p>A buzz is a vote that a story mattered today. Each one makes that story's tile on the hive bigger. You get three a day, one per story. The day after a date, you get one more to spend on its hive. There is no downvote and no score.</p>
+<p>A buzz is a vote that a story mattered. Each one makes that story's tile on the hive bigger. Yesterday, today and tomorrow each have a separate three-buzz allowance, one per story. There is no downvote and no score.</p>
 
 <h3>What is the hive, and what does sealed mean?</h3>
-<p>Every date has a hive: one board holding everything with a birthday on that date, from what happened on it in history to today's news. A date's hive opens at midnight Eastern time when the date begins, takes buzzes that day and the next, and seals at the midnight that ends the next day. Sealed means permanent. Nothing on the board changes after that, and next year the same date gets a new hive beside it.</p>
+<p>Every date has a hive: one board holding everything with a birthday on that date, from what happened on it in history to today's news. A date's hive opens one day early, takes buzzes for three days, and seals at midnight Eastern at the end of its third day. Sealed means permanent. Nothing on the board changes after that, and next year the same date gets a new hive beside it.</p>
 
 <h3>Why is a sealed hive smaller than an open one?</h3>
 <p>Nothing is removed when a hive seals. Hives that sealed before September 22, 2026 were cut under an older rule that put at most eight stories nobody had buzzed on the board, and a sealed board is never redrawn. Hives from then on hold many more. The line under each sealed board says how many buzzes it sealed with.</p>

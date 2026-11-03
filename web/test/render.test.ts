@@ -465,7 +465,7 @@ test("the about page explains how to play and asks for nothing", () => {
   assert.ok(!html.includes('action="/year"'), "no birthday form");
   assert.ok(!html.includes("Surprise me"), "the bar already has Random day");
   assert.ok(html.includes("The rules"));
-  assert.ok(html.includes("Spend your three buzzes") && html.includes("Midnight seals it"));
+  assert.ok(html.includes("Three buzzes for each hive") && html.includes("Midnight seals it"));
   assert.ok(html.includes('<a class="btn play" href="/today/">'));
   assert.ok(!html.includes("<script"));
 });
@@ -1114,7 +1114,7 @@ test("the about page explains what the site does before what is on a page", () =
   // The steps, in order, because the thing this site does is a sequence and a
   // reader who does not know it needs the order more than the detail.
   let at = 0;
-  for (const step of ["Open a date", "Spend your three buzzes", "Yesterday gets one more", "Midnight seals it", "Come back next year"]) {
+  for (const step of ["Open a date", "Three buzzes for each hive", "All three stay open", "Midnight seals it", "Come back next year"]) {
     const found = html.indexOf(step, at);
     assert.ok(found > at, `the page lost the step, or moved it: ${step}`);
     at = found;

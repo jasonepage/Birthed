@@ -186,11 +186,11 @@ const SCRIPTED = ["/add", "/admin"];
 
 /**
  * The third: the full screen hive of a date that is taking buzzes.
- * docs/the-wall.md section 21. Two dates at most, today's and yesterday's by
- * the Eastern clock, which are the only dates a buzz can land on, keyed by
+ * docs/the-wall.md section 21. Yesterday, today and tomorrow by the Eastern
+ * clock, the three dates a buzz can land on, keyed by
  * month and day the way openWallDates keys them. The header widens for the
  * hive path of those dates alone and only while they are live: a sealed
- * date's hive, tomorrow's hive and every date page keep the policy with no
+ * date's hive and every date page keep the policy with no
  * script in it, and the baked hive page under this path carries no script
  * either, so a date that seals after a deploy serves a page that runs
  * nothing under a header that would have let it.
@@ -198,7 +198,7 @@ const SCRIPTED = ["/add", "/admin"];
 export function liveHiveDates(now: number = Date.now()): Map<string, string> {
   const out = new Map<string, string>();
   for (const [key, wallDate] of openWallDates(now)) {
-    if (now >= easternMidnight(wallDate)) out.set(key, wallDate);
+    out.set(key, wallDate);
   }
   return out;
 }

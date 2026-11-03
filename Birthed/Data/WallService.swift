@@ -184,9 +184,8 @@ final class WallService {
         return .bee
     }
 
-    /// What a fresh account would have on this date today: three on the date
-    /// itself, one the day after, none before. The count sentence needs it to
-    /// know whether to say "on this date".
+    /// What a fresh account has on this open hive: three, independently for
+    /// yesterday, today and tomorrow.
     var allowance: Int {
         guard let day else { return 0 }
         return WallBudget.allowance(castOn: WallClock.easternDate(of: now), wallDate: day.wallDate)

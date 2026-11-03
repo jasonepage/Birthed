@@ -1590,23 +1590,20 @@ function hoursUntil(iso: string, now: number): string {
   return hours === 1 ? "about an hour" : `about ${hours} hours`;
 }
 
-/** Whether the date is taking boosts at an instant: from its live day until it closes. */
+/** Whether the date is taking boosts at an instant: all three open days. */
 export function takingBoosts(day: WallDay, now: number): boolean {
   const closes = day.closedAt ?? day.closesAt;
-  return now >= Date.parse(day.liveAt) && now < Date.parse(closes);
+  return now >= Date.parse(day.opensAt) && now < Date.parse(closes);
 }
 
 /**
  * The taps a fresh browser has on a date at an instant, by the rule in
- * docs/the-wall.md section 4: three on the date itself, one on the day
- * after, none the day before. "Today" is the Eastern calendar date.
+ * docs/the-wall.md section 4: three on each of yesterday's, today's and
+ * tomorrow's hives. Each hive keeps its own budget.
  */
 export function allowanceOn(day: WallDay, now: number): number {
   if (!takingBoosts(day, now)) return 0;
-  const today = easternDateOf(now);
-  if (today === day.wallDate) return 3;
-  const after = new Date(Date.UTC(day.year, day.month - 1, day.day + 1)).toISOString().slice(0, 10);
-  return today === after ? 1 : 0;
+  return 3;
 }
 
 const WORDS = ["No", "One", "Two", "Three", "Four"];
@@ -1622,10 +1619,9 @@ export function tapsLeftSentence(left: number, allowance: number, voice: Voice =
   const n = Math.max(0, Math.min(left, WORDS.length - 1));
   const word = WORDS[n]!;
   const tap = n === 1 ? voice.one : voice.many;
-  // One is the allowance on the day after the date, section 4, and that is
-  // the page whose count needs "on this date" to make sense: the reader may
-  // still have three on today's.
-  const yesterday = allowance === 1;
+  // Kept for old stored responses and the unapplied refill migration. The
+  // current three-hive rule always sends an allowance of three.
+  const legacyDayAfter = allowance === 1;
   // With refills, docs/the-wall.md section 30, the count is what has arrived
   // and not been spent, and the sentence says when the next one comes:
   // "No buzzes left right now. The next one arrives at 4 pm Eastern." The
@@ -1635,8 +1631,8 @@ export function tapsLeftSentence(left: number, allowance: number, voice: Voice =
     if (n === 0) return `No ${voice.many} left right now.${arriving}`;
     return `${word} ${tap} left right now.${arriving}`;
   }
-  if (n === 0) return yesterday ? `No ${voice.many} left today on this date.` : `No ${voice.many} left today.`;
-  return yesterday ? `${word} ${tap} left today on this date. It closes tonight.` : `${word} ${tap} left today.`;
+  if (n === 0) return legacyDayAfter ? `No ${voice.many} left today on this date.` : `No ${voice.many} left today.`;
+  return legacyDayAfter ? `${word} ${tap} left today on this date. It closes tonight.` : `${word} ${tap} left today.`;
 }
 
 /**

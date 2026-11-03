@@ -1034,14 +1034,13 @@ test("the numbers page is never stored by anybody", async (t) => {
 
 import { jsonAnswer, liveHiveDates, liveHivePathFor } from "../src/serve.js";
 
-test("only the live hive path runs a script and opens a socket to the project; a sealed hive, tomorrow's and every date page do not", () => {
-  // Four in the afternoon Eastern on September 11: the 10th and the 11th
-  // take buzzes, the 12th is open for submissions only and runs nothing.
+test("the three open hive paths run a script and open a socket to the project", () => {
+  // Four in the afternoon Eastern on September 11: all three open hives take buzzes.
   const now = Date.parse("2026-09-11T20:00:00Z");
-  assert.deepEqual([...liveHiveDates(now).entries()], [["9-10", "2026-09-10"], ["9-11", "2026-09-11"]]);
+  assert.deepEqual([...liveHiveDates(now).entries()], [["9-10", "2026-09-10"], ["9-11", "2026-09-11"], ["9-12", "2026-09-12"]]);
   assert.deepEqual(liveHivePathFor("/september-11/hive/", now), { month: 9, day: 11, wallDate: "2026-09-11" });
   assert.deepEqual(liveHivePathFor("/september-10/hive", now), { month: 9, day: 10, wallDate: "2026-09-10" });
-  assert.equal(liveHivePathFor("/september-12/hive/", now), null, "tomorrow takes no buzzes and runs nothing");
+  assert.deepEqual(liveHivePathFor("/september-12/hive/", now), { month: 9, day: 12, wallDate: "2026-09-12" });
   assert.equal(liveHivePathFor("/september-11/", now), null, "the date page is not the hive");
   assert.equal(liveHivePathFor("/march-3/hive/", now), null);
   // Midnight Eastern on the 12th: the 10th has sealed and the 12th is live.
@@ -1057,7 +1056,8 @@ test("only the live hive path runs a script and opens a socket to the project; a
   assert.match(hive, /form-action 'self'/, "the buzz form still posts without the script");
   assert.match(hive, /img-src 'self' https:\/\/[a-z0-9]+\.supabase\.co;/, "pictures from here and the project, as everywhere");
   assert.equal(securityFor("/september-10/hive/", now)["Content-Security-Policy"], hive, "yesterday's hive is live too");
-  for (const path of ["/september-10/", "/september-11/", "/september-12/", "/september-12/hive/", "/march-3/hive/", "/", "/calendar/", "/september-11/comb/"]) {
+  assert.equal(securityFor("/september-12/hive/", now)["Content-Security-Policy"], hive, "tomorrow's hive is live too");
+  for (const path of ["/september-10/", "/september-11/", "/september-12/", "/march-3/hive/", "/", "/calendar/", "/september-11/comb/"]) {
     const policy = securityFor(path, now)["Content-Security-Policy"] ?? "";
     assert.ok(!policy.includes("script-src"), `${path} must run nothing`);
     assert.ok(!policy.includes("connect-src"), `${path} must reach nothing`);

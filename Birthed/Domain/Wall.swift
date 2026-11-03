@@ -268,7 +268,7 @@ struct WallDay: Equatable {
     enum Phase: Equatable {
         /// Before the day before: nothing yet.
         case notYetOpen
-        /// The day before: submissions only, no boosts.
+        /// The day before the date: the tomorrow hive is open for buzzing.
         case submissionsOnly
         /// The day itself and the day after: submitting and boosting.
         case live
@@ -279,22 +279,22 @@ struct WallDay: Equatable {
     func phase(now: Date) -> Phase {
         if let closedAt, now >= closedAt { return .closed }
         if now >= closesAt { return .closed }
-        if now >= liveAt { return .live }
-        if now >= opensAt { return .submissionsOnly }
+        if now >= opensAt { return .live }
         return .notYetOpen
     }
 }
 
 // MARK: - The budget
 
-/// Three units on the date itself, one the day after, none the day before.
+/// Three units on each of yesterday's, today's and tomorrow's hives.
 /// `wall_boost_budget` in the database, the same arithmetic. The server is
 /// authoritative; this is for showing the number and for refusing a tap that
 /// could not succeed.
 enum WallBudget {
     static func allowance(castOn: WallDate, wallDate: WallDate) -> Int {
         if castOn == wallDate { return 3 }
-        if let dayAfter = dayAfter(wallDate), castOn == dayAfter { return 1 }
+        if dayAfter(wallDate) == castOn { return 3 }
+        if dayAfter(castOn) == wallDate { return 3 }
         return 0
     }
 

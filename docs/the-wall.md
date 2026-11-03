@@ -66,10 +66,11 @@ in London.
 
 ## 4. Boosts
 
-Three units on today's date. One unit on yesterday's date. None on tomorrow's.
+Three units on each open hive: yesterday, today and tomorrow. Each date keeps
+its own allowance, so a reader has nine possible buzzes across the three hives.
 
-Because a date is live on its own day and again the day after, one person can
-put at most four units on any single date across its whole life.
+Because a date is open for all three days, one person can put at most nine
+units on a single date across its whole life, three on each day.
 
 **One tap is one unit, on the web and in the app.** Decided September 10, 2026
 by Nathan, and it replaces the rule this section carried until that evening,
@@ -295,9 +296,9 @@ is replaced. The window is stored rather than derived on read because time
 zone rules are data that can change, and a stored instant is the one that
 was true when the wall opened.
 
-**The budget is a trigger on `wall_boosts`.** Three units on the date
-itself, one the day after, none the day before, with "today" being the
-Eastern calendar date at the moment of the boost. The same trigger fills
+**The budget is a trigger on `wall_boosts`.** Three units on each of the
+three open hives, with "today" being the Eastern calendar date at the moment
+of the boost. The same trigger fills
 `tier_at_cast` and `support_before` from the story row at that instant, so a
 caller cannot supply them and cannot get them wrong. A second trigger
 refuses every update and delete, and triggers are not bypassed by the
@@ -777,7 +778,8 @@ made it.
 
 **Where the instructions and this document differed.** The session was asked
 for "three a day, across all open dates". Section 4 says three units on the
-date itself, one on the day after and none the day before, which lets one
+date itself, one on the day after and none the day before. This was replaced
+on November 2, 2026 by three on each open hive, which lets one
 browser spend four units in one Eastern day across two dates. The budget
 trigger enforces section 4 and was not changed; the count on each page is that
 page's. If three across all open dates is the intended rule, section 4 changes
@@ -1064,7 +1066,8 @@ be done from here, and it is not the same as green. Jason builds in Xcode and
 runs `swift test` on the Mac, and the first run will say.
 
 **What did not change.** The budget's shape is section 4: three on the date,
-one the day after, none the day before, server authoritative. The tiers are
+one the day after, none the day before, server authoritative. This budget was
+replaced on November 2, 2026 by three on each open hive. The tiers are
 section 3. The allocator, the checker, the worker, the close job, the archive
 and the website were not touched. The app's read path is unchanged except for
 three columns added to one select. `DayFeed`'s ranking, the yearly seal and
@@ -2901,8 +2904,9 @@ earns its place, the app follows.
 
 **The times, Nathan's call.** Midnight, 8 am and 4 pm Eastern, kept Eastern
 rather than moved to Pacific hours: the hive opens and seals on the Eastern
-clock and one site keeps one clock. Still three on the date and one on the
-day after, section 4; unspent ones carry over inside the day, because the
+clock and one site keeps one clock. This described the budget before November
+2, 2026; section 4 now gives each open hive three at once. Unspent ones carried
+over inside the day, because the
 allowance at any instant is how many have arrived so far and the day's
 spend counts against that. A reader who opens the site at 5 pm with nothing
 spent has three; at 9 am with one spent at 1 am, one.
