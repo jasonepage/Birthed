@@ -448,13 +448,11 @@ test("the front door offers today, and it is not a page", () => {
   assert.equal(redirectFor("/random/") === null, false);
   assert.equal(redirectFor("/today/") === null, false);
 });
-test("an icon only link still has a name when its words are hidden", () => {
-  // Under 430 pixels the stylesheet hides the words in these two links. A
-  // link whose remaining content is a decorative svg has no accessible name
-  // at all unless one is on the link itself.
+test("the utility links keep their words at every width", () => {
   const html = renderHome();
-  assert.ok(html.includes('class="pill" href="/today/" title="Today\'s date" aria-label='));
-  assert.ok(html.includes('class="pill" href="/about/" title="About Birthed" aria-label='));
+  assert.ok(html.includes('class="pill" href="/today/" title="Today\'s date">Today</a>'));
+  assert.ok(html.includes('class="pill" href="/about/" title="About Birthed">About</a>'));
+  assert.equal(html.includes(".pill span { display: none"), false);
 });
 
 test("the about page explains how to play and asks for nothing", () => {
@@ -1019,16 +1017,16 @@ test("a date page can be moved off in both directions without reaching the foot"
   assert.ok(!html.includes('class="everyday"'));
 });
 
-test("Today, Random and About are three of the same control, each with its own mark and its word", () => {
+test("Today, Random and About are three quiet text links", () => {
   const html = renderDayPage(page);
   const bar = html.slice(html.indexOf('<span class="barend">'), html.indexOf("</span>\n</div>"));
   const pills = bar.match(/<a class="pill[ "]/g) ?? [];
   assert.equal(pills.length, 3, "Random came back on October 18, 2026, for sealed hives only");
-  assert.equal((bar.match(/<svg class="ic"/g) ?? []).length, 3, "a drawn mark on each, not an emoji");
   const words = ["Today", "Random", "About"];
-  for (const word of words) assert.ok(bar.includes(`<span>${word}</span>`), `the word ${word} stays next to its mark`);
-  const at = words.map((word) => bar.indexOf(`<span>${word}</span>`));
-  assert.deepEqual([...at].sort((a, b) => a - b), at, "the pills are in one order");
+  for (const word of words) assert.ok(bar.includes(`>${word}</a>`), `the word ${word} stays visible`);
+  const at = words.map((word) => bar.indexOf(`>${word}</a>`));
+  assert.deepEqual([...at].sort((a, b) => a - b), at, "the links are in one order");
+  assert.equal(bar.includes('<svg class="ic"'), false, "utility navigation has no decorative icon system");
   assert.ok(bar.includes('title="A random hive that has sealed"'), "the die says where it lands");
   assert.ok(!bar.includes("Every date"), "the calendar of mostly empty pages stays off");
   assert.ok(!bar.includes("testflight.apple.com"), "no app pill in the bar");

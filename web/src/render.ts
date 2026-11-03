@@ -211,19 +211,16 @@ const STYLE = `
 .wlist .mine::after { content: ""; }
 .state { margin: 26px 0 0; }
 
-.barend { display: flex; align-items: center; gap: 8px; }
-/* Three of the same thing. One height, one border, one type size, an icon
-   each; the word next to the icon, because an icon alone is a riddle to a
-   first visit. */
+.barend { display: flex; align-items: center; gap: 18px; }
+/* Quiet utility links. The hive is the interface; the header only moves a
+   reader around it. */
 .pill {
-  display: inline-flex; align-items: center; gap: 6px; text-decoration: none;
-  font-size: 13px; line-height: 1; white-space: nowrap;
-  color: var(--dim); border: 1px solid var(--line); border-radius: 999px;
-  padding: 7px 12px 7px 10px; min-height: 30px; box-sizing: border-box;
+  display: inline-block; text-decoration: none; white-space: nowrap;
+  color: var(--dim); font-size: 13px; line-height: 1; padding: 5px 0;
+  border-bottom: 1px solid transparent;
 }
-.pill:hover { color: var(--cream); border-color: var(--day-soft, var(--honey-lite)); }
+.pill:hover { color: var(--cream); border-bottom-color: var(--day-soft, var(--honey-lite)); }
 .pill:focus-visible { outline: 2px solid var(--honey-lite); outline-offset: 3px; }
-.pill .ic { display: block; flex: none; }
 /* The card page: the picture as wide as the column, never wider. */
 .cardimg { display: block; width: 100%; max-width: 540px; height: auto; margin: 16px 0 0; border-radius: 14px; background: var(--cell); }
 .cardsave { margin-top: 12px; }
@@ -233,19 +230,13 @@ img.face {
   width: 100%; aspect-ratio: 4 / 5; object-fit: cover; object-position: 50% 16%;
   border-radius: 10px; margin-bottom: 11px; display: block; background: var(--cell);
 }
-/* On a phone the words come off and the three icons stay, each still
-   carrying its label for a screen reader and a long press. */
-@media (max-width: 520px) { .pill span { display: none; } .pill { padding: 7px 8px; min-width: 32px; justify-content: center; } }
-/* Five pills and a stepper on a phone: everything a little tighter, so the
-   bar fits 390 pixels with nothing cut off at the right edge. */
+/* The words fit on a phone once the decorative icons and pill chrome are gone. */
 @media (max-width: 440px) {
-  .daybar { gap: 6px; }
-  .daybar .mark { font-size: 17px; letter-spacing: 0.12em; }
-  .barnav { gap: 2px; }
-  .barnav .here { min-width: 44px; font-size: 12px; padding: 0 2px; }
-  .arrow { width: 28px; height: 28px; }
-  .barend { gap: 4px; }
-  .pill { padding: 6px 6px; min-width: 30px; min-height: 28px; }
+  .daybar { gap: 10px; }
+  .daybar .mark { font-size: 13px; letter-spacing: 0.15em; }
+  .barnav .here { min-width: 40px; font-size: 11px; }
+  .barend { gap: 10px; }
+  .pill { font-size: 11px; }
 }
 
 /* The opening band.
@@ -898,35 +889,33 @@ p.calkey .sw.today { background: none; box-shadow: inset 0 0 0 2px ${TODAY}; }
 .daybar {
   position: sticky; top: 0; z-index: 40;
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 11px max(20px, calc(50vw - 50%)) 10px; margin: 0 calc(50% - 50vw) 4px;
-  background: rgba(18, 13, 8, 0.78);
-  -webkit-backdrop-filter: saturate(140%) blur(14px);
-  backdrop-filter: saturate(140%) blur(14px);
-  box-shadow: 0 1px 0 rgba(244, 183, 64, 0.18);
+  padding: 13px max(20px, calc(50vw - 50%)); margin: 0 calc(50% - 50vw) 4px;
+  background: rgba(10, 8, 6, 0.94);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 1px 0 var(--line);
 }
 .daybar .mark {
-  font-size: 20px; font-weight: 800; letter-spacing: 0.2em; text-transform: uppercase;
+  font-size: 14px; font-weight: 800; letter-spacing: 0.17em; text-transform: uppercase;
   white-space: nowrap; color: ${PINK}; text-decoration: none;
   transition: color 140ms ease;
 }
 .daybar .mark:hover, .daybar .mark:focus-visible {
   color: var(--cream); text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px;
 }
-.barnav { display: flex; align-items: center; gap: 4px; }
+.barnav { display: flex; align-items: center; gap: 8px; }
 .barnav .here {
-  font-size: 13px; font-weight: 700; color: var(--dim); padding: 0 4px;
-  min-width: 52px; text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap;
+  font-size: 12px; font-weight: 700; color: var(--cream); padding: 0;
+  min-width: 46px; text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 .arrow {
-  width: 32px; height: 32px; flex: none; border-radius: 999px;
+  width: auto; height: auto; flex: none;
   display: flex; align-items: center; justify-content: center;
-  color: var(--dim); text-decoration: none; font-size: 15px;
-  box-shadow: inset 0 0 0 1px rgba(255, 243, 224, 0.12);
-  transition: color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+  color: var(--dim); text-decoration: none; font-size: 20px; line-height: 1;
+  transition: color 140ms ease;
 }
 .arrow:hover {
-  color: var(--cream); background: rgba(244, 183, 64, 0.16);
-  box-shadow: inset 0 0 0 1px rgba(244, 183, 64, 0.55);
+  color: var(--honey-lite);
 }
 /* Was a filled pink pill with a glow under it, which is the single loudest
    thing a page can put in its top right corner and the one every generated
@@ -941,7 +930,7 @@ p.calkey .sw.today { background: none; box-shadow: inset 0 0 0 2px ${TODAY}; }
    birth year. It is the birthday payoff, so it reads warm and sits at the top. */
 .me { margin: 4px 0 26px; padding: 22px; background: var(--cell); border: 1px solid var(--line); border-radius: 16px; }
 
-@media (max-width: 400px) { .barnav .here { min-width: 44px; font-size: 12px; } .mark, .daybar .mark { font-size: 18px; letter-spacing: 0.16em; } }
+@media (max-width: 400px) { .barnav .here { min-width: 40px; font-size: 11px; } }
 
 /* The six. A card here is a card because it is one thing to read, not because
    every block on the page got the same rectangle. */
@@ -1274,14 +1263,6 @@ export function faceName(qid: string): string {
   return qid.replace(/[^A-Za-z0-9]/g, "");
 }
 
-// The three marks in the bar's end. Our own line drawings, one stroke weight,
-// the same box, so the three read as a set. Not emoji: an emoji is drawn by
-// whichever phone or computer is looking, and looks like three different
-// sets on three different screens.
-const INFO = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="8.6"/><path d="M12 11v5.2"/><circle cx="12" cy="7.9" r="0.9" fill="currentColor" stroke="none"/></svg>`;
-
-const TODAY_ICON = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3.4" y="5" width="17.2" height="15.6" rx="3.6"/><path d="M3.4 10.2h17.2M8.2 3.2v3.6M15.8 3.2v3.6"/><circle cx="12" cy="15.4" r="1.6" fill="currentColor" stroke="none"/></svg>`;
-
 /**
  * The bar's end: Today and About, as two matching pills. Every date and
  * Random came off on October 18, 2026, docs/strip-to-the-hive.md: most
@@ -1297,14 +1278,11 @@ const TODAY_ICON = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" a
  * Every date, Random day; the live hive said Back to the day. One set of
  * words in one order is what makes a site read as one site.
  */
-/** A die, for the pill that lands on a random sealed hive. */
-const DICE = `<svg class="ic" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="4.6"/><circle cx="8.4" cy="8.4" r="1.35" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.35" fill="currentColor" stroke="none"/><circle cx="15.6" cy="15.6" r="1.35" fill="currentColor" stroke="none"/></svg>`;
-
 function barEnd(): string {
   return `<span class="barend">
-<a class="pill" href="/today/" title="Today's date" aria-label="Today's date">${TODAY_ICON}<span>Today</span></a>
-<a class="pill" href="/random/" title="A random hive that has sealed" aria-label="A random hive that has sealed">${DICE}<span>Random</span></a>
-<a class="pill" href="/about/" title="About Birthed" aria-label="About Birthed">${INFO}<span>About</span></a>
+<a class="pill" href="/today/" title="Today's date">Today</a>
+<a class="pill" href="/random/" title="A random hive that has sealed">Random</a>
+<a class="pill" href="/about/" title="About Birthed">About</a>
 </span>`;
 }
 
