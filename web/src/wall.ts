@@ -1351,7 +1351,7 @@ export function yearAttr(headline: string): string {
 function stateLine(day: WallDay, now: number): string {
   const closes = day.closedAt ?? day.closesAt;
   const closed = Date.parse(closes) <= now;
-  const notYet = now < Date.parse(day.liveAt);
+  const notYet = now < Date.parse(day.opensAt);
   // The third day is the one after the date, and the close is the midnight
   // that ends it.
   const after = new Date(Date.UTC(day.year, day.month - 1, day.day + 1));
@@ -1922,7 +1922,7 @@ export function crownName(story: Pick<WallStory, "headline" | "subjectKind"> & {
  * `live` adds the empty status line the live page writes a takeover into.
  */
 export function crownBlock(day: WallDay, crown: Crown, voice: Voice, now: number, live: boolean = false): string {
-  const notYet = now < Date.parse(day.liveAt);
+  const notYet = now < Date.parse(day.opensAt);
   if (notYet) return "";
   const closed = !takingBoosts(day, now);
   if (closed && crown.changes.length === 0) return "";
@@ -1951,7 +1951,7 @@ ${items}
  * `live` adds the id the live page rewrites.
  */
 export function decadesBlock(day: WallDay, name: string, voice: Voice, now: number, live: boolean = false): string {
-  if (now < Date.parse(day.liveAt)) return "";
+  if (now < Date.parse(day.opensAt)) return "";
   const closed = !takingBoosts(day, now);
   const standing = decadeStanding(day);
   const line = decadeLine(day, name, voice, closed);
@@ -2087,7 +2087,7 @@ export function pipRule(left: number): string {
 export function scoreboard(day: WallDay, now: number, onWall: WallStory[], crown: Crown, voice: Voice, interactive: boolean): string {
   const key = (word: string): string => `<em class="wkey">${word}</em>`;
   const closes = day.closedAt ?? day.closesAt;
-  const notYet = now < Date.parse(day.liveAt);
+  const notYet = now < Date.parse(day.opensAt);
   const live = takingBoosts(day, now);
   const names = new Map(day.stories.map((s) => [s.id, crownName(s)]));
   const placed = new Set(onWall.map((s) => s.id));
@@ -2162,7 +2162,7 @@ ${top}
  * when it has never changed hands. The full screen hive keeps crownBlock.
  */
 export function crownLog(day: WallDay, crown: Crown, now: number): string {
-  if (now < Date.parse(day.liveAt) || crown.changes.length === 0) return "";
+  if (now < Date.parse(day.opensAt) || crown.changes.length === 0) return "";
   const names = new Map(day.stories.map((s) => [s.id, crownName(s)]));
   const nameOf = (id: string): string => names.get(id) ?? "a story in the feed";
   const items = crown.changes.map((c) => `<li>${escapeHtml(crownLine(c, nameOf))}</li>`).join("\n");
@@ -2193,7 +2193,7 @@ function wallBody(day: WallDay | null, name: string, now: number, options: WallO
   const took = options.undo === undefined || options.undo === null ? null : crownTook(day, options.undo.id, now);
   const tiles = onWall.map((s, index) => tile(s, live, voice, view, hive, index, s.id === crown.holder, trials.get(s.id) ?? null, now)).join("\n");
   const grave = graveyard(day, trials, voice);
-  const notYet = now < Date.parse(day.liveAt);
+  const notYet = now < Date.parse(day.opensAt);
   const closed = !takingBoosts(day, now) && !notYet;
   const { month, day: d } = parts(day.wallDate);
 

@@ -236,9 +236,9 @@ test("the empty line names the buzz in the board's own voice", () => {
 // On the page
 // ---------------------------------------------------------------------------
 
-test("the block under the board: nothing before the date, a promise on an open board nobody has buzzed, nothing on a sealed board nobody buzzed", () => {
+test("the block under the board: nothing before the hive opens, a promise on an open board nobody has buzzed, nothing on a sealed board nobody buzzed", () => {
   const d = day([]);
-  assert.equal(crownBlock(d, crownFor(d), BEE, Date.parse("2026-09-22T20:00:00Z")), "");
+  assert.equal(crownBlock(d, crownFor(d), BEE, Date.parse("2026-09-21T20:00:00Z")), "");
   const open = crownBlock(d, crownFor(d), BEE, OPEN_NOW);
   assert.ok(open.includes("No crown yet. The first buzz on this hive takes it."));
   assert.ok(open.includes("Every time it changes hands today:"));

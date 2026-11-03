@@ -93,14 +93,14 @@ test("a story stamped false counts for no team, a story with no year counts for 
   assert.equal(decadeLine(d, "September 23", BEE, false), "The 1950s lead September 23 with the only buzz so far.");
 });
 
-test("the block: nothing before the date, nothing with no buzzes, the line and the top three, and the tiles carry their decade", () => {
+test("the block: nothing before the hive opens, nothing with no buzzes, the line and the top three, and the tiles carry their decade", () => {
   const stories = [
     story(A, "Typhoid Mary, infected houseworker in New York City, born 1869", { support: 1 }),
     story(B, "Bruce Springsteen, American rock singer (born 1949), born 1949", { support: 3, rect: { mx: 4, my: 0, w: 4, h: 3 } }),
     story(C, "1956: The dike around the Dutch polder East Flevoland is closed.", { subjectKind: "historical_event", support: 2, rect: { mx: 8, my: 0, w: 4, h: 3 } }),
     story(D, "Major news outlets banned by Trump will have their day in court", { subjectKind: null, subjectId: null, support: 1, rect: { mx: 12, my: 0, w: 4, h: 3 } }),
   ];
-  assert.equal(decadesBlock(day(stories), "September 23", BEE, Date.parse("2026-09-22T20:00:00Z")), "");
+  assert.equal(decadesBlock(day(stories), "September 23", BEE, Date.parse("2026-09-21T20:00:00Z")), "");
   assert.equal(decadesBlock(day(stories.map((s) => ({ ...s, support: 0 }))), "September 23", BEE, NOW), "");
   // The teams left the date page on October 5, 2026, docs/the-wall.md
   // section 32: one scoreboard there is the crown. The full screen hive keeps them.

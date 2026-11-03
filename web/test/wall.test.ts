@@ -221,6 +221,8 @@ test("yesterday, today and tomorrow each take three buzzes, and a closed wall ta
 
   const early = wallSection(d, "September 9", before, { interactive: true });
   assert.ok(early.includes("<form"), "tomorrow's hive takes buzzes while it is open");
+  assert.ok(early.includes("Three buzzes left today."), "tomorrow shows its independent allowance");
+  assert.ok(!early.includes("Opens tonight"), "tomorrow is open, not waiting for its date");
   const late = wallSection(d, "September 9", after, { interactive: true });
   assert.ok(late.includes("<form"));
   assert.ok(late.includes("Three buzzes left today."));
@@ -313,7 +315,7 @@ test("the page zooms to the tiles: the smallest square that holds them, never un
   assert.deepEqual(corner, { ox: 0, oy: 0, side: 8 });
 });
 
-test("tomorrow has an empty hive with the hour it opens, not a missing section", () => {
+test("tomorrow has an open empty hive with its three buzzes, not a missing section", () => {
   const tomorrow = emptyWallDay("2026-09-10");
   assert.equal(tomorrow.liveAt, "2026-09-10T04:00:00.000Z");
   assert.equal(tomorrow.opensAt, "2026-09-09T04:00:00.000Z");
@@ -323,10 +325,10 @@ test("tomorrow has an empty hive with the hour it opens, not a missing section",
   assert.equal(emptyWallDay("2026-01-10").liveAt, "2026-01-10T05:00:00.000Z");
   const html = wallSection(tomorrow, "September 10", Date.parse("2026-09-10T01:00:00Z"), { interactive: true });
   assert.ok(html.includes('class="wboard wblank"'));
-  assert.ok(html.includes("Opens at midnight Eastern</b>"));
-  assert.ok(html.includes("about 3 hours from now."));
-  assert.ok(html.replace(/<[^>]+>/g, "").includes("Opens tonight at midnight Eastern."));
-  assert.ok(!html.includes("<form"), "nothing to buzz before the date arrives");
+  assert.ok(html.includes("Three buzzes left today."));
+  assert.ok(html.includes("Nothing on the hive yet"));
+  assert.ok(!html.includes("Opens at midnight Eastern"));
+  assert.ok(!html.includes("Opens tonight"));
 });
 
 test("the full screen page is the hive, its count and its sentences, and a buzz from it comes back to it", () => {
